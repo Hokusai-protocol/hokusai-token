@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm test)",
+      "Bash(npx hardhat compile:*)"
+    ],
+    "deny": []
+  }
+}

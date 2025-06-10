@@ -11,6 +11,6 @@ contract BurnAuction {
     }
 
     function burn(uint256 amount) external {
-        HokusaiToken(token).burn(amount);
+        HokusaiToken(token).burn(msg.sender, amount);
     }
 }

@@ -1,75 +1,79 @@
-# PRD: Add Metadata and Event Logging
+# PRD: Protect Internal _mint()/_burn() Functions
 
 ## Objectives
 
-Implement name, symbol, and decimals metadata for the HokusaiToken contract. Add comprehensive event logging with Minted and Burned events to support test assertions and future on-chain analytics. This enhancement will make the token contract more compliant with ERC20 standards and provide better observability for contract interactions.
+Enhance the security and access control of the HokusaiToken contract by encapsulating mint and burn operations behind controller-protected functions. This prevents unauthorized token issuance or destruction while maintaining proper separation of concerns between the token contract and management logic.
 
-## Personas
+## Background
 
-**Smart Contract Developer**: Needs proper metadata to integrate with the token contract and events to monitor contract state changes.
-
-**Frontend Developer**: Requires token metadata (name, symbol, decimals) to display token information correctly in user interfaces.
-
-**Analytics Team**: Uses emitted events to track token operations, supply changes, and user behavior for business intelligence.
-
-**Test Engineer**: Relies on events to create comprehensive test assertions and verify contract behavior.
-
-**DApp Users**: See properly formatted token information in wallets and applications through standard metadata.
+Currently, the HokusaiToken contract may expose mint/burn functionality that could be called by unauthorized parties. To ensure proper token economics and prevent exploitation, these functions must be restricted to only authorized controllers (specifically the TokenManager contract).
 
 ## Success Criteria
 
-1. HokusaiToken contract implements standard ERC20 metadata functions (name, symbol, decimals)
-2. Minted events are emitted with correct parameters when tokens are created
-3. Burned events are emitted with correct parameters when tokens are destroyed
-4. Events include all necessary indexed fields for efficient filtering and querying
-5. Metadata values are consistent across the token ecosystem
-6. All events can be successfully captured and verified in tests
-7. Gas costs for event emission remain reasonable
+- Only the designated controller can mint new tokens
+- Only the designated controller can burn tokens from user accounts
+- Unauthorized attempts to mint/burn tokens are rejected with clear error messages
+- Existing functionality for token holders to burn their own tokens remains intact
+- All access control changes are thoroughly tested
+
+## Target Personas
+
+**Smart Contract Developer**: Needs clear separation between public token operations and controller-only operations
+
+**Token Holder**: Can still burn their own tokens directly but cannot mint new tokens
+
+**System Administrator**: Can set and update the controller address as needed
+
+## Technical Requirements
+
+### Access Control Implementation
+- Implement `onlyController` modifier to restrict sensitive functions
+- Add `setController()` function for administrative control updates
+- Protect internal `_mint()` and `_burn()` functions with proper access controls
+
+### Function Specifications
+- `mint(address recipient, uint256 amount)` - Only callable by controller
+- `burn(uint256 amount)` - Callable by token holders to burn their own tokens
+- `burnFrom(address account, uint256 amount)` - Only callable by controller with proper allowance
+- `setController(address newController)` - Only callable by contract owner/admin
+
+### Security Considerations
+- Prevent unauthorized token creation that could inflate supply
+- Prevent unauthorized token destruction that could affect user balances
+- Maintain compatibility with standard ERC20 expectations
+- Ensure proper event emission for all mint/burn operations
 
 ## Tasks
 
-### Task 1: Implement Token Metadata
-- Add name() function returning "Hokusai Token"
-- Add symbol() function returning appropriate token symbol (e.g., "HOKU")
-- Add decimals() function returning 18 (standard ERC20 decimals)
-- Ensure metadata functions are public view functions
-- Test that metadata functions return correct values
+1. **Review Current HokusaiToken Implementation**
+   - Analyze existing mint/burn function access patterns
+   - Identify which functions need controller protection
+   - Document current access control mechanisms
 
-### Task 2: Design Event Schema
-- Define Minted event with indexed recipient address and token amount
-- Define Burned event with indexed account address and token amount
-- Include timestamp or block information if needed for analytics
-- Ensure events follow Solidity best practices for indexing
+2. **Implement Controller Access Control**
+   - Add `controller` state variable and `onlyController` modifier
+   - Update mint functions to use `onlyController` protection
+   - Update administrative burn functions to use `onlyController`
+   - Preserve user's ability to burn their own tokens
 
-### Task 3: Implement Minted Event Logging
-- Add Minted event emission to all mint functions
-- Include recipient address as indexed parameter
-- Include minted amount as parameter
-- Verify event is emitted before balance updates for consistency
-- Test event emission in all minting scenarios
+3. **Add Controller Management Functions**
+   - Implement `setController()` function with appropriate admin protection
+   - Add events for controller changes
+   - Include zero-address validation for controller updates
 
-### Task 4: Implement Burned Event Logging
-- Add Burned event emission to all burn functions
-- Include account address as indexed parameter
-- Include burned amount as parameter
-- Verify event is emitted before balance updates for consistency
-- Test event emission in all burning scenarios
+4. **Update Contract Documentation**
+   - Add clear comments explaining access control design
+   - Document which functions are controller-only vs public
+   - Update any existing inline documentation
 
-### Task 5: Update Contract Integration
-- Ensure TokenManager contract properly handles new events
-- Verify BurnAuction contract can emit events through token burns
-- Update any existing contract interfaces if needed
+5. **Comprehensive Testing**
+   - Test that only controller can mint tokens
+   - Test that only controller can burn tokens from other accounts
+   - Test that users can still burn their own tokens
+   - Test controller update functionality
+   - Test unauthorized access rejection scenarios
+   - Verify proper event emission
 
-### Task 6: Comprehensive Testing
-- Test metadata functions return correct values
-- Test Minted events are emitted with correct parameters
-- Test Burned events are emitted with correct parameters
-- Test event indexing works for filtering
-- Verify gas costs for operations with events
-- Test event emissions in edge cases (zero amounts, etc.)
+## Implementation Notes
 
-### Task 7: Documentation Updates
-- Update contract documentation to include event specifications
-- Document event parameters and their purposes
-- Add examples of how to listen for and filter events
-- Update deployment scripts if metadata initialization is needed
+The implementation should maintain backward compatibility with existing TokenManager integration while strengthening security boundaries. The controller pattern allows for future upgrades to token management logic without requiring token contract changes.

@@ -43,11 +43,20 @@ contract HokusaiToken is ERC20, Ownable {
     }
 
     /**
-     * @dev Burns tokens from a specified address
+     * @dev Burns tokens from caller's balance
+     * @param amount The amount of tokens to burn
+     */
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
+        emit Burned(msg.sender, amount);
+    }
+
+    /**
+     * @dev Burns tokens from a specified address using allowance
      * @param from The address to burn tokens from
      * @param amount The amount of tokens to burn
      */
-    function burn(address from, uint256 amount) external onlyController {
+    function burnFrom(address from, uint256 amount) external onlyController {
         _burn(from, amount);
         emit Burned(from, amount);
     }

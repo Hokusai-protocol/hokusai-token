@@ -165,12 +165,12 @@ describe("HokusaiToken", function () {
       await token.connect(controller).mint(user2.address, parseEther("500"));
     });
 
-    it("Should allow controller to burn tokens from any address", async function () {
+    it("Should allow controller to burn tokens from any address using burnFrom", async function () {
       const burnAmount = parseEther("300");
       const initialBalance = await token.balanceOf(user1.address);
       const initialSupply = await token.totalSupply();
       
-      await expect(token.connect(controller).burn(user1.address, burnAmount))
+      await expect(token.connect(controller).burnFrom(user1.address, burnAmount))
         .to.emit(token, "Transfer")
         .withArgs(user1.address, ZeroAddress, burnAmount);
       
@@ -178,17 +178,38 @@ describe("HokusaiToken", function () {
       expect(await token.totalSupply()).to.equal(initialSupply - burnAmount);
     });
 
-    it("Should revert when non-controller tries to burn", async function () {
+    it("Should allow users to burn their own tokens", async function () {
+      const burnAmount = parseEther("100");
+      const initialBalance = await token.balanceOf(user1.address);
+      const initialSupply = await token.totalSupply();
+      
+      await expect(token.connect(user1).burn(burnAmount))
+        .to.emit(token, "Transfer")
+        .withArgs(user1.address, ZeroAddress, burnAmount);
+      
+      expect(await token.balanceOf(user1.address)).to.equal(initialBalance - burnAmount);
+      expect(await token.totalSupply()).to.equal(initialSupply - burnAmount);
+    });
+
+    it("Should revert when non-controller tries to use burnFrom", async function () {
       await expect(
-        token.connect(user1).burn(user1.address, parseEther("100"))
+        token.connect(user1).burnFrom(user2.address, parseEther("100"))
       ).to.be.revertedWith("Only controller can call this function");
     });
 
-    it("Should revert when burning more than balance", async function () {
+    it("Should revert when user burns more than their balance", async function () {
       const balance = await token.balanceOf(user1.address);
       
       await expect(
-        token.connect(controller).burn(user1.address, balance + 1n)
+        token.connect(user1).burn(balance + 1n)
+      ).to.be.reverted;
+    });
+
+    it("Should revert when controller burns more than balance using burnFrom", async function () {
+      const balance = await token.balanceOf(user1.address);
+      
+      await expect(
+        token.connect(controller).burnFrom(user1.address, balance + 1n)
       ).to.be.reverted;
     });
 
@@ -197,28 +218,36 @@ describe("HokusaiToken", function () {
       const burnAmount2 = parseEther("50");
       const initialSupply = await token.totalSupply();
       
-      await token.connect(controller).burn(user1.address, burnAmount1);
-      await token.connect(controller).burn(user2.address, burnAmount2);
+      await token.connect(user1).burn(burnAmount1);
+      await token.connect(controller).burnFrom(user2.address, burnAmount2);
       
       expect(await token.totalSupply()).to.equal(
         initialSupply - burnAmount1 - burnAmount2
       );
     });
 
-    it("Should handle burning entire balance", async function () {
+    it("Should handle user burning their entire balance", async function () {
       const balance = await token.balanceOf(user1.address);
       
-      await token.connect(controller).burn(user1.address, balance);
+      await token.connect(user1).burn(balance);
       
       expect(await token.balanceOf(user1.address)).to.equal(0);
     });
 
-    it("Should emit Burned event when burning tokens", async function () {
+    it("Should emit Burned event when user burns their tokens", async function () {
       const burnAmount = parseEther("300");
       
-      await expect(token.connect(controller).burn(user1.address, burnAmount))
+      await expect(token.connect(user1).burn(burnAmount))
         .to.emit(token, "Burned")
         .withArgs(user1.address, burnAmount);
+    });
+
+    it("Should emit Burned event when controller burns tokens using burnFrom", async function () {
+      const burnAmount = parseEther("200");
+      
+      await expect(token.connect(controller).burnFrom(user2.address, burnAmount))
+        .to.emit(token, "Burned")
+        .withArgs(user2.address, burnAmount);
     });
   });
 
@@ -232,9 +261,9 @@ describe("HokusaiToken", function () {
       // user1 transfers to user2
       await token.connect(user1).transfer(user2.address, parseEther("300"));
       
-      // Controller burns from both users
-      await token.connect(controller).burn(user1.address, parseEther("200"));
-      await token.connect(controller).burn(user2.address, parseEther("100"));
+      // user1 burns their own tokens, controller burns from user2
+      await token.connect(user1).burn(parseEther("200"));
+      await token.connect(controller).burnFrom(user2.address, parseEther("100"));
       
       expect(await token.balanceOf(user1.address)).to.equal(parseEther("500"));
       expect(await token.balanceOf(user2.address)).to.equal(parseEther("200"));

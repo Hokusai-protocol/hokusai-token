@@ -11,6 +11,9 @@ contract BurnAuction {
     }
 
     function burn(uint256 amount) external {
-        HokusaiToken(token).burn(msg.sender, amount);
+        // Transfer tokens from user to this contract first
+        HokusaiToken(token).transferFrom(msg.sender, address(this), amount);
+        // Then burn the tokens from this contract's balance
+        HokusaiToken(token).burn(amount);
     }
 }

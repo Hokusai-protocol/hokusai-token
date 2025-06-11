@@ -1,4 +1,4 @@
-# Implementation Tasks: Define mapping of modelId → token address
+# Implementation Tasks: ModelRegistry to map modelId → token + metric
 
 ## Core Implementation
 
@@ -46,7 +46,11 @@
    h. [x] Test mapping update scenarios
    i. [x] Test auto-increment functionality
    j. [x] Test comprehensive reverse mapping edge cases
-   k. [x] **65 total tests passing (up from 55)**
+   k. [x] **69 total tests passing (up from 65 with new metric functionality)**
+   l. [x] Test metric validation (empty strings, update functions)
+   m. [x] Test deactivateModel functionality
+   n. [x] Test getModel() complete struct return
+   o. [x] Test updateMetric() with event emission
 
 ## Integration Testing (Dependent on Testing)
 
@@ -65,10 +69,25 @@
    d. [x] Update architecture section with mapping details
    e. [x] Document event specifications and filtering examples
 
+## Performance Metric Enhancement (Enhancement to original spec)
+
+9. [x] Add performance metric storage to ModelRegistry
+   a. [x] Update ModelInfo struct to include performanceMetric field
+   b. [x] Modify registerModel() to accept performance metric parameter
+   c. [x] Modify registerModelAutoId() to accept performance metric parameter
+   d. [x] Add getMetric() function for querying performance metrics
+   e. [x] Add updateMetric() function for modifying metrics
+   f. [x] Add deactivateModel() function for lifecycle management
+   g. [x] Add getModel() function returning complete ModelInfo struct
+   h. [x] Update events to include performance metric information
+   i. [x] Add validation for empty performance metrics
+   j. [x] Update all test cases to include performance metrics
+   k. [x] Add comprehensive tests for new metric functionality
+
 ## Deployment Preparation (Dependent on Documentation)
 
-9. [x] Prepare for deployment
-   a. [x] Verify all tests pass (65/65 tests passing)
+10. [x] Prepare for deployment
+   a. [x] Verify all tests pass (69/69 tests passing)
    b. [x] Run gas optimization analysis (mint: 90k gas, burn: 56k gas)
    c. [x] Review security considerations (all validations in place)
    d. [x] Deployment scripts already exist and work with new contracts

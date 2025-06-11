@@ -60,33 +60,35 @@ describe("TokenManager-ModelRegistry Integration", function () {
     const modelId = 12345;
     
     it("Should register model successfully", async function () {
-      await expect(modelRegistry.registerModel(modelId, await hokusaiToken.getAddress()))
+      const metric = "accuracy";
+      await expect(modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), metric))
         .to.emit(modelRegistry, "ModelRegistered")
-        .withArgs(modelId, await hokusaiToken.getAddress());
+        .withArgs(modelId, await hokusaiToken.getAddress(), metric);
       
       expect(await modelRegistry.isRegistered(modelId)).to.be.true;
       expect(await modelRegistry.getToken(modelId)).to.equal(await hokusaiToken.getAddress());
+      expect(await modelRegistry.getMetric(modelId)).to.equal(metric);
     });
 
     it("Should prevent duplicate model registration", async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
-      await expect(modelRegistry.registerModel(modelId, await hokusaiToken.getAddress()))
+      await expect(modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy"))
         .to.be.revertedWith("Model already registered");
     });
 
     it("Should prevent registration with zero token address", async function () {
-      await expect(modelRegistry.registerModel(modelId, ZeroAddress))
+      await expect(modelRegistry.registerModel(modelId, ZeroAddress, "accuracy"))
         .to.be.revertedWith("Token address cannot be zero");
     });
 
     it("Should only allow owner to register models", async function () {
-      await expect(modelRegistry.connect(nonOwner).registerModel(modelId, await hokusaiToken.getAddress()))
+      await expect(modelRegistry.connect(nonOwner).registerModel(modelId, await hokusaiToken.getAddress(), "accuracy"))
         .to.be.revertedWithCustomError(modelRegistry, "OwnableUnauthorizedAccount");
     });
 
     it("Should update existing model", async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
       // Deploy second token for update
       const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
@@ -104,6 +106,41 @@ describe("TokenManager-ModelRegistry Integration", function () {
       await expect(modelRegistry.getToken(modelId))
         .to.be.revertedWith("Model not registered");
     });
+
+    it("Should prevent registration with empty metric", async function () {
+      await expect(modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), ""))
+        .to.be.revertedWith("Performance metric cannot be empty");
+    });
+
+    it("Should update performance metric successfully", async function () {
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      
+      const newMetric = "f1-score";
+      await expect(modelRegistry.updateMetric(modelId, newMetric))
+        .to.emit(modelRegistry, "MetricUpdated")
+        .withArgs(modelId, newMetric);
+      
+      expect(await modelRegistry.getMetric(modelId)).to.equal(newMetric);
+    });
+
+    it("Should deactivate model successfully", async function () {
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      
+      await modelRegistry.deactivateModel(modelId);
+      
+      const modelInfo = await modelRegistry.getModel(modelId);
+      expect(modelInfo.active).to.be.false;
+    });
+
+    it("Should get complete model information", async function () {
+      const metric = "accuracy";
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), metric);
+      
+      const modelInfo = await modelRegistry.getModel(modelId);
+      expect(modelInfo.tokenAddress).to.equal(await hokusaiToken.getAddress());
+      expect(modelInfo.performanceMetric).to.equal(metric);
+      expect(modelInfo.active).to.be.true;
+    });
   });
 
   describe("TokenManager Integration", function () {
@@ -111,7 +148,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     
     beforeEach(async function () {
       // Register model before each test
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
     });
 
     it("Should check if model is managed", async function () {
@@ -137,7 +174,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     const modelId = 67890;
     
     beforeEach(async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
     });
 
     describe("Minting", function () {
@@ -240,8 +277,8 @@ describe("TokenManager-ModelRegistry Integration", function () {
       await hokusaiToken2.setController(await tokenManager.getAddress());
 
       // Register both models
-      await modelRegistry.registerModel(modelId1, await hokusaiToken.getAddress());
-      await modelRegistry.registerModel(modelId2, await hokusaiToken2.getAddress());
+      await modelRegistry.registerModel(modelId1, await hokusaiToken.getAddress(), "accuracy");
+      await modelRegistry.registerModel(modelId2, await hokusaiToken2.getAddress(), "f1-score");
     });
 
     it("Should manage multiple models independently", async function () {
@@ -276,7 +313,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
       const modelId = 300;
       
       // 1. Register model
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       expect(await modelRegistry.isRegistered(modelId)).to.be.true;
       
       // 2. Check TokenManager can see the model
@@ -304,7 +341,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     const modelId = 400;
     
     beforeEach(async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
     });
 
     it("Should track gas costs for token operations", async function () {
@@ -328,7 +365,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     const modelId = 500;
     
     it("Should provide reverse lookup from token address to modelId", async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
       expect(await modelRegistry.getModelId(await hokusaiToken.getAddress())).to.equal(modelId);
     });
@@ -339,7 +376,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     });
 
     it("Should support getTokenAddress function", async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
       expect(await modelRegistry.getTokenAddress(modelId)).to.equal(await hokusaiToken.getAddress());
     });
@@ -347,16 +384,16 @@ describe("TokenManager-ModelRegistry Integration", function () {
     it("Should support exists function", async function () {
       expect(await modelRegistry.exists(modelId)).to.be.false;
       
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       expect(await modelRegistry.exists(modelId)).to.be.true;
     });
 
     it("Should auto-increment model IDs", async function () {
       const initialNextId = await modelRegistry.nextModelId();
       
-      await expect(modelRegistry.registerModelAutoId(await hokusaiToken.getAddress()))
+      await expect(modelRegistry.registerModelAutoId(await hokusaiToken.getAddress(), "accuracy"))
         .to.emit(modelRegistry, "ModelRegistered")
-        .withArgs(initialNextId, await hokusaiToken.getAddress());
+        .withArgs(initialNextId, await hokusaiToken.getAddress(), "accuracy");
       
       expect(await modelRegistry.nextModelId()).to.equal(initialNextId + 1n);
       expect(await modelRegistry.getToken(initialNextId)).to.equal(await hokusaiToken.getAddress());
@@ -364,16 +401,16 @@ describe("TokenManager-ModelRegistry Integration", function () {
     });
 
     it("Should prevent duplicate token registration", async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
-      await expect(modelRegistry.registerModel(modelId + 1, await hokusaiToken.getAddress()))
+      await expect(modelRegistry.registerModel(modelId + 1, await hokusaiToken.getAddress(), "f1-score"))
         .to.be.revertedWith("Token already registered");
     });
 
     it("Should prevent duplicate token registration with auto-increment", async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
-      await expect(modelRegistry.registerModelAutoId(await hokusaiToken.getAddress()))
+      await expect(modelRegistry.registerModelAutoId(await hokusaiToken.getAddress(), "accuracy"))
         .to.be.revertedWith("Token already registered");
     });
 
@@ -382,7 +419,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
       const hokusaiToken2 = await HokusaiToken2.deploy();
       await hokusaiToken2.waitForDeployment();
       
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
       // Verify initial reverse mapping
       expect(await modelRegistry.getModelId(await hokusaiToken.getAddress())).to.equal(modelId);
@@ -405,8 +442,8 @@ describe("TokenManager-ModelRegistry Integration", function () {
       
       const modelId2 = 600;
       
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
-      await modelRegistry.registerModel(modelId2, await hokusaiToken2.getAddress());
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      await modelRegistry.registerModel(modelId2, await hokusaiToken2.getAddress(), "f1-score");
       
       await expect(modelRegistry.updateModel(modelId, await hokusaiToken2.getAddress()))
         .to.be.revertedWith("Token already registered");
@@ -424,15 +461,15 @@ describe("TokenManager-ModelRegistry Integration", function () {
       const initialNextId = await modelRegistry.nextModelId();
       
       // Register first auto-increment
-      await modelRegistry.registerModelAutoId(await hokusaiToken.getAddress());
+      await modelRegistry.registerModelAutoId(await hokusaiToken.getAddress(), "accuracy");
       expect(await modelRegistry.nextModelId()).to.equal(initialNextId + 1n);
       
       // Register second auto-increment
-      await modelRegistry.registerModelAutoId(await hokusaiToken2.getAddress());
+      await modelRegistry.registerModelAutoId(await hokusaiToken2.getAddress(), "f1-score");
       expect(await modelRegistry.nextModelId()).to.equal(initialNextId + 2n);
       
       // Register third auto-increment
-      await modelRegistry.registerModelAutoId(await hokusaiToken3.getAddress());
+      await modelRegistry.registerModelAutoId(await hokusaiToken3.getAddress(), "precision");
       expect(await modelRegistry.nextModelId()).to.equal(initialNextId + 3n);
       
       // Verify all mappings work

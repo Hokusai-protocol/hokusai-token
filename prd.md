@@ -1,98 +1,114 @@
-# PRD: Define mapping of modelId → token address
+# PRD: ModelRegistry to map modelId → token + metric
 
 ## Objectives
 
-Build a simple storage mapping in the ModelRegistry contract to link model identifiers (e.g., hash or slug) with their ERC20 token contracts. This mapping serves as the foundation for the token ecosystem, enabling other contracts to dynamically resolve which token belongs to which model.
+Create a comprehensive ModelRegistry contract that serves as the central source of truth for mapping model identifiers to their associated ERC20 tokens and performance metrics. This registry enables other contracts in the Hokusai ecosystem to dynamically resolve model-specific data and maintain consistency across the system.
 
 ## Success Criteria
 
-- ModelRegistry contract successfully stores modelId to token address mappings
-- Storage mapping is accessible and queryable by other contracts
-- Implementation supports both string-based and uint256-based model identifiers
-- Gas-efficient storage pattern that scales with multiple models
-- Clear separation between mapping storage and access control functions
+- ModelRegistry contract successfully stores and manages model metadata including tokens and metrics
+- Other contracts can reliably query model information using model IDs
+- Registry supports both registration and lookup operations with proper access control
+- Implementation includes comprehensive event logging for monitoring and analytics
+- Gas-efficient storage patterns that scale with multiple models
+- Full test coverage for all registry operations and edge cases
 
 ## Personas
 
 ### Smart Contract Developer
-- Needs to integrate with the ModelRegistry to resolve token addresses
-- Requires predictable interface for model-token lookups
+- Needs to integrate TokenManager and other contracts with the ModelRegistry
+- Requires predictable interfaces for model-token-metric lookups
 - Values gas efficiency and reliable contract interactions
+- Needs clear documentation for integration patterns
 
 ### System Administrator
-- Manages model registrations and token associations
-- Needs clear visibility into registered mappings
-- Requires ability to validate model-token relationships
+- Manages model registrations and updates model configurations
+- Needs visibility into all registered models and their status
+- Requires ability to deactivate or update model information
+- Values admin controls and audit trails
 
-### Integration Partner
-- Building on top of the Hokusai ecosystem
-- Needs standardized way to discover model tokens
-- Values consistent API patterns across contracts
+### DApp Developer
+- Building frontend applications that interact with Hokusai models
+- Needs to query model metadata for UI display
+- Requires consistent data format for model information
+- Values standardized API patterns for model discovery
 
 ## Technical Requirements
 
-### Core Mapping Structure
-- Implement storage mapping from model identifier to token address
-- Support both string and uint256 model identifier types
-- Ensure mapping can handle zero addresses for unregistered models
-- Include reverse lookup capability (token address to model ID)
+### Core Registry Structure
+- Implement comprehensive ModelInfo struct containing name, token address, performance metric, and status
+- Support auto-incrementing model ID assignment starting from 1
+- Include mapping for efficient model data retrieval
+- Provide reverse lookup capabilities where needed
 
-### Data Integrity
-- Prevent duplicate model registrations
-- Validate token addresses before storage
-- Handle edge cases like zero addresses appropriately
-- Ensure mapping consistency across operations
+### Model Management Functions
+- registerModel() function for adding new model-token-metric associations
+- updateMetric() function for modifying performance metrics
+- deactivateModel() function for managing model lifecycle
+- Proper access control restricting admin functions to authorized addresses
 
-### Interface Design
-- Public view functions for reading mappings
-- Clear function naming conventions (getTokenAddress, etc.)
-- Consistent return patterns for found/not found scenarios
-- Events for mapping changes to support external monitoring
+### Query Interface
+- getModel() function returning complete model information
+- getTokenAddress() function for token address lookup
+- getMetric() function for performance metric retrieval
+- Efficient view functions with consistent return patterns
+
+### Event System
+- ModelRegistered event for new model additions
+- ModelUpdated event for model modifications
+- Indexed parameters for efficient off-chain filtering and monitoring
 
 ## Implementation Tasks
 
-### 1. Define Storage Structure
-- Create mapping(uint256 => address) for modelId to token address
-- Create mapping(string => address) for string-based model identifiers (if needed)
-- Create mapping(address => uint256) for reverse lookups
-- Define nextModelId counter for auto-incrementing IDs
+### 1. Define Core Contract Structure
+- Create ModelInfo struct with name, tokenAddress, performanceMetric, dataFormat, and active fields
+- Implement mapping(uint256 => ModelInfo) for model storage
+- Add nextModelId counter starting at 1
+- Define admin address and onlyAdmin modifier
 
-### 2. Implement Core Mapping Functions
-- Add internal _setMapping function for updating storage
-- Implement getTokenAddress(uint256 modelId) view function
-- Add exists(uint256 modelId) check function
-- Create getAllRegisteredModels() enumeration function
+### 2. Implement Registration Functions
+- Create registerModel() function accepting model metadata parameters
+- Add proper validation for token addresses (non-zero check)
+- Implement auto-incrementing model ID assignment
+- Emit ModelRegistered event with indexed modelId and tokenAddress
 
-### 3. Add Data Validation
-- Validate token addresses are not zero address
-- Prevent overwriting existing mappings without explicit update
-- Add checks for valid model ID ranges
-- Implement duplicate prevention logic
+### 3. Add Model Management Functions
+- Implement updateMetric() for modifying performance metrics
+- Create deactivateModel() for lifecycle management
+- Add proper access control to all admin functions
+- Emit appropriate events for all state changes
 
-### 4. Create Events and Monitoring
-- Define ModelMapped event for new registrations
-- Add ModelUpdated event for mapping changes
-- Include indexed parameters for efficient filtering
-- Emit events in all mapping modification functions
+### 4. Create Query Interface
+- Implement getModel() returning complete ModelInfo struct
+- Add getTokenAddress() for efficient token address lookup
+- Create getMetric() for performance metric queries
+- Ensure consistent return patterns for not found scenarios
 
 ### 5. Write Comprehensive Tests
-- Test basic mapping storage and retrieval
-- Verify edge cases (zero addresses, non-existent models)
-- Test gas efficiency of mapping operations
-- Validate event emissions and data integrity
-- Test integration scenarios with mock token contracts
+- Test model registration with valid and invalid inputs
+- Verify proper access control for admin functions
+- Test all query functions with registered and unregistered models
+- Validate event emissions and parameter indexing
+- Test edge cases including zero addresses and inactive models
+- Verify gas efficiency of storage operations
+
+### 6. Integration Testing
+- Test TokenManager integration with ModelRegistry
+- Verify proper model-token resolution in realistic scenarios
+- Test admin operations in deployment context
+- Validate contract interactions match expected patterns
 
 ## Non-Goals
 
-- Complex model metadata storage (handled separately)
-- Access control for mapping modifications (separate feature)
-- Token creation or management logic
-- Off-chain data synchronization
-- Multi-network model registry synchronization
+- Token creation or ERC20 implementation (handled by HokusaiToken)
+- Complex model versioning or migration logic
+- Off-chain metadata synchronization
+- Multi-network registry coordination
+- Governance or decentralized admin controls (future enhancement)
 
 ## Dependencies
 
-- Existing ModelRegistry contract structure
-- ERC20 token interface compatibility
-- Hardhat testing framework setup
-- Integration with TokenManager contract expectations
+- Existing contract architecture (HokusaiToken, TokenManager)
+- Hardhat testing and deployment framework
+- Access control patterns established in other contracts
+- Event logging standards for the Hokusai ecosystem

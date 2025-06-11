@@ -5,53 +5,72 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title ModelRegistry
- * @dev Registry contract to map model IDs to their corresponding token addresses
+ * @dev Registry contract to map model IDs to their corresponding token addresses and performance metrics
  */
 contract ModelRegistry is Ownable {
-    mapping(uint256 => address) public modelToToken;
+    struct ModelInfo {
+        address tokenAddress;
+        string performanceMetric;
+        bool active;
+    }
+
+    mapping(uint256 => ModelInfo) public models;
     mapping(uint256 => bool) public isModelRegistered;
     mapping(address => uint256) public tokenToModel;
     uint256 public nextModelId = 1;
 
-    event ModelRegistered(uint256 indexed modelId, address indexed tokenAddress);
+    event ModelRegistered(uint256 indexed modelId, address indexed tokenAddress, string performanceMetric);
     event ModelUpdated(uint256 indexed modelId, address indexed newTokenAddress);
+    event MetricUpdated(uint256 indexed modelId, string newMetric);
 
     constructor() Ownable(msg.sender) {}
 
     /**
-     * @dev Registers a new model with its corresponding token address
+     * @dev Registers a new model with its corresponding token address and performance metric
      * @param modelId The unique identifier for the model
      * @param token The address of the token contract for this model
+     * @param performanceMetric The performance metric used for this model
      */
-    function registerModel(uint256 modelId, address token) external onlyOwner {
+    function registerModel(uint256 modelId, address token, string memory performanceMetric) external onlyOwner {
         require(token != address(0), "Token address cannot be zero");
+        require(bytes(performanceMetric).length > 0, "Performance metric cannot be empty");
         require(!isModelRegistered[modelId], "Model already registered");
         require(tokenToModel[token] == 0, "Token already registered");
         
-        modelToToken[modelId] = token;
+        models[modelId] = ModelInfo({
+            tokenAddress: token,
+            performanceMetric: performanceMetric,
+            active: true
+        });
         isModelRegistered[modelId] = true;
         tokenToModel[token] = modelId;
         
-        emit ModelRegistered(modelId, token);
+        emit ModelRegistered(modelId, token, performanceMetric);
     }
 
     /**
      * @dev Registers a new model with auto-incremented ID
      * @param token The address of the token contract for this model
+     * @param performanceMetric The performance metric used for this model
      * @return The assigned model ID
      */
-    function registerModelAutoId(address token) external onlyOwner returns (uint256) {
+    function registerModelAutoId(address token, string memory performanceMetric) external onlyOwner returns (uint256) {
         uint256 modelId = nextModelId;
         nextModelId++;
         
         require(token != address(0), "Token address cannot be zero");
+        require(bytes(performanceMetric).length > 0, "Performance metric cannot be empty");
         require(tokenToModel[token] == 0, "Token already registered");
         
-        modelToToken[modelId] = token;
+        models[modelId] = ModelInfo({
+            tokenAddress: token,
+            performanceMetric: performanceMetric,
+            active: true
+        });
         isModelRegistered[modelId] = true;
         tokenToModel[token] = modelId;
         
-        emit ModelRegistered(modelId, token);
+        emit ModelRegistered(modelId, token, performanceMetric);
         return modelId;
     }
 
@@ -65,12 +84,36 @@ contract ModelRegistry is Ownable {
         require(isModelRegistered[modelId], "Model not registered");
         require(tokenToModel[newToken] == 0, "Token already registered");
         
-        address oldToken = modelToToken[modelId];
-        modelToToken[modelId] = newToken;
+        address oldToken = models[modelId].tokenAddress;
+        models[modelId].tokenAddress = newToken;
         tokenToModel[oldToken] = 0; // Clear old reverse mapping
         tokenToModel[newToken] = modelId; // Set new reverse mapping
         
         emit ModelUpdated(modelId, newToken);
+    }
+
+    /**
+     * @dev Updates the performance metric for an existing model
+     * @param modelId The model identifier to update
+     * @param newMetric The new performance metric
+     */
+    function updateMetric(uint256 modelId, string memory newMetric) external onlyOwner {
+        require(isModelRegistered[modelId], "Model not registered");
+        require(bytes(newMetric).length > 0, "Performance metric cannot be empty");
+        
+        models[modelId].performanceMetric = newMetric;
+        
+        emit MetricUpdated(modelId, newMetric);
+    }
+
+    /**
+     * @dev Deactivates a model
+     * @param modelId The model identifier to deactivate
+     */
+    function deactivateModel(uint256 modelId) external onlyOwner {
+        require(isModelRegistered[modelId], "Model not registered");
+        
+        models[modelId].active = false;
     }
 
     /**
@@ -80,7 +123,7 @@ contract ModelRegistry is Ownable {
      */
     function getToken(uint256 modelId) external view returns (address) {
         require(isModelRegistered[modelId], "Model not registered");
-        return modelToToken[modelId];
+        return models[modelId].tokenAddress;
     }
 
     /**
@@ -90,7 +133,27 @@ contract ModelRegistry is Ownable {
      */
     function getTokenAddress(uint256 modelId) external view returns (address) {
         require(isModelRegistered[modelId], "Model not registered");
-        return modelToToken[modelId];
+        return models[modelId].tokenAddress;
+    }
+
+    /**
+     * @dev Gets the performance metric for a given model ID
+     * @param modelId The model identifier
+     * @return The performance metric for the model
+     */
+    function getMetric(uint256 modelId) external view returns (string memory) {
+        require(isModelRegistered[modelId], "Model not registered");
+        return models[modelId].performanceMetric;
+    }
+
+    /**
+     * @dev Gets the complete model information
+     * @param modelId The model identifier
+     * @return The complete ModelInfo struct
+     */
+    function getModel(uint256 modelId) external view returns (ModelInfo memory) {
+        require(isModelRegistered[modelId], "Model not registered");
+        return models[modelId];
     }
 
     /**

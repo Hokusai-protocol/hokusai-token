@@ -1,8 +1,8 @@
-# PRD: ModelRegistry to map modelId → token + metric
+# PRD: Add Registration and Lookup Functions to ModelRegistry
 
 ## Objectives
 
-Create a comprehensive ModelRegistry contract that serves as the central source of truth for mapping model identifiers to their associated ERC20 tokens and performance metrics. This registry enables other contracts in the Hokusai ecosystem to dynamically resolve model-specific data and maintain consistency across the system.
+Enhance the existing ModelRegistry contract with core registration and lookup functionality. Add registerModel() function to create new model-token mappings and getToken() function to retrieve token addresses by model ID. These functions establish the foundational registry operations that other contracts depend on for model-token lookups.
 
 ## Success Criteria
 

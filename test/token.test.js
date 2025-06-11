@@ -147,6 +147,14 @@ describe("HokusaiToken", function () {
       
       expect(await token.totalSupply()).to.equal(mintAmount1 + mintAmount2);
     });
+
+    it("Should emit Minted event when minting tokens", async function () {
+      const mintAmount = parseEther("1000");
+      
+      await expect(token.connect(controller).mint(user1.address, mintAmount))
+        .to.emit(token, "Minted")
+        .withArgs(user1.address, mintAmount);
+    });
   });
 
   describe("Burning", function () {
@@ -203,6 +211,14 @@ describe("HokusaiToken", function () {
       await token.connect(controller).burn(user1.address, balance);
       
       expect(await token.balanceOf(user1.address)).to.equal(0);
+    });
+
+    it("Should emit Burned event when burning tokens", async function () {
+      const burnAmount = parseEther("300");
+      
+      await expect(token.connect(controller).burn(user1.address, burnAmount))
+        .to.emit(token, "Burned")
+        .withArgs(user1.address, burnAmount);
     });
   });
 

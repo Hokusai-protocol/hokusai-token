@@ -1,79 +1,95 @@
-# PRD: Protect Internal _mint()/_burn() Functions
+# PRD: Deploy TokenManager and Link to ModelRegistry
+
+## Project Summary
+
+Deploy a TokenManager contract that accepts a reference to the ModelRegistry in its constructor. This allows the TokenManager to retrieve the correct token contract dynamically when performing minting and burning operations. The manager should act as the centralized controller for all model-specific tokens, using the ModelRegistry to resolve which token contract to interact with for each model ID.
 
 ## Objectives
 
-Enhance the security and access control of the HokusaiToken contract by encapsulating mint and burn operations behind controller-protected functions. This prevents unauthorized token issuance or destruction while maintaining proper separation of concerns between the token contract and management logic.
+Enable dynamic token management across multiple models by establishing a proper architectural connection between TokenManager and ModelRegistry. This creates a scalable foundation where new models can be registered in the ModelRegistry and immediately be managed by the existing TokenManager without requiring contract updates.
 
 ## Background
 
-Currently, the HokusaiToken contract may expose mint/burn functionality that could be called by unauthorized parties. To ensure proper token economics and prevent exploitation, these functions must be restricted to only authorized controllers (specifically the TokenManager contract).
+The current TokenManager contract needs to be enhanced to work with the ModelRegistry system. Instead of being hardcoded to work with a single token, the TokenManager should dynamically resolve token addresses through the ModelRegistry, allowing it to manage tokens for any registered model.
 
 ## Success Criteria
 
-- Only the designated controller can mint new tokens
-- Only the designated controller can burn tokens from user accounts
-- Unauthorized attempts to mint/burn tokens are rejected with clear error messages
-- Existing functionality for token holders to burn their own tokens remains intact
-- All access control changes are thoroughly tested
+- TokenManager constructor accepts ModelRegistry address as parameter
+- TokenManager can resolve token addresses dynamically using ModelRegistry
+- Deployment script properly deploys and links both contracts
+- Integration tests verify end-to-end functionality from model registration to token operations
+- All existing TokenManager functionality remains intact
+- Gas costs for operations remain reasonable
 
 ## Target Personas
 
-**Smart Contract Developer**: Needs clear separation between public token operations and controller-only operations
+**Smart Contract Developer**: Needs a clean integration pattern between TokenManager and ModelRegistry for managing multiple model tokens
 
-**Token Holder**: Can still burn their own tokens directly but cannot mint new tokens
+**DevOps Engineer**: Requires reliable deployment scripts that properly configure contract relationships
 
-**System Administrator**: Can set and update the controller address as needed
+**Protocol Administrator**: Can register new models and immediately use TokenManager to manage their tokens
+
+**Integration Developer**: Can build applications that work with any registered model through consistent TokenManager interface
 
 ## Technical Requirements
 
-### Access Control Implementation
-- Implement `onlyController` modifier to restrict sensitive functions
-- Add `setController()` function for administrative control updates
-- Protect internal `_mint()` and `_burn()` functions with proper access controls
+### TokenManager Enhancement
+- Constructor accepts ModelRegistry address parameter
+- Store ModelRegistry reference as state variable
+- Use ModelRegistry.getTokenAddress(modelId) to resolve token contracts
+- Maintain existing mint/burn function signatures for backward compatibility
 
-### Function Specifications
-- `mint(address recipient, uint256 amount)` - Only callable by controller
-- `burn(uint256 amount)` - Callable by token holders to burn their own tokens
-- `burnFrom(address account, uint256 amount)` - Only callable by controller with proper allowance
-- `setController(address newController)` - Only callable by contract owner/admin
+### ModelRegistry Integration
+- TokenManager calls ModelRegistry.getTokenAddress() before token operations
+- Proper error handling when model is not registered
+- Validation that resolved token address is not zero
+
+### Deployment Configuration
+- Deploy ModelRegistry first to get its address
+- Deploy TokenManager with ModelRegistry address in constructor
+- Set TokenManager as controller for any deployed HokusaiTokens
+- Register model-token mappings in ModelRegistry
 
 ### Security Considerations
-- Prevent unauthorized token creation that could inflate supply
-- Prevent unauthorized token destruction that could affect user balances
-- Maintain compatibility with standard ERC20 expectations
-- Ensure proper event emission for all mint/burn operations
+- Validate that ModelRegistry address is not zero in constructor
+- Ensure only registered models can have tokens managed
+- Maintain proper access controls on both contracts
+- Prevent unauthorized model registration or token operations
 
 ## Tasks
 
-1. **Review Current HokusaiToken Implementation**
-   - Analyze existing mint/burn function access patterns
-   - Identify which functions need controller protection
-   - Document current access control mechanisms
+1. **Analyze Current Implementation**
+   - Review existing TokenManager contract structure
+   - Review existing ModelRegistry contract interface
+   - Identify integration points and dependencies
+   - Document current deployment process
 
-2. **Implement Controller Access Control**
-   - Add `controller` state variable and `onlyController` modifier
-   - Update mint functions to use `onlyController` protection
-   - Update administrative burn functions to use `onlyController`
-   - Preserve user's ability to burn their own tokens
+2. **Enhance TokenManager Contract**
+   - Add ModelRegistry address parameter to constructor
+   - Store ModelRegistry reference as state variable
+   - Update mintTokens function to use ModelRegistry.getTokenAddress()
+   - Add proper error handling for unregistered models
+   - Maintain backward compatibility with existing interfaces
 
-3. **Add Controller Management Functions**
-   - Implement `setController()` function with appropriate admin protection
-   - Add events for controller changes
-   - Include zero-address validation for controller updates
+3. **Create Deployment Script**
+   - Deploy ModelRegistry contract first
+   - Deploy TokenManager with ModelRegistry address
+   - Configure initial model-token mappings if needed
+   - Set proper access controls and controller relationships
 
-4. **Update Contract Documentation**
-   - Add clear comments explaining access control design
-   - Document which functions are controller-only vs public
-   - Update any existing inline documentation
+4. **Implement Integration Tests**
+   - Test TokenManager deployment with ModelRegistry reference
+   - Test dynamic token resolution through ModelRegistry
+   - Test end-to-end flow: register model → mint tokens → verify balances
+   - Test error cases: unregistered models, zero addresses
+   - Test gas costs for enhanced operations
 
-5. **Comprehensive Testing**
-   - Test that only controller can mint tokens
-   - Test that only controller can burn tokens from other accounts
-   - Test that users can still burn their own tokens
-   - Test controller update functionality
-   - Test unauthorized access rejection scenarios
-   - Verify proper event emission
+5. **Update Documentation**
+   - Document new deployment process
+   - Update contract interface documentation
+   - Add examples of TokenManager-ModelRegistry integration
+   - Update README with new architecture details
 
 ## Implementation Notes
 
-The implementation should maintain backward compatibility with existing TokenManager integration while strengthening security boundaries. The controller pattern allows for future upgrades to token management logic without requiring token contract changes.
+The integration should maintain the existing TokenManager API while adding ModelRegistry-based token resolution. This ensures existing integrations continue to work while enabling the dynamic multi-model functionality. The deployment process becomes slightly more complex but provides significantly more flexibility for managing multiple model tokens.

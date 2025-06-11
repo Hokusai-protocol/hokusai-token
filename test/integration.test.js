@@ -57,7 +57,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
   });
 
   describe("ModelRegistry Functionality", function () {
-    const modelId = ethers.encodeBytes32String("TestModel");
+    const modelId = 12345;
     
     it("Should register model successfully", async function () {
       await expect(modelRegistry.registerModel(modelId, await hokusaiToken.getAddress()))
@@ -107,7 +107,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
   });
 
   describe("TokenManager Integration", function () {
-    const modelId = ethers.encodeBytes32String("TestModel");
+    const modelId = 54321;
     
     beforeEach(async function () {
       // Register model before each test
@@ -117,7 +117,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     it("Should check if model is managed", async function () {
       expect(await tokenManager.isModelManaged(modelId)).to.be.true;
       
-      const unregisteredId = ethers.encodeBytes32String("UnregisteredModel");
+      const unregisteredId = 99999;
       expect(await tokenManager.isModelManaged(unregisteredId)).to.be.false;
     });
 
@@ -127,14 +127,14 @@ describe("TokenManager-ModelRegistry Integration", function () {
     });
 
     it("Should revert when getting token address for unregistered model", async function () {
-      const unregisteredId = ethers.encodeBytes32String("UnregisteredModel");
+      const unregisteredId = 99999;
       await expect(tokenManager.getTokenAddress(unregisteredId))
         .to.be.revertedWith("Model not registered");
     });
   });
 
   describe("Token Operations through TokenManager", function () {
-    const modelId = ethers.encodeBytes32String("TestModel");
+    const modelId = 67890;
     
     beforeEach(async function () {
       await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
@@ -160,7 +160,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
       });
 
       it("Should revert minting for unregistered model", async function () {
-        const unregisteredId = ethers.encodeBytes32String("UnregisteredModel");
+        const unregisteredId = 88888;
         await expect(tokenManager.mintTokens(unregisteredId, user1.address, parseEther("100")))
           .to.be.revertedWith("Model not registered");
       });
@@ -204,7 +204,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
       });
 
       it("Should revert burning for unregistered model", async function () {
-        const unregisteredId = ethers.encodeBytes32String("UnregisteredModel");
+        const unregisteredId = 77777;
         await expect(tokenManager.burnTokens(unregisteredId, user1.address, parseEther("100")))
           .to.be.revertedWith("Model not registered");
       });
@@ -228,8 +228,8 @@ describe("TokenManager-ModelRegistry Integration", function () {
   });
 
   describe("Multiple Models Integration", function () {
-    const modelId1 = ethers.encodeBytes32String("Model1");
-    const modelId2 = ethers.encodeBytes32String("Model2");
+    const modelId1 = 100;
+    const modelId2 = 200;
     let hokusaiToken2;
 
     beforeEach(async function () {
@@ -273,7 +273,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
   describe("End-to-End Flow", function () {
     it("Should handle complete registration to token operations flow", async function () {
-      const modelId = ethers.encodeBytes32String("E2EModel");
+      const modelId = 300;
       
       // 1. Register model
       await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
@@ -301,7 +301,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
   });
 
   describe("Gas Cost Analysis", function () {
-    const modelId = ethers.encodeBytes32String("GasTestModel");
+    const modelId = 400;
     
     beforeEach(async function () {
       await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
@@ -321,6 +321,124 @@ describe("TokenManager-ModelRegistry Integration", function () {
       // Gas costs should be reasonable (less than 200k for each operation)
       expect(mintReceipt.gasUsed).to.be.lt(200000);
       expect(burnReceipt.gasUsed).to.be.lt(200000);
+    });
+  });
+
+  describe("New uint256 Mapping Features", function () {
+    const modelId = 500;
+    
+    it("Should provide reverse lookup from token address to modelId", async function () {
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      
+      expect(await modelRegistry.getModelId(await hokusaiToken.getAddress())).to.equal(modelId);
+    });
+
+    it("Should revert reverse lookup for unregistered token", async function () {
+      await expect(modelRegistry.getModelId(await hokusaiToken.getAddress()))
+        .to.be.revertedWith("Token not registered");
+    });
+
+    it("Should support getTokenAddress function", async function () {
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      
+      expect(await modelRegistry.getTokenAddress(modelId)).to.equal(await hokusaiToken.getAddress());
+    });
+
+    it("Should support exists function", async function () {
+      expect(await modelRegistry.exists(modelId)).to.be.false;
+      
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      expect(await modelRegistry.exists(modelId)).to.be.true;
+    });
+
+    it("Should auto-increment model IDs", async function () {
+      const initialNextId = await modelRegistry.nextModelId();
+      
+      await expect(modelRegistry.registerModelAutoId(await hokusaiToken.getAddress()))
+        .to.emit(modelRegistry, "ModelRegistered")
+        .withArgs(initialNextId, await hokusaiToken.getAddress());
+      
+      expect(await modelRegistry.nextModelId()).to.equal(initialNextId + 1n);
+      expect(await modelRegistry.getToken(initialNextId)).to.equal(await hokusaiToken.getAddress());
+      expect(await modelRegistry.getModelId(await hokusaiToken.getAddress())).to.equal(initialNextId);
+    });
+
+    it("Should prevent duplicate token registration", async function () {
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      
+      await expect(modelRegistry.registerModel(modelId + 1, await hokusaiToken.getAddress()))
+        .to.be.revertedWith("Token already registered");
+    });
+
+    it("Should prevent duplicate token registration with auto-increment", async function () {
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      
+      await expect(modelRegistry.registerModelAutoId(await hokusaiToken.getAddress()))
+        .to.be.revertedWith("Token already registered");
+    });
+
+    it("Should handle token updates correctly with reverse mapping", async function () {
+      const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
+      const hokusaiToken2 = await HokusaiToken2.deploy();
+      await hokusaiToken2.waitForDeployment();
+      
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      
+      // Verify initial reverse mapping
+      expect(await modelRegistry.getModelId(await hokusaiToken.getAddress())).to.equal(modelId);
+      
+      // Update to new token
+      await modelRegistry.updateModel(modelId, await hokusaiToken2.getAddress());
+      
+      // Verify reverse mapping updated
+      expect(await modelRegistry.getModelId(await hokusaiToken2.getAddress())).to.equal(modelId);
+      
+      // Old token should no longer be mapped
+      await expect(modelRegistry.getModelId(await hokusaiToken.getAddress()))
+        .to.be.revertedWith("Token not registered");
+    });
+
+    it("Should prevent updating to already registered token", async function () {
+      const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
+      const hokusaiToken2 = await HokusaiToken2.deploy();
+      await hokusaiToken2.waitForDeployment();
+      
+      const modelId2 = 600;
+      
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress());
+      await modelRegistry.registerModel(modelId2, await hokusaiToken2.getAddress());
+      
+      await expect(modelRegistry.updateModel(modelId, await hokusaiToken2.getAddress()))
+        .to.be.revertedWith("Token already registered");
+    });
+
+    it("Should handle multiple sequential auto-increments", async function () {
+      const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
+      const hokusaiToken2 = await HokusaiToken2.deploy();
+      await hokusaiToken2.waitForDeployment();
+      
+      const HokusaiToken3 = await ethers.getContractFactory("HokusaiToken");
+      const hokusaiToken3 = await HokusaiToken3.deploy();
+      await hokusaiToken3.waitForDeployment();
+      
+      const initialNextId = await modelRegistry.nextModelId();
+      
+      // Register first auto-increment
+      await modelRegistry.registerModelAutoId(await hokusaiToken.getAddress());
+      expect(await modelRegistry.nextModelId()).to.equal(initialNextId + 1n);
+      
+      // Register second auto-increment
+      await modelRegistry.registerModelAutoId(await hokusaiToken2.getAddress());
+      expect(await modelRegistry.nextModelId()).to.equal(initialNextId + 2n);
+      
+      // Register third auto-increment
+      await modelRegistry.registerModelAutoId(await hokusaiToken3.getAddress());
+      expect(await modelRegistry.nextModelId()).to.equal(initialNextId + 3n);
+      
+      // Verify all mappings work
+      expect(await modelRegistry.getToken(initialNextId)).to.equal(await hokusaiToken.getAddress());
+      expect(await modelRegistry.getToken(initialNextId + 1n)).to.equal(await hokusaiToken2.getAddress());
+      expect(await modelRegistry.getToken(initialNextId + 2n)).to.equal(await hokusaiToken3.getAddress());
     });
   });
 });

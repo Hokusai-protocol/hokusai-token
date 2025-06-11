@@ -1,110 +1,91 @@
-# Implementation Tasks: TokenManager Mint-to-User Flow Test
+# Token Burning Test Implementation Tasks
 
 ## 1. Test File Setup
-1. [x] Create tokenmanager.test.js in test directory
-   a. [x] Import required testing libraries (expect, ethers)
-   b. [x] Import contract artifacts (TokenManager, ModelRegistry, HokusaiToken)
-   c. [x] Set up test helpers and utilities
+1. [ ] Create test file structure
+   a. [ ] Create `test/auctionburner.test.js` file
+   b. [ ] Import required dependencies (ethers, expect)
+   c. [ ] Set up describe block for AuctionBurner tests
 
-## 2. Test Environment Configuration
-2. [x] Implement beforeEach deployment setup
-   a. [x] Deploy ModelRegistry contract
-   b. [x] Deploy HokusaiToken contract(s) for testing
-   c. [x] Deploy TokenManager with ModelRegistry reference
-   d. [x] Get test signers (owner, user1, user2, unauthorized)
-   e. [x] Register test models in ModelRegistry
-   f. [x] Set TokenManager as controller for HokusaiToken instances
+## 2. Contract Deployment Fixtures
+2. [ ] Implement beforeEach setup
+   a. [ ] Get test signers (owner, user1, user2, user3)
+   b. [ ] Deploy ModelRegistry contract
+   c. [ ] Deploy HokusaiToken contract
+   d. [ ] Deploy TokenManager with ModelRegistry reference
+   e. [ ] Deploy AuctionBurner with HokusaiToken reference
+   f. [ ] Set TokenManager as controller on HokusaiToken
+   g. [ ] Register a test model in ModelRegistry
 
-## 3. Successful Minting Flow Tests
-3. [x] Test basic mintTokens functionality
-   a. [x] Test minting with valid modelId, recipient, and amount
-   b. [x] Verify recipient balance increases correctly
-   c. [x] Verify total supply increases correctly
-   d. [x] Confirm TokensMinted event emission with correct parameters
+## 3. Core Burn Functionality Tests
+3. [ ] Implement successful burn tests
+   a. [ ] Test burning tokens with valid amount and balance
+   b. [ ] Verify user balance decreases by burned amount
+   c. [ ] Confirm total supply decreases correctly
+   d. [ ] Test burning entire balance
+   e. [ ] Test burning partial balance
 
-## 4. Registry Integration Tests
-4. [x] Test ModelRegistry lookup functionality
-   a. [x] Test successful minting with registered model
-   b. [x] Test failure when model is not registered
-   c. [x] Test getTokenAddress returns correct token
-   d. [x] Test isModelManaged returns correct boolean
+## 4. Event Emission Tests
+4. [ ] Verify event emissions
+   a. [ ] Test TokensBurned event from AuctionBurner
+   b. [ ] Test Burned event from HokusaiToken
+   c. [ ] Verify event parameters are correct
+   d. [ ] Test multiple burns emit multiple events
 
 ## 5. Access Control Tests
-5. [x] Verify onlyOwner modifier enforcement
-   a. [x] Test owner can mint tokens successfully
-   b. [x] Test non-owner cannot mint tokens
-   c. [x] Test proper revert message for unauthorized access
-   d. [x] Test access control after ownership transfer
+5. [ ] Test setToken function access control
+   a. [ ] Verify owner can update token reference
+   b. [ ] Test non-owner cannot update token reference
+   c. [ ] Verify TokenContractUpdated event emission
+   d. [ ] Test setting token to new valid address
 
-## 6. Input Validation Tests
-6. [x] Test parameter validation
-   a. [x] Test zero recipient address rejection
-   b. [x] Test zero amount rejection
-   c. [x] Test extremely large amounts (uint256 max)
-   d. [x] Test edge case model IDs (0, max uint256)
+## 6. Error Handling Tests
+6. [ ] Implement error case tests
+   a. [ ] Test burn with zero amount reverts
+   b. [ ] Test burn with insufficient balance reverts
+   c. [ ] Test burn without approval reverts
+   d. [ ] Test constructor with zero address reverts
+   e. [ ] Test setToken with zero address reverts
+   f. [ ] Test burn with partial approval reverts
 
-## 7. Multiple Models Tests (Dependent on Test Environment Configuration)
-7. [x] Test cross-model isolation
-   a. [x] Register multiple models with different tokens
-   b. [x] Test minting to different models in sequence
-   c. [x] Verify no cross-contamination between model tokens
-   d. [x] Test batch operations across models
+## 7. Approval and Allowance Tests
+7. [ ] Test token approval mechanics
+   a. [ ] Test approving AuctionBurner to spend tokens
+   b. [ ] Test burning with exact approval amount
+   c. [ ] Test burning with excess approval
+   d. [ ] Test multiple burns with single approval
 
-## 8. State Change Verification Tests
-8. [x] Test accurate state updates
-   a. [x] Test multiple mints to same recipient accumulate correctly
-   b. [x] Test minting to multiple recipients
-   c. [x] Test balance consistency after operations
-   d. [x] Verify total supply tracking accuracy
+## 8. Integration Tests (Dependent on Core Tests)
+8. [ ] Implement end-to-end flow tests
+   a. [ ] Test mint via TokenManager, approve, and burn flow
+   b. [ ] Test multiple users burning independently
+   c. [ ] Test sequential burns from same user
+   d. [ ] Test burn after token reference update
 
-## 9. Event Emission Tests
-9. [x] Test comprehensive event coverage
-   a. [x] Test TokensMinted event arguments match inputs
-   b. [x] Test event indexing for modelId and recipient
-   c. [x] Test multiple events in single transaction
-   d. [x] Test event filtering by indexed parameters
+## 9. Gas Usage Tests (Dependent on Core Tests)
+9. [ ] Measure and validate gas usage
+   a. [ ] Test gas cost for small burn amounts
+   b. [ ] Test gas cost for large burn amounts
+   c. [ ] Compare gas costs across different scenarios
+   d. [ ] Ensure gas usage is within reasonable limits
 
-## 10. Error Scenario Tests
-10. [x] Test all failure paths
-    a. [x] Test when TokenManager is not set as controller
-    b. [x] Test with invalid model ID
-    c. [x] Test registry returning zero address
-    d. [x] Test token mint function reverting
+## 10. Edge Case Tests (Dependent on Core Tests)
+10. [ ] Test boundary conditions
+    a. [ ] Test burning with maximum uint256 approval
+    b. [ ] Test multiple users with different balances
+    c. [ ] Test burn behavior after token migration
+    d. [ ] Test concurrent burn operations
 
-## 11. Integration Tests (Dependent on All Above)
-11. [x] Test end-to-end workflows
-    a. [x] Complete flow from deployment to minting
-    b. [x] Test with realistic gas limits
-    c. [x] Test interaction with other contracts
-    d. [x] Performance test with multiple operations
+## 11. Documentation Updates
+11. [ ] Update project documentation
+    a. [ ] Add test coverage information to README.md
+    b. [ ] Document AuctionBurner burn mechanism
+    c. [ ] Include example test scenarios
+    d. [ ] Note any discovered edge cases or limitations
 
-## 12. Documentation
-12. [ ] Update project documentation
-    a. [ ] Add test descriptions to README.md
-    b. [ ] Document test coverage metrics
-    c. [ ] Add usage examples for TokenManager
-    d. [ ] Update contract interaction diagrams
-
-## 13. Test Execution and Validation
-13. [x] Run and validate test suite
-    a. [x] Run tests with npm test
-    b. [x] Verify all tests pass
-    c. [ ] Check test coverage report
-    d. [x] Fix any failing tests
-    e. [x] Optimize test execution time
-
-## Summary
-
-Successfully implemented comprehensive test coverage for TokenManager's mint-to-user flow:
-
-- **Created tokenmanager.test.js** with 33 test cases covering all aspects of the minting functionality
-- **All 123 tests passing** across the entire test suite (including existing tests)
-- **Comprehensive coverage** including:
-  - Successful minting flows with proper balance and supply tracking
-  - Registry integration with model lookup and validation
-  - Access control enforcement with ownership transfers
-  - Input validation for all edge cases
-  - Multi-model support with proper isolation
-  - Event emission and filtering capabilities
-  - Error scenarios and integration testing
-- **Test execution time**: ~2 seconds for the entire suite
+## 12. Test Execution and Validation
+12. [ ] Run and verify all tests
+    a. [ ] Execute full test suite locally
+    b. [ ] Verify all tests pass
+    c. [ ] Check test coverage metrics
+    d. [ ] Fix any failing tests
+    e. [ ] Run tests with different network configurations

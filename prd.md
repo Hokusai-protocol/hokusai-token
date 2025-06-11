@@ -1,170 +1,90 @@
-# PRD: Write Test for HokusaiToken Access Control and Minting
+# Product Requirements Document: TokenManager Mint-to-User Flow Test
 
-## Problem Statement
+## Objectives
 
-The HokusaiToken contract implements critical access control mechanisms that restrict minting and burning operations to a designated controller address. Without comprehensive tests validating these security features:
-
-- We cannot verify that unauthorized addresses are properly blocked from minting tokens
-- There's no validation that tokens are correctly distributed to intended recipients
-- Event emissions for minting operations are untested, leaving potential gaps in observability
-- The controller update mechanism lacks test coverage, creating security uncertainty
-
-This testing gap represents a significant risk as the access control system is fundamental to the token's security model and economic integrity.
-
-## Solution Overview
-
-We will implement a comprehensive test suite that validates:
-
-1. **Access control enforcement** - Only the controller can mint tokens
-2. **Correct token distribution** - Minted tokens reach the intended recipient addresses
-3. **Event emission verification** - Minted events are properly emitted with correct parameters
-4. **Controller update mechanics** - Controller can be changed and permissions transfer correctly
-5. **Edge case handling** - Zero address protection, zero amount minting, etc.
-
-## Success Criteria
-
-**Functional Success:**
-- Test suite covers 100% of minting-related functions in HokusaiToken
-- All access control paths are tested (authorized and unauthorized attempts)
-- Event emissions are validated for all minting operations
-- Controller update functionality is thoroughly tested
-
-**Technical Success:**
-- Tests follow existing Hardhat testing patterns in the codebase
-- Tests are deterministic and run consistently
-- Clear test descriptions explain what each test validates
-- Tests execute quickly (< 5 seconds for the entire suite)
-
-**Security Success:**
-- Unauthorized minting attempts are proven to fail
-- Controller permissions are validated after updates
-- Zero address edge cases are covered
+Develop comprehensive test coverage for the TokenManager's mintTokens() functionality to ensure secure and reliable token minting operations. The test suite will verify that TokenManager correctly retrieves token addresses from the ModelRegistry and mints tokens only when properly linked models exist.
 
 ## Personas
 
-**Primary: Smart Contract Developer**
-- Needs confidence that access control is properly implemented
-- Requires clear test examples for understanding contract behavior
-- Values comprehensive coverage of security-critical functions
+### Developer
+- Needs confidence that TokenManager minting logic works correctly
+- Requires clear test cases demonstrating expected behavior and edge cases
+- Wants to prevent bugs in token minting operations
 
-**Secondary: Security Auditor**
-- Reviews test coverage for access control vulnerabilities
-- Needs tests that demonstrate security boundaries
-- Looks for edge case coverage and attack vector validation
+### System Administrator
+- Needs assurance that only authorized minting occurs
+- Requires verification that model-token linkage is enforced
+- Wants comprehensive error handling validation
 
-## Technical Solution
+## Success Criteria
 
-### Test Structure
+1. **Complete Test Coverage**: All paths in mintTokens() function are tested
+2. **Registry Integration**: Tests verify correct interaction with ModelRegistry
+3. **Access Control**: Tests confirm only authorized addresses can mint
+4. **Error Handling**: All failure scenarios are properly tested
+5. **Event Verification**: Tests confirm proper event emission
+6. **Edge Cases**: Boundary conditions and edge cases are covered
 
-The test suite will be organized into logical sections:
+## Tasks
 
-1. **Deployment Tests**
-   - Verify initial controller is set correctly
-   - Confirm token metadata (name, symbol, decimals)
+### 1. Setup Test Environment
+- Import necessary test utilities and contracts
+- Deploy ModelRegistry contract
+- Deploy HokusaiToken contract(s)
+- Deploy TokenManager contract with ModelRegistry reference
+- Set up test accounts (admin, users, unauthorized addresses)
 
-2. **Access Control Tests**
-   - Test minting with authorized controller
-   - Test minting rejection for non-controller addresses
-   - Test minting rejection for previous controller after update
+### 2. Test Successful Minting Flow
+- Register model in ModelRegistry with token address
+- Set TokenManager as controller for HokusaiToken
+- Call mintTokens() with valid model ID, recipient, and amount
+- Verify recipient received correct token amount
+- Verify total supply increased correctly
+- Confirm Minted event was emitted with correct parameters
 
-3. **Minting Functionality Tests**
-   - Verify correct balance updates after minting
-   - Test total supply increases correctly
-   - Validate minting to multiple addresses
+### 3. Test Registry Lookup Integration
+- Test minting with registered model ID
+- Test minting with unregistered model ID (should fail)
+- Test minting with model ID that has zero address (should fail)
+- Verify TokenManager correctly queries ModelRegistry
 
-4. **Event Emission Tests**
-   - Verify Minted event is emitted with correct parameters
-   - Test event arguments match the minting operation
-   - Validate indexed parameters for event filtering
+### 4. Test Access Control
+- Test minting as admin (should succeed)
+- Test minting as non-admin (should fail)
+- Test minting when TokenManager is not set as controller (should fail)
+- Verify proper revert messages for unauthorized access
 
-5. **Controller Update Tests**
-   - Test controller can be updated by owner
-   - Verify old controller loses minting permissions
-   - Confirm new controller gains minting permissions
-   - Test ControllerUpdated event emission
+### 5. Test Input Validation
+- Test with zero amount (define expected behavior)
+- Test with zero recipient address (should fail)
+- Test with extremely large amounts
+- Test with model ID edge cases (0, max uint256)
 
-6. **Edge Case Tests**
-   - Test zero amount minting behavior
-   - Verify zero address protection for controller updates
-   - Test minting to zero address (if applicable)
+### 6. Test Multiple Models
+- Register multiple models with different tokens
+- Verify minting to correct token for each model
+- Ensure no cross-contamination between models
+- Test sequential minting to different models
 
-### Implementation Approach
+### 7. Test State Changes
+- Verify balance changes are accurate
+- Confirm total supply updates correctly
+- Test multiple mints to same recipient
+- Test minting to multiple recipients
 
-Tests will use the existing Hardhat testing framework with ethers.js, following patterns established in the codebase. Each test will:
+### 8. Test Event Emissions
+- Verify Minted event from HokusaiToken
+- Check event parameters match function inputs
+- Test event filtering and retrieval
 
-1. Set up a clean contract state
-2. Execute the operation being tested
-3. Assert expected outcomes
-4. Verify event emissions where applicable
+### 9. Test Error Scenarios
+- Model not registered in registry
+- Token address is zero address
+- TokenManager not authorized as controller
+- Recipient address validation
+- Any revert conditions in mint logic
 
-## Implementation Tasks
-
-1. **Set Up Test File Structure**
-   - Create or update test file for HokusaiToken
-   - Import necessary testing utilities and contracts
-   - Set up test fixtures for deployment
-
-2. **Implement Deployment Tests**
-   - Test initial controller assignment
-   - Verify token metadata initialization
-
-3. **Implement Access Control Tests**
-   - Test successful minting by controller
-   - Test failed minting by non-controller
-   - Test permission changes after controller update
-
-4. **Implement Minting Tests**
-   - Test balance updates for single recipient
-   - Test total supply tracking
-   - Test batch minting to multiple addresses
-
-5. **Implement Event Tests**
-   - Test Minted event emission and parameters
-   - Test ControllerUpdated event emission
-   - Verify event filtering capabilities
-
-6. **Implement Edge Case Tests**
-   - Test zero amount handling
-   - Test zero address protections
-   - Test maximum uint256 minting limits
-
-## Acceptance Criteria
-
-**Must Have:**
-- [ ] Test verifies only controller can mint tokens
-- [ ] Test confirms minted tokens go to correct recipient address
-- [ ] Test validates Minted event is emitted with correct parameters
-- [ ] Test covers controller update functionality
-- [ ] Test ensures non-controller addresses cannot mint
-
-**Should Have:**
-- [ ] Test covers zero amount minting edge case
-- [ ] Test validates zero address protection for controller
-- [ ] Test includes multiple minting scenarios
-- [ ] Clear test descriptions for each validation
-
-**Could Have:**
-- [ ] Gas usage assertions for minting operations
-- [ ] Fuzz testing for mint amounts
-- [ ] Integration tests with TokenManager
-
-## Risk Assessment
-
-**Low Risk: Test Implementation**
-- *Risk*: Tests might not follow existing patterns
-- *Mitigation*: Review existing test files before implementation
-
-**Medium Risk: Coverage Gaps**
-- *Risk*: Missing critical edge cases
-- *Mitigation*: Use coverage reports to identify gaps
-
-**Low Risk: Test Maintenance**
-- *Risk*: Tests become outdated with contract changes
-- *Mitigation*: Write clear, well-documented tests
-
-## Dependencies
-
-- Existing HokusaiToken contract implementation
-- Hardhat testing framework
-- ethers.js for contract interactions
-- Existing test utilities in the codebase
+### 10. Integration Test
+- Complete end-to-end flow from model registration to minting
+- Test with multiple models and recipients
+- Verify all components work together correctly

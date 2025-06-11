@@ -1,99 +1,110 @@
-# Tasks: Write Test for HokusaiToken Access Control and Minting
+# Implementation Tasks: TokenManager Mint-to-User Flow Test
 
-## 1. Review Existing Test Structure
-1. [x] Examine existing test files in the test directory
-   a. [x] Review test/token.test.js for current testing patterns
-   b. [x] Identify test utilities and helper functions being used
-   c. [x] Note the testing framework conventions (describe blocks, assertions)
-   d. [x] Check how contract deployments are handled in existing tests
+## 1. Test File Setup
+1. [x] Create tokenmanager.test.js in test directory
+   a. [x] Import required testing libraries (expect, ethers)
+   b. [x] Import contract artifacts (TokenManager, ModelRegistry, HokusaiToken)
+   c. [x] Set up test helpers and utilities
 
-## 2. Set Up Test File
-2. [x] Create or update the HokusaiToken test file
-   a. [x] Import required testing dependencies (expect, ethers, etc.)
-   b. [x] Import HokusaiToken contract artifacts
-   c. [x] Set up test fixtures for consistent deployments
-   d. [x] Define test accounts (owner, controller, user1, user2, etc.)
+## 2. Test Environment Configuration
+2. [x] Implement beforeEach deployment setup
+   a. [x] Deploy ModelRegistry contract
+   b. [x] Deploy HokusaiToken contract(s) for testing
+   c. [x] Deploy TokenManager with ModelRegistry reference
+   d. [x] Get test signers (owner, user1, user2, unauthorized)
+   e. [x] Register test models in ModelRegistry
+   f. [x] Set TokenManager as controller for HokusaiToken instances
 
-## 3. Implement Deployment Tests
-3. [x] Write tests for contract deployment and initialization
-   a. [x] Test that controller is set correctly on deployment (controller starts unset)
-   b. [x] Verify token name is "Hokusai Token"
-   c. [x] Verify token symbol is "HOKU"
-   d. [x] Verify decimals is 18
-   e. [x] Test that deployer is the owner
+## 3. Successful Minting Flow Tests
+3. [x] Test basic mintTokens functionality
+   a. [x] Test minting with valid modelId, recipient, and amount
+   b. [x] Verify recipient balance increases correctly
+   c. [x] Verify total supply increases correctly
+   d. [x] Confirm TokensMinted event emission with correct parameters
 
-## 4. Implement Access Control Tests
-4. [x] Write tests for minting access control
-   a. [x] Test successful minting by the controller
-   b. [x] Test that non-controller addresses cannot mint (should revert)
-   c. [x] Test that owner cannot mint if not the controller
-   d. [x] Test minting after controller has been changed
-   e. [x] Verify old controller cannot mint after being replaced
+## 4. Registry Integration Tests
+4. [x] Test ModelRegistry lookup functionality
+   a. [x] Test successful minting with registered model
+   b. [x] Test failure when model is not registered
+   c. [x] Test getTokenAddress returns correct token
+   d. [x] Test isModelManaged returns correct boolean
 
-## 5. Implement Minting Functionality Tests
-5. [x] Write tests for minting mechanics
-   a. [x] Test minting tokens to a single recipient
-   b. [x] Verify recipient's balance increases correctly
-   c. [x] Verify total supply increases by minted amount
-   d. [x] Test minting to multiple different addresses
-   e. [x] Test minting different amounts in sequence
+## 5. Access Control Tests
+5. [x] Verify onlyOwner modifier enforcement
+   a. [x] Test owner can mint tokens successfully
+   b. [x] Test non-owner cannot mint tokens
+   c. [x] Test proper revert message for unauthorized access
+   d. [x] Test access control after ownership transfer
 
-## 6. Implement Event Emission Tests
-6. [x] Write tests for event emissions
-   a. [x] Test that Minted event is emitted on successful mint
-   b. [x] Verify Minted event contains correct recipient address
-   c. [x] Verify Minted event contains correct amount
-   d. [x] Test ControllerUpdated event when controller changes
-   e. [x] Verify event arguments are properly indexed
+## 6. Input Validation Tests
+6. [x] Test parameter validation
+   a. [x] Test zero recipient address rejection
+   b. [x] Test zero amount rejection
+   c. [x] Test extremely large amounts (uint256 max)
+   d. [x] Test edge case model IDs (0, max uint256)
 
-## 7. Implement Controller Update Tests
-7. [x] Write tests for controller management
-   a. [x] Test that owner can update the controller
-   b. [x] Test that non-owner cannot update the controller
-   c. [x] Verify new controller can mint after update
-   d. [x] Verify old controller cannot mint after update
-   e. [x] Test ControllerUpdated event emission
+## 7. Multiple Models Tests (Dependent on Test Environment Configuration)
+7. [x] Test cross-model isolation
+   a. [x] Register multiple models with different tokens
+   b. [x] Test minting to different models in sequence
+   c. [x] Verify no cross-contamination between model tokens
+   d. [x] Test batch operations across models
 
-## 8. Implement Edge Case Tests
-8. [x] Write tests for edge cases and error conditions
-   a. [x] Test minting zero tokens (verify behavior)
-   b. [x] Test setting controller to zero address (should revert)
-   c. [x] Test minting to zero address (reverts as expected)
-   d. [x] Test minting maximum uint256 value
-   e. [x] Test multiple rapid controller updates
+## 8. State Change Verification Tests
+8. [x] Test accurate state updates
+   a. [x] Test multiple mints to same recipient accumulate correctly
+   b. [x] Test minting to multiple recipients
+   c. [x] Test balance consistency after operations
+   d. [x] Verify total supply tracking accuracy
 
-## 9. Run and Validate Tests
-9. [x] Execute and verify all tests pass
-   a. [x] Run the complete test suite with npm test
-   b. [x] Verify all new tests pass consistently (94 tests passing)
-   c. [x] Check test execution time is under 5 seconds (1s total)
-   d. [x] Run tests multiple times to ensure deterministic behavior
-   e. [ ] Generate and review coverage report
+## 9. Event Emission Tests
+9. [x] Test comprehensive event coverage
+   a. [x] Test TokensMinted event arguments match inputs
+   b. [x] Test event indexing for modelId and recipient
+   c. [x] Test multiple events in single transaction
+   d. [x] Test event filtering by indexed parameters
 
-## 10. Documentation Updates (Dependent on Testing)
-10. [ ] Update documentation if needed
-    a. [ ] Add test descriptions to README if test usage differs from standard
-    b. [ ] Document any special test setup requirements
-    c. [ ] Update testing section with new test coverage information
-    d. [ ] Add examples of running specific test suites if applicable
+## 10. Error Scenario Tests
+10. [x] Test all failure paths
+    a. [x] Test when TokenManager is not set as controller
+    b. [x] Test with invalid model ID
+    c. [x] Test registry returning zero address
+    d. [x] Test token mint function reverting
+
+## 11. Integration Tests (Dependent on All Above)
+11. [x] Test end-to-end workflows
+    a. [x] Complete flow from deployment to minting
+    b. [x] Test with realistic gas limits
+    c. [x] Test interaction with other contracts
+    d. [x] Performance test with multiple operations
+
+## 12. Documentation
+12. [ ] Update project documentation
+    a. [ ] Add test descriptions to README.md
+    b. [ ] Document test coverage metrics
+    c. [ ] Add usage examples for TokenManager
+    d. [ ] Update contract interaction diagrams
+
+## 13. Test Execution and Validation
+13. [x] Run and validate test suite
+    a. [x] Run tests with npm test
+    b. [x] Verify all tests pass
+    c. [ ] Check test coverage report
+    d. [x] Fix any failing tests
+    e. [x] Optimize test execution time
 
 ## Summary
 
-**Task Completed Successfully!** ✅
+Successfully implemented comprehensive test coverage for TokenManager's mint-to-user flow:
 
-Enhanced the HokusaiToken test suite with comprehensive access control and minting tests:
-
-- **Added 9 new test cases** to enhance coverage of edge cases and security scenarios
-- **Access Control**: Added tests for rapid controller updates, permission transfers, and owner/controller separation
-- **Minting Edge Cases**: Added tests for zero amount minting, maximum uint256 values, and gas usage measurements
-- **Event Filtering**: Added tests to verify event filtering capabilities for both Minted and ControllerUpdated events
-- **All 94 tests passing** in approximately 1 second
-
-The enhanced test suite now provides comprehensive coverage of:
-- Controller permission management and transfers
-- Edge case handling (zero amounts, max values)
-- Gas efficiency verification
-- Event emission and filtering
-- Complex integration scenarios
-
-The existing test structure was already quite comprehensive, so our enhancements focused on the specific edge cases and scenarios outlined in the PRD that weren't previously covered.
+- **Created tokenmanager.test.js** with 33 test cases covering all aspects of the minting functionality
+- **All 123 tests passing** across the entire test suite (including existing tests)
+- **Comprehensive coverage** including:
+  - Successful minting flows with proper balance and supply tracking
+  - Registry integration with model lookup and validation
+  - Access control enforcement with ownership transfers
+  - Input validation for all edge cases
+  - Multi-model support with proper isolation
+  - Event emission and filtering capabilities
+  - Error scenarios and integration testing
+- **Test execution time**: ~2 seconds for the entire suite

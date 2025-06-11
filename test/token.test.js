@@ -108,6 +108,53 @@ describe("HokusaiToken", function () {
         token.setController(ZeroAddress)
       ).to.be.revertedWith("Controller cannot be zero address");
     });
+
+    it("Should handle multiple rapid controller updates", async function () {
+      // Set initial controller
+      await token.setController(controller.address);
+      expect(await token.controller()).to.equal(controller.address);
+      
+      // Rapid updates
+      await token.setController(user1.address);
+      await token.setController(user2.address);
+      await token.setController(controller.address);
+      
+      expect(await token.controller()).to.equal(controller.address);
+    });
+
+    it("Should revoke minting permissions from old controller after update", async function () {
+      // Set initial controller and verify they can mint
+      await token.setController(controller.address);
+      await token.connect(controller).mint(user1.address, parseEther("100"));
+      
+      // Change controller
+      await token.setController(user2.address);
+      
+      // Old controller should not be able to mint
+      await expect(
+        token.connect(controller).mint(user1.address, parseEther("100"))
+      ).to.be.revertedWith("Only controller can call this function");
+      
+      // New controller should be able to mint
+      await expect(
+        token.connect(user2).mint(user1.address, parseEther("100"))
+      ).to.not.be.reverted;
+    });
+
+    it("Should maintain owner permissions regardless of controller", async function () {
+      // Set controller to non-owner
+      await token.setController(controller.address);
+      
+      // Owner should still be able to change controller
+      await expect(token.setController(user1.address))
+        .to.emit(token, "ControllerUpdated")
+        .withArgs(user1.address);
+      
+      // But owner cannot mint if not the controller
+      await expect(
+        token.connect(owner).mint(user2.address, parseEther("100"))
+      ).to.be.revertedWith("Only controller can call this function");
+    });
   });
 
   describe("Minting", function () {
@@ -154,6 +201,54 @@ describe("HokusaiToken", function () {
       await expect(token.connect(controller).mint(user1.address, mintAmount))
         .to.emit(token, "Minted")
         .withArgs(user1.address, mintAmount);
+    });
+
+    it("Should handle minting zero tokens", async function () {
+      // Minting zero tokens should succeed but not change balances
+      const initialBalance = await token.balanceOf(user1.address);
+      const initialSupply = await token.totalSupply();
+      
+      await expect(token.connect(controller).mint(user1.address, 0))
+        .to.emit(token, "Minted")
+        .withArgs(user1.address, 0);
+      
+      expect(await token.balanceOf(user1.address)).to.equal(initialBalance);
+      expect(await token.totalSupply()).to.equal(initialSupply);
+    });
+
+    it("Should handle minting maximum uint256 value", async function () {
+      const maxUint256 = ethers.MaxUint256;
+      
+      // This should work as ERC20 handles the math
+      await expect(token.connect(controller).mint(user1.address, maxUint256))
+        .to.emit(token, "Minted")
+        .withArgs(user1.address, maxUint256);
+      
+      expect(await token.balanceOf(user1.address)).to.equal(maxUint256);
+      expect(await token.totalSupply()).to.equal(maxUint256);
+    });
+
+    it("Should measure gas usage for minting operations", async function () {
+      const mintAmount = parseEther("1000");
+      
+      const tx = await token.connect(controller).mint(user1.address, mintAmount);
+      const receipt = await tx.wait();
+      
+      // Minting should be reasonably gas efficient (less than 100k gas)
+      expect(receipt.gasUsed).to.be.below(100000);
+    });
+
+    it("Should handle sequential minting to same address", async function () {
+      const amount1 = parseEther("100");
+      const amount2 = parseEther("200");
+      const amount3 = parseEther("300");
+      
+      await token.connect(controller).mint(user1.address, amount1);
+      await token.connect(controller).mint(user1.address, amount2);
+      await token.connect(controller).mint(user1.address, amount3);
+      
+      expect(await token.balanceOf(user1.address)).to.equal(amount1 + amount2 + amount3);
+      expect(await token.totalSupply()).to.equal(amount1 + amount2 + amount3);
     });
   });
 
@@ -268,6 +363,43 @@ describe("HokusaiToken", function () {
       expect(await token.balanceOf(user1.address)).to.equal(parseEther("500"));
       expect(await token.balanceOf(user2.address)).to.equal(parseEther("200"));
       expect(await token.totalSupply()).to.equal(parseEther("700"));
+    });
+  });
+
+  describe("Event Filtering", function () {
+    it("Should support filtering Minted events by recipient", async function () {
+      await token.setController(controller.address);
+      
+      // Mint to different users
+      await token.connect(controller).mint(user1.address, parseEther("100"));
+      await token.connect(controller).mint(user2.address, parseEther("200"));
+      await token.connect(controller).mint(user1.address, parseEther("300"));
+      
+      // Query events for user1 only
+      const filter = token.filters.Minted(user1.address);
+      const events = await token.queryFilter(filter);
+      
+      expect(events.length).to.equal(2);
+      expect(events[0].args.to).to.equal(user1.address);
+      expect(events[0].args.amount).to.equal(parseEther("100"));
+      expect(events[1].args.to).to.equal(user1.address);
+      expect(events[1].args.amount).to.equal(parseEther("300"));
+    });
+
+    it("Should support filtering ControllerUpdated events", async function () {
+      // Update controller multiple times
+      await token.setController(controller.address);
+      await token.setController(user1.address);
+      await token.setController(user2.address);
+      
+      // Query all ControllerUpdated events
+      const filter = token.filters.ControllerUpdated();
+      const events = await token.queryFilter(filter);
+      
+      expect(events.length).to.equal(3);
+      expect(events[0].args.newController).to.equal(controller.address);
+      expect(events[1].args.newController).to.equal(user1.address);
+      expect(events[2].args.newController).to.equal(user2.address);
     });
   });
 });

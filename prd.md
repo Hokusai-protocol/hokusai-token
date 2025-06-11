@@ -1,166 +1,170 @@
-# PRD: Implement Basic Burn Mechanism
+# PRD: Write Test for HokusaiToken Access Control and Minting
 
 ## Problem Statement
 
-The current AuctionBurner contract exists but lacks the core functionality that users need: the ability to actually burn their tokens. Without this fundamental capability:
+The HokusaiToken contract implements critical access control mechanisms that restrict minting and burning operations to a designated controller address. Without comprehensive tests validating these security features:
 
-- Token holders cannot consume tokens to access model APIs/services
-- Frontend applications have no way to trigger token burns on behalf of users
-- The token ecosystem lacks the consumption mechanism that drives token utility
-- Users cannot simulate the primary use case: trading tokens for model access
+- We cannot verify that unauthorized addresses are properly blocked from minting tokens
+- There's no validation that tokens are correctly distributed to intended recipients
+- Event emissions for minting operations are untested, leaving potential gaps in observability
+- The controller update mechanism lacks test coverage, creating security uncertainty
 
-This is a critical gap because token burning is the primary value proposition of the Hokusai token system - users acquire tokens through contributions and burn them to access AI models.
+This testing gap represents a significant risk as the access control system is fundamental to the token's security model and economic integrity.
 
 ## Solution Overview
 
-We will implement a `burn()` function in the AuctionBurner contract that:
+We will implement a comprehensive test suite that validates:
 
-1. **Accepts a burn amount** from the calling user
-2. **Validates the user has sufficient balance** before attempting to burn
-3. **Calls the HokusaiToken contract** to execute the actual burn operation
-4. **Emits events** for frontend feedback and analytics
-5. **Handles errors gracefully** with clear error messages
-
-This creates the missing link between token holders and token consumption, enabling the core use case of the platform.
+1. **Access control enforcement** - Only the controller can mint tokens
+2. **Correct token distribution** - Minted tokens reach the intended recipient addresses
+3. **Event emission verification** - Minted events are properly emitted with correct parameters
+4. **Controller update mechanics** - Controller can be changed and permissions transfer correctly
+5. **Edge case handling** - Zero address protection, zero amount minting, etc.
 
 ## Success Criteria
 
 **Functional Success:**
-- Users can burn tokens by calling `burn(amount)` on AuctionBurner
-- Token balances decrease correctly after burn operations
-- Total token supply decreases by the burned amount
-- Invalid operations fail with clear error messages
+- Test suite covers 100% of minting-related functions in HokusaiToken
+- All access control paths are tested (authorized and unauthorized attempts)
+- Event emissions are validated for all minting operations
+- Controller update functionality is thoroughly tested
 
 **Technical Success:**
-- Function integrates seamlessly with existing HokusaiToken contract
-- Gas usage is optimized for frequent use
-- All edge cases are handled (zero amounts, insufficient balance, etc.)
-- Events provide sufficient data for frontend integration
+- Tests follow existing Hardhat testing patterns in the codebase
+- Tests are deterministic and run consistently
+- Clear test descriptions explain what each test validates
+- Tests execute quickly (< 5 seconds for the entire suite)
 
-**User Experience Success:**
-- Frontend developers can easily integrate the burn functionality
-- Users receive immediate feedback on burn success/failure
-- Error messages are actionable and user-friendly
+**Security Success:**
+- Unauthorized minting attempts are proven to fail
+- Controller permissions are validated after updates
+- Zero address edge cases are covered
 
 ## Personas
 
-**Primary: Token Holder**
-- Has earned Hokusai tokens through data contributions
-- Wants to burn tokens to access premium AI models
-- Expects reliable, fast token burning with clear feedback
-- May not be technically sophisticated
+**Primary: Smart Contract Developer**
+- Needs confidence that access control is properly implemented
+- Requires clear test examples for understanding contract behavior
+- Values comprehensive coverage of security-critical functions
 
-**Secondary: Frontend Developer**
-- Building web interfaces for token holders
-- Needs predictable contract behavior for integration
-- Requires event emissions for UI state updates
-- Values gas efficiency for user experience
+**Secondary: Security Auditor**
+- Reviews test coverage for access control vulnerabilities
+- Needs tests that demonstrate security boundaries
+- Looks for edge case coverage and attack vector validation
 
 ## Technical Solution
 
-### Current State Analysis
-The AuctionBurner contract exists with:
-- Reference to HokusaiToken contract
-- Basic structure and access controls
-- Missing: user-facing burn functionality
+### Test Structure
 
-### Proposed Changes
+The test suite will be organized into logical sections:
 
-**1. Core Burn Function**
-```solidity
-function burn(uint256 amount) external {
-    require(amount > 0, "Amount must be greater than zero");
-    require(hokusaiToken.balanceOf(msg.sender) >= amount, "Insufficient balance");
-    
-    hokusaiToken.burnFrom(msg.sender, amount);
-    emit TokensBurned(msg.sender, amount);
-}
-```
+1. **Deployment Tests**
+   - Verify initial controller is set correctly
+   - Confirm token metadata (name, symbol, decimals)
 
-**2. Enhanced Error Handling**
-- Pre-validate token balance to provide clear error messages
-- Check for zero amounts before processing
-- Handle token contract failures gracefully
+2. **Access Control Tests**
+   - Test minting with authorized controller
+   - Test minting rejection for non-controller addresses
+   - Test minting rejection for previous controller after update
 
-**3. Event Emissions**
-```solidity
-event TokensBurned(address indexed user, uint256 amount);
-```
+3. **Minting Functionality Tests**
+   - Verify correct balance updates after minting
+   - Test total supply increases correctly
+   - Validate minting to multiple addresses
 
-**4. Integration Considerations**
-- Use `burnFrom()` to burn tokens on behalf of users
-- Ensure proper allowance handling if required
-- Maintain compatibility with existing contract architecture
+4. **Event Emission Tests**
+   - Verify Minted event is emitted with correct parameters
+   - Test event arguments match the minting operation
+   - Validate indexed parameters for event filtering
+
+5. **Controller Update Tests**
+   - Test controller can be updated by owner
+   - Verify old controller loses minting permissions
+   - Confirm new controller gains minting permissions
+   - Test ControllerUpdated event emission
+
+6. **Edge Case Tests**
+   - Test zero amount minting behavior
+   - Verify zero address protection for controller updates
+   - Test minting to zero address (if applicable)
+
+### Implementation Approach
+
+Tests will use the existing Hardhat testing framework with ethers.js, following patterns established in the codebase. Each test will:
+
+1. Set up a clean contract state
+2. Execute the operation being tested
+3. Assert expected outcomes
+4. Verify event emissions where applicable
 
 ## Implementation Tasks
 
-1. **Analyze Current AuctionBurner Implementation**
-   - Review existing contract code and interfaces
-   - Identify current burn-related functionality (if any)
-   - Document integration points with HokusaiToken
+1. **Set Up Test File Structure**
+   - Create or update test file for HokusaiToken
+   - Import necessary testing utilities and contracts
+   - Set up test fixtures for deployment
 
-2. **Implement Core Burn Function**
-   - Add `burn(uint256 amount)` function with validation
-   - Implement balance checking before burn operation
-   - Add proper error handling and user feedback
+2. **Implement Deployment Tests**
+   - Test initial controller assignment
+   - Verify token metadata initialization
 
-3. **Add Event System**
-   - Define TokensBurned event with indexed parameters
-   - Emit events on successful burns
-   - Ensure event data supports frontend needs
+3. **Implement Access Control Tests**
+   - Test successful minting by controller
+   - Test failed minting by non-controller
+   - Test permission changes after controller update
 
-4. **Security Implementation**
-   - Validate all input parameters
-   - Add reentrancy protection if needed
-   - Test edge cases and attack vectors
+4. **Implement Minting Tests**
+   - Test balance updates for single recipient
+   - Test total supply tracking
+   - Test batch minting to multiple addresses
 
-5. **Integration Testing**
-   - Test with actual HokusaiToken contract
-   - Verify balance and supply updates
-   - Test error conditions and recovery
+5. **Implement Event Tests**
+   - Test Minted event emission and parameters
+   - Test ControllerUpdated event emission
+   - Verify event filtering capabilities
 
-6. **Frontend Integration Support**
-   - Document function interfaces for web3 integration
-   - Provide usage examples and gas estimates
-   - Test with common frontend patterns
+6. **Implement Edge Case Tests**
+   - Test zero amount handling
+   - Test zero address protections
+   - Test maximum uint256 minting limits
 
 ## Acceptance Criteria
 
 **Must Have:**
-- [ ] `burn(amount)` function implemented and accessible
-- [ ] Function validates amount > 0 and sufficient balance
-- [ ] Successful burns decrease user balance and total supply
-- [ ] TokensBurned event emitted with correct parameters
-- [ ] Clear error messages for invalid operations
+- [ ] Test verifies only controller can mint tokens
+- [ ] Test confirms minted tokens go to correct recipient address
+- [ ] Test validates Minted event is emitted with correct parameters
+- [ ] Test covers controller update functionality
+- [ ] Test ensures non-controller addresses cannot mint
 
 **Should Have:**
-- [ ] Gas-optimized implementation (< 100k gas per burn)
-- [ ] Comprehensive test coverage (>95%)
-- [ ] NatSpec documentation for all functions
-- [ ] Integration tested with existing contracts
+- [ ] Test covers zero amount minting edge case
+- [ ] Test validates zero address protection for controller
+- [ ] Test includes multiple minting scenarios
+- [ ] Clear test descriptions for each validation
 
 **Could Have:**
-- [ ] Batch burn functionality for multiple amounts
-- [ ] Burn history tracking for analytics
-- [ ] Integration with frontend libraries (ethers.js examples)
+- [ ] Gas usage assertions for minting operations
+- [ ] Fuzz testing for mint amounts
+- [ ] Integration tests with TokenManager
 
 ## Risk Assessment
 
-**High Risk: Token Loss**
-- *Risk*: Bugs could cause permanent token loss
-- *Mitigation*: Extensive testing, use proven patterns, code review
+**Low Risk: Test Implementation**
+- *Risk*: Tests might not follow existing patterns
+- *Mitigation*: Review existing test files before implementation
 
-**Medium Risk: Integration Failures**
-- *Risk*: Incompatibility with HokusaiToken contract
-- *Mitigation*: Test integration early, follow existing patterns
+**Medium Risk: Coverage Gaps**
+- *Risk*: Missing critical edge cases
+- *Mitigation*: Use coverage reports to identify gaps
 
-**Low Risk: Gas Optimization**
-- *Risk*: High gas costs deter usage
-- *Mitigation*: Profile gas usage, optimize before deployment
+**Low Risk: Test Maintenance**
+- *Risk*: Tests become outdated with contract changes
+- *Mitigation*: Write clear, well-documented tests
 
 ## Dependencies
 
-- Existing HokusaiToken contract with burn/burnFrom functionality
-- OpenZeppelin contracts for security patterns
-- Hardhat testing framework for validation
-- Access to deployed contract addresses for integration testing
+- Existing HokusaiToken contract implementation
+- Hardhat testing framework
+- ethers.js for contract interactions
+- Existing test utilities in the codebase

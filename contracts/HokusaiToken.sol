@@ -12,6 +12,8 @@ contract HokusaiToken is ERC20, Ownable {
     address public controller;
 
     event ControllerUpdated(address indexed newController);
+    event Minted(address indexed to, uint256 amount);
+    event Burned(address indexed from, uint256 amount);
 
     modifier onlyController() {
         require(msg.sender == controller, "Only controller can call this function");
@@ -37,6 +39,7 @@ contract HokusaiToken is ERC20, Ownable {
      */
     function mint(address to, uint256 amount) external onlyController {
         _mint(to, amount);
+        emit Minted(to, amount);
     }
 
     /**
@@ -46,5 +49,6 @@ contract HokusaiToken is ERC20, Ownable {
      */
     function burn(address from, uint256 amount) external onlyController {
         _burn(from, amount);
+        emit Burned(from, amount);
     }
 }

@@ -15,6 +15,7 @@ The Hokusai Token system implements a token ecosystem where ERC20 tokens are lin
 - Only the designated controller can mint and burn tokens
 - Metadata: "Hokusai Token" (HOKU), 18 decimals
 - Implements OpenZeppelin's ERC20 and Ownable patterns
+- Emits custom Minted and Burned events for enhanced observability
 
 #### ModelRegistry
 - Maps model IDs to their corresponding token addresses
@@ -69,3 +70,46 @@ npx hardhat run scripts/deploy.js --network localhost
 - **Zero Address Protection**: Cannot set controller to zero address
 - **Owner-Only Administration**: Critical functions restricted to contract owner
 - **Event Logging**: All major operations emit events for transparency
+
+## Event Specifications
+
+### HokusaiToken Events
+
+#### Minted
+```solidity
+event Minted(address indexed to, uint256 amount);
+```
+Emitted when tokens are minted to an address.
+- `to`: The recipient address (indexed for filtering)
+- `amount`: The number of tokens minted
+
+#### Burned
+```solidity
+event Burned(address indexed from, uint256 amount);
+```
+Emitted when tokens are burned from an address.
+- `from`: The address from which tokens were burned (indexed for filtering)
+- `amount`: The number of tokens burned
+
+#### ControllerUpdated
+```solidity
+event ControllerUpdated(address indexed newController);
+```
+Emitted when the controller address is updated.
+- `newController`: The new controller address (indexed for filtering)
+
+### Event Filtering Examples
+
+```javascript
+// Listen for all minting events
+const filter = token.filters.Minted();
+token.on(filter, (to, amount, event) => {
+  console.log(`Minted ${amount} tokens to ${to}`);
+});
+
+// Listen for burns from a specific address
+const burnFilter = token.filters.Burned(userAddress);
+token.on(burnFilter, (from, amount, event) => {
+  console.log(`Burned ${amount} tokens from ${from}`);
+});
+```

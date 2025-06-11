@@ -1,114 +1,120 @@
-# PRD: Add Registration and Lookup Functions to ModelRegistry
+# PRD: Create Minimal AuctionBurner.sol Contract
 
 ## Objectives
 
-Enhance the existing ModelRegistry contract with core registration and lookup functionality. Add registerModel() function to create new model-token mappings and getToken() function to retrieve token addresses by model ID. These functions establish the foundational registry operations that other contracts depend on for model-token lookups.
+Refactor the existing BurnAuction.sol contract into a minimal AuctionBurner.sol contract that simulates token consumption for API/model access. This contract will serve as a simplified interface for users to burn tokens in exchange for model access rights.
+
+## Problem Statement
+
+The current BurnAuction.sol contract needs to be refactored into a more focused AuctionBurner.sol contract that:
+- Provides a clean interface for token burning
+- Simulates the consumption of tokens for API/model access
+- Maintains a reference to a single HokusaiToken contract
+- Serves as the foundation for future auction-based access mechanisms
 
 ## Success Criteria
 
-- ModelRegistry contract successfully stores and manages model metadata including tokens and metrics
-- Other contracts can reliably query model information using model IDs
-- Registry supports both registration and lookup operations with proper access control
-- Implementation includes comprehensive event logging for monitoring and analytics
-- Gas-efficient storage patterns that scale with multiple models
-- Full test coverage for all registry operations and edge cases
+- AuctionBurner.sol contract successfully deployed and tested
+- Contract holds reference to HokusaiToken contract
+- Basic burn functionality implemented and working
+- Contract integrates with existing token ecosystem (HokusaiToken, ModelRegistry)
+- All security measures properly implemented
 
 ## Personas
 
-### Smart Contract Developer
-- Needs to integrate TokenManager and other contracts with the ModelRegistry
-- Requires predictable interfaces for model-token-metric lookups
-- Values gas efficiency and reliable contract interactions
-- Needs clear documentation for integration patterns
-
-### System Administrator
-- Manages model registrations and updates model configurations
-- Needs visibility into all registered models and their status
-- Requires ability to deactivate or update model information
-- Values admin controls and audit trails
-
-### DApp Developer
-- Building frontend applications that interact with Hokusai models
-- Needs to query model metadata for UI display
-- Requires consistent data format for model information
-- Values standardized API patterns for model discovery
+**Primary Users:**
+- **Smart Contract Developers**: Need a clean contract to integrate token burning with model access
+- **Token Holders**: Want to burn tokens to access AI models/APIs
+- **System Administrators**: Need to configure and manage the burning mechanism
 
 ## Technical Requirements
 
-### Core Registry Structure
-- Implement comprehensive ModelInfo struct containing name, token address, performance metric, and status
-- Support auto-incrementing model ID assignment starting from 1
-- Include mapping for efficient model data retrieval
-- Provide reverse lookup capabilities where needed
+### Core Functionality
+1. **Token Reference Management**
+   - Store reference to HokusaiToken contract
+   - Allow admin to update token reference if needed
 
-### Model Management Functions
-- registerModel() function for adding new model-token-metric associations
-- updateMetric() function for modifying performance metrics
-- deactivateModel() function for managing model lifecycle
-- Proper access control restricting admin functions to authorized addresses
+2. **Basic Burn Mechanism**
+   - Implement burn() function that burns tokens from msg.sender
+   - Validate user has sufficient token balance
+   - Call HokusaiToken.burn() or burnFrom() appropriately
 
-### Query Interface
-- getModel() function returning complete model information
-- getTokenAddress() function for token address lookup
-- getMetric() function for performance metric retrieval
-- Efficient view functions with consistent return patterns
+3. **Access Control**
+   - Implement proper ownership/admin controls
+   - Ensure only authorized addresses can update critical parameters
 
-### Event System
-- ModelRegistered event for new model additions
-- ModelUpdated event for model modifications
-- Indexed parameters for efficient off-chain filtering and monitoring
+4. **Integration Points**
+   - Work with existing HokusaiToken contracts
+   - Be compatible with ModelRegistry for future enhancements
 
-## Implementation Tasks
+### Security Requirements
+- Validate all inputs and prevent zero-address issues
+- Implement proper access controls
+- Emit events for all major operations
+- Handle edge cases (insufficient balance, zero amounts, etc.)
 
-### 1. Define Core Contract Structure
-- Create ModelInfo struct with name, tokenAddress, performanceMetric, dataFormat, and active fields
-- Implement mapping(uint256 => ModelInfo) for model storage
-- Add nextModelId counter starting at 1
-- Define admin address and onlyAdmin modifier
+## Tasks
 
-### 2. Implement Registration Functions
-- Create registerModel() function accepting model metadata parameters
-- Add proper validation for token addresses (non-zero check)
-- Implement auto-incrementing model ID assignment
-- Emit ModelRegistered event with indexed modelId and tokenAddress
+### Task 1: Review Existing BurnAuction.sol
+- Read current BurnAuction.sol implementation
+- Identify components to keep vs refactor
+- Document current functionality and interfaces
 
-### 3. Add Model Management Functions
-- Implement updateMetric() for modifying performance metrics
-- Create deactivateModel() for lifecycle management
-- Add proper access control to all admin functions
-- Emit appropriate events for all state changes
+### Task 2: Design AuctionBurner.sol Interface
+- Define contract structure and state variables
+- Design function signatures for core operations
+- Plan event emissions and error handling
 
-### 4. Create Query Interface
-- Implement getModel() returning complete ModelInfo struct
-- Add getTokenAddress() for efficient token address lookup
-- Create getMetric() for performance metric queries
-- Ensure consistent return patterns for not found scenarios
+### Task 3: Implement AuctionBurner.sol Contract
+- Create new contract file with basic structure
+- Implement constructor with HokusaiToken reference
+- Add burn() function with proper validation
+- Include admin functions for configuration
 
-### 5. Write Comprehensive Tests
-- Test model registration with valid and invalid inputs
-- Verify proper access control for admin functions
-- Test all query functions with registered and unregistered models
-- Validate event emissions and parameter indexing
-- Test edge cases including zero addresses and inactive models
-- Verify gas efficiency of storage operations
+### Task 4: Add Security and Access Controls
+- Implement ownership controls using OpenZeppelin
+- Add input validation and error handling
+- Include zero-address checks and other safety measures
+- Add events for transparency and monitoring
 
-### 6. Integration Testing
-- Test TokenManager integration with ModelRegistry
-- Verify proper model-token resolution in realistic scenarios
-- Test admin operations in deployment context
-- Validate contract interactions match expected patterns
+### Task 5: Write Comprehensive Tests
+- Test basic burn functionality
+- Test access controls and admin functions
+- Test integration with HokusaiToken
+- Test error conditions and edge cases
+- Verify events are emitted correctly
 
-## Non-Goals
+### Task 6: Update Documentation
+- Add contract documentation and comments
+- Update README if necessary
+- Document integration points with other contracts
 
-- Token creation or ERC20 implementation (handled by HokusaiToken)
-- Complex model versioning or migration logic
-- Off-chain metadata synchronization
-- Multi-network registry coordination
-- Governance or decentralized admin controls (future enhancement)
+## Acceptance Criteria
+
+- [ ] AuctionBurner.sol contract created and compiles successfully
+- [ ] Contract maintains reference to HokusaiToken
+- [ ] burn() function works correctly and burns tokens from caller
+- [ ] Proper access controls implemented
+- [ ] All security validations in place
+- [ ] Comprehensive test suite written and passing
+- [ ] Events emitted for all major operations
+- [ ] Code properly documented with comments
+- [ ] Integration with existing ecosystem verified
 
 ## Dependencies
 
-- Existing contract architecture (HokusaiToken, TokenManager)
-- Hardhat testing and deployment framework
-- Access control patterns established in other contracts
-- Event logging standards for the Hokusai ecosystem
+- Existing HokusaiToken contract
+- OpenZeppelin contracts for security patterns
+- Hardhat testing framework
+- Current project architecture and patterns
+
+## Risks and Mitigations
+
+**Risk**: Breaking compatibility with existing contracts
+**Mitigation**: Maintain backward compatibility and follow existing patterns
+
+**Risk**: Security vulnerabilities in burn mechanism
+**Mitigation**: Use established patterns, comprehensive testing, and security reviews
+
+**Risk**: Integration issues with HokusaiToken
+**Mitigation**: Test integration thoroughly and follow existing controller patterns

@@ -29,9 +29,11 @@ The Hokusai Token system implements a token ecosystem where ERC20 tokens are lin
 - Integrates with ModelRegistry to validate model-token mappings
 - Handles minting tokens to contributors based on model performance
 
-#### BurnAuction
-- Allows users to burn tokens in exchange for model access
-- References HokusaiToken contracts for burn operations
+#### AuctionBurner
+- Minimal contract for burning tokens to simulate model/API access consumption
+- Users burn tokens through a clean interface with proper validation
+- Maintains reference to a single HokusaiToken contract
+- Provides foundation for future auction-based access mechanisms
 
 ## Development
 
@@ -62,8 +64,9 @@ npx hardhat run scripts/deploy.js --network localhost
    - Mints tokens to recipient address
 
 2. **Token Burning Flow**:
-   - User interacts with BurnAuction
-   - BurnAuction calls TokenManager to burn user's tokens
+   - User interacts with AuctionBurner contract
+   - User approves AuctionBurner to spend their tokens
+   - AuctionBurner transfers tokens and burns them
    - Tokens are removed from circulation
 
 ## Security Features
@@ -198,3 +201,57 @@ token.on(burnFilter, (from, amount, event) => {
   console.log(`Burned ${amount} tokens from ${from}`);
 });
 ```
+
+## AuctionBurner API
+
+### Core Functions
+
+#### burn(uint256 amount)
+Burns tokens from the caller's balance to simulate model access consumption.
+```solidity
+function burn(uint256 amount) external
+```
+
+**Requirements:**
+- `amount` must be greater than zero
+- Caller must have sufficient token balance
+- Caller must have approved this contract to spend their tokens
+
+#### setToken(address _token)
+Updates the token contract reference (admin only).
+```solidity
+function setToken(address _token) external onlyOwner
+```
+
+### Usage Examples
+
+```javascript
+// Deploy AuctionBurner with token reference
+const auctionBurner = await AuctionBurner.deploy(tokenAddress);
+
+// User approves tokens for burning
+await token.connect(user).approve(auctionBurnerAddress, burnAmount);
+
+// User burns tokens to access model
+await auctionBurner.connect(user).burn(burnAmount);
+
+// Admin updates token reference
+await auctionBurner.setToken(newTokenAddress);
+```
+
+### AuctionBurner Events
+
+#### TokensBurned
+```solidity
+event TokensBurned(address indexed user, uint256 amount);
+```
+Emitted when tokens are burned by a user.
+- `user`: The address that initiated the burn (indexed for filtering)
+- `amount`: The number of tokens burned
+
+#### TokenContractUpdated
+```solidity
+event TokenContractUpdated(address indexed newToken);
+```
+Emitted when the token contract reference is updated.
+- `newToken`: The new token contract address (indexed for filtering)

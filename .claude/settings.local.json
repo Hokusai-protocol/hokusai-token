@@ -4,7 +4,10 @@
       "Bash(node:*)",
       "Bash(git checkout:*)",
       "Bash(npm test)",
-      "Bash(npx hardhat compile:*)"
+      "Bash(npx hardhat compile:*)",
+      "Bash(npm test:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }

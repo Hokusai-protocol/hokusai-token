@@ -1,78 +1,98 @@
-# PRD: Implement Controlled mintTokens() Function
+# PRD: Define mapping of modelId → token address
 
 ## Objectives
 
-Implement a secure `mintTokens()` function in the TokenManager contract that:
-- Accepts a model ID, recipient address, and token amount as parameters
-- Uses the ModelRegistry to look up the correct token contract address
-- Mints tokens to the specified recipient only if the model is properly registered
-- Enforces access control to prevent unauthorized token minting
-
-## Personas
-
-**Primary User: Contract Administrator**
-- Needs to mint tokens for contributors based on validated model performance
-- Requires assurance that tokens are only minted for registered models
-- Must have exclusive control over the minting process
-
-**Secondary User: System Integrator** 
-- Will integrate this function with future DeltaOne verification systems
-- Needs clear error handling and event logging for debugging
-- Requires predictable behavior for automated systems
+Build a simple storage mapping in the ModelRegistry contract to link model identifiers (e.g., hash or slug) with their ERC20 token contracts. This mapping serves as the foundation for the token ecosystem, enabling other contracts to dynamically resolve which token belongs to which model.
 
 ## Success Criteria
 
-1. **Functional Requirements**
-   - `mintTokens(uint256 modelId, address recipient, uint256 amount)` function implemented
-   - Function successfully queries ModelRegistry to get token address
-   - Tokens are minted to the correct recipient address
-   - Function reverts if model is not registered or inactive
+- ModelRegistry contract successfully stores modelId to token address mappings
+- Storage mapping is accessible and queryable by other contracts
+- Implementation supports both string-based and uint256-based model identifiers
+- Gas-efficient storage pattern that scales with multiple models
+- Clear separation between mapping storage and access control functions
 
-2. **Security Requirements**
-   - Only authorized admin can call the function
-   - Function validates model exists before attempting to mint
-   - No tokens can be minted for unregistered models
+## Personas
 
-3. **Integration Requirements**
-   - Function works seamlessly with existing ModelRegistry contract
-   - Compatible with HokusaiToken's controller-based minting system
-   - Proper event emission for tracking and debugging
+### Smart Contract Developer
+- Needs to integrate with the ModelRegistry to resolve token addresses
+- Requires predictable interface for model-token lookups
+- Values gas efficiency and reliable contract interactions
 
-## Tasks
+### System Administrator
+- Manages model registrations and token associations
+- Needs clear visibility into registered mappings
+- Requires ability to validate model-token relationships
 
-### Core Implementation
-1. Add `mintTokens()` function to TokenManager contract with proper access control
-2. Implement ModelRegistry lookup logic within the function
-3. Add validation to ensure model is registered and active
-4. Include proper error messages for different failure scenarios
+### Integration Partner
+- Building on top of the Hokusai ecosystem
+- Needs standardized way to discover model tokens
+- Values consistent API patterns across contracts
 
-### Testing & Validation
-5. Write comprehensive tests for successful minting scenarios
-6. Test error cases (unregistered model, inactive model, unauthorized caller)
-7. Verify integration with existing ModelRegistry and HokusaiToken contracts
-8. Test event emission and logging
+## Technical Requirements
 
-### Security & Edge Cases
-9. Implement access control modifiers (onlyAdmin)
-10. Add input validation for parameters (non-zero amounts, valid addresses)
-11. Test with edge cases (zero amounts, invalid addresses)
-12. Verify gas usage and optimization opportunities
+### Core Mapping Structure
+- Implement storage mapping from model identifier to token address
+- Support both string and uint256 model identifier types
+- Ensure mapping can handle zero addresses for unregistered models
+- Include reverse lookup capability (token address to model ID)
 
-## Technical Specifications
+### Data Integrity
+- Prevent duplicate model registrations
+- Validate token addresses before storage
+- Handle edge cases like zero addresses appropriately
+- Ensure mapping consistency across operations
 
-**Function Signature:**
-```solidity
-function mintTokens(uint256 modelId, address recipient, uint256 amount) external onlyAdmin
-```
+### Interface Design
+- Public view functions for reading mappings
+- Clear function naming conventions (getTokenAddress, etc.)
+- Consistent return patterns for found/not found scenarios
+- Events for mapping changes to support external monitoring
 
-**Dependencies:**
-- ModelRegistry contract for token address lookup
-- HokusaiToken contracts for actual minting
-- Access control system for admin permissions
+## Implementation Tasks
 
-**Expected Behavior:**
-1. Validate caller has admin permissions
-2. Query ModelRegistry.getTokenAddress(modelId)
-3. Verify returned address is not zero (model exists)
-4. Call HokusaiToken(tokenAddress).mint(recipient, amount)
-5. Emit relevant events for tracking
+### 1. Define Storage Structure
+- Create mapping(uint256 => address) for modelId to token address
+- Create mapping(string => address) for string-based model identifiers (if needed)
+- Create mapping(address => uint256) for reverse lookups
+- Define nextModelId counter for auto-incrementing IDs
+
+### 2. Implement Core Mapping Functions
+- Add internal _setMapping function for updating storage
+- Implement getTokenAddress(uint256 modelId) view function
+- Add exists(uint256 modelId) check function
+- Create getAllRegisteredModels() enumeration function
+
+### 3. Add Data Validation
+- Validate token addresses are not zero address
+- Prevent overwriting existing mappings without explicit update
+- Add checks for valid model ID ranges
+- Implement duplicate prevention logic
+
+### 4. Create Events and Monitoring
+- Define ModelMapped event for new registrations
+- Add ModelUpdated event for mapping changes
+- Include indexed parameters for efficient filtering
+- Emit events in all mapping modification functions
+
+### 5. Write Comprehensive Tests
+- Test basic mapping storage and retrieval
+- Verify edge cases (zero addresses, non-existent models)
+- Test gas efficiency of mapping operations
+- Validate event emissions and data integrity
+- Test integration scenarios with mock token contracts
+
+## Non-Goals
+
+- Complex model metadata storage (handled separately)
+- Access control for mapping modifications (separate feature)
+- Token creation or management logic
+- Off-chain data synchronization
+- Multi-network model registry synchronization
+
+## Dependencies
+
+- Existing ModelRegistry contract structure
+- ERC20 token interface compatibility
+- Hardhat testing framework setup
+- Integration with TokenManager contract expectations

@@ -12,10 +12,10 @@ import "./HokusaiToken.sol";
 contract TokenManager is Ownable {
     ModelRegistry public registry;
 
-    event TokensMinted(bytes32 indexed modelId, address indexed recipient, uint256 amount);
-    event TokensBurned(bytes32 indexed modelId, address indexed account, uint256 amount);
+    event TokensMinted(uint256 indexed modelId, address indexed recipient, uint256 amount);
+    event TokensBurned(uint256 indexed modelId, address indexed account, uint256 amount);
 
-    modifier validModel(bytes32 modelId) {
+    modifier validModel(uint256 modelId) {
         require(registry.isRegistered(modelId), "Model not registered");
         _;
     }
@@ -31,7 +31,7 @@ contract TokenManager is Ownable {
      * @param recipient The address to receive the tokens
      * @param amount The amount of tokens to mint
      */
-    function mintTokens(bytes32 modelId, address recipient, uint256 amount) 
+    function mintTokens(uint256 modelId, address recipient, uint256 amount) 
         external 
         onlyOwner 
         validModel(modelId) 
@@ -51,7 +51,7 @@ contract TokenManager is Ownable {
      * @param account The address to burn tokens from
      * @param amount The amount of tokens to burn
      */
-    function burnTokens(bytes32 modelId, address account, uint256 amount)
+    function burnTokens(uint256 modelId, address account, uint256 amount)
         external
         onlyOwner
         validModel(modelId)
@@ -70,7 +70,7 @@ contract TokenManager is Ownable {
      * @param modelId The model identifier
      * @return The token contract address
      */
-    function getTokenAddress(bytes32 modelId) external view validModel(modelId) returns (address) {
+    function getTokenAddress(uint256 modelId) external view validModel(modelId) returns (address) {
         return registry.getToken(modelId);
     }
 
@@ -79,7 +79,7 @@ contract TokenManager is Ownable {
      * @param modelId The model identifier
      * @return True if the model is registered in the registry
      */
-    function isModelManaged(bytes32 modelId) external view returns (bool) {
+    function isModelManaged(uint256 modelId) external view returns (bool) {
         return registry.isRegistered(modelId);
     }
 }

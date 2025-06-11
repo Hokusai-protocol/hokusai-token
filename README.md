@@ -18,8 +18,10 @@ The Hokusai Token system implements a token ecosystem where ERC20 tokens are lin
 - Emits custom Minted and Burned events for enhanced observability
 
 #### ModelRegistry
-- Maps model IDs to their corresponding token addresses
-- Admin-controlled registration of new models
+- Maps uint256 model IDs to their corresponding token addresses
+- Provides reverse lookup functionality (token address → model ID)
+- Admin-controlled registration of new models with manual or auto-incremented IDs
+- Prevents duplicate model or token registrations
 - Provides lookup functionality for other contracts
 
 #### TokenManager
@@ -71,7 +73,90 @@ npx hardhat run scripts/deploy.js --network localhost
 - **Owner-Only Administration**: Critical functions restricted to contract owner
 - **Event Logging**: All major operations emit events for transparency
 
+## ModelRegistry API
+
+### Core Functions
+
+#### registerModel(uint256 modelId, address token)
+Registers a new model with a specific ID and token address.
+```solidity
+function registerModel(uint256 modelId, address token) external onlyOwner
+```
+
+#### registerModelAutoId(address token)
+Registers a new model with an auto-incremented ID.
+```solidity
+function registerModelAutoId(address token) external onlyOwner returns (uint256)
+```
+
+#### getToken(uint256 modelId)
+Gets the token address for a model ID.
+```solidity
+function getToken(uint256 modelId) external view returns (address)
+```
+
+#### getTokenAddress(uint256 modelId)
+Alternative function name for getting token address.
+```solidity
+function getTokenAddress(uint256 modelId) external view returns (address)
+```
+
+#### getModelId(address tokenAddress)
+Reverse lookup: gets the model ID for a token address.
+```solidity
+function getModelId(address tokenAddress) external view returns (uint256)
+```
+
+#### isRegistered(uint256 modelId)
+Checks if a model is registered.
+```solidity
+function isRegistered(uint256 modelId) external view returns (bool)
+```
+
+#### exists(uint256 modelId)
+Alias for isRegistered.
+```solidity
+function exists(uint256 modelId) external view returns (bool)
+```
+
+### Usage Examples
+
+```javascript
+// Register a model with specific ID
+await modelRegistry.registerModel(123, tokenAddress);
+
+// Register a model with auto-incremented ID
+const modelId = await modelRegistry.registerModelAutoId(tokenAddress);
+
+// Look up token address
+const tokenAddr = await modelRegistry.getToken(123);
+
+// Reverse lookup model ID
+const modelId = await modelRegistry.getModelId(tokenAddress);
+
+// Check if model exists
+const exists = await modelRegistry.exists(123);
+```
+
 ## Event Specifications
+
+### ModelRegistry Events
+
+#### ModelRegistered
+```solidity
+event ModelRegistered(uint256 indexed modelId, address indexed tokenAddress);
+```
+Emitted when a new model is registered.
+- `modelId`: The model identifier (indexed for filtering)
+- `tokenAddress`: The token contract address (indexed for filtering)
+
+#### ModelUpdated
+```solidity
+event ModelUpdated(uint256 indexed modelId, address indexed newTokenAddress);
+```
+Emitted when a model's token address is updated.
+- `modelId`: The model identifier (indexed for filtering)  
+- `newTokenAddress`: The new token contract address (indexed for filtering)
 
 ### HokusaiToken Events
 

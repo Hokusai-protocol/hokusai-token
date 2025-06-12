@@ -11,7 +11,7 @@ Perform these steps one at a time and confirm before proceeding:
   ```bash
   node packages/tools/get-backlog.ts
   ```
-- Review the output and select a task by providing its title. Number them and prompt the user to select one by choosing a number. 
+- Review the output and select a task by providing its title. Number them and prompt the user to select one by choosing a number. s
 - The tool will display:
   - Task title
   - Description

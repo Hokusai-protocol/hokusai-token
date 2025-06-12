@@ -1,4 +1,5 @@
 // scripts/dev-cycle.js
+// Run an end-to-end test of the Hokusai smart contracts. Deploy a contract, register a model, mint tokens, burn tokens, and test the registry and token manager.
 
 const { ethers } = require("hardhat");
 

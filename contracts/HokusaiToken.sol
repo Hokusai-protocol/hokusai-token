@@ -20,7 +20,7 @@ contract HokusaiToken is ERC20, Ownable {
         _;
     }
 
-    constructor() ERC20("Hokusai Token", "HOKU") Ownable(msg.sender) {}
+    constructor() ERC20("Hokusai Token", "HOKU") Ownable() {}
 
     /**
      * @dev Sets the controller address that can mint and burn tokens

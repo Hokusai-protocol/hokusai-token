@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./ModelRegistry.sol";
 import "./HokusaiToken.sol";
 
@@ -9,20 +10,36 @@ import "./HokusaiToken.sol";
  * @title TokenManager
  * @dev Manages token operations for multiple models through ModelRegistry integration
  */
-contract TokenManager is Ownable {
+contract TokenManager is Ownable, AccessControl {
     ModelRegistry public registry;
+    address public deltaVerifier;
+    
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     event TokensMinted(uint256 indexed modelId, address indexed recipient, uint256 amount);
     event TokensBurned(uint256 indexed modelId, address indexed account, uint256 amount);
+    event DeltaVerifierUpdated(address indexed newDeltaVerifier);
 
     modifier validModel(uint256 modelId) {
         require(registry.isRegistered(modelId), "Model not registered");
         _;
     }
 
-    constructor(address registryAddress) Ownable(msg.sender) {
+    constructor(address registryAddress) Ownable() {
         require(registryAddress != address(0), "Registry address cannot be zero");
         registry = ModelRegistry(registryAddress);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _setupRole(MINTER_ROLE, msg.sender);
+    }
+
+    /**
+     * @dev Sets the DeltaVerifier contract address
+     * @param _deltaVerifier The DeltaVerifier contract address
+     */
+    function setDeltaVerifier(address _deltaVerifier) external onlyOwner {
+        require(_deltaVerifier != address(0), "Invalid delta verifier address");
+        deltaVerifier = _deltaVerifier;
+        emit DeltaVerifierUpdated(_deltaVerifier);
     }
 
     /**
@@ -33,9 +50,12 @@ contract TokenManager is Ownable {
      */
     function mintTokens(uint256 modelId, address recipient, uint256 amount) 
         external 
-        onlyOwner 
         validModel(modelId) 
     {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to mint"
+        );
         require(recipient != address(0), "Recipient cannot be zero address");
         require(amount > 0, "Amount must be greater than zero");
         

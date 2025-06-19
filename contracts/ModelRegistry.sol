@@ -23,7 +23,7 @@ contract ModelRegistry is Ownable {
     event ModelUpdated(uint256 indexed modelId, address indexed newTokenAddress);
     event MetricUpdated(uint256 indexed modelId, string newMetric);
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable() {}
 
     /**
      * @dev Registers a new model with its corresponding token address and performance metric

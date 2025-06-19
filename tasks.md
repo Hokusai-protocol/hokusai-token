@@ -1,91 +1,95 @@
-# Token Burning Test Implementation Tasks
+# DeltaVerifier Implementation Tasks
 
-## 1. Test File Setup
-1. [ ] Create test file structure
-   a. [ ] Create `test/auctionburner.test.js` file
-   b. [ ] Import required dependencies (ethers, expect)
-   c. [ ] Set up describe block for AuctionBurner tests
+## Contract Development
 
-## 2. Contract Deployment Fixtures
-2. [ ] Implement beforeEach setup
-   a. [ ] Get test signers (owner, user1, user2, user3)
-   b. [ ] Deploy ModelRegistry contract
-   c. [ ] Deploy HokusaiToken contract
-   d. [ ] Deploy TokenManager with ModelRegistry reference
-   e. [ ] Deploy AuctionBurner with HokusaiToken reference
-   f. [ ] Set TokenManager as controller on HokusaiToken
-   g. [ ] Register a test model in ModelRegistry
+1. [x] Create DeltaVerifier.sol contract structure
+   a. [x] Create contracts/DeltaVerifier.sol file
+   b. [x] Import OpenZeppelin Ownable and ReentrancyGuard
+   c. [x] Import Pausable for emergency stops
+   d. [x] Define contract with proper inheritance
 
-## 3. Core Burn Functionality Tests
-3. [ ] Implement successful burn tests
-   a. [ ] Test burning tokens with valid amount and balance
-   b. [ ] Verify user balance decreases by burned amount
-   c. [ ] Confirm total supply decreases correctly
-   d. [ ] Test burning entire balance
-   e. [ ] Test burning partial balance
+2. [x] Define data structures and storage
+   a. [x] Create Metrics struct with uint256 fields for accuracy, precision, recall, f1, auroc
+   b. [x] Create EvaluationData struct matching JSON schema
+   c. [x] Add storage variables for reward rates and thresholds
+   d. [x] Add mapping to track submissions per model/contributor
 
-## 4. Event Emission Tests
-4. [ ] Verify event emissions
-   a. [ ] Test TokensBurned event from AuctionBurner
-   b. [ ] Test Burned event from HokusaiToken
-   c. [ ] Verify event parameters are correct
-   d. [ ] Test multiple burns emit multiple events
+3. [x] Implement core calculation functions
+   a. [x] Create calculateDeltaOne() pure function for weighted average delta
+   b. [x] Implement basis points conversion (multiply by 10000)
+   c. [x] Add support for configurable metric weights
+   d. [x] Handle edge cases (zero baselines, negative deltas)
 
-## 5. Access Control Tests
-5. [ ] Test setToken function access control
-   a. [ ] Verify owner can update token reference
-   b. [ ] Test non-owner cannot update token reference
-   c. [ ] Verify TokenContractUpdated event emission
-   d. [ ] Test setting token to new valid address
+4. [x] Build reward calculation mechanism
+   a. [x] Create calculateReward() function with deltaInBps input
+   b. [x] Implement minimum threshold check (100 bps = 1%)
+   c. [x] Apply contributor weight to reward amount
+   d. [x] Add maximum reward cap functionality
 
-## 6. Error Handling Tests
-6. [ ] Implement error case tests
-   a. [ ] Test burn with zero amount reverts
-   b. [ ] Test burn with insufficient balance reverts
-   c. [ ] Test burn without approval reverts
-   d. [ ] Test constructor with zero address reverts
-   e. [ ] Test setToken with zero address reverts
-   f. [ ] Test burn with partial approval reverts
+5. [x] Implement submission and validation logic
+   a. [x] Create submitEvaluation() external function
+   b. [x] Add validateEvaluationData() internal function
+   c. [x] Check all required fields are present
+   d. [x] Validate metric values are within reasonable ranges (0-10000 for percentages)
 
-## 7. Approval and Allowance Tests
-7. [ ] Test token approval mechanics
-   a. [ ] Test approving AuctionBurner to spend tokens
-   b. [ ] Test burning with exact approval amount
-   c. [ ] Test burning with excess approval
-   d. [ ] Test multiple burns with single approval
+6. [x] Add security and access control
+   a. [x] Implement onlyOwner modifier for admin functions
+   b. [x] Add nonReentrant modifier to submitEvaluation
+   c. [x] Create pause/unpause functions with whenNotPaused checks
+   d. [x] Add rate limiting mechanism per contributor
 
-## 8. Integration Tests (Dependent on Core Tests)
-8. [ ] Implement end-to-end flow tests
-   a. [ ] Test mint via TokenManager, approve, and burn flow
-   b. [ ] Test multiple users burning independently
-   c. [ ] Test sequential burns from same user
-   d. [ ] Test burn after token reference update
+## Testing
 
-## 9. Gas Usage Tests (Dependent on Core Tests)
-9. [ ] Measure and validate gas usage
-   a. [ ] Test gas cost for small burn amounts
-   b. [ ] Test gas cost for large burn amounts
-   c. [ ] Compare gas costs across different scenarios
-   d. [ ] Ensure gas usage is within reasonable limits
+7. [x] Write unit tests for DeltaVerifier
+   a. [x] Create test/deltaverifier.test.js file
+   b. [x] Test calculateDeltaOne with sample data from JSON spec
+   c. [x] Test edge cases (0% improvement, 100% improvement)
+   d. [x] Test reward calculation with various inputs
 
-## 10. Edge Case Tests (Dependent on Core Tests)
-10. [ ] Test boundary conditions
-    a. [ ] Test burning with maximum uint256 approval
-    b. [ ] Test multiple users with different balances
-    c. [ ] Test burn behavior after token migration
-    d. [ ] Test concurrent burn operations
+8. [x] Write validation and security tests
+   a. [x] Test rejection of invalid metric values
+   b. [x] Test access control (onlyOwner functions)
+   c. [x] Test pause functionality
+   d. [x] Test rate limiting
 
-## 11. Documentation Updates
-11. [ ] Update project documentation
-    a. [ ] Add test coverage information to README.md
-    b. [ ] Document AuctionBurner burn mechanism
-    c. [ ] Include example test scenarios
-    d. [ ] Note any discovered edge cases or limitations
+9. [x] Write integration tests (Dependent on Contract Development)
+   a. [x] Mock integration with TokenManager
+   b. [x] Test full evaluation submission flow
+   c. [x] Test event emissions
+   d. [x] Test gas usage optimization
 
-## 12. Test Execution and Validation
-12. [ ] Run and verify all tests
-    a. [ ] Execute full test suite locally
-    b. [ ] Verify all tests pass
-    c. [ ] Check test coverage metrics
-    d. [ ] Fix any failing tests
-    e. [ ] Run tests with different network configurations
+## Documentation
+
+10. [x] Update project documentation
+    a. [x] Add DeltaVerifier section to README.md
+    b. [x] Document JSON input format requirements
+    c. [x] Add example usage code snippets
+    d. [x] Document event specifications
+
+11. [x] Create deployment documentation
+    a. [x] Add deployment script for DeltaVerifier
+    b. [x] Document configuration parameters
+    c. [x] Create integration guide for TokenManager
+    d. [ ] Add troubleshooting section
+
+## Integration and Deployment (Dependent on Testing)
+
+12. [x] Update TokenManager integration
+    a. [x] Add IDeltaVerifier interface
+    b. [x] Update TokenManager to call DeltaVerifier
+    c. [x] Add verification before minting
+    d. [x] Test end-to-end flow
+
+13. [x] Deploy and configure contracts
+    a. [x] Deploy DeltaVerifier to test network
+    b. [x] Set initial reward parameters
+    c. [x] Configure minimum thresholds
+    d. [x] Test with sample evaluations
+
+## Future Enhancements (Optional)
+
+14. [ ] Plan zkProof integration
+    a. [ ] Research attestation requirements
+    b. [ ] Design proof verification interface
+    c. [ ] Document integration approach
+    d. [ ] Create placeholder functions

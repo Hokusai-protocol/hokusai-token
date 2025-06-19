@@ -35,6 +35,13 @@ The Hokusai Token system implements a token ecosystem where ERC20 tokens are lin
 - Maintains reference to a single HokusaiToken contract
 - Provides foundation for future auction-based access mechanisms
 
+#### DeltaVerifier
+- Processes off-chain ML model performance metrics to calculate token rewards
+- Calculates DeltaOne scores based on performance improvements across multiple metrics
+- Validates evaluation data and enforces minimum improvement thresholds
+- Integrates with TokenManager to trigger automatic reward distribution
+- Includes rate limiting and pause functionality for security
+
 ## Development
 
 ### Prerequisites
@@ -255,3 +262,118 @@ event TokenContractUpdated(address indexed newToken);
 ```
 Emitted when the token contract reference is updated.
 - `newToken`: The new token contract address (indexed for filtering)
+
+## DeltaVerifier API
+
+### Core Functions
+
+#### submitEvaluation(uint256 modelId, EvaluationData calldata data)
+Submits ML model evaluation data for reward calculation.
+```solidity
+function submitEvaluation(
+    uint256 modelId,
+    EvaluationData calldata data
+) external returns (uint256 rewardAmount)
+```
+
+**Parameters:**
+- `modelId`: The model identifier from ModelRegistry
+- `data`: Evaluation data containing metrics and contributor info
+
+**Returns:**
+- `rewardAmount`: The calculated token reward amount
+
+#### calculateDeltaOne(Metrics memory baseline, Metrics memory newMetrics)
+Calculates the DeltaOne score (average percentage improvement).
+```solidity
+function calculateDeltaOne(
+    Metrics memory baseline,
+    Metrics memory newMetrics
+) public pure returns (uint256)
+```
+
+**Returns:**
+- Delta score in basis points (100 = 1%)
+
+#### calculateReward(uint256 deltaInBps, uint256 contributorWeight, uint256 contributedSamples)
+Calculates token reward based on performance improvement.
+```solidity
+function calculateReward(
+    uint256 deltaInBps,
+    uint256 contributorWeight,
+    uint256 contributedSamples
+) public view returns (uint256)
+```
+
+### Data Structures
+
+```solidity
+struct Metrics {
+    uint256 accuracy;    // In basis points (10000 = 100%)
+    uint256 precision;   // In basis points
+    uint256 recall;      // In basis points
+    uint256 f1;         // In basis points
+    uint256 auroc;      // In basis points
+}
+
+struct EvaluationData {
+    string pipelineRunId;
+    Metrics baselineMetrics;
+    Metrics newMetrics;
+    address contributor;
+    uint256 contributorWeight;  // In basis points (10000 = 100%)
+    uint256 contributedSamples;
+    uint256 totalSamples;
+}
+```
+
+### Usage Example
+
+```javascript
+// Prepare evaluation data
+const evaluationData = {
+  pipelineRunId: "run_123",
+  baselineMetrics: {
+    accuracy: 8540,   // 85.4%
+    precision: 8270,  // 82.7%
+    recall: 8870,     // 88.7%
+    f1: 8390,        // 83.9%
+    auroc: 9040      // 90.4%
+  },
+  newMetrics: {
+    accuracy: 8840,   // 88.4%
+    precision: 8540,  // 85.4%
+    recall: 9130,     // 91.3%
+    f1: 8910,        // 89.1%
+    auroc: 9350      // 93.5%
+  },
+  contributor: "0x...",
+  contributorWeight: 9100,  // 91%
+  contributedSamples: 5000,
+  totalSamples: 55000
+};
+
+// Submit evaluation
+const reward = await deltaVerifier.submitEvaluation(modelId, evaluationData);
+```
+
+### DeltaVerifier Events
+
+#### EvaluationSubmitted
+```solidity
+event EvaluationSubmitted(
+    uint256 indexed modelId,
+    address indexed contributor,
+    uint256 deltaOneScore,
+    uint256 rewardAmount
+);
+```
+
+#### RewardCalculated
+```solidity
+event RewardCalculated(
+    address indexed contributor,
+    uint256 deltaInBps,
+    uint256 rewardAmount
+);
+```

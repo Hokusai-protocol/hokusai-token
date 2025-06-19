@@ -20,7 +20,7 @@ contract AuctionBurner is Ownable {
      * @dev Constructor sets the token contract reference
      * @param _token Address of the HokusaiToken contract
      */
-    constructor(address _token) Ownable(msg.sender) {
+    constructor(address _token) Ownable() {
         require(_token != address(0), "Token address cannot be zero");
         token = HokusaiToken(_token);
     }

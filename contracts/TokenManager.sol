@@ -19,6 +19,7 @@ contract TokenManager is Ownable, AccessControl {
     event TokensMinted(uint256 indexed modelId, address indexed recipient, uint256 amount);
     event TokensBurned(uint256 indexed modelId, address indexed account, uint256 amount);
     event DeltaVerifierUpdated(address indexed newDeltaVerifier);
+    event BatchMinted(uint256 indexed modelId, address[] recipients, uint256[] amounts, uint256 totalAmount);
 
     modifier validModel(uint256 modelId) {
         require(registry.isRegistered(modelId), "Model not registered");
@@ -63,6 +64,43 @@ contract TokenManager is Ownable, AccessControl {
         HokusaiToken(tokenAddress).mint(recipient, amount);
         
         emit TokensMinted(modelId, recipient, amount);
+    }
+
+    /**
+     * @dev Mints tokens to multiple recipients in a single transaction
+     * @param modelId The model identifier
+     * @param recipients Array of addresses to receive tokens
+     * @param amounts Array of token amounts corresponding to each recipient
+     */
+    function batchMintTokens(
+        uint256 modelId, 
+        address[] calldata recipients, 
+        uint256[] calldata amounts
+    ) 
+        external 
+        validModel(modelId) 
+    {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Unauthorized"
+        );
+        require(recipients.length > 0, "Empty recipients array");
+        require(recipients.length == amounts.length, "Array length mismatch");
+        require(recipients.length <= 100, "Batch size exceeds limit");
+        
+        address tokenAddress = registry.getToken(modelId);
+        HokusaiToken token = HokusaiToken(tokenAddress);
+        uint256 totalAmount = 0;
+        
+        for (uint256 i = 0; i < recipients.length; i++) {
+            require(recipients[i] != address(0), "Invalid recipient address");
+            require(amounts[i] > 0, "Amount must be greater than zero");
+            
+            token.mint(recipients[i], amounts[i]);
+            totalAmount += amounts[i];
+        }
+        
+        emit BatchMinted(modelId, recipients, amounts, totalAmount);
     }
 
     /**

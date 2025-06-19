@@ -1,179 +1,109 @@
-# DeltaVerifier Product Requirements Document
+# Product Requirements Document: Support ETH Address from JSON
 
 ## Objectives
 
-Create a DeltaVerifier contract that processes off-chain ML model performance metrics in JSON format and calculates token rewards for data contributors based on performance improvements (DeltaOne scores).
+Enable the Hokusai smart contracts to read and utilize Ethereum wallet addresses from the data pipeline JSON output to automatically distribute token rewards to the correct contributors. The system must support both single and multiple contributor scenarios as defined in the JSON schema.
 
 ## Personas
 
-### Data Contributors
-- ML engineers and data scientists who contribute datasets to improve model performance
-- Need transparent reward calculation based on their contribution's impact
-- Require verifiable proof that rewards match performance improvements
+**Data Contributor**: Individual or entity providing data to improve ML models, identified by an Ethereum wallet address where they expect to receive token rewards.
 
-### Protocol Administrators
-- Manage the DeltaVerifier contract and verify metric submissions
-- Configure reward parameters and thresholds
-- Monitor system for fraudulent or invalid submissions
+**Smart Contract Developer**: Engineer implementing the contract updates to parse contributor information and distribute tokens accordingly.
 
-### TokenManager Integration
-- The TokenManager contract that will call DeltaVerifier to determine reward amounts
-- Needs reliable calculation of token rewards based on verified metrics
+**System Administrator**: Person managing the TokenManager contract and triggering token distributions based on pipeline outputs.
 
 ## Success Criteria
 
-1. DeltaVerifier successfully parses and validates JSON evaluation data
-2. Correctly calculates DeltaOne scores from baseline and new model metrics
-3. Determines appropriate token rewards based on performance improvements
-4. Validates all required fields and rejects malformed or suspicious data
-5. Integrates seamlessly with TokenManager for automated reward distribution
-6. Provides clear event logs for all reward calculations
+1. TokenManager contract successfully extracts wallet addresses from both single contributor (`contributor_info.wallet_address`) and multiple contributor (`contributors[].wallet_address`) JSON formats
+2. Tokens are minted to the correct Ethereum addresses as specified in the JSON
+3. Contract handles multiple contributors with appropriate weight-based token distribution
+4. All existing functionality remains intact with backward compatibility
+5. Comprehensive test coverage for new wallet address extraction logic
+6. Gas-efficient implementation that scales with contributor count
 
 ## Tasks
 
-### Contract Development
+### Task 1: Update DeltaVerifier Contract
+- Add struct to represent contributor data including wallet address
+- Create function to parse single contributor info with wallet_address field
+- Create function to parse multiple contributors array with wallet addresses
+- Implement weight-based token calculation for multiple contributors
+- Add validation for Ethereum address format (0x followed by 40 hex characters)
 
-1. **Create DeltaVerifier.sol contract**
-   - Define contract structure with owner/admin access control
-   - Import necessary dependencies (ModelRegistry interface, math libraries)
-   - Define storage for configuration parameters (reward rates, thresholds)
+### Task 2: Modify TokenManager Integration
+- Update mintTokens function to accept contributor addresses array
+- Implement batch minting functionality for multiple recipients
+- Add function overload to maintain backward compatibility
+- Ensure proper access control (onlyAdmin modifier) remains in place
 
-2. **Implement JSON data structure validation**
-   - Define struct for evaluation data matching the JSON schema
-   - Create validation functions for required fields
-   - Implement checks for data integrity and reasonable values
+### Task 3: Write Unit Tests
+- Test single contributor wallet address extraction
+- Test multiple contributors with different weights
+- Test invalid wallet address format rejection
+- Test edge cases (empty contributors, zero weights, missing addresses)
+- Test gas consumption for various contributor counts
 
-3. **Build DeltaOne calculation logic**
-   - Implement weighted average delta calculation from metrics
-   - Support configurable metrics (accuracy, auroc, f1, precision, recall)
-   - Calculate improvement percentage with basis points precision
+### Task 4: Write Integration Tests
+- Create mock JSON payloads matching the schema for testing
+- Test end-to-end flow from JSON input to token distribution
+- Verify correct token amounts based on delta scores and weights
+- Test both contributor_info and contributors array formats
 
-4. **Create reward calculation mechanism**
-   - Define reward formula based on DeltaOne score
-   - Support contributor weights for fractional rewards
-   - Implement minimum threshold checks (e.g., minimum 1% improvement)
+### Task 5: Update Documentation
+- Document new function signatures in contract comments
+- Add examples of JSON inputs with wallet addresses
+- Update deployment scripts if needed
+- Document gas costs for different contributor scenarios
 
-5. **Add verification functions**
-   - `submitEvaluation()` - Main entry point accepting evaluation data
-   - `calculateDeltaOne()` - Pure function for delta calculation
-   - `calculateReward()` - Determine token reward amount
-   - `validateEvaluationData()` - Ensure data integrity
-
-6. **Implement security measures**
-   - Add reentrancy guards
-   - Validate caller permissions
-   - Add pause mechanism for emergency stops
-   - Implement rate limiting for submissions
-
-### Testing Requirements
-
-1. **Unit tests for DeltaOne calculations**
-   - Test with sample JSON data from specification
-   - Verify correct handling of metric improvements
-   - Test edge cases (0% improvement, negative deltas)
-
-2. **Integration tests with TokenManager**
-   - Mock TokenManager calls to DeltaVerifier
-   - Verify correct reward amounts returned
-   - Test rejection of invalid submissions
-
-3. **Validation tests**
-   - Test with malformed JSON data
-   - Test with missing required fields
-   - Test with unrealistic metric values
-
-4. **Security tests**
-   - Test access control restrictions
-   - Test pause functionality
-   - Test against common attack vectors
-
-### Deployment Tasks
-
-1. **Deploy DeltaVerifier contract**
-   - Set initial configuration parameters
-   - Configure admin addresses
-   - Link to ModelRegistry if needed
-
-2. **Configure reward parameters**
-   - Set base reward rate
-   - Configure minimum improvement threshold
-   - Set maximum reward caps if needed
-
-3. **Integration with TokenManager**
-   - Update TokenManager to call DeltaVerifier
-   - Test end-to-end flow from evaluation to token minting
+### Task 6: Security Review
+- Ensure no reentrancy vulnerabilities in batch minting
+- Validate all address inputs to prevent zero address minting
+- Review access control for new functions
+- Consider implementing daily minting limits if needed
 
 ## Technical Specifications
 
-### Key Functions
+### JSON Input Formats
 
-```solidity
-function submitEvaluation(
-    uint256 modelId,
-    EvaluationData calldata data
-) external returns (uint256 rewardAmount)
+The contract must support two formats:
 
-function calculateDeltaOne(
-    Metrics memory baseline,
-    Metrics memory newMetrics
-) public pure returns (uint256 deltaInBps)
-
-function calculateReward(
-    uint256 deltaInBps,
-    uint256 contributorWeight,
-    uint256 contributedSamples
-) public view returns (uint256)
-```
-
-### Data Structures
-
-```solidity
-struct Metrics {
-    uint256 accuracy;
-    uint256 precision;
-    uint256 recall;
-    uint256 f1;
-    uint256 auroc;
-}
-
-struct EvaluationData {
-    string pipelineRunId;
-    Metrics baselineMetrics;
-    Metrics newMetrics;
-    address contributor;
-    uint256 contributorWeight;
-    uint256 contributedSamples;
-    uint256 totalSamples;
+1. Single contributor:
+```json
+{
+  "contributor_info": {
+    "wallet_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f1234",
+    "contributor_weights": 1.0,
+    ...
+  }
 }
 ```
 
-### Events
-
-```solidity
-event EvaluationSubmitted(
-    uint256 indexed modelId,
-    address indexed contributor,
-    uint256 deltaOneScore,
-    uint256 rewardAmount
-)
-
-event RewardCalculated(
-    address indexed contributor,
-    uint256 deltaInBps,
-    uint256 rewardAmount
-)
+2. Multiple contributors:
+```json
+{
+  "contributors": [
+    {
+      "wallet_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f1234",
+      "weight": 0.6,
+      ...
+    },
+    {
+      "wallet_address": "0x5aAeb6053f3E94C9b9A09f33669435E7Ef1BeAed",
+      "weight": 0.4,
+      ...
+    }
+  ]
+}
 ```
 
-## Dependencies
+### Token Distribution Formula
 
-- ModelRegistry contract for model validation
-- TokenManager contract for reward distribution
-- OpenZeppelin contracts for security patterns
-- Math libraries for precise calculations
+For each contributor:
+```
+tokens_to_mint = total_reward * contributor_weight * delta_one_score
+```
 
-## Future Considerations
-
-- Integration with zkProof/attestation for verified submissions
-- Support for batch evaluation submissions
-- Historical tracking of model improvements
-- More sophisticated reward curves based on model maturity
+Where:
+- total_reward is determined by the contract configuration
+- contributor_weight is from the JSON (0-1)
+- delta_one_score represents the model improvement metric

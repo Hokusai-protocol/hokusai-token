@@ -26,6 +26,31 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         uint256 totalSamples;
     }
 
+    struct ContributorInfo {
+        address walletAddress;
+        uint256 contributorWeight; // in basis points (10000 = 100%)
+        uint256 contributedSamples;
+        uint256 totalSamples;
+    }
+
+    struct Contributor {
+        address walletAddress;
+        uint256 weight; // in basis points (10000 = 100%)
+    }
+
+    struct EvaluationDataWithInfo {
+        string pipelineRunId;
+        Metrics baselineMetrics;
+        Metrics newMetrics;
+        ContributorInfo contributorInfo;
+    }
+
+    struct EvaluationDataBase {
+        string pipelineRunId;
+        Metrics baselineMetrics;
+        Metrics newMetrics;
+    }
+
     ModelRegistry public immutable modelRegistry;
     TokenManager public immutable tokenManager;
     
@@ -37,10 +62,8 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     mapping(address => uint256) private lastSubmissionTime;
     
     event EvaluationSubmitted(
-        uint256 indexed modelId,
-        address indexed contributor,
-        uint256 deltaOneScore,
-        uint256 rewardAmount
+        string indexed pipelineRunId,
+        uint256 indexed modelId
     );
     
     event RewardCalculated(
@@ -53,6 +76,13 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         uint256 baseRewardRate,
         uint256 minImprovementBps,
         uint256 maxReward
+    );
+
+    event BatchRewardsDistributed(
+        uint256 indexed modelId,
+        address[] contributors,
+        uint256[] amounts,
+        uint256 totalAmount
     );
 
     constructor(
@@ -79,10 +109,102 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         EvaluationData calldata data
     ) external nonReentrant whenNotPaused returns (uint256) {
         // Validate model exists
-        require(modelRegistry.exists(modelId), "Model not registered");
+        require(modelRegistry.isRegistered(modelId), "Model not registered");
         
+        return _processEvaluation(modelId, data);
+    }
+
+    function submitEvaluationWithContributorInfo(
+        uint256 modelId,
+        EvaluationDataWithInfo calldata data
+    ) external nonReentrant whenNotPaused returns (uint256) {
+        // Validate model exists
+        require(modelRegistry.isRegistered(modelId), "Model not registered");
+        
+        // Validate wallet address
+        require(data.contributorInfo.walletAddress != address(0), "Invalid wallet address");
+        require(_isValidAddress(data.contributorInfo.walletAddress), "Invalid wallet address format");
+        
+        // Create evaluation data from contributor info
+        EvaluationData memory evalData = EvaluationData({
+            pipelineRunId: data.pipelineRunId,
+            baselineMetrics: data.baselineMetrics,
+            newMetrics: data.newMetrics,
+            contributor: data.contributorInfo.walletAddress,
+            contributorWeight: data.contributorInfo.contributorWeight,
+            contributedSamples: data.contributorInfo.contributedSamples,
+            totalSamples: data.contributorInfo.totalSamples
+        });
+        
+        // Process using existing logic
+        return _processEvaluation(modelId, evalData);
+    }
+
+    function submitEvaluationWithMultipleContributors(
+        uint256 modelId,
+        EvaluationDataBase calldata data,
+        Contributor[] calldata contributors
+    ) external nonReentrant whenNotPaused returns (uint256) {
+        // Validate model exists
+        require(modelRegistry.isRegistered(modelId), "Model not registered");
+        require(contributors.length > 0, "No contributors provided");
+        require(contributors.length <= 100, "Batch size exceeds limit");
+        
+        // Validate contributors and weights
+        uint256 totalWeight = 0;
+        address[] memory contributorAddresses = new address[](contributors.length);
+        uint256[] memory rewardAmounts = new uint256[](contributors.length);
+        
+        for (uint256 i = 0; i < contributors.length; i++) {
+            require(contributors[i].walletAddress != address(0), "Invalid wallet address");
+            require(_isValidAddress(contributors[i].walletAddress), "Invalid wallet address format");
+            
+            // Check for duplicates
+            for (uint256 j = 0; j < i; j++) {
+                require(contributors[i].walletAddress != contributorAddresses[j], "Duplicate contributor address");
+            }
+            
+            contributorAddresses[i] = contributors[i].walletAddress;
+            totalWeight += contributors[i].weight;
+        }
+        
+        require(totalWeight == 10000, "Weights must sum to 100%");
+        
+        // Calculate delta one score
+        uint256 deltaInBps = calculateDeltaOne(data.baselineMetrics, data.newMetrics);
+        
+        // Calculate total reward based on full improvement
+        uint256 totalReward = calculateReward(deltaInBps, 10000, 0);
+        
+        if (totalReward > 0) {
+            // Distribute rewards proportionally
+            uint256 totalDistributed = 0;
+            
+            for (uint256 i = 0; i < contributors.length; i++) {
+                uint256 contributorReward = (totalReward * contributors[i].weight) / 10000;
+                rewardAmounts[i] = contributorReward;
+                totalDistributed += contributorReward;
+                
+                emit RewardCalculated(contributors[i].walletAddress, deltaInBps, contributorReward);
+            }
+            
+            // Mint tokens in batch
+            tokenManager.batchMintTokens(modelId, contributorAddresses, rewardAmounts);
+            
+            emit BatchRewardsDistributed(modelId, contributorAddresses, rewardAmounts, totalDistributed);
+        }
+        
+        emit EvaluationSubmitted(data.pipelineRunId, modelId);
+        
+        return totalReward;
+    }
+
+    function _processEvaluation(
+        uint256 modelId,
+        EvaluationData memory data
+    ) private returns (uint256) {
         // Validate evaluation data
-        _validateEvaluationData(data);
+        _validateEvaluationDataMemory(data);
         
         // Check rate limit
         require(
@@ -102,7 +224,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         );
         
         // Emit events
-        emit EvaluationSubmitted(modelId, data.contributor, deltaInBps, rewardAmount);
+        emit EvaluationSubmitted(data.pipelineRunId, modelId);
         emit RewardCalculated(data.contributor, deltaInBps, rewardAmount);
         
         // Trigger minting through TokenManager if reward > 0
@@ -195,6 +317,22 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         require(metrics.f1 <= 10000, "Invalid metric value");
         require(metrics.auroc <= 10000, "Invalid metric value");
     }
+
+    function _validateEvaluationDataMemory(EvaluationData memory data) private pure {
+        // Validate contributor address
+        require(data.contributor != address(0), "Invalid contributor address");
+        
+        // Validate contributor weight
+        require(data.contributorWeight <= 10000, "Invalid contributor weight");
+        
+        // Validate metrics are within valid range (0-100%)
+        _validateMetrics(data.baselineMetrics);
+        _validateMetrics(data.newMetrics);
+        
+        // Validate sample counts
+        require(data.contributedSamples > 0, "Invalid contributed samples");
+        require(data.totalSamples >= data.contributedSamples, "Invalid total samples");
+    }
     
     // Admin functions
     function setBaseRewardRate(uint256 _baseRewardRate) external onlyOwner {
@@ -220,5 +358,9 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    function _isValidAddress(address addr) private pure returns (bool) {
+        return addr != address(0);
     }
 }

@@ -6,6 +6,11 @@ Prototype for a model-linked ERC20 token with controlled mint/burn logic.
 
 The Hokusai Token system implements a token ecosystem where ERC20 tokens are linked to ML models. Each model has its own token that can only be minted or burned by an authorized controller contract (TokenManager).
 
+The system includes:
+- Smart contracts for token management and model registry
+- Automated contract deployment service that listens to ML model validation events
+- Event-driven architecture for seamless integration with the Hokusai ML Platform
+
 ## Architecture
 
 ### Core Contracts
@@ -42,6 +47,16 @@ The Hokusai Token system implements a token ecosystem where ERC20 tokens are lin
 - Integrates with TokenManager to trigger automatic reward distribution
 - Includes rate limiting and pause functionality for security
 
+### Backend Services
+
+#### Contract Deploy Listener
+- Monitors Redis queue for `model_ready_to_deploy` events from the ML Platform
+- Automatically deploys HokusaiToken contracts for validated models
+- Registers deployed tokens in the ModelRegistry
+- Publishes `token_deployed` events for downstream services
+- Implements reliable message processing with retry logic and dead letter queue
+- See `/services/contract-deployer` for implementation details
+
 ## Development
 
 ### Prerequisites
@@ -50,27 +65,59 @@ The Hokusai Token system implements a token ecosystem where ERC20 tokens are lin
 
 ### Installation
 ```bash
+# Install smart contract dependencies
+npm install
+
+# Install contract deployer service dependencies
+cd services/contract-deployer
 npm install
 ```
 
 ### Testing
 ```bash
+# Test smart contracts
 npm test
+
+# Test contract deployer service
+cd services/contract-deployer
+npm test
+```
+
+### Running Services
+
+#### Contract Deploy Listener
+```bash
+cd services/contract-deployer
+npm run dev  # Development mode with hot reload
+npm start    # Production mode
 ```
 
 ### Deployment
 ```bash
+# Deploy smart contracts
 npx hardhat run scripts/deploy.js --network localhost
+
+# Deploy contract listener (Docker)
+cd services/contract-deployer
+docker-compose up -d
 ```
 
 ## Contract Interactions
 
-1. **Token Minting Flow**:
+1. **Automated Token Deployment Flow**:
+   - ML Platform validates model and emits `model_ready_to_deploy` message
+   - Contract Deploy Listener consumes message from Redis queue
+   - Deploys new HokusaiToken contract with model metadata
+   - Registers token in ModelRegistry
+   - Publishes `token_deployed` event for website/UI updates
+
+2. **Token Minting Flow**:
+   - DeltaVerifier receives evaluation data showing performance improvement
    - TokenManager receives mint request with model ID
    - Looks up token address from ModelRegistry
-   - Mints tokens to recipient address
+   - Mints tokens to contributor address based on improvement
 
-2. **Token Burning Flow**:
+3. **Token Burning Flow**:
    - User interacts with AuctionBurner contract
    - User approves AuctionBurner to spend their tokens
    - AuctionBurner transfers tokens and burns them

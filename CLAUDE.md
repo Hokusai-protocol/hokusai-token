@@ -4,6 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
+## Common Commands
+Common prompts: 
+@~/.claude/my-common-prompts.md
+
+For this repo, use the "Hokusai smart contracts" project in Linear to pull the backlog list. 
+
+
 ### Essential Commands
 - `npm test` - Run the Hardhat test suite
 - `npx hardhat compile` - Compile all smart contracts

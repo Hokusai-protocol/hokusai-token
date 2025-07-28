@@ -1,1 +1,0 @@
-Run the workflow process in tools/prompts/workflow.md exactly as described.

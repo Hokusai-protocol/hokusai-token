@@ -38,3 +38,7 @@ export interface QueueMessage {
   timestamp: number;
   attempts: number;
 }
+
+// Re-export API types and errors
+export * from './api.types';
+export * from './errors';

@@ -1,8 +1,9 @@
 import { Logger } from 'winston';
 import { QueueService } from './queue.service';
 import { BlockchainService } from './blockchain.service';
+import { DeploymentService } from './deployment.service';
 import { Config } from '../config/env.validation';
-import { DeploymentRequest } from '../types';
+import { DeploymentRequest, QueueMessage } from '../types';
 
 export class DeploymentProcessor {
   private running = false;
@@ -11,6 +12,7 @@ export class DeploymentProcessor {
   constructor(
     private readonly queueService: QueueService,
     private readonly blockchainService: BlockchainService,
+    private readonly deploymentService: DeploymentService,
     private readonly logger: Logger,
     private readonly config: Config,
   ) {}
@@ -41,7 +43,7 @@ export class DeploymentProcessor {
       try {
         const message = await this.queueService.dequeue(this.config.QUEUE_NAME, 5);
         if (message) {
-          await this.processDeployment(message.payload as DeploymentRequest);
+          await this.processMessage(message);
         }
       } catch (error) {
         this.logger.error('Error processing queue:', error);
@@ -50,9 +52,55 @@ export class DeploymentProcessor {
     }
   }
 
+  private async processMessage(message: QueueMessage): Promise<void> {
+    this.logger.info(`Processing queue message: ${message.id}`, {
+      type: message.type,
+      attempts: message.attempts
+    });
+
+    try {
+      if (message.type === 'deploy_token') {
+        await this.processDeployment(message.payload as DeploymentRequest);
+      } else {
+        this.logger.warn(`Unknown message type: ${message.type}`, {
+          messageId: message.id
+        });
+      }
+    } catch (error) {
+      this.logger.error(`Failed to process message: ${message.id}`, {
+        error,
+        messageType: message.type,
+        attempts: message.attempts
+      });
+
+      // TODO: Implement retry logic with exponential backoff
+      // For now, just log the error
+    }
+  }
+
   private async processDeployment(request: DeploymentRequest): Promise<void> {
-    this.logger.info(`Processing deployment request: ${request.id}`);
-    // TODO: Implement actual deployment logic
+    this.logger.info(`Processing deployment request: ${request.id}`, {
+      modelId: request.modelId,
+      retryCount: request.retryCount
+    });
+
+    try {
+      await this.deploymentService.processDeployment(request);
+      
+      this.logger.info(`Deployment completed successfully: ${request.id}`, {
+        modelId: request.modelId
+      });
+    } catch (error) {
+      this.logger.error(`Deployment failed: ${request.id}`, {
+        error,
+        modelId: request.modelId,
+        retryCount: request.retryCount
+      });
+
+      // The DeploymentService handles status updates on failure
+      // Here we could implement retry logic if needed
+      throw error;
+    }
   }
 
   private sleep(ms: number): Promise<void> {

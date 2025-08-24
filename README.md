@@ -18,7 +18,7 @@ The system includes:
 #### HokusaiToken
 - Standard ERC20 token with controller-based access control
 - Only the designated controller can mint and burn tokens
-- Metadata: "Hokusai Token" (HOKU), 18 decimals
+- Dynamic constructor accepts custom name, symbol, and controller address
 - Implements OpenZeppelin's ERC20 and Ownable patterns
 - Emits custom Minted and Burned events for enhanced observability
 
@@ -57,6 +57,15 @@ The system includes:
 - Implements reliable message processing with retry logic and dead letter queue
 - See `/services/contract-deployer` for implementation details
 
+#### Contract Deployment API
+- RESTful API for frontend-initiated token deployments
+- **POST /api/deployments** - Create new token deployment request
+- **GET /api/deployments/:id/status** - Check deployment status
+- Authentication via API key (JWT support planned)
+- Rate limiting: 5 deployments per user per hour
+- Comprehensive error handling and validation
+- See API documentation below for detailed usage
+
 ## Development
 
 ### Prerequisites
@@ -90,6 +99,13 @@ npm test
 cd services/contract-deployer
 npm run dev  # Development mode with hot reload
 npm start    # Production mode
+```
+
+#### Contract Deployment API
+```bash
+cd services/contract-deployer
+npm run dev:api  # Development mode with hot reload
+npm run start:api # Production mode
 ```
 
 ### Deployment
@@ -423,4 +439,123 @@ event RewardCalculated(
     uint256 deltaInBps,
     uint256 rewardAmount
 );
+```
+
+## API Documentation
+
+### Contract Deployment API
+
+The Contract Deployment API enables the Vercel frontend to trigger ERC20 token deployments for validated ML models.
+
+#### Authentication
+
+All API endpoints require authentication via API key in the header:
+```
+X-API-Key: <your-api-key>
+```
+
+#### Endpoints
+
+##### POST /api/deployments
+
+Create a new token deployment request.
+
+**Request:**
+```json
+{
+  "modelId": "sentiment-analysis-v1",
+  "userAddress": "0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9",
+  "tokenName": "Sentiment Token",     // Optional
+  "tokenSymbol": "SENT"               // Optional
+}
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "success": true,
+  "data": {
+    "requestId": "550e8400-e29b-41d4-a716-446655440000",
+    "modelId": "sentiment-analysis-v1",
+    "status": "pending",
+    "statusUrl": "/api/deployments/550e8400-e29b-41d4-a716-446655440000/status",
+    "estimatedConfirmationTime": 120
+  }
+}
+```
+
+##### GET /api/deployments/:id/status
+
+Check the status of a deployment request.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "requestId": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "deployed",
+    "modelId": "sentiment-analysis-v1",
+    "tokenAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "tokenName": "Sentiment Token",
+    "tokenSymbol": "SENT",
+    "deploymentTxHash": "0xabcd...",
+    "registryTxHash": "0xefgh...",
+    "blockNumber": 12345678,
+    "explorerUrl": "https://etherscan.io/tx/0xabcd...",
+    "gasUsed": "500000",
+    "gasPrice": "30000000000",
+    "totalCost": "0.015"
+  }
+}
+```
+
+#### Error Responses
+
+All errors follow this format:
+```json
+{
+  "success": false,
+  "error": {
+    "code": "MODEL_NOT_FOUND",
+    "message": "Model with ID 'xyz' not found",
+    "details": {},
+    "timestamp": "2024-01-15T10:30:00Z",
+    "correlationId": "req_123456"
+  }
+}
+```
+
+#### Error Codes
+
+- `AUTH_FAILED` - Authentication failure
+- `MODEL_NOT_FOUND` - Model doesn't exist
+- `MODEL_NOT_VALIDATED` - Model not yet validated
+- `TOKEN_EXISTS` - Token already deployed for model
+- `INSUFFICIENT_GAS` - Gas price exceeds limits
+- `DEPLOYMENT_FAILED` - Blockchain transaction failed
+- `RATE_LIMIT_EXCEEDED` - Too many requests
+
+#### Rate Limiting
+
+- 5 deployments per hour per user
+- 20 deployments per day per user
+- Rate limit headers included in responses
+
+#### Example Usage
+
+```bash
+# Deploy a token
+curl -X POST http://localhost:3001/api/deployments \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "modelId": "model-123",
+    "userAddress": "0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9",
+    "tokenName": "My Model Token"
+  }'
+
+# Check deployment status
+curl -X GET http://localhost:3001/api/deployments/550e8400-e29b-41d4-a716-446655440000/status \
+  -H "X-API-Key: your-api-key"
 ```

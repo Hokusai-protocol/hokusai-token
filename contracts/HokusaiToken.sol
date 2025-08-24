@@ -20,7 +20,24 @@ contract HokusaiToken is ERC20, Ownable {
         _;
     }
 
-    constructor() ERC20("Hokusai Token", "HOKU") Ownable() {}
+    /**
+     * @dev Constructor to initialize the token with custom name, symbol, and controller
+     * @param _name The name of the token (e.g., "Hokusai Model Token")
+     * @param _symbol The symbol of the token (e.g., "HMT")
+     * @param _controller The address that will have mint/burn privileges
+     */
+    constructor(
+        string memory _name, 
+        string memory _symbol, 
+        address _controller
+    ) ERC20(_name, _symbol) Ownable() {
+        require(bytes(_name).length > 0, "Token name cannot be empty");
+        require(bytes(_symbol).length > 0, "Token symbol cannot be empty");
+        require(_controller != address(0), "Controller cannot be zero address");
+        
+        controller = _controller;
+        emit ControllerUpdated(_controller);
+    }
 
     /**
      * @dev Sets the controller address that can mint and burn tokens

@@ -1,0 +1,312 @@
+{
+  "name": "HokusaiContractsAPI",
+  "description": "Monitoring dashboard for Hokusai Contract Deployer API Service",
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "API Request Count",
+        "metrics": [
+          [ "AWS/ApplicationELB", "RequestCount", { "stat": "Sum", "label": "Total Requests" } ],
+          [ ".", ".", { "stat": "Average", "label": "Avg Requests/min" } ]
+        ],
+        "period": 300,
+        "stat": "Sum",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Response Time",
+        "metrics": [
+          [ "AWS/ApplicationELB", "TargetResponseTime", { "stat": "p50", "label": "p50" } ],
+          [ ".", ".", { "stat": "p95", "label": "p95" } ],
+          [ ".", ".", { "stat": "p99", "label": "p99" } ]
+        ],
+        "period": 300,
+        "stat": "Average",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "label": "Seconds"
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Error Rates",
+        "metrics": [
+          [ "AWS/ApplicationELB", "HTTPCode_Target_4XX_Count", { "stat": "Sum", "label": "4XX Errors" } ],
+          [ ".", "HTTPCode_Target_5XX_Count", { "stat": "Sum", "label": "5XX Errors" } ],
+          [ ".", "HTTPCode_ELB_5XX_Count", { "stat": "Sum", "label": "ELB 5XX Errors" } ]
+        ],
+        "period": 300,
+        "stat": "Sum",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false,
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Healthy Target Count",
+        "metrics": [
+          [ "AWS/ApplicationELB", "HealthyHostCount", { "stat": "Average", "label": "Healthy Targets" } ],
+          [ ".", "UnHealthyHostCount", { "stat": "Average", "label": "Unhealthy Targets" } ]
+        ],
+        "period": 60,
+        "stat": "Average",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 10
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "ECS Service Metrics",
+        "metrics": [
+          [ "AWS/ECS", "CPUUtilization", { "stat": "Average", "label": "CPU Utilization %" } ],
+          [ ".", "MemoryUtilization", { "stat": "Average", "label": "Memory Utilization %" } ]
+        ],
+        "period": 300,
+        "stat": "Average",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 12,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Task Count",
+        "metrics": [
+          [ "ECS/ContainerInsights", "RunningTaskCount", { "ServiceName": "hokusai-contracts-development", "ClusterName": "hokusai-development", "stat": "Average", "label": "Running Tasks" } ],
+          [ ".", "DesiredTaskCount", { "ServiceName": "hokusai-contracts-development", "ClusterName": "hokusai-development", "stat": "Average", "label": "Desired Tasks" } ],
+          [ ".", "PendingTaskCount", { "ServiceName": "hokusai-contracts-development", "ClusterName": "hokusai-development", "stat": "Average", "label": "Pending Tasks" } ]
+        ],
+        "period": 300,
+        "stat": "Average",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false,
+        "yAxis": {
+          "left": {
+            "min": 0
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 12,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Container Resource Utilization",
+        "metrics": [
+          [ "ECS/ContainerInsights", "CpuUtilized", { "ServiceName": "hokusai-contracts-development", "ClusterName": "hokusai-development", "stat": "Average", "label": "CPU Utilized" } ],
+          [ ".", "CpuReserved", { "ServiceName": "hokusai-contracts-development", "ClusterName": "hokusai-development", "stat": "Average", "label": "CPU Reserved" } ],
+          [ ".", "MemoryUtilized", { "ServiceName": "hokusai-contracts-development", "ClusterName": "hokusai-development", "stat": "Average", "label": "Memory Utilized (MB)" } ],
+          [ ".", "MemoryReserved", { "ServiceName": "hokusai-contracts-development", "ClusterName": "hokusai-development", "stat": "Average", "label": "Memory Reserved (MB)" } ]
+        ],
+        "period": 300,
+        "stat": "Average",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 18,
+      "width": 24,
+      "height": 6,
+      "properties": {
+        "title": "Recent Application Logs",
+        "query": "SOURCE '/ecs/hokusai-contracts'\n| fields @timestamp, @message\n| filter @message like /ERROR/ or @message like /WARN/\n| sort @timestamp desc\n| limit 100",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 24,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "API Endpoint Performance",
+        "metrics": [
+          [ "ContractDeployer", "api.deployments.post.latency", { "stat": "p99", "label": "POST /deployments p99" } ],
+          [ ".", "api.deployments.get.latency", { "stat": "p99", "label": "GET /deployments p99" } ],
+          [ ".", "api.health.latency", { "stat": "p99", "label": "Health Check p99" } ]
+        ],
+        "period": 300,
+        "stat": "Average",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 24,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Blockchain Operations",
+        "metrics": [
+          [ "ContractDeployer", "blockchain.deployment.success", { "stat": "Sum", "label": "Successful Deployments" } ],
+          [ ".", "blockchain.deployment.failed", { "stat": "Sum", "label": "Failed Deployments" } ],
+          [ ".", "blockchain.rpc.latency", { "stat": "Average", "label": "RPC Latency (ms)" } ]
+        ],
+        "period": 300,
+        "stat": "Sum",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 24,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Redis Operations",
+        "metrics": [
+          [ "ContractDeployer", "redis.connection.active", { "stat": "Average", "label": "Active Connections" } ],
+          [ ".", "redis.operations.latency", { "stat": "p99", "label": "Operation Latency p99" } ],
+          [ ".", "redis.errors", { "stat": "Sum", "label": "Redis Errors" } ]
+        ],
+        "period": 300,
+        "stat": "Average",
+        "region": "us-east-1",
+        "view": "timeSeries",
+        "stacked": false
+      }
+    }
+  ],
+  "alarms": [
+    {
+      "name": "ContractDeployer-HighErrorRate",
+      "description": "Alert when error rate exceeds 1%",
+      "metric": "AWS/ApplicationELB/HTTPCode_Target_5XX_Count",
+      "threshold": 10,
+      "comparisonOperator": "GreaterThanThreshold",
+      "evaluationPeriods": 2,
+      "period": 300,
+      "statistic": "Sum",
+      "treatMissingData": "notBreaching"
+    },
+    {
+      "name": "ContractDeployer-UnhealthyTargets",
+      "description": "Alert when unhealthy targets exist",
+      "metric": "AWS/ApplicationELB/UnHealthyHostCount",
+      "threshold": 0,
+      "comparisonOperator": "GreaterThanThreshold",
+      "evaluationPeriods": 2,
+      "period": 60,
+      "statistic": "Maximum",
+      "treatMissingData": "breaching"
+    },
+    {
+      "name": "ContractDeployer-HighResponseTime",
+      "description": "Alert when p99 latency exceeds 2 seconds",
+      "metric": "AWS/ApplicationELB/TargetResponseTime",
+      "threshold": 2,
+      "comparisonOperator": "GreaterThanThreshold",
+      "evaluationPeriods": 3,
+      "period": 300,
+      "statistic": "p99",
+      "treatMissingData": "notBreaching"
+    },
+    {
+      "name": "ContractDeployer-HighCPU",
+      "description": "Alert when CPU utilization exceeds 70%",
+      "metric": "AWS/ECS/CPUUtilization",
+      "threshold": 70,
+      "comparisonOperator": "GreaterThanThreshold",
+      "evaluationPeriods": 3,
+      "period": 300,
+      "statistic": "Average",
+      "treatMissingData": "notBreaching"
+    },
+    {
+      "name": "ContractDeployer-HighMemory",
+      "description": "Alert when memory utilization exceeds 80%",
+      "metric": "AWS/ECS/MemoryUtilization",
+      "threshold": 80,
+      "comparisonOperator": "GreaterThanThreshold",
+      "evaluationPeriods": 3,
+      "period": 300,
+      "statistic": "Average",
+      "treatMissingData": "notBreaching"
+    },
+    {
+      "name": "ContractDeployer-TaskFailures",
+      "description": "Alert when tasks are failing to start",
+      "metric": "ECS/ContainerInsights/RunningTaskCount",
+      "threshold": 1,
+      "comparisonOperator": "LessThanThreshold",
+      "evaluationPeriods": 2,
+      "period": 300,
+      "statistic": "Minimum",
+      "treatMissingData": "breaching"
+    }
+  ]
+}

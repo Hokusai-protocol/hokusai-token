@@ -19,7 +19,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - "8002:8002"
       - "9091:9091"
     environment:
       - NODE_ENV=development

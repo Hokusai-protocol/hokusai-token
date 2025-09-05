@@ -29,6 +29,10 @@ npm install
 
 ### Configuration
 
+The service supports two configuration methods:
+
+#### 1. Environment Variables (Development)
+
 Copy `.env.example` to `.env` and configure the required parameters:
 
 ```bash
@@ -38,9 +42,40 @@ cp .env.example .env
 Key configuration parameters:
 - `REDIS_URL`: Redis connection URL
 - `RPC_URL`: Ethereum RPC endpoint
-- `PRIVATE_KEY`: Deployer wallet private key
-- `TOKEN_IMPLEMENTATION_ADDRESS`: Address of the token implementation contract
+- `DEPLOYER_PRIVATE_KEY`: Deployer wallet private key
+- `TOKEN_MANAGER_ADDRESS`: Address of the TokenManager contract
 - `MODEL_REGISTRY_ADDRESS`: Address of the ModelRegistry contract
+- `VALID_API_KEYS`: Comma-separated list of valid API keys
+
+#### 2. AWS SSM Parameter Store (Production)
+
+For production deployments, the service automatically loads configuration from AWS SSM Parameter Store. Set the following environment variables:
+
+```bash
+NODE_ENV=production
+AWS_REGION=us-east-1
+DEPLOY_ENV=production  # optional, defaults to NODE_ENV
+```
+
+Or enable SSM in development:
+```bash
+USE_SSM=true
+```
+
+**Required SSM Parameters:**
+- `/hokusai/{environment}/contracts/deployer_key` - Private key for contract deployment
+- `/hokusai/{environment}/contracts/token_manager_address` - TokenManager contract address
+- `/hokusai/{environment}/contracts/model_registry_address` - ModelRegistry contract address
+- `/hokusai/{environment}/contracts/rpc_endpoint` - Ethereum RPC URL
+- `/hokusai/{environment}/contracts/redis_url` - Redis connection URL
+- `/hokusai/{environment}/contracts/api_keys` - Comma-separated API keys
+
+**Optional SSM Parameters:**
+- `/hokusai/{environment}/contracts/jwt_secret` - JWT signing secret
+- `/hokusai/{environment}/contracts/webhook_url` - Webhook notification URL
+- `/hokusai/{environment}/contracts/webhook_secret` - Webhook signing secret
+
+The service includes automatic retry logic and error handling for SSM parameter retrieval.
 
 ### Development
 

@@ -46,14 +46,14 @@ COPY --chown=nodejs:nodejs package*.json ./
 USER nodejs
 
 # Expose ports
-EXPOSE 3001 9091
+EXPOSE 8002 9091
 
-# Health check
+# Health check (uses PORT environment variable, defaulting to 8002)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3001/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
+  CMD node -e "const port = process.env.PORT || 8002; require('http').get(\`http://localhost:\${port}/health\`, (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start the application
-CMD ["node", "dist/index.js"]
+# Start the application (API server mode)
+CMD ["node", "dist/server.js"]

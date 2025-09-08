@@ -186,7 +186,7 @@ All errors follow a consistent format:
 ```env
 # Application
 NODE_ENV=development
-PORT=3001
+PORT=8002
 
 # Blockchain
 RPC_URL=https://ethereum-rpc-url.com
@@ -214,7 +214,7 @@ CONFIRMATION_BLOCKS=3
 ### Deploy a Token
 
 ```bash
-curl -X POST http://localhost:3001/api/deployments \
+curl -X POST http://localhost:8002/api/deployments \
   -H "Content-Type: application/json" \
   -H "X-API-Key: dev-key-1" \
   -d '{
@@ -229,7 +229,7 @@ curl -X POST http://localhost:3001/api/deployments \
 ### Check Deployment Status
 
 ```bash
-curl -X GET http://localhost:3001/api/deployments/550e8400-e29b-41d4-a716-446655440000/status \
+curl -X GET http://localhost:8002/api/deployments/550e8400-e29b-41d4-a716-446655440000/status \
   -H "X-API-Key: dev-key-1"
 ```
 
@@ -252,7 +252,7 @@ npm run start:api
 
 ```bash
 docker build -t hokusai-contract-deployer .
-docker run -p 3001:3001 --env-file .env hokusai-contract-deployer
+docker run -p 8002:8002 --env-file .env hokusai-contract-deployer
 ```
 
 ## Testing

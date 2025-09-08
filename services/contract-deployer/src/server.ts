@@ -21,8 +21,8 @@ dotenv.config();
 const logger = createLogger('server');
 
 async function createServer(): Promise<express.Application> {
-  // Validate environment variables
-  const config: Config = validateEnv();
+  // Validate environment variables (including SSM parameters if enabled)
+  const config: Config = await validateEnv();
   
   // Initialize services
   const redisClient = createClient({
@@ -158,9 +158,10 @@ async function createServer(): Promise<express.Application> {
 
 async function startServer(): Promise<void> {
   try {
+    const config: Config = await validateEnv();
     const app = await createServer();
     
-    const port = process.env.PORT || 3000;
+    const port = config.PORT;
     const server = app.listen(port, () => {
       logger.info(`Hokusai Contract Deployer API listening on port ${port}`);
       logger.info(`API endpoints available at http://localhost:${port}/api`);

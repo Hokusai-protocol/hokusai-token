@@ -1,0 +1,208 @@
+{
+  "family": "hokusai-contracts-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "taskRoleArn": "arn:aws:iam::932100697590:role/hokusai-contracts-task-role",
+  "executionRoleArn": "arn:aws:iam::932100697590:role/hokusai-contracts-execution-role",
+  "containerDefinitions": [
+    {
+      "name": "contract-deployer",
+      "image": "932100697590.dkr.ecr.us-east-1.amazonaws.com/hokusai/contracts:latest",
+      "cpu": 256,
+      "memory": 512,
+      "memoryReservation": 512,
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8002,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 9091,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "8002"
+        },
+        {
+          "name": "SERVICE_NAME",
+          "value": "contract-deployer-api"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "us-east-1"
+        },
+        {
+          "name": "NETWORK_NAME",
+          "value": "polygon-mainnet"
+        },
+        {
+          "name": "CHAIN_ID",
+          "value": "137"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "info"
+        },
+        {
+          "name": "LOG_FORMAT",
+          "value": "json"
+        },
+        {
+          "name": "ENABLE_METRICS",
+          "value": "true"
+        },
+        {
+          "name": "METRICS_PORT",
+          "value": "9091"
+        },
+        {
+          "name": "HEALTH_CHECK_INTERVAL",
+          "value": "30000"
+        },
+        {
+          "name": "HEALTH_CHECK_TIMEOUT",
+          "value": "5000"
+        },
+        {
+          "name": "ENABLE_AUTH",
+          "value": "true"
+        },
+        {
+          "name": "RATE_LIMIT_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "CORS_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "CORS_ORIGINS",
+          "value": "https://app.hokus.ai,https://hokus.ai,https://admin.hokus.ai"
+        },
+        {
+          "name": "QUEUE_PREFIX",
+          "value": "hokusai"
+        },
+        {
+          "name": "DEFAULT_GAS_LIMIT",
+          "value": "5000000"
+        },
+        {
+          "name": "GAS_PRICE_MULTIPLIER",
+          "value": "1.2"
+        },
+        {
+          "name": "MAX_GAS_PRICE",
+          "value": "500000000000"
+        },
+        {
+          "name": "MIN_CONFIRMATIONS",
+          "value": "2"
+        },
+        {
+          "name": "CONFIRMATION_TIMEOUT",
+          "value": "300000"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/redis_url"
+        },
+        {
+          "name": "RPC_URL",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/rpc_endpoint"
+        },
+        {
+          "name": "RPC_URLS",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/rpc_endpoint"
+        },
+        {
+          "name": "MODEL_REGISTRY_ADDRESS",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/model_registry_address"
+        },
+        {
+          "name": "TOKEN_MANAGER_ADDRESS",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/token_manager_address"
+        },
+        {
+          "name": "DEPLOYER_PRIVATE_KEY",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/deployer_key"
+        },
+        {
+          "name": "API_KEYS",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/api_keys"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/jwt_secret"
+        },
+        {
+          "name": "WEBHOOK_URL",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/webhook_url"
+        },
+        {
+          "name": "WEBHOOK_SECRET",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/webhook_secret"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hokusai-contracts",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "contract-deployer-api"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://localhost:8002/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))\""
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "stopTimeout": 30,
+      "ulimits": [
+        {
+          "name": "nofile",
+          "softLimit": 65536,
+          "hardLimit": 65536
+        }
+      ],
+      "mountPoints": [],
+      "volumesFrom": []
+    }
+  ],
+  "volumes": [],
+  "tags": [
+    {
+      "key": "Name",
+      "value": "hokusai-contracts-task"
+    },
+    {
+      "key": "Environment",
+      "value": "development"
+    },
+    {
+      "key": "Service",
+      "value": "contract-deployer"
+    },
+    {
+      "key": "ManagedBy",
+      "value": "terraform"
+    }
+  ]
+}

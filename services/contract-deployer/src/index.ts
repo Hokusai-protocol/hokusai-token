@@ -15,34 +15,31 @@ async function main(): Promise<void> {
   try {
     logger.info('Starting Contract Deployer Service...');
 
-    // Validate required environment variables
-    const requiredEnvVars = [
-      'REDIS_URL',
-      'RPC_URLS',
-      'DEPLOYER_PRIVATE_KEY',
-      'TOKEN_MANAGER_ADDRESS',
-      'MODEL_REGISTRY_ADDRESS'
-    ];
+    // Load configuration (including SSM parameters if enabled)
+    const { validateEnv } = await import('./config/env.validation');
+    const config = await validateEnv();
 
-    for (const envVar of requiredEnvVars) {
-      if (!process.env[envVar]) {
-        throw new Error(`Missing required environment variable: ${envVar}`);
-      }
+    // For backward compatibility, also set environment variables from config
+    if (config.REDIS_URL) {
+      process.env.REDIS_URL = config.REDIS_URL;
+    }
+    if (!process.env.RPC_URLS) {
+      process.env.RPC_URLS = config.RPC_URL;
     }
 
     // Initialize the contract deploy listener
     const listener = new ContractDeployListener({
       redis: {
-        url: process.env.REDIS_URL!
+        url: config.REDIS_URL || `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`
       },
       blockchain: {
-        rpcUrls: process.env.RPC_URLS!.split(','),
-        privateKey: process.env.DEPLOYER_PRIVATE_KEY!,
-        tokenManagerAddress: process.env.TOKEN_MANAGER_ADDRESS!,
-        modelRegistryAddress: process.env.MODEL_REGISTRY_ADDRESS!,
-        gasMultiplier: parseFloat(process.env.GAS_MULTIPLIER || '1.2'),
-        maxGasPrice: process.env.MAX_GAS_PRICE || '100000000000',
-        confirmations: parseInt(process.env.CONFIRMATIONS || '2')
+        rpcUrls: config.RPC_URL.split(','),
+        privateKey: config.DEPLOYER_PRIVATE_KEY,
+        tokenManagerAddress: config.TOKEN_MANAGER_ADDRESS,
+        modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
+        gasMultiplier: config.GAS_PRICE_MULTIPLIER,
+        maxGasPrice: (config.MAX_GAS_PRICE_GWEI * 1e9).toString(), // Convert Gwei to Wei
+        confirmations: config.CONFIRMATION_BLOCKS
       },
       queues: {
         inbound: process.env.INBOUND_QUEUE || 'hokusai:model_ready_queue',
@@ -61,18 +58,19 @@ async function main(): Promise<void> {
     app.use(cors());
 
     // Create Redis client for health checks
-    const redis = createClient({ url: process.env.REDIS_URL });
+    const redisUrl = config.REDIS_URL || `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`;
+    const redis = createClient({ url: redisUrl });
     await redis.connect();
 
     // Create provider for health checks
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URLS!.split(',')[0]);
+    const provider = new ethers.JsonRpcProvider(config.RPC_URL.split(',')[0]);
 
     // Initialize health check service
     const healthCheck = new HealthCheckService({
       redis,
       provider,
-      registryAddress: process.env.MODEL_REGISTRY_ADDRESS!,
-      tokenManagerAddress: process.env.TOKEN_MANAGER_ADDRESS!
+      registryAddress: config.MODEL_REGISTRY_ADDRESS,
+      tokenManagerAddress: config.TOKEN_MANAGER_ADDRESS
     });
 
     // Set up health check endpoints
@@ -86,7 +84,7 @@ async function main(): Promise<void> {
       res.status(ready ? 200 : 503).json({ ready });
     });
 
-    const port = process.env.PORT || 3000;
+    const port = config.PORT;
     const server = app.listen(port, () => {
       logger.info(`Health check server listening on port ${port}`);
     });

@@ -1,9 +1,7 @@
 {
   "family": "hokusai-contracts-task",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": [
-    "FARGATE"
-  ],
+  "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
   "taskRoleArn": "arn:aws:iam::932100697590:role/hokusai-contracts-task-role",
@@ -11,7 +9,7 @@
   "containerDefinitions": [
     {
       "name": "contract-deployer",
-      "image": "932100697590.dkr.ecr.us-east-1.amazonaws.com/hokusai/contracts:v1.2.3",
+      "image": "932100697590.dkr.ecr.us-east-1.amazonaws.com/hokusai/contracts:v1.2.4",
       "cpu": 256,
       "memory": 512,
       "memoryReservation": 512,
@@ -169,6 +167,16 @@
           "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "contract-deployer-api"
         }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8002/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "startPeriod": 90
       },
       "stopTimeout": 30,
       "ulimits": [

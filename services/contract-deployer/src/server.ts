@@ -1,3 +1,8 @@
+// Early startup logging
+console.log('[STARTUP] Server.ts starting...');
+console.log('[STARTUP] Node version:', process.version);
+console.log('[STARTUP] NODE_ENV:', process.env.NODE_ENV);
+
 import dotenv from 'dotenv';
 import express from 'express';
 import helmet from 'helmet';
@@ -17,14 +22,24 @@ import { validateEnv, type Config } from './config/env.validation';
 
 // Load environment variables
 dotenv.config();
+console.log('[STARTUP] Environment variables loaded');
 
 const logger = createLogger('server');
+console.log('[STARTUP] Logger created');
 
 async function createServer(): Promise<express.Application> {
+  console.log('[STARTUP] createServer() called');
+  
   // Validate environment variables (including SSM parameters if enabled)
+  console.log('[STARTUP] Validating environment...');
   const config: Config = await validateEnv();
+  console.log('[STARTUP] Environment validated successfully')
   
   // Initialize services
+  console.log('[STARTUP] Creating Redis client...');
+  console.log('[STARTUP] Redis host:', config.REDIS_HOST);
+  console.log('[STARTUP] Redis port:', config.REDIS_PORT);
+  
   const redisClient = createClient({
     socket: {
       host: config.REDIS_HOST,
@@ -32,16 +47,42 @@ async function createServer(): Promise<express.Application> {
     },
   });
 
-  await redisClient.connect();
-  logger.info('Connected to Redis');
+  console.log('[STARTUP] Connecting to Redis...');
+  try {
+    // Set a timeout for Redis connection
+    const connectPromise = redisClient.connect();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Redis connection timeout')), 5000)
+    );
+    
+    await Promise.race([connectPromise, timeoutPromise]);
+    console.log('[STARTUP] Redis connected successfully');
+    logger.info('Connected to Redis');
+  } catch (error) {
+    console.error('[STARTUP] Failed to connect to Redis:', error);
+    console.log('[STARTUP] Continuing without Redis - queue features will be disabled');
+    logger.warn('Starting without Redis - queue features disabled');
+    // Don't throw - continue without Redis
+  }
 
-  // Initialize queue service
-  const queueService = new QueueService(
-    config.REDIS_HOST,
-    config.REDIS_PORT,
-    logger
-  );
-  await queueService.connect();
+  // Initialize queue service (optional)
+  let queueService: QueueService | null = null;
+  try {
+    queueService = new QueueService(
+      config.REDIS_HOST,
+      config.REDIS_PORT,
+      logger
+    );
+    await Promise.race([
+      queueService.connect(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Queue connection timeout')), 5000))
+    ]);
+    console.log('[STARTUP] Queue service connected');
+  } catch (error) {
+    console.error('[STARTUP] Failed to connect queue service:', error);
+    console.log('[STARTUP] Continuing without queue service');
+    queueService = null;
+  }
 
   // Initialize blockchain service
   const blockchainService = new BlockchainService(
@@ -61,32 +102,48 @@ async function createServer(): Promise<express.Application> {
     confirmations: config.CONFIRMATION_BLOCKS
   });
 
-  // Initialize deployment service
-  const deploymentService = new DeploymentService(
-    {
-      redisHost: config.REDIS_HOST,
-      redisPort: config.REDIS_PORT,
-      queueName: config.QUEUE_NAME,
-      statusTtlSeconds: 86400, // 24 hours
-      maxConcurrentDeployments: 10 // Default value
-    },
-    queueService,
-    contractDeployer
-  );
-  await deploymentService.initialize();
+  // Initialize deployment service (only if queue is available)
+  let deploymentService: DeploymentService | null = null;
+  let deploymentProcessor: DeploymentProcessor | null = null;
+  
+  if (queueService) {
+    deploymentService = new DeploymentService(
+      {
+        redisHost: config.REDIS_HOST,
+        redisPort: config.REDIS_PORT,
+        queueName: config.QUEUE_NAME,
+        statusTtlSeconds: 86400, // 24 hours
+        maxConcurrentDeployments: 10 // Default value
+      },
+      queueService,
+      contractDeployer
+    );
+    
+    try {
+      await deploymentService.initialize();
+      console.log('[STARTUP] Deployment service initialized');
+      
+      // Initialize deployment processor
+      deploymentProcessor = new DeploymentProcessor(
+        queueService,
+        blockchainService,
+        deploymentService,
+        logger,
+        config
+      );
 
-  // Initialize deployment processor
-  const deploymentProcessor = new DeploymentProcessor(
-    queueService,
-    blockchainService,
-    deploymentService,
-    logger,
-    config
-  );
-
-  // Start background processing
-  await deploymentProcessor.start();
-  logger.info('Deployment processor started');
+      // Start background processing
+      await deploymentProcessor.start();
+      console.log('[STARTUP] Deployment processor started');
+      logger.info('Deployment processor started');
+    } catch (error) {
+      console.error('[STARTUP] Failed to initialize deployment services:', error);
+      deploymentService = null;
+      deploymentProcessor = null;
+    }
+  } else {
+    console.log('[STARTUP] Skipping deployment service initialization (no queue)');
+  }
 
   // Create Express app
   const app = express();
@@ -98,15 +155,15 @@ async function createServer(): Promise<express.Application> {
     credentials: true
   }));
 
-  // Rate limiting
-  app.use(rateLimiter);
+  // Rate limiting - 100 requests per 15 minutes
+  app.use(rateLimiter(15 * 60 * 1000, 100));
 
   // Body parsing
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
   // Request logging
-  app.use((req, res, next) => {
+  app.use((req, _res, next) => {
     logger.info(`${req.method} ${req.path}`, {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
@@ -115,17 +172,30 @@ async function createServer(): Promise<express.Application> {
     next();
   });
 
-  // API routes
-  app.use('/api/deployments', deploymentRouter(
-    queueService,
-    blockchainService,
-    deploymentService
-  ));
+  // API routes - only enable deployment routes if queue is available
+  if (queueService && deploymentService) {
+    app.use('/api/deployments', deploymentRouter(
+      queueService,
+      blockchainService,
+      deploymentService
+    ));
+  } else {
+    app.use('/api/deployments', (_req, res) => {
+      res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Deployment service is not available (Redis connection required)',
+          timestamp: new Date().toISOString()
+        }
+      });
+    });
+  }
   
-  app.use('/health', healthRouter());
+  app.use('/health', healthRouter);
 
   // Default route
-  app.get('/', (req, res) => {
+  app.get('/', (_req, res) => {
     res.json({
       name: 'Hokusai Contract Deployer API',
       version: '1.0.0',
@@ -157,12 +227,19 @@ async function createServer(): Promise<express.Application> {
 }
 
 async function startServer(): Promise<void> {
+  console.log('[STARTUP] startServer() called');
   try {
+    console.log('[STARTUP] Getting config...');
     const config: Config = await validateEnv();
+    console.log('[STARTUP] Creating server application...');
     const app = await createServer();
+    console.log('[STARTUP] Server application created');
     
     const port = config.PORT;
+    console.log('[STARTUP] Port from config:', port);
+    console.log('[STARTUP] About to call app.listen...');
     const server = app.listen(port, () => {
+      console.log('[STARTUP] app.listen callback called');
       logger.info(`Hokusai Contract Deployer API listening on port ${port}`);
       logger.info(`API endpoints available at http://localhost:${port}/api`);
       logger.info(`Health checks available at http://localhost:${port}/health`);

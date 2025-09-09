@@ -13,7 +13,18 @@
       "Bash(npx tsx:*)",
       "Bash(find:*)",
       "Bash(grep:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(aws ecs describe-services:*)",
+      "Bash(aws ecs update-service:*)",
+      "Bash(aws ecs list-services:*)",
+      "Bash(aws logs tail:*)",
+      "Bash(aws ecs list-tasks:*)",
+      "Bash(aws ecs describe-tasks:*)",
+      "Bash(npx tsc:*)",
+      "Bash(cat:*)",
+      "Bash(aws logs:*)",
+      "Bash(aws ecs register-task-definition:*)",
+      "Bash(docker logs:*)"
     ],
     "deny": []
   }

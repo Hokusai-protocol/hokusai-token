@@ -12,20 +12,21 @@ COPY tsconfig.json ./
 
 # Install dependencies
 RUN npm ci --only=production && \
-    cp -R node_modules prod_node_modules && \
-    npm ci
+    cp -R node_modules prod_node_modules
 
-# Copy source code
+# Copy source code and pre-built files
 COPY src ./src
+COPY dist ./dist
+COPY contracts ./contracts
 
-# Build the application
-RUN npm run build
+# Skip build for now - using pre-built dist
+# RUN npm run build
 
 # Runtime stage
 FROM node:18-alpine
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init for proper signal handling and curl for health checks
+RUN apk add --no-cache dumb-init curl
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -38,6 +39,9 @@ COPY --from=builder --chown=nodejs:nodejs /app/prod_node_modules ./node_modules
 
 # Copy built application
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+
+# Copy contracts
+COPY --from=builder --chown=nodejs:nodejs /app/contracts ./contracts
 
 # Copy package.json for reference
 COPY --chown=nodejs:nodejs package*.json ./

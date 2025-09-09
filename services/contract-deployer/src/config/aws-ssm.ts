@@ -279,10 +279,13 @@ export function createSSMClient(pathPrefix = '/hokusai/development/contracts/'):
  * Load configuration from SSM Parameter Store if running in production
  */
 export async function loadSSMConfiguration(): Promise<SSMParameters | null> {
+  console.log('[STARTUP] loadSSMConfiguration() called');
   const nodeEnv = process.env.NODE_ENV || 'development';
+  console.log('[STARTUP] NODE_ENV:', nodeEnv);
   
   // Only load from SSM in production or if explicitly requested
   if (nodeEnv !== 'production' && process.env.USE_SSM !== 'true') {
+    console.log('[STARTUP] Not loading from SSM (not production and USE_SSM not true)');
     logger.debug('Not loading from SSM (NODE_ENV is not production and USE_SSM is not true)');
     return null;
   }
@@ -291,13 +294,17 @@ export async function loadSSMConfiguration(): Promise<SSMParameters | null> {
   const environment = process.env.DEPLOY_ENV || nodeEnv;
   const pathPrefix = `/hokusai/${environment}/contracts/`;
   
+  console.log('[STARTUP] Loading from SSM with path prefix:', pathPrefix);
   logger.info(`Loading configuration from SSM Parameter Store (path: ${pathPrefix})`);
   
+  console.log('[STARTUP] Creating SSM client...');
   const ssmClient = createSSMClient(pathPrefix);
   
   try {
     // Test connection first
+    console.log('[STARTUP] Testing SSM connection...');
     const connected = await ssmClient.testConnection();
+    console.log('[STARTUP] SSM connection test result:', connected);
     if (!connected) {
       throw new Error('Failed to connect to SSM Parameter Store');
     }

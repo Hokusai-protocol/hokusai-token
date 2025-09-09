@@ -1,7 +1,9 @@
 {
   "family": "hokusai-contracts-task",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
   "cpu": "256",
   "memory": "512",
   "taskRoleArn": "arn:aws:iam::932100697590:role/hokusai-contracts-task-role",
@@ -9,7 +11,7 @@
   "containerDefinitions": [
     {
       "name": "contract-deployer",
-      "image": "932100697590.dkr.ecr.us-east-1.amazonaws.com/hokusai/contracts:latest",
+      "image": "932100697590.dkr.ecr.us-east-1.amazonaws.com/hokusai/contracts:v1.2.3",
       "cpu": 256,
       "memory": 512,
       "memoryReservation": 512,
@@ -28,6 +30,10 @@
         {
           "name": "NODE_ENV",
           "value": "production"
+        },
+        {
+          "name": "DEPLOY_ENV",
+          "value": "development"
         },
         {
           "name": "PORT",
@@ -163,16 +169,6 @@
           "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "contract-deployer-api"
         }
-      },
-      "healthCheck": {
-        "command": [
-          "CMD-SHELL",
-          "node -e \"require('http').get('http://localhost:8002/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))\""
-        ],
-        "interval": 30,
-        "timeout": 5,
-        "retries": 3,
-        "startPeriod": 60
       },
       "stopTimeout": 30,
       "ulimits": [

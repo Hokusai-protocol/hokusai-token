@@ -50,7 +50,7 @@ export class QueueService {
   }
 
   async dequeue(queueName: string, timeout = 0): Promise<QueueMessage | null> {
-    const result = await this.client.blPop({ key: queueName, timeout });
+    const result = await this.client.blPop(queueName, timeout);
     if (result) {
       return JSON.parse(result.element) as QueueMessage;
     }

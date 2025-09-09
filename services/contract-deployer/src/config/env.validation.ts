@@ -172,20 +172,27 @@ function parseRedisUrl(redisUrl: string): Partial<Config> {
  * Validate environment variables, optionally loading from SSM Parameter Store
  */
 export async function validateEnv(): Promise<Config> {
+  console.log('[STARTUP] validateEnv() called');
+  
   // First validate the basic environment schema
+  console.log('[STARTUP] Validating basic environment schema...');
   const { error, value } = envSchema.validate(process.env, {
     abortEarly: false,
   });
 
   if (error) {
+    console.error('[STARTUP] Environment validation error:', error.message);
     throw new Error(`Environment validation error: ${error.message}`);
   }
 
+  console.log('[STARTUP] Basic environment validation passed');
   let config = value as Config;
 
   // Try to load from SSM Parameter Store
+  console.log('[STARTUP] Loading SSM configuration...');
   try {
     const ssmParams = await loadSSMConfiguration();
+    console.log('[STARTUP] SSM configuration loaded:', ssmParams ? 'success' : 'no params');
     
     if (ssmParams) {
       // Map SSM parameters to environment variables

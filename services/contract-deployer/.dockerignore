@@ -5,7 +5,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Build output
-dist/
+# dist/  # Need this for Docker build
 build/
 *.tsbuildinfo
 
@@ -39,7 +39,6 @@ jest.config.js
 # Development files
 .eslintrc.json
 .prettierrc.json
-tsconfig.json
 
 # CI/CD
 .github/

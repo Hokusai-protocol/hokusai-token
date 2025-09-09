@@ -33,7 +33,7 @@ async function createServer(): Promise<express.Application> {
   // Validate environment variables (including SSM parameters if enabled)
   console.log('[STARTUP] Validating environment...');
   const config: Config = await validateEnv();
-  console.log('[STARTUP] Environment validated successfully');
+  console.log('[STARTUP] Environment validated successfully')
   
   // Initialize services
   console.log('[STARTUP] Creating Redis client...');

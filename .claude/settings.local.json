@@ -24,7 +24,9 @@
       "Bash(cat:*)",
       "Bash(aws logs:*)",
       "Bash(aws ecs register-task-definition:*)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(docker build:*)",
+      "Bash(docker tag:*)"
     ],
     "deny": []
   }

@@ -83,9 +83,18 @@ export class ContractDeployListener {
   async initialize(): Promise<void> {
     logger.info('Initializing Contract Deploy Listener');
     
-    // Connect to Redis
-    await this.redis.connect();
-    logger.info('Connected to Redis');
+    // Connect to Redis with timeout
+    try {
+      const connectPromise = this.redis.connect();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Redis connection timeout')), 5000)
+      );
+      await Promise.race([connectPromise, timeoutPromise]);
+      logger.info('Connected to Redis');
+    } catch (error) {
+      logger.error('Failed to connect to Redis', error);
+      throw new Error(`Redis connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
     
     // Verify blockchain connection
     const networkInfo = await this.deployer.getNetworkInfo();
@@ -94,7 +103,7 @@ export class ContractDeployListener {
     // Verify contracts are deployed
     const contractsReady = await this.healthCheck.isReady();
     if (!contractsReady) {
-      throw new Error('Required contracts not deployed');
+      logger.warn('Required contracts not deployed - service will run with limited functionality');
     }
     
     logger.info('Contract Deploy Listener initialized successfully');

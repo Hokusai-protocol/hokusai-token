@@ -4,7 +4,8 @@ export function healthRouter() {
   const router = Router();
 
   router.get('/', (_req, res) => {
-    res.json({
+    console.log('[HEALTH] Health check requested');
+    res.status(200).json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),

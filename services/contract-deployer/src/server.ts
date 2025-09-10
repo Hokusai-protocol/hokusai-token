@@ -192,7 +192,7 @@ async function createServer(): Promise<express.Application> {
     });
   }
   
-  app.use('/health', healthRouter());
+  app.use('/health', healthRouter);
 
   // Default route
   app.get('/', (_req, res) => {

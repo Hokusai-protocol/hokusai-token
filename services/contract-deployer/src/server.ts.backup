@@ -242,9 +242,6 @@ async function startServer(): Promise<void> {
     console.log('[STARTUP] About to call app.listen...');
     const server = app.listen(port, host, () => {
       console.log('[STARTUP] app.listen callback called');
-      console.log(`[STARTUP] Hokusai Contract Deployer API listening on ${host}:${port}`);
-      console.log(`[STARTUP] API endpoints available at http://${host}:${port}/api`);
-      console.log(`[STARTUP] Health checks available at http://${host}:${port}/health`);
       logger.info(`Hokusai Contract Deployer API listening on ${host}:${port}`);
       logger.info(`API endpoints available at http://${host}:${port}/api`);
       logger.info(`Health checks available at http://${host}:${port}/health`);

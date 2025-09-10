@@ -16,7 +16,11 @@ export function createLogger(level: string): winston.Logger {
       new winston.transports.Console({
         format:
           process.env.NODE_ENV === 'production'
-            ? format
+            ? winston.format.combine(
+                winston.format.timestamp(),
+                winston.format.errors({ stack: true }),
+                winston.format.json(),
+              )
             : winston.format.combine(
                 winston.format.colorize(),
                 winston.format.simple(),
@@ -31,7 +35,9 @@ export function createLogger(level: string): winston.Logger {
     ],
   });
 
-  if (process.env.NODE_ENV === 'production') {
+  // Don't add file transports in production ECS environment
+  // Logs are captured by CloudWatch through stdout/stderr
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_FILE_LOGGING === 'true') {
     logger.add(
       new winston.transports.File({
         filename: 'error.log',

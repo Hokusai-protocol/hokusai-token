@@ -27,10 +27,10 @@ describe("TokenManager", function () {
     
     // Deploy HokusaiToken instances
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken1 = await HokusaiToken.deploy();
+    hokusaiToken1 = await HokusaiToken.deploy("Hokusai Token 1", "HOKU1", owner.address);
     await hokusaiToken1.waitForDeployment();
     
-    hokusaiToken2 = await HokusaiToken.deploy();
+    hokusaiToken2 = await HokusaiToken.deploy("Hokusai Token 2", "HOKU2", owner.address);
     await hokusaiToken2.waitForDeployment();
     
     // Deploy TokenManager with ModelRegistry reference
@@ -280,7 +280,7 @@ describe("TokenManager", function () {
     it("Should fail when TokenManager is not set as controller", async function () {
       // Deploy new token without setting TokenManager as controller
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-      const newToken = await HokusaiToken.deploy();
+      const newToken = await HokusaiToken.deploy("New Token", "NEW", owner.address);
       await newToken.waitForDeployment();
       
       // Register in ModelRegistry
@@ -308,7 +308,7 @@ describe("TokenManager", function () {
       const newRegistry = await ModelRegistry.deploy();
       
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-      const newToken = await HokusaiToken.deploy();
+      const newToken = await HokusaiToken.deploy("New Token", "NEW", owner.address);
       
       const TokenManager = await ethers.getContractFactory("TokenManager");
       const newManager = await TokenManager.deploy(await newRegistry.getAddress());

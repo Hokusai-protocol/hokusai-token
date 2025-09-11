@@ -34,12 +34,6 @@ The system includes:
 - Integrates with ModelRegistry to validate model-token mappings
 - Handles minting tokens to contributors based on model performance
 
-#### AuctionBurner
-- Minimal contract for burning tokens to simulate model/API access consumption
-- Users burn tokens through a clean interface with proper validation
-- Maintains reference to a single HokusaiToken contract
-- Provides foundation for future auction-based access mechanisms
-
 #### DeltaVerifier
 - Processes off-chain ML model performance metrics to calculate token rewards
 - Calculates DeltaOne scores based on performance improvements across multiple metrics
@@ -134,10 +128,9 @@ docker-compose up -d
    - Mints tokens to contributor address based on improvement
 
 3. **Token Burning Flow**:
-   - User interacts with AuctionBurner contract
-   - User approves AuctionBurner to spend their tokens
-   - AuctionBurner transfers tokens and burns them
-   - Tokens are removed from circulation
+   - Tokens will be burned through integrated AMM mechanism
+   - A portion of API fees will be applied to AMM reserves
+   - Automated market making provides liquidity and price discovery
 
 ## Security Features
 
@@ -271,60 +264,6 @@ token.on(burnFilter, (from, amount, event) => {
   console.log(`Burned ${amount} tokens from ${from}`);
 });
 ```
-
-## AuctionBurner API
-
-### Core Functions
-
-#### burn(uint256 amount)
-Burns tokens from the caller's balance to simulate model access consumption.
-```solidity
-function burn(uint256 amount) external
-```
-
-**Requirements:**
-- `amount` must be greater than zero
-- Caller must have sufficient token balance
-- Caller must have approved this contract to spend their tokens
-
-#### setToken(address _token)
-Updates the token contract reference (admin only).
-```solidity
-function setToken(address _token) external onlyOwner
-```
-
-### Usage Examples
-
-```javascript
-// Deploy AuctionBurner with token reference
-const auctionBurner = await AuctionBurner.deploy(tokenAddress);
-
-// User approves tokens for burning
-await token.connect(user).approve(auctionBurnerAddress, burnAmount);
-
-// User burns tokens to access model
-await auctionBurner.connect(user).burn(burnAmount);
-
-// Admin updates token reference
-await auctionBurner.setToken(newTokenAddress);
-```
-
-### AuctionBurner Events
-
-#### TokensBurned
-```solidity
-event TokensBurned(address indexed user, uint256 amount);
-```
-Emitted when tokens are burned by a user.
-- `user`: The address that initiated the burn (indexed for filtering)
-- `amount`: The number of tokens burned
-
-#### TokenContractUpdated
-```solidity
-event TokenContractUpdated(address indexed newToken);
-```
-Emitted when the token contract reference is updated.
-- `newToken`: The new token contract address (indexed for filtering)
 
 ## DeltaVerifier API
 

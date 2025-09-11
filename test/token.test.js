@@ -14,7 +14,7 @@ describe("HokusaiToken", function () {
     [owner, controller, user1, user2, ...addrs] = await ethers.getSigners();
     
     const Token = await ethers.getContractFactory("HokusaiToken");
-    token = await Token.deploy();
+    token = await Token.deploy("Hokusai Token", "HOKU", controller.address);
     await token.waitForDeployment();
   });
 

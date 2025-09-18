@@ -49,17 +49,17 @@ async function connectWallet() {
 
 ```javascript
 // Contract addresses on Sepolia
-const TOKEN_MANAGER_ADDRESS = '0xB4A25a1a72BDd1e0F5f3288a96a6325CD9219196';
+const TOKEN_MANAGER_ADDRESS = '0x[NEW_ADDRESS_AFTER_DEPLOYMENT]'; // Updated contract with fixed interface
 
-// TokenManager ABI (only deployToken function)
+// TokenManager ABI (corrected interface)
 const TOKEN_MANAGER_ABI = [
-  'function deployToken(string memory name, string memory symbol, uint256 modelId) external payable returns (address)',
-  'function modelTokens(uint256) external view returns (address)',
+  'function deployToken(string memory modelId, string memory name, string memory symbol, uint256 totalSupply) external payable returns (address)',
+  'function modelTokens(string) external view returns (address)',
   'function deploymentFee() external view returns (uint256)',
-  'event TokenDeployed(uint256 indexed modelId, address indexed tokenAddress, address indexed deployer, string name, string symbol)'
+  'event TokenDeployed(string indexed modelId, address indexed tokenAddress, address indexed deployer, string name, string symbol, uint256 totalSupply)'
 ];
 
-async function deployToken(modelId, tokenName, tokenSymbol) {
+async function deployToken(modelId, tokenName, tokenSymbol, totalSupply) {
   const { signer } = await connectWallet();
   
   // Create contract instance
@@ -78,11 +78,12 @@ async function deployToken(modelId, tokenName, tokenSymbol) {
   // Check deployment fee
   const deploymentFee = await tokenManager.deploymentFee();
   
-  // Deploy token (user pays gas)
+  // Deploy token with correct parameter order (user pays gas)
   const tx = await tokenManager.deployToken(
-    tokenName,
-    tokenSymbol,
-    modelId,
+    modelId,        // string
+    tokenName,      // string
+    tokenSymbol,    // string
+    totalSupply,    // uint256
     { value: deploymentFee }
   );
   
@@ -91,7 +92,7 @@ async function deployToken(modelId, tokenName, tokenSymbol) {
   
   // Get token address from event
   const event = receipt.logs.find(
-    log => log.topics[0] === ethers.id('TokenDeployed(uint256,address,address,string,string)')
+    log => log.topics[0] === ethers.id('TokenDeployed(string,address,address,string,string,uint256)')
   );
   
   const tokenAddress = ethers.getAddress('0x' + event.topics[2].slice(26));
@@ -118,12 +119,13 @@ function DeployTokenButton({ modelId, modelName }) {
     setError(null);
     
     try {
-      // Generate token name and symbol from model
+      // Generate token parameters from model
       const tokenName = `${modelName} Token`;
       const tokenSymbol = modelName.substring(0, 3).toUpperCase();
-      
+      const totalSupply = ethers.parseEther('1000000'); // 1M tokens default
+
       // Deploy token
-      const result = await deployToken(modelId, tokenName, tokenSymbol);
+      const result = await deployToken(modelId, tokenName, tokenSymbol, totalSupply);
       
       setTokenAddress(result.tokenAddress);
       
@@ -174,7 +176,7 @@ function DeployTokenButton({ modelId, modelName }) {
 ## Gas Cost Estimation
 
 ```javascript
-async function estimateDeploymentCost(modelId, tokenName, tokenSymbol) {
+async function estimateDeploymentCost(modelId, tokenName, tokenSymbol, totalSupply) {
   const { provider, signer } = await connectWallet();
   
   const tokenManager = new ethers.Contract(
@@ -189,9 +191,11 @@ async function estimateDeploymentCost(modelId, tokenName, tokenSymbol) {
   
   // Estimate gas for deployment (typically 2-3M gas units)
   const estimatedGas = await tokenManager.deployToken.estimateGas(
+    modelId,
     tokenName,
     tokenSymbol,
-    modelId
+    totalSupply,
+    { value: deploymentFee }
   );
   
   const totalCostWei = estimatedGas * gasPrice;
@@ -211,7 +215,7 @@ Common errors and how to handle them:
 
 ```javascript
 try {
-  await deployToken(modelId, tokenName, tokenSymbol);
+  await deployToken(modelId, tokenName, tokenSymbol, totalSupply);
 } catch (error) {
   if (error.code === 'ACTION_REJECTED') {
     // User rejected transaction
@@ -234,7 +238,7 @@ try {
 ### Sepolia Testnet
 - Chain ID: 11155111
 - RPC URL: https://ethereum-sepolia-rpc.publicnode.com
-- TokenManager: 0xB4A25a1a72BDd1e0F5f3288a96a6325CD9219196
+- TokenManager: 0x[NEW_ADDRESS_AFTER_DEPLOYMENT] (Fixed interface - deployed [DATE])
 - ModelRegistry: 0x1F534d24c0156C3B699632C34bc8C6b77c43DF3f
 
 ### Adding Sepolia to MetaMask

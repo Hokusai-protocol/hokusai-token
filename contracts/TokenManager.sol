@@ -19,24 +19,25 @@ contract TokenManager is Ownable, AccessControl {
     bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
 
     // Track deployed tokens
-    mapping(uint256 => address) public modelTokens;
-    mapping(address => uint256) public tokenToModel;
+    mapping(string => address) public modelTokens;
+    mapping(address => string) public tokenToModel;
 
     // Optional platform fee for deployment
     uint256 public deploymentFee = 0;
     address public feeRecipient;
 
     event TokenDeployed(
-        uint256 indexed modelId, 
-        address indexed tokenAddress, 
+        string indexed modelId,
+        address indexed tokenAddress,
         address indexed deployer,
-        string name, 
-        string symbol
+        string name,
+        string symbol,
+        uint256 totalSupply
     );
-    event TokensMinted(uint256 indexed modelId, address indexed recipient, uint256 amount);
-    event TokensBurned(uint256 indexed modelId, address indexed account, uint256 amount);
+    event TokensMinted(string indexed modelId, address indexed recipient, uint256 amount);
+    event TokensBurned(string indexed modelId, address indexed account, uint256 amount);
     event DeltaVerifierUpdated(address indexed newDeltaVerifier);
-    event BatchMinted(uint256 indexed modelId, address[] recipients, uint256[] amounts, uint256 totalAmount);
+    event BatchMinted(string indexed modelId, address[] recipients, uint256[] amounts, uint256 totalAmount);
     event DeploymentFeeUpdated(uint256 newFee);
 
 
@@ -51,50 +52,54 @@ contract TokenManager is Ownable, AccessControl {
 
     /**
      * @dev Deploy a new token for a model - USER PAYS GAS
+     * @param modelId The model identifier (string)
      * @param name Token name
      * @param symbol Token symbol
-     * @param modelId The model identifier
+     * @param totalSupply The total supply to mint initially
      * @return tokenAddress The deployed token address
      */
     function deployToken(
+        string memory modelId,
         string memory name,
         string memory symbol,
-        uint256 modelId
+        uint256 totalSupply
     ) external payable returns (address tokenAddress) {
+        // Validate inputs
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
+        require(bytes(name).length > 0, "Token name cannot be empty");
+        require(bytes(symbol).length > 0, "Token symbol cannot be empty");
+        require(totalSupply > 0, "Total supply must be greater than zero");
+
         // Check if model already has a token
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
-        
+
         // Check deployment fee if configured
         if (deploymentFee > 0) {
             require(msg.value >= deploymentFee, "Insufficient deployment fee");
             // Transfer fee to recipient
             (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
             require(sent, "Failed to send deployment fee");
-            
+
             // Refund excess payment
             if (msg.value > deploymentFee) {
                 (bool refunded, ) = msg.sender.call{value: msg.value - deploymentFee}("");
                 require(refunded, "Failed to refund excess payment");
             }
         }
-        
-        // Deploy new HokusaiToken with this contract as controller
-        HokusaiToken newToken = new HokusaiToken(name, symbol, address(this));
+
+        // Deploy new HokusaiToken with this contract as controller and initial supply
+        HokusaiToken newToken = new HokusaiToken(name, symbol, address(this), totalSupply);
         tokenAddress = address(newToken);
-        
+
         // Store token mapping
         modelTokens[modelId] = tokenAddress;
         tokenToModel[tokenAddress] = modelId;
-        
-        // Try to register in ModelRegistry (might fail if registry is owner-only)
-        try registry.registerModel(modelId, tokenAddress, "user-deployed") {
-            // Successfully registered
-        } catch {
-            // Registry registration failed - token is still deployed and tracked
-        }
-        
-        emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol);
-        
+
+        // Note: Registry registration is not attempted as it uses uint256 modelId
+        // The ModelRegistry can be updated separately to support string modelIds if needed
+
+        emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
+
         return tokenAddress;
     }
 
@@ -130,21 +135,22 @@ contract TokenManager is Ownable, AccessControl {
      * @param recipient The address to receive the tokens
      * @param amount The amount of tokens to mint
      */
-    function mintTokens(uint256 modelId, address recipient, uint256 amount) 
-        external 
+    function mintTokens(string memory modelId, address recipient, uint256 amount)
+        external
     {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to mint"
         );
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
         require(recipient != address(0), "Recipient cannot be zero address");
         require(amount > 0, "Amount must be greater than zero");
-        
+
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
-        
+
         HokusaiToken(tokenAddress).mint(recipient, amount);
-        
+
         emit TokensMinted(modelId, recipient, amount);
     }
 
@@ -155,55 +161,57 @@ contract TokenManager is Ownable, AccessControl {
      * @param amounts Array of token amounts corresponding to each recipient
      */
     function batchMintTokens(
-        uint256 modelId, 
-        address[] calldata recipients, 
+        string memory modelId,
+        address[] calldata recipients,
         uint256[] calldata amounts
-    ) 
-        external 
+    )
+        external
     {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Unauthorized"
         );
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
         require(recipients.length > 0, "Empty recipients array");
         require(recipients.length == amounts.length, "Array length mismatch");
         require(recipients.length <= 100, "Batch size exceeds limit");
-        
+
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
-        
+
         HokusaiToken token = HokusaiToken(tokenAddress);
         uint256 totalAmount = 0;
-        
+
         for (uint256 i = 0; i < recipients.length; i++) {
             require(recipients[i] != address(0), "Invalid recipient address");
             require(amounts[i] > 0, "Amount must be greater than zero");
-            
+
             token.mint(recipients[i], amounts[i]);
             totalAmount += amounts[i];
         }
-        
+
         emit BatchMinted(modelId, recipients, amounts, totalAmount);
     }
 
     /**
      * @dev Burns tokens from a specific account for a model
-     * @param modelId The model identifier  
+     * @param modelId The model identifier
      * @param account The address to burn tokens from
      * @param amount The amount of tokens to burn
      */
-    function burnTokens(uint256 modelId, address account, uint256 amount)
+    function burnTokens(string memory modelId, address account, uint256 amount)
         external
         onlyOwner
     {
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
         require(account != address(0), "Account cannot be zero address");
         require(amount > 0, "Amount must be greater than zero");
-        
+
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
-        
+
         HokusaiToken(tokenAddress).burnFrom(account, amount);
-        
+
         emit TokensBurned(modelId, account, amount);
     }
 
@@ -212,7 +220,7 @@ contract TokenManager is Ownable, AccessControl {
      * @param modelId The model identifier
      * @return The token contract address
      */
-    function getTokenAddress(uint256 modelId) external view returns (address) {
+    function getTokenAddress(string memory modelId) external view returns (address) {
         return modelTokens[modelId];
     }
 
@@ -221,16 +229,18 @@ contract TokenManager is Ownable, AccessControl {
      * @param modelId The model identifier
      * @return True if the model has a token deployed
      */
-    function hasToken(uint256 modelId) external view returns (bool) {
+    function hasToken(string memory modelId) external view returns (bool) {
         return modelTokens[modelId] != address(0);
     }
 
     /**
-     * @dev Checks if a model is registered in the registry (legacy)
-     * @param modelId The model identifier
-     * @return True if the model is registered in the registry
+     * @dev Gets the model ID for a specific token address
+     * @param tokenAddress The token address
+     * @return The model identifier
      */
-    function isModelManaged(uint256 modelId) external view returns (bool) {
-        return registry.isRegistered(modelId);
+    function getModelId(address tokenAddress) external view returns (string memory) {
+        require(tokenAddress != address(0), "Token address cannot be zero");
+        require(bytes(tokenToModel[tokenAddress]).length > 0, "Token not found");
+        return tokenToModel[tokenAddress];
     }
 }

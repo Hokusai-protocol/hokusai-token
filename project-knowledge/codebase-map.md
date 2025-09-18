@@ -7,7 +7,6 @@ _Last updated: 2025-09-05_
 - HokusaiToken: ERC20 with controller-based mint/burn, dynamic name/symbol constructor [details: features/api-endpoint-contract-deploys/prd.md]
 - ModelRegistry: Maps model IDs to token addresses, provides bidirectional lookup [details: features/contract-deploy-listener/prd.md]
 - TokenManager: Exclusive controller for minting/burning operations, integrates with ModelRegistry [details: README.md]
-- AuctionBurner: Handles token burning for model/API access simulation [details: README.md]
 - DeltaVerifier: Calculates token rewards based on ML model performance metrics [details: README.md]
 
 ### Backend Services

@@ -14,7 +14,7 @@ describe("HokusaiToken", function () {
     [owner, controller, user1, user2, ...addrs] = await ethers.getSigners();
     
     const Token = await ethers.getContractFactory("HokusaiToken");
-    token = await Token.deploy();
+    token = await Token.deploy("Hokusai Token", "HOKU", controller.address, parseEther("10000"));
     await token.waitForDeployment();
   });
 
@@ -29,8 +29,9 @@ describe("HokusaiToken", function () {
       expect(await token.owner()).to.equal(owner.address);
     });
 
-    it("Should have zero total supply initially", async function () {
-      expect(await token.totalSupply()).to.equal(0);
+    it("Should have correct initial supply", async function () {
+      expect(await token.totalSupply()).to.equal(parseEther("10000"));
+      expect(await token.balanceOf(controller.address)).to.equal(parseEther("10000"));
     });
   });
 
@@ -100,7 +101,7 @@ describe("HokusaiToken", function () {
     it("Should revert when non-owner tries to set controller", async function () {
       await expect(
         token.connect(user1).setController(controller.address)
-      ).to.be.revertedWithCustomError(token, "OwnableUnauthorizedAccount");
+      ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
     it("Should revert when setting zero address as controller", async function () {
@@ -170,7 +171,7 @@ describe("HokusaiToken", function () {
         .withArgs(ZeroAddress, user1.address, mintAmount);
       
       expect(await token.balanceOf(user1.address)).to.equal(mintAmount);
-      expect(await token.totalSupply()).to.equal(mintAmount);
+      expect(await token.totalSupply()).to.equal(parseEther("10000") + mintAmount);
     });
 
     it("Should revert when non-controller tries to mint", async function () {
@@ -192,7 +193,7 @@ describe("HokusaiToken", function () {
       await token.connect(controller).mint(user1.address, mintAmount1);
       await token.connect(controller).mint(user2.address, mintAmount2);
       
-      expect(await token.totalSupply()).to.equal(mintAmount1 + mintAmount2);
+      expect(await token.totalSupply()).to.equal(parseEther("10000") + mintAmount1 + mintAmount2);
     });
 
     it("Should emit Minted event when minting tokens", async function () {
@@ -216,16 +217,15 @@ describe("HokusaiToken", function () {
       expect(await token.totalSupply()).to.equal(initialSupply);
     });
 
-    it("Should handle minting maximum uint256 value", async function () {
-      const maxUint256 = ethers.MaxUint256;
-      
-      // This should work as ERC20 handles the math
-      await expect(token.connect(controller).mint(user1.address, maxUint256))
+    it("Should handle minting large values without overflow", async function () {
+      const largeAmount = parseEther("1000000"); // 1 million tokens
+
+      await expect(token.connect(controller).mint(user1.address, largeAmount))
         .to.emit(token, "Minted")
-        .withArgs(user1.address, maxUint256);
-      
-      expect(await token.balanceOf(user1.address)).to.equal(maxUint256);
-      expect(await token.totalSupply()).to.equal(maxUint256);
+        .withArgs(user1.address, largeAmount);
+
+      expect(await token.balanceOf(user1.address)).to.equal(largeAmount);
+      expect(await token.totalSupply()).to.equal(parseEther("10000") + largeAmount);
     });
 
     it("Should measure gas usage for minting operations", async function () {
@@ -248,7 +248,7 @@ describe("HokusaiToken", function () {
       await token.connect(controller).mint(user1.address, amount3);
       
       expect(await token.balanceOf(user1.address)).to.equal(amount1 + amount2 + amount3);
-      expect(await token.totalSupply()).to.equal(amount1 + amount2 + amount3);
+      expect(await token.totalSupply()).to.equal(parseEther("10000") + amount1 + amount2 + amount3);
     });
   });
 
@@ -362,7 +362,7 @@ describe("HokusaiToken", function () {
       
       expect(await token.balanceOf(user1.address)).to.equal(parseEther("500"));
       expect(await token.balanceOf(user2.address)).to.equal(parseEther("200"));
-      expect(await token.totalSupply()).to.equal(parseEther("700"));
+      expect(await token.totalSupply()).to.equal(parseEther("10700")); // 10000 initial + 1000 minted - 300 burned
     });
   });
 
@@ -396,10 +396,11 @@ describe("HokusaiToken", function () {
       const filter = token.filters.ControllerUpdated();
       const events = await token.queryFilter(filter);
       
-      expect(events.length).to.equal(3);
-      expect(events[0].args.newController).to.equal(controller.address);
-      expect(events[1].args.newController).to.equal(user1.address);
-      expect(events[2].args.newController).to.equal(user2.address);
+      expect(events.length).to.equal(4); // 1 from constructor + 3 from setController calls
+      expect(events[0].args.newController).to.equal(controller.address); // From constructor
+      expect(events[1].args.newController).to.equal(controller.address);
+      expect(events[2].args.newController).to.equal(user1.address);
+      expect(events[3].args.newController).to.equal(user2.address);
     });
   });
 });

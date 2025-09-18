@@ -1,0 +1,13 @@
+{
+  "modelId": "sepolia-test-1757523451256",
+  "name": "Sepolia Test Model",
+  "symbol": "STM",
+  "initialSupply": "1000000000000000000000",
+  "metadata": {
+    "description": "Test model deployed on Sepolia",
+    "accuracy": 0.95,
+    "version": "1.0.0",
+    "network": "sepolia",
+    "timestamp": "2025-09-10T16:57:31.257Z"
+  }
+}

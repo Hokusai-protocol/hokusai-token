@@ -1,6 +1,6 @@
 # ✅ Hokusai Phase 1 Integration Testing Checklist
 
-This checklist is for verifying the end-to-end functionality of the initial Hokusai token system, including HokusaiToken, TokenManager, ModelRegistry, and AuctionBurner.
+This checklist is for verifying the end-to-end functionality of the initial Hokusai token system, including HokusaiToken, TokenManager, and ModelRegistry.
 
 ---
 
@@ -25,18 +25,6 @@ This checklist is for verifying the end-to-end functionality of the initial Hoku
 
 ---
 
-## 3. 🔥 AuctionBurner Tests
-
-- [x] User approves AuctionBurner to spend their HokusaiToken.
-- [x] Call `placeBid(modelId, amount)` or equivalent:
-  - [x] Tokens are burned from user balance.
-  - [x] Burn event is emitted.
-- [ ] Confirm access granted or winning slot recorded (if implemented).
-- [x] Attempt burn with insufficient allowance (expect revert).
-- [x] Attempt burn with insufficient balance (expect revert).
-
----
-
 ## 4. 🔗 Full Integration Flow
 
 Simulate full lifecycle:
@@ -44,8 +32,7 @@ Simulate full lifecycle:
 - [x] Register a model with a performance metric.
 - [x] Deploy a token and assign TokenManager as controller.
 - [x] Mint test tokens using `TokenManager.issueTokens()`.
-- [x] Approve AuctionBurner to spend the user's tokens.
-- [x] Burn tokens using AuctionBurner for model access.
+- [x] Test token burning through TokenManager (future AMM integration).
 - [x] Confirm all balances, states, and events match expected results.
 
 ---
@@ -66,4 +53,3 @@ Simulate full lifecycle:
 | ModelRegistry  | Register and retrieve model metadata  | [x]    |
 | TokenManager   | Mint/burn with model resolution       | [x]    |
 | HokusaiToken   | Enforce controller access             | [x]    |
-| AuctionBurner  | Burn flow and access validation       | [x]    |

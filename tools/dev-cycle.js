@@ -101,25 +101,14 @@ async function main() {
   const balance = await token.balanceOf(contributor.address);
   console.log("Contributor balance:", ethers.formatEther(balance));
 
-  // Simulate burn via AuctionBurner (mock interaction)
-  // Assume AuctionBurner has a burn function accepting modelId and amount
-  const AuctionBurner = await ethers.getContractFactory("AuctionBurner");
-  const burner = await AuctionBurner.deploy(token.target);
-  console.log("AuctionBurner deployed to:", burner.target);
-
-  // Contributor approves and burns tokens
-  await token.connect(contributor).approve(burner.target, rewardAmount);
-  const burnTx = await burner.connect(contributor).burn(rewardAmount);
-  const burnReceipt = await burnTx.wait();
+  // Token burning will be handled via integrated AMM in future
+  // For now, demonstrate TokenManager can burn tokens
+  console.log("\n--- Token Burning via TokenManager ---");
   
-  // Verify TokensBurned event from AuctionBurner
-  const tokensBurnedLog = burner.interface.parseLog(burnReceipt.logs.find(log => 
-    log.address === burner.target
-  ));
-  console.log("✅ TokensBurned event emitted:", {
-    user: tokensBurnedLog.args.user,
-    amount: ethers.formatEther(tokensBurnedLog.args.amount)
-  });
+  // TokenManager burns tokens (simulating future AMM integration)
+  const burnAmount = ethers.parseEther("5");
+  const burnTx = await manager.burnTokens(modelId, contributor.address, burnAmount);
+  const burnReceipt = await burnTx.wait();
   
   // Verify Transfer event for burn (to zero address)
   const burnTransferLog = token.interface.parseLog(burnReceipt.logs.find(log => 
@@ -161,21 +150,20 @@ async function main() {
     console.log("✅ mintTokens from non-admin correctly failed:", error.message.includes("Ownable"));
   }
   
-  // Test 4: Attempt burn with insufficient balance
+  // Test 4: Attempt burn with insufficient balance via TokenManager
   try {
-    await burner.connect(contributor).burn(ethers.parseEther("1000"));
+    await manager.burnTokens(modelId, contributor.address, ethers.parseEther("1000"));
     console.log("❌ Should have failed: burn with insufficient balance");
   } catch (error) {
     console.log("✅ burn with insufficient balance correctly failed:", error.message.includes("ERC20"));
   }
   
-  // Test 5: Attempt burn without approval
-  const newBurner = await AuctionBurner.deploy(token.target);
+  // Test 5: Attempt burn from non-admin account
   try {
-    await newBurner.connect(contributor).burn(ethers.parseEther("1"));
-    console.log("❌ Should have failed: burn without approval");
+    await manager.connect(contributor).burnTokens(modelId, contributor.address, ethers.parseEther("1"));
+    console.log("❌ Should have failed: burn from non-admin");
   } catch (error) {
-    console.log("✅ burn without approval correctly failed:", error.message.includes("allowance"));
+    console.log("✅ burn from non-admin correctly failed:", error.message.includes("Ownable"));
   }
   
   // Test 6: Attempt re-registration of same token

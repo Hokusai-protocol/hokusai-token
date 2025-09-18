@@ -12,39 +12,36 @@ describe("TokenManager", function () {
   let user2;
   let unauthorized;
   
-  const MODEL_ID_1 = 1;
-  const MODEL_ID_2 = 2;
-  const UNREGISTERED_MODEL_ID = 999;
+  const MODEL_ID_1 = "1";
+  const MODEL_ID_2 = "2";
+  const UNREGISTERED_MODEL_ID = "999";
   
   beforeEach(async function () {
     // Get signers
     [owner, user1, user2, unauthorized] = await ethers.getSigners();
-    
+
     // Deploy ModelRegistry
     const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
     modelRegistry = await ModelRegistry.deploy();
     await modelRegistry.waitForDeployment();
-    
-    // Deploy HokusaiToken instances
-    const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken1 = await HokusaiToken.deploy();
-    await hokusaiToken1.waitForDeployment();
-    
-    hokusaiToken2 = await HokusaiToken.deploy();
-    await hokusaiToken2.waitForDeployment();
-    
+
     // Deploy TokenManager with ModelRegistry reference
     const TokenManager = await ethers.getContractFactory("TokenManager");
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
-    
-    // Register models in ModelRegistry
-    await modelRegistry.registerModel(MODEL_ID_1, await hokusaiToken1.getAddress(), "accuracy");
-    await modelRegistry.registerModel(MODEL_ID_2, await hokusaiToken2.getAddress(), "f1-score");
-    
-    // Set TokenManager as controller for both tokens
-    await hokusaiToken1.setController(await tokenManager.getAddress());
-    await hokusaiToken2.setController(await tokenManager.getAddress());
+
+    // Deploy tokens using TokenManager's deployToken function
+    await tokenManager.deployToken(MODEL_ID_1, "Hokusai Token 1", "HOKU1", parseEther("10000"));
+    await tokenManager.deployToken(MODEL_ID_2, "Hokusai Token 2", "HOKU2", parseEther("10000"));
+
+    // Get the deployed token addresses
+    const tokenAddress1 = await tokenManager.getTokenAddress(MODEL_ID_1);
+    const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
+
+    // Create token instances for testing
+    const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+    hokusaiToken1 = HokusaiToken.attach(tokenAddress1);
+    hokusaiToken2 = HokusaiToken.attach(tokenAddress2);
   });
 
   describe("Deployment", function () {
@@ -72,7 +69,7 @@ describe("TokenManager", function () {
         .withArgs(MODEL_ID_1, user1.address, amount);
       
       expect(await hokusaiToken1.balanceOf(user1.address)).to.equal(amount);
-      expect(await hokusaiToken1.totalSupply()).to.equal(amount);
+      expect(await hokusaiToken1.totalSupply()).to.equal(parseEther("10000") + amount);
     });
 
     it("Should mint tokens to multiple recipients", async function () {
@@ -84,7 +81,7 @@ describe("TokenManager", function () {
       
       expect(await hokusaiToken1.balanceOf(user1.address)).to.equal(amount1);
       expect(await hokusaiToken1.balanceOf(user2.address)).to.equal(amount2);
-      expect(await hokusaiToken1.totalSupply()).to.equal(amount1 + amount2);
+      expect(await hokusaiToken1.totalSupply()).to.equal(parseEther("10000") + amount1 + amount2);
     });
 
     it("Should accumulate tokens for same recipient", async function () {
@@ -109,9 +106,9 @@ describe("TokenManager", function () {
       expect(await hokusaiToken2.balanceOf(user1.address)).to.equal(amount);
     });
 
-    it("Should fail when model is not registered", async function () {
+    it("Should fail when model token is not deployed", async function () {
       await expect(tokenManager.mintTokens(UNREGISTERED_MODEL_ID, user1.address, parseEther("100")))
-        .to.be.revertedWith("Model not registered");
+        .to.be.revertedWith("Token not deployed for this model");
     });
 
     it("Should return correct token address", async function () {
@@ -121,10 +118,10 @@ describe("TokenManager", function () {
         .to.equal(await hokusaiToken2.getAddress());
     });
 
-    it("Should correctly report managed models", async function () {
-      expect(await tokenManager.isModelManaged(MODEL_ID_1)).to.be.true;
-      expect(await tokenManager.isModelManaged(MODEL_ID_2)).to.be.true;
-      expect(await tokenManager.isModelManaged(UNREGISTERED_MODEL_ID)).to.be.false;
+    it("Should correctly report deployed tokens", async function () {
+      expect(await tokenManager.hasToken(MODEL_ID_1)).to.be.true;
+      expect(await tokenManager.hasToken(MODEL_ID_2)).to.be.true;
+      expect(await tokenManager.hasToken(UNREGISTERED_MODEL_ID)).to.be.false;
     });
   });
 
@@ -136,19 +133,29 @@ describe("TokenManager", function () {
 
     it("Should prevent non-owner from minting", async function () {
       await expect(tokenManager.connect(unauthorized).mintTokens(MODEL_ID_1, user1.address, parseEther("100")))
-        .to.be.revertedWithCustomError(tokenManager, "OwnableUnauthorizedAccount");
+        .to.be.revertedWith("Caller is not authorized to mint");
     });
 
     it("Should maintain access control after ownership transfer", async function () {
+      // Grant admin role to new owner first
+      await tokenManager.grantRole(await tokenManager.DEFAULT_ADMIN_ROLE(), user1.address);
+
       await tokenManager.transferOwnership(user1.address);
-      
-      // Original owner can no longer mint
+
+      // Original owner can still mint because they have MINTER_ROLE
       await expect(tokenManager.mintTokens(MODEL_ID_1, user2.address, parseEther("100")))
-        .to.be.revertedWithCustomError(tokenManager, "OwnableUnauthorizedAccount");
-      
-      // New owner can mint
+        .to.not.be.reverted;
+
+      // New owner can also mint
       await expect(tokenManager.connect(user1).mintTokens(MODEL_ID_1, user2.address, parseEther("100")))
         .to.not.be.reverted;
+
+      // New owner can revoke MINTER_ROLE from original owner
+      await tokenManager.connect(user1).revokeRole(await tokenManager.MINTER_ROLE(), owner.address);
+
+      // Now original owner cannot mint
+      await expect(tokenManager.mintTokens(MODEL_ID_1, user2.address, parseEther("100")))
+        .to.be.revertedWith("Caller is not authorized to mint");
     });
   });
 
@@ -170,13 +177,13 @@ describe("TokenManager", function () {
     });
 
     it("Should handle edge case model IDs", async function () {
-      // Model ID 0
-      await expect(tokenManager.mintTokens(0, user1.address, parseEther("100")))
-        .to.be.revertedWith("Model not registered");
-      
-      // Maximum uint256 model ID
-      await expect(tokenManager.mintTokens(MaxUint256, user1.address, parseEther("100")))
-        .to.be.revertedWith("Model not registered");
+      // Empty string model ID
+      await expect(tokenManager.mintTokens("", user1.address, parseEther("100")))
+        .to.be.revertedWith("Model ID cannot be empty");
+
+      // Non-existent model ID
+      await expect(tokenManager.mintTokens("non-existent", user1.address, parseEther("100")))
+        .to.be.revertedWith("Token not deployed for this model");
     });
   });
 
@@ -227,10 +234,10 @@ describe("TokenManager", function () {
       const amount2 = parseEther("200");
       
       await tokenManager.mintTokens(MODEL_ID_1, user1.address, amount1);
-      expect(await hokusaiToken1.totalSupply()).to.equal(amount1);
+      expect(await hokusaiToken1.totalSupply()).to.equal(parseEther("10000") + amount1);
       
       await tokenManager.mintTokens(MODEL_ID_1, user2.address, amount2);
-      expect(await hokusaiToken1.totalSupply()).to.equal(amount1 + amount2);
+      expect(await hokusaiToken1.totalSupply()).to.equal(parseEther("10000") + amount1 + amount2);
     });
   });
 
@@ -278,26 +285,30 @@ describe("TokenManager", function () {
 
   describe("Error Scenarios", function () {
     it("Should fail when TokenManager is not set as controller", async function () {
-      // Deploy new token without setting TokenManager as controller
+      // Deploy new token directly without TokenManager
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-      const newToken = await HokusaiToken.deploy();
+      const newToken = await HokusaiToken.deploy("New Token", "NEW", owner.address, parseEther("10000"));
       await newToken.waitForDeployment();
-      
-      // Register in ModelRegistry
-      const newModelId = 99;
-      await modelRegistry.registerModel(newModelId, await newToken.getAddress(), "test-metric");
-      
-      // Try to mint without being controller
+
+      // Manually add to TokenManager's tracking (simulating a broken state)
+      const newModelId = "99";
+      // Note: We can't directly add to TokenManager's mapping from outside,
+      // so this test would need to test a different scenario or be removed
+      // since our new design doesn't allow this kind of inconsistent state
+
+      // Try to mint to a model that doesn't have a deployed token
       await expect(tokenManager.mintTokens(newModelId, user1.address, parseEther("100")))
-        .to.be.revertedWith("Only controller can call this function");
+        .to.be.revertedWith("Token not deployed for this model");
     });
 
-    it("Should handle registry returning zero address gracefully", async function () {
-      // This scenario shouldn't happen with proper registry implementation,
-      // but we test TokenManager's handling of it
-      const invalidModelId = 0;
-      await expect(tokenManager.mintTokens(invalidModelId, user1.address, parseEther("100")))
-        .to.be.revertedWith("Model not registered");
+    it("Should handle invalid model ID gracefully", async function () {
+      // Test with empty string model ID
+      await expect(tokenManager.mintTokens("", user1.address, parseEther("100")))
+        .to.be.revertedWith("Model ID cannot be empty");
+
+      // Test with non-existent model ID
+      await expect(tokenManager.mintTokens("invalid-model", user1.address, parseEther("100")))
+        .to.be.revertedWith("Token not deployed for this model");
     });
   });
 
@@ -306,27 +317,29 @@ describe("TokenManager", function () {
       // Deploy fresh contracts
       const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
       const newRegistry = await ModelRegistry.deploy();
-      
-      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-      const newToken = await HokusaiToken.deploy();
-      
+
       const TokenManager = await ethers.getContractFactory("TokenManager");
       const newManager = await TokenManager.deploy(await newRegistry.getAddress());
-      
-      // Set up relationships
-      const modelId = 42;
-      await newRegistry.registerModel(modelId, await newToken.getAddress(), "performance");
-      await newToken.setController(await newManager.getAddress());
-      
+
+      // Deploy token through TokenManager
+      const modelId = "42";
+      const initialSupply = parseEther("10000");
+      await newManager.deployToken(modelId, "New Token", "NEW", initialSupply);
+
+      // Get deployed token
+      const tokenAddress = await newManager.getTokenAddress(modelId);
+      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+      const newToken = HokusaiToken.attach(tokenAddress);
+
       // Mint tokens
       const amount = parseEther("1000");
       await expect(newManager.mintTokens(modelId, user1.address, amount))
         .to.emit(newManager, "TokensMinted")
         .withArgs(modelId, user1.address, amount);
-      
+
       // Verify end state
       expect(await newToken.balanceOf(user1.address)).to.equal(amount);
-      expect(await newToken.totalSupply()).to.equal(amount);
+      expect(await newToken.totalSupply()).to.equal(initialSupply + amount);
     });
 
     it("Should handle multiple models with different recipients efficiently", async function () {

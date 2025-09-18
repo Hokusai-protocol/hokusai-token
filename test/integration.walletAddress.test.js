@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { parseEther } = require("ethers");
 
 describe("Integration: JSON Wallet Address Support", function () {
   let deltaVerifier;
@@ -12,7 +13,14 @@ describe("Integration: JSON Wallet Address Support", function () {
   let contributor3;
   let treasury;
 
-  const MODEL_ID = 1;
+  // Helper function to get the deployed token
+  async function getDeployedToken() {
+    const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+    const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+    return HokusaiToken.attach(tokenAddress);
+  }
+
+  const MODEL_ID = "1";
   const BASE_REWARD_RATE = 1000; // 10%
   const IMPROVEMENT_MULTIPLIER = 100; // 1x
 
@@ -119,7 +127,7 @@ describe("Integration: JSON Wallet Address Support", function () {
     await modelRegistry.waitForDeployment();
 
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy();
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, parseEther("10000"));
     await hokusaiToken.waitForDeployment();
 
     const TokenManager = await ethers.getContractFactory("TokenManager");
@@ -138,10 +146,11 @@ describe("Integration: JSON Wallet Address Support", function () {
 
     // Set up permissions
     await hokusaiToken.setController(await tokenManager.getAddress());
+    await tokenManager.deployToken(MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"));
     await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), await deltaVerifier.getAddress());
     await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
 
-    // Register model
+    // Register model in registry for DeltaVerifier
     await modelRegistry.registerModel(
       MODEL_ID,
       await hokusaiToken.getAddress(),
@@ -196,7 +205,8 @@ describe("Integration: JSON Wallet Address Support", function () {
         .withArgs(jsonData.metadata.pipeline_run_id, MODEL_ID);
 
       // Verify tokens minted to correct address
-      const balance = await hokusaiToken.balanceOf(contributor1.address);
+      const deployedToken = await getDeployedToken();
+      const balance = await deployedToken.balanceOf(contributor1.address);
       expect(balance).to.be.gt(0);
 
       // Calculate expected reward based on delta
@@ -284,9 +294,10 @@ describe("Integration: JSON Wallet Address Support", function () {
         .withArgs(jsonData.metadata.pipeline_run_id, MODEL_ID);
 
       // Verify token distribution
-      const balance1 = await hokusaiToken.balanceOf(contributor1.address);
-      const balance2 = await hokusaiToken.balanceOf(contributor2.address);
-      const balance3 = await hokusaiToken.balanceOf(contributor3.address);
+      const deployedToken = await getDeployedToken();
+      const balance1 = await deployedToken.balanceOf(contributor1.address);
+      const balance2 = await deployedToken.balanceOf(contributor2.address);
+      const balance3 = await deployedToken.balanceOf(contributor3.address);
 
       console.log("Contributor 1 (60%):", ethers.formatEther(balance1));
       console.log("Contributor 2 (30%):", ethers.formatEther(balance2));

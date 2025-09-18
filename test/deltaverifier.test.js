@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { parseEther } = require("ethers");
 
 describe("DeltaVerifier", function () {
   let deltaVerifier;
@@ -11,7 +12,7 @@ describe("DeltaVerifier", function () {
   let contributor2;
   let admin;
 
-  const MODEL_ID = 1;
+  const MODEL_ID = "1";
   const BASE_REWARD_RATE = ethers.parseEther("1000"); // 1000 tokens per 1% improvement
   const MIN_IMPROVEMENT_BPS = 100; // 1% minimum improvement
   const MAX_REWARD = ethers.parseEther("100000"); // Max reward cap
@@ -42,7 +43,7 @@ describe("DeltaVerifier", function () {
 
     // Deploy HokusaiToken
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy();
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, parseEther("10000"));
 
     // Deploy TokenManager
     const TokenManager = await ethers.getContractFactory("TokenManager");
@@ -60,6 +61,7 @@ describe("DeltaVerifier", function () {
 
     // Setup relationships
     await hokusaiToken.setController(tokenManager.target);
+    await tokenManager.deployToken(MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"));
     await modelRegistry.registerModel(MODEL_ID, hokusaiToken.target, "accuracy");
     await tokenManager.setDeltaVerifier(deltaVerifier.target);
   });
@@ -215,7 +217,7 @@ describe("DeltaVerifier", function () {
       };
 
       await expect(
-        deltaVerifier.submitEvaluation(999, evaluationData)
+        deltaVerifier.submitEvaluation("999", evaluationData)
       ).to.be.revertedWith("Model not registered");
     });
 
@@ -365,11 +367,16 @@ describe("DeltaVerifier", function () {
         totalSamples: 55000
       };
 
-      const initialBalance = await hokusaiToken.balanceOf(contributor1.address);
-      
+      // Get the TokenManager-deployed token
+      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+      const deployedToken = HokusaiToken.attach(tokenAddress);
+
+      const initialBalance = await deployedToken.balanceOf(contributor1.address);
+
       await deltaVerifier.submitEvaluation(MODEL_ID, evaluationData);
 
-      const finalBalance = await hokusaiToken.balanceOf(contributor1.address);
+      const finalBalance = await deployedToken.balanceOf(contributor1.address);
       expect(finalBalance).to.be.gt(initialBalance);
     });
   });

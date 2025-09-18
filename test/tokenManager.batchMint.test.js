@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { parseEther } = require("ethers");
 
 describe("TokenManager Batch Minting", function () {
   let tokenManager;
@@ -12,7 +13,7 @@ describe("TokenManager Batch Minting", function () {
   let recipient3;
   let unauthorizedUser;
 
-  const MODEL_ID = 1;
+  const MODEL_ID = "1";
 
   beforeEach(async function () {
     [owner, minter, recipient1, recipient2, recipient3, unauthorizedUser] = 
@@ -23,24 +24,20 @@ describe("TokenManager Batch Minting", function () {
     modelRegistry = await ModelRegistry.deploy();
     await modelRegistry.waitForDeployment();
 
-    const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy();
-    await hokusaiToken.waitForDeployment();
-
     const TokenManager = await ethers.getContractFactory("TokenManager");
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
 
     // Set up permissions
-    await hokusaiToken.setController(await tokenManager.getAddress());
     await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), minter.address);
 
-    // Register model
-    await modelRegistry.registerModel(
-      MODEL_ID,
-      await hokusaiToken.getAddress(),
-      "accuracy"
-    );
+    // Deploy token through TokenManager
+    await tokenManager.deployToken(MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"));
+
+    // Get the deployed token
+    const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+    const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+    hokusaiToken = HokusaiToken.attach(tokenAddress);
   });
 
   describe("Batch Minting Functionality", function () {
@@ -136,8 +133,8 @@ describe("TokenManager Batch Minting", function () {
       const amounts = [ethers.parseEther("100")];
 
       await expect(
-        tokenManager.connect(minter).batchMintTokens(999, recipients, amounts)
-      ).to.be.revertedWith("Model not registered");
+        tokenManager.connect(minter).batchMintTokens("999", recipients, amounts)
+      ).to.be.revertedWith("Token not deployed for this model");
     });
 
     it("should handle large batch efficiently", async function () {
@@ -275,16 +272,12 @@ describe("TokenManager Batch Minting", function () {
         totalGasIndividual = totalGasIndividual + receipt.gasUsed;
       }
 
-      // Reset balances by deploying new contracts
-      const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken2 = await HokusaiToken2.deploy();
-      await hokusaiToken2.waitForDeployment();
-      await hokusaiToken2.setController(await tokenManager.getAddress());
-      await modelRegistry.registerModel(2, await hokusaiToken2.getAddress(), "accuracy");
+      // Reset balances by deploying new token through TokenManager
+      await tokenManager.deployToken("2", "Hokusai Token 2", "HOKU2", parseEther("10000"));
 
       // Test batch minting
       const batchTx = await tokenManager.connect(minter).batchMintTokens(
-        2, // MODEL_ID 2
+        "2", // MODEL_ID 2
         recipients,
         amounts
       );

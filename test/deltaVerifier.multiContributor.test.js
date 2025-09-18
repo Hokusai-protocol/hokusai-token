@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { parseEther } = require("ethers");
 
 describe("DeltaVerifier Multi-Contributor Support", function () {
   let deltaVerifier;
@@ -12,7 +13,14 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
   let contributor3;
   let treasury;
 
-  const MODEL_ID = 1;
+  // Helper function to get the deployed token
+  async function getDeployedToken() {
+    const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+    const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+    return HokusaiToken.attach(tokenAddress);
+  }
+
+  const MODEL_ID = "1";
   const BASE_REWARD_RATE = 1000; // 10%
   const IMPROVEMENT_MULTIPLIER = 100; // 1x
 
@@ -25,7 +33,7 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
     await modelRegistry.waitForDeployment();
 
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address);
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, parseEther("10000"));
     await hokusaiToken.waitForDeployment();
 
     const TokenManager = await ethers.getContractFactory("TokenManager");
@@ -42,12 +50,13 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
     );
     await deltaVerifier.waitForDeployment();
 
-    // Set up permissions
+    // Set up permissions and deploy token
     await hokusaiToken.setController(await tokenManager.getAddress());
+    await tokenManager.deployToken(MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"));
     await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), await deltaVerifier.getAddress());
     await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
 
-    // Register model
+    // Register model in registry for DeltaVerifier
     await modelRegistry.registerModel(
       MODEL_ID,
       await hokusaiToken.getAddress(),
@@ -92,7 +101,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
         .withArgs("test_run_001", MODEL_ID);
 
       // Check tokens were minted to correct address
-      const balance = await hokusaiToken.balanceOf(contributor1.address);
+      const deployedToken = await getDeployedToken();
+      const balance = await deployedToken.balanceOf(contributor1.address);
       expect(balance).to.be.gt(0);
     });
 
@@ -173,9 +183,10 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
         .withArgs("test_run_003", MODEL_ID);
 
       // Check token distribution
-      const balance1 = await hokusaiToken.balanceOf(contributor1.address);
-      const balance2 = await hokusaiToken.balanceOf(contributor2.address);
-      const balance3 = await hokusaiToken.balanceOf(contributor3.address);
+      const deployedToken = await getDeployedToken();
+      const balance1 = await deployedToken.balanceOf(contributor1.address);
+      const balance2 = await deployedToken.balanceOf(contributor2.address);
+      const balance3 = await deployedToken.balanceOf(contributor3.address);
 
       // Verify proportional distribution
       expect(balance1).to.be.gt(balance2);
@@ -226,7 +237,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
 
       await expect(tx).to.not.be.reverted;
 
-      const balance = await hokusaiToken.balanceOf(contributor1.address);
+      const deployedToken = await getDeployedToken();
+      const balance = await deployedToken.balanceOf(contributor1.address);
       expect(balance).to.be.gt(0);
     });
 
@@ -380,7 +392,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
 
       // Verify all contributors received tokens
       for (let i = 0; i < 10; i++) {
-        const balance = await hokusaiToken.balanceOf(signers[i].address);
+        const deployedToken = await getDeployedToken();
+        const balance = await deployedToken.balanceOf(signers[i].address);
         expect(balance).to.be.gt(0);
       }
     });
@@ -413,7 +426,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
       const tx = await deltaVerifier.submitEvaluation(MODEL_ID, evaluationData);
       await expect(tx).to.not.be.reverted;
 
-      const balance = await hokusaiToken.balanceOf(contributor1.address);
+      const deployedToken = await getDeployedToken();
+      const balance = await deployedToken.balanceOf(contributor1.address);
       expect(balance).to.be.gt(0);
     });
   });

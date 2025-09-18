@@ -27,7 +27,8 @@
       "Bash(docker logs:*)",
       "Bash(docker build:*)",
       "Bash(docker tag:*)",
-      "Bash(aws ecs describe-task-definition:*)"
+      "Bash(aws ecs describe-task-definition:*)",
+      "Bash(npx hardhat test:*)"
     ],
     "deny": []
   }

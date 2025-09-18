@@ -189,7 +189,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
             }
             
             // Mint tokens in batch
-            tokenManager.batchMintTokens(modelId, contributorAddresses, rewardAmounts);
+            tokenManager.batchMintTokens(_uintToString(modelId), contributorAddresses, rewardAmounts);
             
             emit BatchRewardsDistributed(modelId, contributorAddresses, rewardAmounts, totalDistributed);
         }
@@ -229,7 +229,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         
         // Trigger minting through TokenManager if reward > 0
         if (rewardAmount > 0) {
-            tokenManager.mintTokens(modelId, data.contributor, rewardAmount);
+            tokenManager.mintTokens(_uintToString(modelId), data.contributor, rewardAmount);
         }
         
         return rewardAmount;
@@ -362,5 +362,27 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
 
     function _isValidAddress(address addr) private pure returns (bool) {
         return addr != address(0);
+    }
+
+    /**
+     * @dev Converts a uint256 to its ASCII string decimal representation.
+     */
+    function _uintToString(uint256 value) private pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
     }
 }

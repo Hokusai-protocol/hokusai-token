@@ -17,21 +17,24 @@ describe("HokusaiToken", function () {
   });
 
   describe("Constructor", function () {
-    it("Should deploy with custom name, symbol, and controller", async function () {
+    it("Should deploy with custom name, symbol, controller, and initial supply", async function () {
       const customName = "Custom Model Token";
       const customSymbol = "CMT";
-      
-      token = await Token.deploy(customName, customSymbol, controller.address);
+      const initialSupply = parseEther("1000");
+
+      token = await Token.deploy(customName, customSymbol, controller.address, initialSupply);
       await token.waitForDeployment();
-      
+
       expect(await token.name()).to.equal(customName);
       expect(await token.symbol()).to.equal(customSymbol);
       expect(await token.controller()).to.equal(controller.address);
       expect(await token.decimals()).to.equal(18);
+      expect(await token.totalSupply()).to.equal(initialSupply);
+      expect(await token.balanceOf(controller.address)).to.equal(initialSupply);
     });
 
     it("Should emit ControllerUpdated event during deployment", async function () {
-      const tx = await Token.deploy("Test Token", "TEST", controller.address);
+      const tx = await Token.deploy("Test Token", "TEST", controller.address, parseEther("1000"));
       const deployReceipt = await tx.deploymentTransaction().wait();
       
       // Find the ControllerUpdated event in the deployment transaction
@@ -52,44 +55,52 @@ describe("HokusaiToken", function () {
     });
 
     it("Should set the deployer as owner", async function () {
-      token = await Token.deploy("Test Token", "TEST", controller.address);
+      token = await Token.deploy("Test Token", "TEST", controller.address, parseEther("1000"));
       await token.waitForDeployment();
-      
+
       expect(await token.owner()).to.equal(owner.address);
     });
 
-    it("Should have zero total supply initially", async function () {
-      token = await Token.deploy("Test Token", "TEST", controller.address);
+    it("Should have correct initial supply", async function () {
+      const initialSupply = parseEther("5000");
+      token = await Token.deploy("Test Token", "TEST", controller.address, initialSupply);
       await token.waitForDeployment();
-      
-      expect(await token.totalSupply()).to.equal(0);
+
+      expect(await token.totalSupply()).to.equal(initialSupply);
+      expect(await token.balanceOf(controller.address)).to.equal(initialSupply);
     });
 
     it("Should revert with empty name", async function () {
       await expect(
-        Token.deploy("", "TEST", controller.address)
+        Token.deploy("", "TEST", controller.address, parseEther("1000"))
       ).to.be.revertedWith("Token name cannot be empty");
     });
 
     it("Should revert with empty symbol", async function () {
       await expect(
-        Token.deploy("Test Token", "", controller.address)
+        Token.deploy("Test Token", "", controller.address, parseEther("1000"))
       ).to.be.revertedWith("Token symbol cannot be empty");
     });
 
     it("Should revert with zero address controller", async function () {
       await expect(
-        Token.deploy("Test Token", "TEST", ZeroAddress)
+        Token.deploy("Test Token", "TEST", ZeroAddress, parseEther("1000"))
       ).to.be.revertedWith("Controller cannot be zero address");
+    });
+
+    it("Should revert with zero initial supply", async function () {
+      await expect(
+        Token.deploy("Test Token", "TEST", controller.address, 0)
+      ).to.be.revertedWith("Initial supply must be greater than zero");
     });
 
     it("Should handle long token names and symbols", async function () {
       const longName = "A".repeat(100);
       const longSymbol = "B".repeat(50);
-      
-      token = await Token.deploy(longName, longSymbol, controller.address);
+
+      token = await Token.deploy(longName, longSymbol, controller.address, parseEther("1000"));
       await token.waitForDeployment();
-      
+
       expect(await token.name()).to.equal(longName);
       expect(await token.symbol()).to.equal(longSymbol);
     });
@@ -97,56 +108,59 @@ describe("HokusaiToken", function () {
     it("Should handle unicode characters in name and symbol", async function () {
       const unicodeName = "🎨 Hokusai Model Token 🚀";
       const unicodeSymbol = "🎨HMT";
-      
-      token = await Token.deploy(unicodeName, unicodeSymbol, controller.address);
+
+      token = await Token.deploy(unicodeName, unicodeSymbol, controller.address, parseEther("1000"));
       await token.waitForDeployment();
-      
+
       expect(await token.name()).to.equal(unicodeName);
       expect(await token.symbol()).to.equal(unicodeSymbol);
     });
 
     it("Should allow same address to be both owner and controller", async function () {
-      token = await Token.deploy("Test Token", "TEST", owner.address);
+      token = await Token.deploy("Test Token", "TEST", owner.address, parseEther("1000"));
       await token.waitForDeployment();
-      
+
       expect(await token.owner()).to.equal(owner.address);
       expect(await token.controller()).to.equal(owner.address);
     });
 
     it("Should deploy multiple tokens with different parameters", async function () {
-      const token1 = await Token.deploy("Token One", "TOK1", controller.address);
-      const token2 = await Token.deploy("Token Two", "TOK2", user1.address);
-      const token3 = await Token.deploy("Token Three", "TOK3", user2.address);
-      
+      const token1 = await Token.deploy("Token One", "TOK1", controller.address, parseEther("1000"));
+      const token2 = await Token.deploy("Token Two", "TOK2", user1.address, parseEther("2000"));
+      const token3 = await Token.deploy("Token Three", "TOK3", user2.address, parseEther("3000"));
+
       await token1.waitForDeployment();
       await token2.waitForDeployment();
       await token3.waitForDeployment();
-      
+
       expect(await token1.name()).to.equal("Token One");
       expect(await token1.symbol()).to.equal("TOK1");
       expect(await token1.controller()).to.equal(controller.address);
-      
+      expect(await token1.totalSupply()).to.equal(parseEther("1000"));
+
       expect(await token2.name()).to.equal("Token Two");
       expect(await token2.symbol()).to.equal("TOK2");
       expect(await token2.controller()).to.equal(user1.address);
-      
+      expect(await token2.totalSupply()).to.equal(parseEther("2000"));
+
       expect(await token3.name()).to.equal("Token Three");
       expect(await token3.symbol()).to.equal("TOK3");
       expect(await token3.controller()).to.equal(user2.address);
+      expect(await token3.totalSupply()).to.equal(parseEther("3000"));
     });
   });
 
   describe("Standard Deployment Tests", function () {
     beforeEach(async function () {
       // Deploy with standard parameters for remaining tests
-      token = await Token.deploy("Hokusai Token", "HOKU", controller.address);
+      token = await Token.deploy("Hokusai Token", "HOKU", controller.address, parseEther("10000"));
       await token.waitForDeployment();
     });
 
     describe("ERC20 Standard Functionality", function () {
       beforeEach(async function () {
-        // Mint some tokens for testing
-        await token.connect(controller).mint(user1.address, parseEther("1000"));
+        // Transfer some tokens from controller to user1 for testing
+        await token.connect(controller).transfer(user1.address, parseEther("1000"));
       });
 
       it("Should transfer tokens between accounts", async function () {
@@ -263,7 +277,7 @@ describe("HokusaiToken", function () {
           .withArgs(user1.address, mintAmount);
         
         expect(await token.balanceOf(user1.address)).to.equal(mintAmount);
-        expect(await token.totalSupply()).to.equal(mintAmount);
+        expect(await token.totalSupply()).to.equal(parseEther("10000") + mintAmount);
       });
 
       it("Should revert when non-controller tries to mint", async function () {
@@ -285,7 +299,7 @@ describe("HokusaiToken", function () {
         await token.connect(controller).mint(user1.address, mintAmount1);
         await token.connect(controller).mint(user2.address, mintAmount2);
         
-        expect(await token.totalSupply()).to.equal(mintAmount1 + mintAmount2);
+        expect(await token.totalSupply()).to.equal(parseEther("10000") + mintAmount1 + mintAmount2);
       });
 
       it("Should handle minting zero tokens", async function () {
@@ -303,9 +317,9 @@ describe("HokusaiToken", function () {
 
     describe("Burning", function () {
       beforeEach(async function () {
-        // Mint some tokens first
-        await token.connect(controller).mint(user1.address, parseEther("1000"));
-        await token.connect(controller).mint(user2.address, parseEther("500"));
+        // Transfer some tokens from controller for testing
+        await token.connect(controller).transfer(user1.address, parseEther("1000"));
+        await token.connect(controller).transfer(user2.address, parseEther("500"));
       });
 
       it("Should allow controller to burn tokens from any address using burnFrom", async function () {
@@ -375,7 +389,7 @@ describe("HokusaiToken", function () {
         
         expect(await token.balanceOf(user1.address)).to.equal(parseEther("500"));
         expect(await token.balanceOf(user2.address)).to.equal(parseEther("200"));
-        expect(await token.totalSupply()).to.equal(parseEther("700"));
+        expect(await token.totalSupply()).to.equal(parseEther("10700")); // 10000 initial + 1000 minted - 300 burned (200 + 100)
       });
 
       it("Should maintain functionality after controller changes", async function () {
@@ -390,7 +404,7 @@ describe("HokusaiToken", function () {
         await token.connect(user2).burnFrom(user1.address, parseEther("300"));
         
         expect(await token.balanceOf(user1.address)).to.equal(parseEther("1200"));
-        expect(await token.totalSupply()).to.equal(parseEther("1200"));
+        expect(await token.totalSupply()).to.equal(parseEther("11200")); // 10000 initial + 1500 minted - 300 burned
       });
     });
   });
@@ -398,9 +412,9 @@ describe("HokusaiToken", function () {
   describe("Custom Token Scenarios", function () {
     it("Should work correctly with AI model specific tokens", async function () {
       // Deploy tokens for different AI models
-      const gptToken = await Token.deploy("GPT Model Token", "GPT", controller.address);
-      const dalleToken = await Token.deploy("DALL-E Model Token", "DALLE", controller.address);
-      const clipToken = await Token.deploy("CLIP Model Token", "CLIP", controller.address);
+      const gptToken = await Token.deploy("GPT Model Token", "GPT", controller.address, parseEther("1000"));
+      const dalleToken = await Token.deploy("DALL-E Model Token", "DALLE", controller.address, parseEther("2000"));
+      const clipToken = await Token.deploy("CLIP Model Token", "CLIP", controller.address, parseEther("3000"));
       
       await gptToken.waitForDeployment();
       await dalleToken.waitForDeployment();
@@ -431,7 +445,7 @@ describe("HokusaiToken", function () {
       const deployedTokens = [];
       
       for (const config of tokenConfigs) {
-        const tx = await Token.deploy(config.name, config.symbol, config.controller);
+        const tx = await Token.deploy(config.name, config.symbol, config.controller, parseEther("1000"));
         const receipt = await tx.deploymentTransaction().wait();
         deployedTokens.push(tx);
         
@@ -457,7 +471,7 @@ describe("HokusaiToken", function () {
       const maxName = "A".repeat(1000);
       const maxSymbol = "B".repeat(100);
       
-      token = await Token.deploy(maxName, maxSymbol, controller.address);
+      token = await Token.deploy(maxName, maxSymbol, controller.address, parseEther("1000"));
       await token.waitForDeployment();
       
       expect(await token.name()).to.equal(maxName);
@@ -468,7 +482,7 @@ describe("HokusaiToken", function () {
       const specialName = "Token with 特殊字符 and émojis 🎯";
       const specialSymbol = "SPÉ¢IAL";
       
-      token = await Token.deploy(specialName, specialSymbol, controller.address);
+      token = await Token.deploy(specialName, specialSymbol, controller.address, parseEther("1000"));
       await token.waitForDeployment();
       
       expect(await token.name()).to.equal(specialName);
@@ -477,29 +491,29 @@ describe("HokusaiToken", function () {
 
     it("Should validate constructor parameters independently", async function () {
       // Test each parameter validation independently
-      await expect(Token.deploy("", "VALID", controller.address))
+      await expect(Token.deploy("", "VALID", controller.address, parseEther("1000")))
         .to.be.revertedWith("Token name cannot be empty");
-      
-      await expect(Token.deploy("Valid", "", controller.address))
+
+      await expect(Token.deploy("Valid", "", controller.address, parseEther("1000")))
         .to.be.revertedWith("Token symbol cannot be empty");
-      
-      await expect(Token.deploy("Valid", "VALID", ZeroAddress))
+
+      await expect(Token.deploy("Valid", "VALID", ZeroAddress, parseEther("1000")))
         .to.be.revertedWith("Controller cannot be zero address");
     });
 
     it("Should handle whitespace-only names and symbols", async function () {
       // Test with strings that contain only whitespace
-      await expect(Token.deploy("   ", "VALID", controller.address))
+      await expect(Token.deploy("   ", "VALID", controller.address, parseEther("1000")))
         .to.not.be.reverted; // Whitespace is considered valid content
-      
-      await expect(Token.deploy("VALID", "   ", controller.address))
+
+      await expect(Token.deploy("VALID", "   ", controller.address, parseEther("1000")))
         .to.not.be.reverted; // Whitespace is considered valid content
     });
   });
 
   describe("Event Filtering and Querying", function () {
     beforeEach(async function () {
-      token = await Token.deploy("Test Token", "TEST", controller.address);
+      token = await Token.deploy("Test Token", "TEST", controller.address, parseEther("10000"));
       await token.waitForDeployment();
     });
 

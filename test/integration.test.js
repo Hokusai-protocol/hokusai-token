@@ -22,7 +22,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     // Deploy HokusaiToken
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address);
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, parseEther("10000"));
     await hokusaiToken.waitForDeployment();
 
     // Deploy TokenManager with ModelRegistry reference
@@ -57,7 +57,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
   });
 
   describe("ModelRegistry Functionality", function () {
-    const modelId = 12345;
+    const modelId = "12345";
     
     it("Should register model successfully", async function () {
       const metric = "accuracy";
@@ -84,7 +84,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     it("Should only allow owner to register models", async function () {
       await expect(modelRegistry.connect(nonOwner).registerModel(modelId, await hokusaiToken.getAddress(), "accuracy"))
-        .to.be.revertedWithCustomError(modelRegistry, "OwnableUnauthorizedAccount");
+        .to.be.revertedWith("Ownable: caller is not the owner");
     });
 
     it("Should update existing model", async function () {
@@ -92,7 +92,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
       
       // Deploy second token for update
       const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken2 = await HokusaiToken2.deploy();
+      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, parseEther("10000"));
       await hokusaiToken2.waitForDeployment();
       
       await expect(modelRegistry.updateModel(modelId, await hokusaiToken2.getAddress()))
@@ -144,62 +144,66 @@ describe("TokenManager-ModelRegistry Integration", function () {
   });
 
   describe("TokenManager Integration", function () {
-    const modelId = 54321;
+    const modelId = "54321";
     
     beforeEach(async function () {
-      // Register model before each test
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      // Deploy token through TokenManager (new approach)
+      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("10000"));
     });
 
     it("Should check if model is managed", async function () {
-      expect(await tokenManager.isModelManaged(modelId)).to.be.true;
-      
-      const unregisteredId = 99999;
-      expect(await tokenManager.isModelManaged(unregisteredId)).to.be.false;
+      expect(await tokenManager.hasToken(modelId)).to.be.true;
+
+      const unregisteredId = "99999";
+      expect(await tokenManager.hasToken(unregisteredId)).to.be.false;
     });
 
     it("Should get token address for registered model", async function () {
-      expect(await tokenManager.getTokenAddress(modelId))
-        .to.equal(await hokusaiToken.getAddress());
+      const tokenAddress = await tokenManager.getTokenAddress(modelId);
+      expect(tokenAddress).to.not.equal(ethers.ZeroAddress);
     });
 
-    it("Should revert when getting token address for unregistered model", async function () {
-      const unregisteredId = 99999;
-      await expect(tokenManager.getTokenAddress(unregisteredId))
-        .to.be.revertedWith("Model not registered");
+    it("Should return zero address for unregistered model", async function () {
+      const unregisteredId = "99999";
+      const tokenAddress = await tokenManager.getTokenAddress(unregisteredId);
+      expect(tokenAddress).to.equal(ethers.ZeroAddress);
     });
   });
 
   describe("Token Operations through TokenManager", function () {
-    const modelId = 67890;
-    
+    const modelId = "67890";
+
     beforeEach(async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("10000"));
     });
 
     describe("Minting", function () {
       it("Should mint tokens successfully for registered model", async function () {
         const mintAmount = parseEther("1000");
         
+        const tokenAddress = await tokenManager.getTokenAddress(modelId);
+        const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+        const deployedToken = HokusaiToken.attach(tokenAddress);
+
         await expect(tokenManager.mintTokens(modelId, user1.address, mintAmount))
           .to.emit(tokenManager, "TokensMinted")
           .withArgs(modelId, user1.address, mintAmount)
-          .and.to.emit(hokusaiToken, "Minted")
+          .and.to.emit(deployedToken, "Minted")
           .withArgs(user1.address, mintAmount);
         
-        expect(await hokusaiToken.balanceOf(user1.address)).to.equal(mintAmount);
-        expect(await hokusaiToken.totalSupply()).to.equal(mintAmount);
+        expect(await deployedToken.balanceOf(user1.address)).to.equal(mintAmount);
+        expect(await deployedToken.totalSupply()).to.equal(parseEther("10000") + mintAmount);
       });
 
       it("Should only allow owner to mint tokens", async function () {
         await expect(tokenManager.connect(nonOwner).mintTokens(modelId, user1.address, parseEther("100")))
-          .to.be.revertedWithCustomError(tokenManager, "OwnableUnauthorizedAccount");
+          .to.be.revertedWith("Caller is not authorized to mint");
       });
 
       it("Should revert minting for unregistered model", async function () {
-        const unregisteredId = 88888;
+        const unregisteredId = "88888";
         await expect(tokenManager.mintTokens(unregisteredId, user1.address, parseEther("100")))
-          .to.be.revertedWith("Model not registered");
+          .to.be.revertedWith("Token not deployed for this model");
       });
 
       it("Should revert minting to zero address", async function () {
@@ -214,7 +218,14 @@ describe("TokenManager-ModelRegistry Integration", function () {
     });
 
     describe("Burning", function () {
+      let deployedToken;
+
       beforeEach(async function () {
+        // Get the deployed token instance
+        const tokenAddress = await tokenManager.getTokenAddress(modelId);
+        const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+        deployedToken = HokusaiToken.attach(tokenAddress);
+
         // Mint tokens first
         await tokenManager.mintTokens(modelId, user1.address, parseEther("1000"));
         await tokenManager.mintTokens(modelId, user2.address, parseEther("500"));
@@ -222,28 +233,28 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
       it("Should burn tokens successfully for registered model", async function () {
         const burnAmount = parseEther("300");
-        const initialBalance = await hokusaiToken.balanceOf(user1.address);
-        const initialSupply = await hokusaiToken.totalSupply();
+        const initialBalance = await deployedToken.balanceOf(user1.address);
+        const initialSupply = await deployedToken.totalSupply();
         
         await expect(tokenManager.burnTokens(modelId, user1.address, burnAmount))
           .to.emit(tokenManager, "TokensBurned")
           .withArgs(modelId, user1.address, burnAmount)
-          .and.to.emit(hokusaiToken, "Burned")
+          .and.to.emit(deployedToken, "Burned")
           .withArgs(user1.address, burnAmount);
         
-        expect(await hokusaiToken.balanceOf(user1.address)).to.equal(initialBalance - burnAmount);
-        expect(await hokusaiToken.totalSupply()).to.equal(initialSupply - burnAmount);
+        expect(await deployedToken.balanceOf(user1.address)).to.equal(initialBalance - burnAmount);
+        expect(await deployedToken.totalSupply()).to.equal(initialSupply - burnAmount);
       });
 
       it("Should only allow owner to burn tokens", async function () {
         await expect(tokenManager.connect(nonOwner).burnTokens(modelId, user1.address, parseEther("100")))
-          .to.be.revertedWithCustomError(tokenManager, "OwnableUnauthorizedAccount");
+          .to.be.revertedWith("Ownable: caller is not the owner");
       });
 
       it("Should revert burning for unregistered model", async function () {
-        const unregisteredId = 77777;
+        const unregisteredId = "77777";
         await expect(tokenManager.burnTokens(unregisteredId, user1.address, parseEther("100")))
-          .to.be.revertedWith("Model not registered");
+          .to.be.revertedWith("Token not deployed for this model");
       });
 
       it("Should revert burning from zero address", async function () {
@@ -257,7 +268,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
       });
 
       it("Should revert burning more than balance", async function () {
-        const balance = await hokusaiToken.balanceOf(user1.address);
+        const balance = await deployedToken.balanceOf(user1.address);
         await expect(tokenManager.burnTokens(modelId, user1.address, balance + 1n))
           .to.be.reverted;
       });
@@ -265,20 +276,22 @@ describe("TokenManager-ModelRegistry Integration", function () {
   });
 
   describe("Multiple Models Integration", function () {
-    const modelId1 = 100;
-    const modelId2 = 200;
+    const modelId1 = "100";
+    const modelId2 = "200";
     let hokusaiToken2;
 
     beforeEach(async function () {
-      // Deploy second token
-      const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      hokusaiToken2 = await HokusaiToken2.deploy();
-      await hokusaiToken2.waitForDeployment();
-      await hokusaiToken2.setController(await tokenManager.getAddress());
+      // Deploy both tokens through TokenManager
+      await tokenManager.deployToken(modelId1, "Hokusai Token 1", "HOKU1", parseEther("10000"));
+      await tokenManager.deployToken(modelId2, "Hokusai Token 2", "HOKU2", parseEther("10000"));
 
-      // Register both models
-      await modelRegistry.registerModel(modelId1, await hokusaiToken.getAddress(), "accuracy");
-      await modelRegistry.registerModel(modelId2, await hokusaiToken2.getAddress(), "f1-score");
+      // Get the deployed token addresses
+      const tokenAddress1 = await tokenManager.getTokenAddress(modelId1);
+      const tokenAddress2 = await tokenManager.getTokenAddress(modelId2);
+
+      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+      hokusaiToken = HokusaiToken.attach(tokenAddress1);
+      hokusaiToken2 = HokusaiToken.attach(tokenAddress2);
     });
 
     it("Should manage multiple models independently", async function () {
@@ -291,8 +304,11 @@ describe("TokenManager-ModelRegistry Integration", function () {
     });
 
     it("Should resolve correct token addresses for different models", async function () {
-      expect(await tokenManager.getTokenAddress(modelId1)).to.equal(await hokusaiToken.getAddress());
-      expect(await tokenManager.getTokenAddress(modelId2)).to.equal(await hokusaiToken2.getAddress());
+      const tokenAddress1 = await tokenManager.getTokenAddress(modelId1);
+      const tokenAddress2 = await tokenManager.getTokenAddress(modelId2);
+      expect(tokenAddress1).to.not.equal(ethers.ZeroAddress);
+      expect(tokenAddress2).to.not.equal(ethers.ZeroAddress);
+      expect(tokenAddress1).to.not.equal(tokenAddress2);
     });
 
     it("Should burn tokens from correct model", async function () {
@@ -310,38 +326,42 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
   describe("End-to-End Flow", function () {
     it("Should handle complete registration to token operations flow", async function () {
-      const modelId = 300;
+      const modelId = "300";
       
-      // 1. Register model
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
-      expect(await modelRegistry.isRegistered(modelId)).to.be.true;
+      // 1. Deploy token through TokenManager
+      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("10000"));
+      expect(await tokenManager.hasToken(modelId)).to.be.true;
       
       // 2. Check TokenManager can see the model
-      expect(await tokenManager.isModelManaged(modelId)).to.be.true;
-      expect(await tokenManager.getTokenAddress(modelId)).to.equal(await hokusaiToken.getAddress());
+      expect(await tokenManager.hasToken(modelId)).to.be.true;
+      const tokenAddress = await tokenManager.getTokenAddress(modelId);
+      expect(tokenAddress).to.not.equal(ethers.ZeroAddress);
       
       // 3. Mint tokens through TokenManager
       await tokenManager.mintTokens(modelId, user1.address, parseEther("1000"));
-      expect(await hokusaiToken.balanceOf(user1.address)).to.equal(parseEther("1000"));
+      const deployedTokenAddress = await tokenManager.getTokenAddress(modelId);
+      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+      const deployedToken = HokusaiToken.attach(deployedTokenAddress);
+      expect(await deployedToken.balanceOf(user1.address)).to.equal(parseEther("1000"));
       
       // 4. User can transfer tokens normally
-      await hokusaiToken.connect(user1).transfer(user2.address, parseEther("300"));
-      expect(await hokusaiToken.balanceOf(user2.address)).to.equal(parseEther("300"));
+      await deployedToken.connect(user1).transfer(user2.address, parseEther("300"));
+      expect(await deployedToken.balanceOf(user2.address)).to.equal(parseEther("300"));
       
       // 5. Burn tokens through TokenManager
       await tokenManager.burnTokens(modelId, user1.address, parseEther("200"));
-      expect(await hokusaiToken.balanceOf(user1.address)).to.equal(parseEther("500"));
+      expect(await deployedToken.balanceOf(user1.address)).to.equal(parseEther("500"));
       
       // 6. Verify total supply
-      expect(await hokusaiToken.totalSupply()).to.equal(parseEther("800"));
+      expect(await deployedToken.totalSupply()).to.equal(parseEther("10800")); // 10000 initial + 1000 minted - 200 burned
     });
   });
 
   describe("Gas Cost Analysis", function () {
-    const modelId = 400;
-    
+    const modelId = "400";
+
     beforeEach(async function () {
-      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("10000"));
     });
 
     it("Should track gas costs for token operations", async function () {
@@ -362,7 +382,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
   });
 
   describe("New uint256 Mapping Features", function () {
-    const modelId = 500;
+    const modelId = "500";
     
     it("Should provide reverse lookup from token address to modelId", async function () {
       await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
@@ -416,7 +436,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     it("Should handle token updates correctly with reverse mapping", async function () {
       const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken2 = await HokusaiToken2.deploy();
+      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, parseEther("10000"));
       await hokusaiToken2.waitForDeployment();
       
       await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
@@ -437,10 +457,10 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     it("Should prevent updating to already registered token", async function () {
       const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken2 = await HokusaiToken2.deploy();
+      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, parseEther("10000"));
       await hokusaiToken2.waitForDeployment();
       
-      const modelId2 = 600;
+      const modelId2 = "600";
       
       await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       await modelRegistry.registerModel(modelId2, await hokusaiToken2.getAddress(), "f1-score");
@@ -451,11 +471,11 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     it("Should handle multiple sequential auto-increments", async function () {
       const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken2 = await HokusaiToken2.deploy();
+      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, parseEther("10000"));
       await hokusaiToken2.waitForDeployment();
       
       const HokusaiToken3 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken3 = await HokusaiToken3.deploy();
+      const hokusaiToken3 = await HokusaiToken3.deploy("Hokusai Token 3", "HOKU3", owner.address, parseEther("10000"));
       await hokusaiToken3.waitForDeployment();
       
       const initialNextId = await modelRegistry.nextModelId();

@@ -1,0 +1,9 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "tokenManagerAddress": "0xbEbf6779eE9FF15eaFe05033d33e20344bA141FA",
+  "modelRegistryAddress": "0x1F534d24c0156C3B699632C34bc8C6b77c43DF3f",
+  "oldTokenManagerAddress": "0xB4A25a1a72BDd1e0F5f3288a96a6325CD9219196",
+  "deployedAt": "2025-09-19T15:27:30.715Z",
+  "deployer": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+}

@@ -49,7 +49,7 @@ async function connectWallet() {
 
 ```javascript
 // Contract addresses on Sepolia
-const TOKEN_MANAGER_ADDRESS = '0x[NEW_ADDRESS_AFTER_DEPLOYMENT]'; // Updated contract with fixed interface
+const TOKEN_MANAGER_ADDRESS = '0xbEbf6779eE9FF15eaFe05033d33e20344bA141FA'; // Fixed TokenManager (deployed 2025-09-19)
 
 // TokenManager ABI (corrected interface)
 const TOKEN_MANAGER_ABI = [
@@ -238,7 +238,7 @@ try {
 ### Sepolia Testnet
 - Chain ID: 11155111
 - RPC URL: https://ethereum-sepolia-rpc.publicnode.com
-- TokenManager: 0x[NEW_ADDRESS_AFTER_DEPLOYMENT] (Fixed interface - deployed [DATE])
+- TokenManager: 0xbEbf6779eE9FF15eaFe05033d33e20344bA141FA (Fixed interface - deployed 2025-09-19)
 - ModelRegistry: 0x1F534d24c0156C3B699632C34bc8C6b77c43DF3f
 
 ### Adding Sepolia to MetaMask

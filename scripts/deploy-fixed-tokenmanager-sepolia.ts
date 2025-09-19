@@ -147,10 +147,10 @@ class TokenManagerDeployer {
         { value: 0 }
       );
       console.log(`✅ deployToken gas estimate: ${gasEstimate.toString()} units`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ deployToken gas estimation failed:', error);
       // This is expected to fail with "Token already deployed" if we run it twice
-      if (!error.message.includes("Token already deployed")) {
+      if (error.message && !error.message.includes("Token already deployed")) {
         console.log('Note: This might fail if the model already has a token deployed');
       }
     }

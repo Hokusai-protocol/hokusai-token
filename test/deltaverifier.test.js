@@ -7,6 +7,7 @@ describe("DeltaVerifier", function () {
   let modelRegistry;
   let tokenManager;
   let hokusaiToken;
+  let hokusaiParams;
   let owner;
   let contributor1;
   let contributor2;
@@ -41,9 +42,19 @@ describe("DeltaVerifier", function () {
     const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
     modelRegistry = await ModelRegistry.deploy();
 
+    // Deploy HokusaiParams
+    const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
+    hokusaiParams = await HokusaiParams.deploy(
+      1000, // tokensPerDeltaOne
+      500, // infraMarkupBps (5%)
+      ethers.ZeroHash,
+      "",
+      owner.address
+    );
+
     // Deploy HokusaiToken
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, parseEther("10000"));
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, hokusaiParams.target, parseEther("10000"));
 
     // Deploy TokenManager
     const TokenManager = await ethers.getContractFactory("TokenManager");

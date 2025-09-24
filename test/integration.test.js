@@ -1,10 +1,11 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { parseEther, ZeroAddress } = require("ethers");
+const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
 
 describe("TokenManager-ModelRegistry Integration", function () {
   let modelRegistry;
   let hokusaiToken;
+  let hokusaiParams;
   let tokenManager;
   let owner;
   let user1;
@@ -14,15 +15,26 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
   beforeEach(async function () {
     [owner, user1, user2, nonOwner, ...addrs] = await ethers.getSigners();
-    
+
     // Deploy ModelRegistry
     const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
     modelRegistry = await ModelRegistry.deploy();
     await modelRegistry.waitForDeployment();
 
+    // Deploy HokusaiParams for test token
+    const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
+    hokusaiParams = await HokusaiParams.deploy(
+      1000, // tokensPerDeltaOne
+      500,  // infraMarkupBps (5%)
+      keccak256(toUtf8Bytes("test-license")), // licenseHash
+      "https://test.license", // licenseURI
+      owner.address // governor
+    );
+    await hokusaiParams.waitForDeployment();
+
     // Deploy HokusaiToken
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, parseEther("10000"));
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
     await hokusaiToken.waitForDeployment();
 
     // Deploy TokenManager with ModelRegistry reference
@@ -92,7 +104,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
       
       // Deploy second token for update
       const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, parseEther("10000"));
+      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
       await hokusaiToken2.waitForDeployment();
       
       await expect(modelRegistry.updateModel(modelId, await hokusaiToken2.getAddress()))
@@ -436,9 +448,9 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     it("Should handle token updates correctly with reverse mapping", async function () {
       const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, parseEther("10000"));
+      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
       await hokusaiToken2.waitForDeployment();
-      
+
       await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
       // Verify initial reverse mapping
@@ -457,7 +469,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     it("Should prevent updating to already registered token", async function () {
       const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, parseEther("10000"));
+      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
       await hokusaiToken2.waitForDeployment();
       
       const modelId2 = "600";
@@ -471,11 +483,11 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     it("Should handle multiple sequential auto-increments", async function () {
       const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, parseEther("10000"));
+      const hokusaiToken2 = await HokusaiToken2.deploy("Hokusai Token 2", "HOKU2", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
       await hokusaiToken2.waitForDeployment();
-      
+
       const HokusaiToken3 = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken3 = await HokusaiToken3.deploy("Hokusai Token 3", "HOKU3", owner.address, parseEther("10000"));
+      const hokusaiToken3 = await HokusaiToken3.deploy("Hokusai Token 3", "HOKU3", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
       await hokusaiToken3.waitForDeployment();
       
       const initialNextId = await modelRegistry.nextModelId();

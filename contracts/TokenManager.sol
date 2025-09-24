@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./ModelRegistry.sol";
 import "./HokusaiToken.sol";
+import "./HokusaiParams.sol";
 
 /**
  * @title TokenManager
@@ -14,13 +15,23 @@ import "./HokusaiToken.sol";
 contract TokenManager is Ownable, AccessControl {
     ModelRegistry public registry;
     address public deltaVerifier;
+
+    /// @dev Structure for initial parameter values when deploying a token
+    struct InitialParams {
+        uint256 tokensPerDeltaOne;    // Tokens per deltaOne improvement (100-100000)
+        uint16 infraMarkupBps;        // Infrastructure markup in basis points (0-1000)
+        bytes32 licenseHash;          // Hash of license reference
+        string licenseURI;            // URI for license reference
+        address governor;             // Address to grant GOV_ROLE
+    }
     
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
 
-    // Track deployed tokens
+    // Track deployed tokens and their params
     mapping(string => address) public modelTokens;
     mapping(address => string) public tokenToModel;
+    mapping(string => address) public modelParams;
 
     // Optional platform fee for deployment
     uint256 public deploymentFee = 0;
@@ -33,6 +44,13 @@ contract TokenManager is Ownable, AccessControl {
         string name,
         string symbol,
         uint256 totalSupply
+    );
+    event ParamsDeployed(
+        string indexed modelId,
+        address indexed paramsAddress,
+        address indexed deployer,
+        uint256 tokensPerDeltaOne,
+        uint16 infraMarkupBps
     );
     event TokensMinted(string indexed modelId, address indexed recipient, uint256 amount);
     event TokensBurned(string indexed modelId, address indexed account, uint256 amount);
@@ -51,7 +69,7 @@ contract TokenManager is Ownable, AccessControl {
     }
 
     /**
-     * @dev Deploy a new token for a model - USER PAYS GAS
+     * @dev Deploy a new token for a model with default parameters - USER PAYS GAS
      * @param modelId The model identifier (string)
      * @param name Token name
      * @param symbol Token symbol
@@ -64,11 +82,40 @@ contract TokenManager is Ownable, AccessControl {
         string memory symbol,
         uint256 totalSupply
     ) external payable returns (address tokenAddress) {
+        // Use default parameters
+        InitialParams memory defaultParams = InitialParams({
+            tokensPerDeltaOne: 1000,
+            infraMarkupBps: 500, // 5%
+            licenseHash: keccak256(abi.encodePacked("default-license")),
+            licenseURI: "https://hokusai.ai/licenses/default",
+            governor: owner()
+        });
+
+        return deployTokenWithParams(modelId, name, symbol, totalSupply, defaultParams);
+    }
+
+    /**
+     * @dev Deploy a new token for a model with custom parameters - USER PAYS GAS
+     * @param modelId The model identifier (string)
+     * @param name Token name
+     * @param symbol Token symbol
+     * @param totalSupply The total supply to mint initially
+     * @param initialParams Initial parameter values for the token
+     * @return tokenAddress The deployed token address
+     */
+    function deployTokenWithParams(
+        string memory modelId,
+        string memory name,
+        string memory symbol,
+        uint256 totalSupply,
+        InitialParams memory initialParams
+    ) public payable returns (address tokenAddress) {
         // Validate inputs
         require(bytes(modelId).length > 0, "Model ID cannot be empty");
         require(bytes(name).length > 0, "Token name cannot be empty");
         require(bytes(symbol).length > 0, "Token symbol cannot be empty");
         require(totalSupply > 0, "Total supply must be greater than zero");
+        require(initialParams.governor != address(0), "Governor cannot be zero address");
 
         // Check if model already has a token
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
@@ -87,17 +134,29 @@ contract TokenManager is Ownable, AccessControl {
             }
         }
 
-        // Deploy new HokusaiToken with this contract as controller and initial supply
-        HokusaiToken newToken = new HokusaiToken(name, symbol, address(this), totalSupply);
+        // Deploy HokusaiParams first
+        HokusaiParams newParams = new HokusaiParams(
+            initialParams.tokensPerDeltaOne,
+            initialParams.infraMarkupBps,
+            initialParams.licenseHash,
+            initialParams.licenseURI,
+            initialParams.governor
+        );
+        address paramsAddress = address(newParams);
+
+        // Deploy HokusaiToken with params address
+        HokusaiToken newToken = new HokusaiToken(name, symbol, address(this), paramsAddress, totalSupply);
         tokenAddress = address(newToken);
 
-        // Store token mapping
+        // Store token and params mappings
         modelTokens[modelId] = tokenAddress;
         tokenToModel[tokenAddress] = modelId;
+        modelParams[modelId] = paramsAddress;
 
         // Note: Registry registration is not attempted as it uses uint256 modelId
         // The ModelRegistry can be updated separately to support string modelIds if needed
 
+        emit ParamsDeployed(modelId, paramsAddress, msg.sender, initialParams.tokensPerDeltaOne, initialParams.infraMarkupBps);
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
 
         return tokenAddress;
@@ -242,5 +301,23 @@ contract TokenManager is Ownable, AccessControl {
         require(tokenAddress != address(0), "Token address cannot be zero");
         require(bytes(tokenToModel[tokenAddress]).length > 0, "Token not found");
         return tokenToModel[tokenAddress];
+    }
+
+    /**
+     * @dev Gets the params address for a specific model
+     * @param modelId The model identifier
+     * @return The params contract address
+     */
+    function getParamsAddress(string memory modelId) external view returns (address) {
+        return modelParams[modelId];
+    }
+
+    /**
+     * @dev Checks if a model has deployed params
+     * @param modelId The model identifier
+     * @return True if the model has params deployed
+     */
+    function hasParams(string memory modelId) external view returns (bool) {
+        return modelParams[modelId] != address(0);
     }
 }

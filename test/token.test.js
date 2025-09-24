@@ -1,9 +1,10 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { parseEther, ZeroAddress } = require("ethers");
+const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
 
 describe("HokusaiToken", function () {
   let token;
+  let params;
   let owner;
   let controller;
   let user1;
@@ -12,9 +13,20 @@ describe("HokusaiToken", function () {
 
   beforeEach(async function () {
     [owner, controller, user1, user2, ...addrs] = await ethers.getSigners();
-    
+
+    // Deploy params first
+    const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
+    params = await HokusaiParams.deploy(
+      1000, // tokensPerDeltaOne
+      500,  // infraMarkupBps (5%)
+      keccak256(toUtf8Bytes("test-license")), // licenseHash
+      "https://test.license", // licenseURI
+      owner.address // governor
+    );
+    await params.waitForDeployment();
+
     const Token = await ethers.getContractFactory("HokusaiToken");
-    token = await Token.deploy("Hokusai Token", "HOKU", controller.address, parseEther("10000"));
+    token = await Token.deploy("Hokusai Token", "HOKU", controller.address, await params.getAddress(), parseEther("10000"));
     await token.waitForDeployment();
   });
 

@@ -8,7 +8,7 @@ _Last updated: 2025-09-23_
 - ModelRegistry: Maps model IDs to token addresses, provides bidirectional lookup [details: features/contract-deploy-listener/prd.md]
 - TokenManager: Exclusive controller for minting/burning operations, integrates with ModelRegistry, deploys tokens with 0.01 ETH fee [details: features/add-params-model-to-tokens/investigation.md]
 - DeltaVerifier: Calculates token rewards based on ML model performance metrics, uses hardcoded baseRewardRate=1000, minImprovementBps=100 [details: features/add-params-model-to-tokens/flow-mapping.md]
-- HokusaiParams (planned): Per-token governance-adjustable parameters module with tokensPerDeltaOne, infraMarkupBps, licenseRef [details: features/add-params-model-to-tokens/prd.md]
+- HokusaiParams: Per-token governance-adjustable parameters module with tokensPerDeltaOne, infraMarkupBps, licenseRef [details: features/add-params-model-to-tokens/prd.md]
 
 ### Backend Services
 - contract-deployer (Queue Mode): Service monitoring Redis for model_ready_to_deploy events, deploys tokens automatically [details: features/contract-deploy-listener/prd.md]

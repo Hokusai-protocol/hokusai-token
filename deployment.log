@@ -1,0 +1,36 @@
+🚀 Starting Sepolia deployment...
+
+Deployer: 0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B
+Balance: 4.494472128027502807 ETH
+
+1️⃣ Deploying ModelRegistry...
+   ✅ ModelRegistry: 0xc8b2f6B1C569A7d16D0eD17fE9318547679E1Df0
+
+2️⃣ Deploying TokenManager...
+   ✅ TokenManager: 0xEb81526f1D2c4226cEea08821553f6c8a9c1B431
+
+3️⃣ Deploying Token with Params...
+   This may take a minute...
+   Waiting for confirmation...
+   ✅ HokusaiToken: 0x39c60AaC840AAd357edfdED3772e4134B2e04d8C
+   ✅ HokusaiParams: 0xBbED47149FDA720e22e3029Bf9A197985711D823
+
+4️⃣ Deploying DeltaVerifier...
+   ✅ DeltaVerifier: 0xbE661fA444A14D87c9e9f20BcC6eaf5fCAF525Bd
+
+============================================================
+🎉 DEPLOYMENT SUCCESSFUL!
+============================================================
+
+📋 Contract Addresses:
+MODEL_REGISTRY_ADDRESS=0xc8b2f6B1C569A7d16D0eD17fE9318547679E1Df0
+TOKEN_MANAGER_ADDRESS=0xEb81526f1D2c4226cEea08821553f6c8a9c1B431
+HOKUSAI_TOKEN_ADDRESS=0x39c60AaC840AAd357edfdED3772e4134B2e04d8C
+HOKUSAI_PARAMS_ADDRESS=0xBbED47149FDA720e22e3029Bf9A197985711D823
+DELTA_VERIFIER_ADDRESS=0xbE661fA444A14D87c9e9f20BcC6eaf5fCAF525Bd
+
+🔗 View on Etherscan:
+Token: https://sepolia.etherscan.io/address/0x39c60AaC840AAd357edfdED3772e4134B2e04d8C
+Params: https://sepolia.etherscan.io/address/0xBbED47149FDA720e22e3029Bf9A197985711D823
+
+💾 Deployment info saved to deployment-sepolia.json

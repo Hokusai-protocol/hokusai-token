@@ -485,7 +485,7 @@ describe("HokusaiToken", function () {
       // Test with maximum practical sizes
       const maxName = "A".repeat(1000);
       const maxSymbol = "B".repeat(100);
-      
+
       token = await Token.deploy(maxName, maxSymbol, controller.address, await params.getAddress(), parseEther("1000"));
       await token.waitForDeployment();
       
@@ -496,7 +496,7 @@ describe("HokusaiToken", function () {
     it("Should handle special characters in token metadata", async function () {
       const specialName = "Token with 特殊字符 and émojis 🎯";
       const specialSymbol = "SPÉ¢IAL";
-      
+
       token = await Token.deploy(specialName, specialSymbol, controller.address, await params.getAddress(), parseEther("1000"));
       await token.waitForDeployment();
       

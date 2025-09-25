@@ -1,13 +1,14 @@
 # Codebase Knowledge Map
-_Last updated: 2025-09-05_
+_Last updated: 2025-09-23_
 
 ## Components & Services
 
 ### Smart Contracts
 - HokusaiToken: ERC20 with controller-based mint/burn, dynamic name/symbol constructor [details: features/api-endpoint-contract-deploys/prd.md]
 - ModelRegistry: Maps model IDs to token addresses, provides bidirectional lookup [details: features/contract-deploy-listener/prd.md]
-- TokenManager: Exclusive controller for minting/burning operations, integrates with ModelRegistry [details: README.md]
-- DeltaVerifier: Calculates token rewards based on ML model performance metrics [details: README.md]
+- TokenManager: Exclusive controller for minting/burning operations, integrates with ModelRegistry, deploys tokens with 0.01 ETH fee [details: features/add-params-model-to-tokens/investigation.md]
+- DeltaVerifier: Calculates token rewards based on ML model performance metrics, uses hardcoded baseRewardRate=1000, minImprovementBps=100 [details: features/add-params-model-to-tokens/flow-mapping.md]
+- HokusaiParams: Per-token governance-adjustable parameters module with tokensPerDeltaOne, infraMarkupBps, licenseRef [details: features/add-params-model-to-tokens/prd.md]
 
 ### Backend Services
 - contract-deployer (Queue Mode): Service monitoring Redis for model_ready_to_deploy events, deploys tokens automatically [details: features/contract-deploy-listener/prd.md]
@@ -22,6 +23,11 @@ _Last updated: 2025-09-05_
 - Frontend POST → JWT validation → deployment job creation → background blockchain ops → status polling [details: features/api-endpoint-contract-deploys/prd.md]
 
 ## Architecture Patterns
+
+### Parameter Management Pattern (planned)
+- Separate HokusaiParams contract per token for governance-adjustable values
+- Immutable pointer from token to params ensures security with flexibility
+- Dynamic reading allows immediate parameter effect without contract upgrades [details: features/add-params-model-to-tokens/flow-mapping.md]
 
 ### Dual Deployment Modes
 - Queue-based async processing via Redis for ML platform integration

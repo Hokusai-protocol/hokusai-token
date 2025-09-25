@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "./ModelRegistry.sol";
 import "./TokenManager.sol";
+import "./HokusaiToken.sol";
+import "./interfaces/IHokusaiParams.sol";
 
 contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     struct Metrics {
@@ -173,8 +175,9 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         // Calculate delta one score
         uint256 deltaInBps = calculateDeltaOne(data.baselineMetrics, data.newMetrics);
         
-        // Calculate total reward based on full improvement
-        uint256 totalReward = calculateReward(deltaInBps, 10000, 0);
+        // Calculate total reward based on full improvement using dynamic parameters
+        string memory modelIdStr = _uintToString(modelId);
+        uint256 totalReward = calculateRewardDynamic(modelIdStr, deltaInBps, 10000, 0);
         
         if (totalReward > 0) {
             // Distribute rewards proportionally
@@ -216,8 +219,10 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         // Calculate delta one score
         uint256 deltaInBps = calculateDeltaOne(data.baselineMetrics, data.newMetrics);
         
-        // Calculate reward
-        uint256 rewardAmount = calculateReward(
+        // Calculate reward using dynamic parameters
+        string memory modelIdStr = _uintToString(modelId);
+        uint256 rewardAmount = calculateRewardDynamic(
+            modelIdStr,
             deltaInBps,
             data.contributorWeight,
             data.contributedSamples
@@ -264,15 +269,58 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         if (deltaInBps < minImprovementBps) {
             return 0;
         }
-        
+
         // Calculate base reward: (improvement % * base rate * contributor weight)
         uint256 reward = (deltaInBps * baseRewardRate * contributorWeight) / (100 * 10000);
-        
+
         // Cap at maximum reward
         if (reward > maxReward) {
             reward = maxReward;
         }
-        
+
+        return reward;
+    }
+
+    /**
+     * @dev Calculate reward using dynamic parameters from the token's params contract
+     * @param modelId The model identifier to get token and parameters for
+     * @param deltaInBps The improvement delta in basis points
+     * @param contributorWeight The contributor's weight in basis points
+     * @param contributedSamples The number of samples contributed (currently unused)
+     * @return The calculated reward amount
+     */
+    function calculateRewardDynamic(
+        string memory modelId,
+        uint256 deltaInBps,
+        uint256 contributorWeight,
+        uint256 contributedSamples
+    ) public view returns (uint256) {
+        // Get token address from TokenManager
+        address tokenAddress = tokenManager.getTokenAddress(modelId);
+        require(tokenAddress != address(0), "Token not found for model");
+
+        // Get the token's params contract
+        HokusaiToken token = HokusaiToken(tokenAddress);
+        IHokusaiParams params = token.params();
+
+        // Get dynamic parameters
+        uint256 tokensPerDeltaOne = params.tokensPerDeltaOne();
+
+        // Check minimum improvement threshold
+        if (deltaInBps < minImprovementBps) {
+            return 0;
+        }
+
+        // Calculate base reward using dynamic tokensPerDeltaOne
+        // Formula: (improvement % * tokensPerDeltaOne * contributor weight)
+        // Note: tokensPerDeltaOne replaces baseRewardRate with same scaling
+        uint256 reward = (deltaInBps * tokensPerDeltaOne * contributorWeight) / (100 * 10000);
+
+        // Cap at maximum reward
+        if (reward > maxReward) {
+            reward = maxReward;
+        }
+
         return reward;
     }
     

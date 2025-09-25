@@ -3,13 +3,18 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/IHokusaiParams.sol";
 
 /**
  * @title HokusaiToken
  * @dev ERC20 token with controller-based minting and burning
+ * Each token has an immutable reference to its parameter contract for dynamic configuration
  */
 contract HokusaiToken is ERC20, Ownable {
     address public controller;
+
+    /// @dev Immutable reference to the parameter contract for this token
+    IHokusaiParams public immutable params;
 
     event ControllerUpdated(address indexed newController);
     event Minted(address indexed to, uint256 amount);
@@ -21,24 +26,28 @@ contract HokusaiToken is ERC20, Ownable {
     }
 
     /**
-     * @dev Constructor to initialize the token with custom name, symbol, controller, and initial supply
+     * @dev Constructor to initialize the token with custom name, symbol, controller, params, and initial supply
      * @param _name The name of the token (e.g., "Hokusai Model Token")
      * @param _symbol The symbol of the token (e.g., "HMT")
      * @param _controller The address that will have mint/burn privileges
+     * @param _params The address of the parameter contract for this token
      * @param _initialSupply The initial supply to mint to the controller
      */
     constructor(
         string memory _name,
         string memory _symbol,
         address _controller,
+        address _params,
         uint256 _initialSupply
     ) ERC20(_name, _symbol) Ownable() {
         require(bytes(_name).length > 0, "Token name cannot be empty");
         require(bytes(_symbol).length > 0, "Token symbol cannot be empty");
         require(_controller != address(0), "Controller cannot be zero address");
+        require(_params != address(0), "Params cannot be zero address");
         require(_initialSupply > 0, "Initial supply must be greater than zero");
 
         controller = _controller;
+        params = IHokusaiParams(_params);
 
         // Mint initial supply to the controller
         _mint(_controller, _initialSupply);

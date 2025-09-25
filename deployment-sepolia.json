@@ -1,0 +1,12 @@
+{
+  "network": "sepolia",
+  "timestamp": "2025-09-24T19:59:13.406Z",
+  "deployer": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "contracts": {
+    "modelRegistry": "0xc8b2f6B1C569A7d16D0eD17fE9318547679E1Df0",
+    "tokenManager": "0xEb81526f1D2c4226cEea08821553f6c8a9c1B431",
+    "hokusaiToken": "0x39c60AaC840AAd357edfdED3772e4134B2e04d8C",
+    "hokusaiParams": "0xBbED47149FDA720e22e3029Bf9A197985711D823",
+    "deltaVerifier": "0xbE661fA444A14D87c9e9f20BcC6eaf5fCAF525Bd"
+  }
+}

@@ -126,8 +126,19 @@ describe("Integration: JSON Wallet Address Support", function () {
     modelRegistry = await ModelRegistry.deploy();
     await modelRegistry.waitForDeployment();
 
+    // Deploy HokusaiParams first
+    const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
+    const hokusaiParams = await HokusaiParams.deploy(
+      1000, // tokensPerDeltaOne
+      500, // infraMarkupBps (5%)
+      ethers.ZeroHash,
+      "",
+      owner.address
+    );
+    await hokusaiParams.waitForDeployment();
+
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, parseEther("10000"));
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
     await hokusaiToken.waitForDeployment();
 
     const TokenManager = await ethers.getContractFactory("TokenManager");

@@ -285,9 +285,20 @@ describe("TokenManager", function () {
 
   describe("Error Scenarios", function () {
     it("Should fail when TokenManager is not set as controller", async function () {
+      // Deploy params first
+      const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
+      const hokusaiParams = await HokusaiParams.deploy(
+        1000, // tokensPerDeltaOne
+        500, // infraMarkupBps (5%)
+        ethers.ZeroHash,
+        "",
+        owner.address
+      );
+      await hokusaiParams.waitForDeployment();
+
       // Deploy new token directly without TokenManager
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-      const newToken = await HokusaiToken.deploy("New Token", "NEW", owner.address, parseEther("10000"));
+      const newToken = await HokusaiToken.deploy("New Token", "NEW", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
       await newToken.waitForDeployment();
 
       // Manually add to TokenManager's tracking (simulating a broken state)

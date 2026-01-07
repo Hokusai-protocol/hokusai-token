@@ -8,6 +8,7 @@ describe("DeltaVerifier", function () {
   let tokenManager;
   let hokusaiToken;
   let hokusaiParams;
+  let contributionRegistry;
   let owner;
   let contributor1;
   let contributor2;
@@ -60,11 +61,16 @@ describe("DeltaVerifier", function () {
     const TokenManager = await ethers.getContractFactory("TokenManager");
     tokenManager = await TokenManager.deploy(modelRegistry.target);
 
+    // Deploy DataContributionRegistry
+    const DataContributionRegistry = await ethers.getContractFactory("DataContributionRegistry");
+    contributionRegistry = await DataContributionRegistry.deploy();
+
     // Deploy DeltaVerifier
     const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier");
     deltaVerifier = await DeltaVerifier.deploy(
       modelRegistry.target,
       tokenManager.target,
+      contributionRegistry.target,
       BASE_REWARD_RATE,
       MIN_IMPROVEMENT_BPS,
       MAX_REWARD
@@ -75,6 +81,10 @@ describe("DeltaVerifier", function () {
     await tokenManager.deployToken(MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"));
     await modelRegistry.registerModel(MODEL_ID, hokusaiToken.target, "accuracy");
     await tokenManager.setDeltaVerifier(deltaVerifier.target);
+
+    // Grant RECORDER_ROLE to DeltaVerifier
+    const RECORDER_ROLE = await contributionRegistry.RECORDER_ROLE();
+    await contributionRegistry.grantRole(RECORDER_ROLE, deltaVerifier.target);
   });
 
   describe("Deployment", function () {

@@ -5,6 +5,7 @@ const { parseEther } = require("ethers");
 describe("Integration: JSON Wallet Address Support", function () {
   let deltaVerifier;
   let tokenManager;
+  let contributionRegistry;
   let hokusaiToken;
   let modelRegistry;
   let owner;
@@ -145,10 +146,18 @@ describe("Integration: JSON Wallet Address Support", function () {
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
 
+    const DataContributionRegistry = await ethers.getContractFactory("DataContributionRegistry");
+
+
+    contributionRegistry = await DataContributionRegistry.deploy();
+
+
+
     const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier");
     deltaVerifier = await DeltaVerifier.deploy(
       await modelRegistry.getAddress(),
       await tokenManager.getAddress(),
+      await contributionRegistry.getAddress(),
       BASE_REWARD_RATE,
       100,  // minImprovementBps
       ethers.parseEther("1000000")  // maxReward
@@ -161,6 +170,9 @@ describe("Integration: JSON Wallet Address Support", function () {
     await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), await deltaVerifier.getAddress());
     await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
 
+    // Grant RECORDER_ROLE to DeltaVerifier
+    const RECORDER_ROLE = await contributionRegistry.RECORDER_ROLE();
+    await contributionRegistry.grantRole(RECORDER_ROLE, await deltaVerifier.getAddress());
     // Register model in registry for DeltaVerifier
     await modelRegistry.registerModel(
       MODEL_ID,

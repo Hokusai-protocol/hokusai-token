@@ -5,6 +5,7 @@ const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
 describe("DeltaVerifier with Dynamic Params", function () {
   let deltaVerifier;
   let tokenManager;
+  let contributionRegistry;
   let modelRegistry;
   let hokusaiToken;
   let hokusaiParams;
@@ -66,11 +67,22 @@ describe("DeltaVerifier with Dynamic Params", function () {
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
 
+    // Deploy DataContributionRegistry
+
+
+    const DataContributionRegistry = await ethers.getContractFactory("DataContributionRegistry");
+
+
+    contributionRegistry = await DataContributionRegistry.deploy();
+
+
+
     // Deploy DeltaVerifier
     const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier");
     deltaVerifier = await DeltaVerifier.deploy(
       await modelRegistry.getAddress(),
       await tokenManager.getAddress(),
+      await contributionRegistry.getAddress(),
       1000, // baseRewardRate (fallback)
       100,  // minImprovementBps
       parseEther("10000") // maxReward
@@ -80,6 +92,9 @@ describe("DeltaVerifier with Dynamic Params", function () {
     // Set DeltaVerifier in TokenManager
     await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
 
+    // Grant RECORDER_ROLE to DeltaVerifier
+    const RECORDER_ROLE = await contributionRegistry.RECORDER_ROLE();
+    await contributionRegistry.grantRole(RECORDER_ROLE, await deltaVerifier.getAddress());
     // Deploy token with params through TokenManager
     await tokenManager.deployTokenWithParams(
       MODEL_ID_STR,

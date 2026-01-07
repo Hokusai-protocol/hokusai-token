@@ -8,6 +8,7 @@ import "./ModelRegistry.sol";
 import "./TokenManager.sol";
 import "./HokusaiToken.sol";
 import "./interfaces/IHokusaiParams.sol";
+import "./interfaces/IDataContributionRegistry.sol";
 
 contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     struct Metrics {
@@ -55,7 +56,8 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
 
     ModelRegistry public immutable modelRegistry;
     TokenManager public immutable tokenManager;
-    
+    IDataContributionRegistry public immutable contributionRegistry;
+
     uint256 public baseRewardRate; // tokens per 1% improvement
     uint256 public minImprovementBps; // minimum improvement in basis points
     uint256 public maxReward; // maximum reward cap
@@ -90,17 +92,20 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     constructor(
         address _modelRegistry,
         address _tokenManager,
+        address _contributionRegistry,
         uint256 _baseRewardRate,
         uint256 _minImprovementBps,
         uint256 _maxReward
     ) {
         require(_modelRegistry != address(0), "Invalid model registry");
         require(_tokenManager != address(0), "Invalid token manager");
+        require(_contributionRegistry != address(0), "Invalid contribution registry");
         require(_baseRewardRate > 0, "Invalid reward rate");
         require(_minImprovementBps > 0, "Invalid min improvement");
-        
+
         modelRegistry = ModelRegistry(_modelRegistry);
         tokenManager = TokenManager(_tokenManager);
+        contributionRegistry = IDataContributionRegistry(_contributionRegistry);
         baseRewardRate = _baseRewardRate;
         minImprovementBps = _minImprovementBps;
         maxReward = _maxReward;
@@ -174,31 +179,42 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         
         // Calculate delta one score
         uint256 deltaInBps = calculateDeltaOne(data.baselineMetrics, data.newMetrics);
-        
+
         // Calculate total reward based on full improvement using dynamic parameters
         string memory modelIdStr = _uintToString(modelId);
         uint256 totalReward = calculateRewardDynamic(modelIdStr, deltaInBps, 10000, 0);
-        
+
         if (totalReward > 0) {
-            // Distribute rewards proportionally
-            uint256 totalDistributed = 0;
-            
-            for (uint256 i = 0; i < contributors.length; i++) {
-                uint256 contributorReward = (totalReward * contributors[i].weight) / 10000;
-                rewardAmounts[i] = contributorReward;
-                totalDistributed += contributorReward;
-                
-                emit RewardCalculated(contributors[i].walletAddress, deltaInBps, contributorReward);
+            // Distribute rewards proportionally and mint tokens
+            {
+                uint256 totalDistributed = 0;
+
+                for (uint256 i = 0; i < contributors.length; i++) {
+                    uint256 contributorReward = (totalReward * contributors[i].weight) / 10000;
+                    rewardAmounts[i] = contributorReward;
+                    totalDistributed += contributorReward;
+
+                    emit RewardCalculated(contributors[i].walletAddress, deltaInBps, contributorReward);
+                }
+
+                // Mint tokens in batch
+                tokenManager.batchMintTokens(modelIdStr, contributorAddresses, rewardAmounts);
+
+                emit BatchRewardsDistributed(modelId, contributorAddresses, rewardAmounts, totalDistributed);
             }
-            
-            // Mint tokens in batch
-            tokenManager.batchMintTokens(_uintToString(modelId), contributorAddresses, rewardAmounts);
-            
-            emit BatchRewardsDistributed(modelId, contributorAddresses, rewardAmounts, totalDistributed);
+
+            // Record contributions in registry (in separate scope to reduce stack depth)
+            _recordContributions(
+                modelIdStr,
+                contributorAddresses,
+                contributors,
+                rewardAmounts,
+                data.pipelineRunId
+            );
         }
-        
+
         emit EvaluationSubmitted(data.pipelineRunId, modelId);
-        
+
         return totalReward;
     }
 
@@ -234,9 +250,20 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         
         // Trigger minting through TokenManager if reward > 0
         if (rewardAmount > 0) {
-            tokenManager.mintTokens(_uintToString(modelId), data.contributor, rewardAmount);
+            tokenManager.mintTokens(modelIdStr, data.contributor, rewardAmount);
+
+            // Record contribution in registry
+            _recordSingleContribution(
+                modelIdStr,
+                data.contributor,
+                data.contributorWeight,
+                data.contributedSamples,
+                data.totalSamples,
+                rewardAmount,
+                data.pipelineRunId
+            );
         }
-        
+
         return rewardAmount;
     }
     
@@ -410,6 +437,106 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
 
     function _isValidAddress(address addr) private pure returns (bool) {
         return addr != address(0);
+    }
+
+    /**
+     * @dev Records a single contribution in the DataContributionRegistry
+     */
+    function _recordSingleContribution(
+        string memory modelId,
+        address contributor,
+        uint256 weightBps,
+        uint256 contributedSamples,
+        uint256 totalSamples,
+        uint256 tokensEarned,
+        string memory pipelineRunId
+    ) private {
+        address[] memory contributorAddresses = new address[](1);
+        contributorAddresses[0] = contributor;
+
+        bytes32[] memory contributionHashes = new bytes32[](1);
+        contributionHashes[0] = keccak256(abi.encodePacked(
+            modelId,
+            contributor,
+            pipelineRunId,
+            block.timestamp
+        ));
+
+        uint256[] memory weightsBps = new uint256[](1);
+        weightsBps[0] = weightBps;
+
+        uint256[] memory samples = new uint256[](1);
+        samples[0] = contributedSamples;
+
+        uint256[] memory rewardAmounts = new uint256[](1);
+        rewardAmounts[0] = tokensEarned;
+
+        contributionRegistry.recordContributionBatch(
+            modelId,
+            contributorAddresses,
+            contributionHashes,
+            weightsBps,
+            samples,
+            totalSamples,
+            rewardAmounts,
+            pipelineRunId
+        );
+    }
+
+    /**
+     * @dev Records contributions in the DataContributionRegistry
+     * @param modelId The model identifier (string)
+     * @param contributorAddresses Array of contributor addresses
+     * @param contributors Array of Contributor structs with weights and samples
+     * @param rewardAmounts Array of token amounts earned
+     * @param pipelineRunId ML pipeline execution reference
+     */
+    function _recordContributions(
+        string memory modelId,
+        address[] memory contributorAddresses,
+        Contributor[] calldata contributors,
+        uint256[] memory rewardAmounts,
+        string memory pipelineRunId
+    ) private {
+        // Generate contribution hashes (deterministic based on contribution data)
+        bytes32[] memory contributionHashes = new bytes32[](contributorAddresses.length);
+        uint256[] memory contributedSamples = new uint256[](contributorAddresses.length);
+        uint256[] memory weightsBps = new uint256[](contributorAddresses.length);
+
+        // Calculate total samples (assumed to be sum of all contributed samples for simplicity)
+        // In production, this should come from the evaluation data
+        uint256 totalSamples = 0;
+
+        for (uint256 i = 0; i < contributorAddresses.length; i++) {
+            // Generate deterministic hash for this contribution
+            contributionHashes[i] = keccak256(abi.encodePacked(
+                modelId,
+                contributorAddresses[i],
+                pipelineRunId,
+                block.timestamp,
+                i // Include index to ensure uniqueness
+            ));
+
+            // Extract weights (already in basis points)
+            weightsBps[i] = contributors[i].weight;
+
+            // For now, calculate contributed samples proportional to weight
+            // In a real implementation, this should come from the evaluation data
+            contributedSamples[i] = (contributors[i].weight * 1000) / 100; // Placeholder calculation
+            totalSamples += contributedSamples[i];
+        }
+
+        // Record contributions in the registry
+        contributionRegistry.recordContributionBatch(
+            modelId,
+            contributorAddresses,
+            contributionHashes,
+            weightsBps,
+            contributedSamples,
+            totalSamples,
+            rewardAmounts,
+            pipelineRunId
+        );
     }
 
     /**

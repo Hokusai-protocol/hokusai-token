@@ -1,5 +1,5 @@
 # Codebase Knowledge Map
-_Last updated: 2025-09-23_
+_Last updated: 2026-01-07_
 
 ## Components & Services
 
@@ -7,8 +7,9 @@ _Last updated: 2025-09-23_
 - HokusaiToken: ERC20 with controller-based mint/burn, dynamic name/symbol constructor [details: features/api-endpoint-contract-deploys/prd.md]
 - ModelRegistry: Maps model IDs to token addresses, provides bidirectional lookup [details: features/contract-deploy-listener/prd.md]
 - TokenManager: Exclusive controller for minting/burning operations, integrates with ModelRegistry, deploys tokens with 0.01 ETH fee [details: features/add-params-model-to-tokens/investigation.md]
-- DeltaVerifier: Calculates token rewards based on ML model performance metrics, uses hardcoded baseRewardRate=1000, minImprovementBps=100 [details: features/add-params-model-to-tokens/flow-mapping.md]
+- DeltaVerifier: Calculates token rewards based on ML model performance metrics, uses baseRewardRate=1000, minImprovementBps=100, automatically records contributions in DataContributionRegistry [details: features/data-contribution-registry/plan.md]
 - HokusaiParams: Per-token governance-adjustable parameters module with tokensPerDeltaOne, infraMarkupBps, licenseRef [details: features/add-params-model-to-tokens/prd.md]
+- DataContributionRegistry: Tracks data contributions with attribution weights, supports verification workflow, provides paginated queries [details: features/data-contribution-registry/plan.md]
 
 ### Backend Services
 - contract-deployer (Queue Mode): Service monitoring Redis for model_ready_to_deploy events, deploys tokens automatically [details: features/contract-deploy-listener/prd.md]
@@ -19,8 +20,11 @@ _Last updated: 2025-09-23_
 ### Contract Deploy Listener Flow (Queue-Based)
 - Redis queue → message validation → deploy HokusaiToken → register in ModelRegistry → publish token_deployed event [details: features/contract-deploy-listener/prd.md]
 
-### API Deployment Flow (HTTP-Based) 
+### API Deployment Flow (HTTP-Based)
 - Frontend POST → JWT validation → deployment job creation → background blockchain ops → status polling [details: features/api-endpoint-contract-deploys/prd.md]
+
+### Contribution Recording Flow (Automatic)
+- ML pipeline submits evaluation → DeltaVerifier validates and calculates rewards → TokenManager mints tokens → DataContributionRegistry records contribution with attribution weights → Backend queries for analytics [details: features/data-contribution-registry/plan.md]
 
 ## Architecture Patterns
 
@@ -45,7 +49,14 @@ _Last updated: 2025-09-23_
 
 ### Registry Pattern
 - ModelRegistry provides central lookup for all model-token associations
+- DataContributionRegistry tracks all data contributions with attribution weights
 - Prevents duplicate registrations, enables efficient queries
+
+### Role-Based Access Control (RBAC)
+- DataContributionRegistry uses OpenZeppelin AccessControl
+- RECORDER_ROLE: Granted to DeltaVerifier for automatic contribution recording
+- VERIFIER_ROLE: Granted to backend service for contribution verification
+- DEFAULT_ADMIN_ROLE: Can grant/revoke roles, transfer admin rights
 
 ## Tech Stack & Conventions
 

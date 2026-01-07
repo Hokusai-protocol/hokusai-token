@@ -1,0 +1,16 @@
+{
+  "baselineMetrics": {
+    "accuracy": 8540,
+    "precision": 8270,
+    "recall": 8870,
+    "f1": 8390,
+    "auroc": 9040
+  },
+  "newMetrics": {
+    "accuracy": 8840,
+    "precision": 8540,
+    "recall": 9130,
+    "f1": 8910,
+    "auroc": 9350
+  }
+}

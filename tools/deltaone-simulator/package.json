@@ -1,0 +1,23 @@
+{
+  "name": "deltaone-simulator",
+  "version": "1.0.0",
+  "description": "DeltaOne simulation and execution tool for Hokusai tokens",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "simulate": "ts-node src/index.ts simulate",
+    "execute": "ts-node src/index.ts execute",
+    "estimate-gas": "ts-node src/index.ts estimate-gas",
+    "test": "npm run simulate -- examples/sample-evaluation.json model-123"
+  },
+  "dependencies": {
+    "ethers": "^6.10.0",
+    "dotenv": "^16.3.1",
+    "commander": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2"
+  }
+}

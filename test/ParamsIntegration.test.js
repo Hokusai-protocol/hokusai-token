@@ -61,10 +61,18 @@ describe("Full Integration: Params Module", function () {
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
 
+    const DataContributionRegistry = await ethers.getContractFactory("DataContributionRegistry");
+
+
+    contributionRegistry = await DataContributionRegistry.deploy();
+
+
+
     const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier");
     deltaVerifier = await DeltaVerifier.deploy(
       await modelRegistry.getAddress(),
       await tokenManager.getAddress(),
+      await contributionRegistry.getAddress(),
       1000, // baseRewardRate (fallback)
       100,  // minImprovementBps
       parseEther("50000") // maxReward
@@ -73,7 +81,10 @@ describe("Full Integration: Params Module", function () {
 
     // Connect TokenManager and DeltaVerifier
     await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
-  });
+
+    // Grant RECORDER_ROLE to DeltaVerifier
+    const RECORDER_ROLE = await contributionRegistry.RECORDER_ROLE();
+    await contributionRegistry.grantRole(RECORDER_ROLE, await deltaVerifier.getAddress());  });
 
   describe("End-to-End Token Deployment with Params", function () {
     it("Should deploy complete token system with dynamic parameters", async function () {
@@ -398,7 +409,7 @@ describe("Full Integration: Params Module", function () {
       // Verify gas usage is reasonable
       expect(deployReceipt.gasUsed).to.be.lt(3000000); // Less than 3M gas for deployment
       expect(registerReceipt.gasUsed).to.be.lt(200000);  // Less than 200k gas for registration
-      expect(evalReceipt.gasUsed).to.be.lt(500000);     // Less than 500k gas for evaluation
+      expect(evalReceipt.gasUsed).to.be.lt(600000);     // Less than 600k gas for evaluation (includes contribution recording)
     });
   });
 });

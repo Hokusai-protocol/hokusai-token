@@ -1,0 +1,21 @@
+{
+  "pipelineRunId": "run_abc123",
+  "baselineMetrics": {
+    "accuracy": 8540,
+    "precision": 8270,
+    "recall": 8870,
+    "f1": 8390,
+    "auroc": 9040
+  },
+  "newMetrics": {
+    "accuracy": 8840,
+    "precision": 8540,
+    "recall": 9130,
+    "f1": 8910,
+    "auroc": 9350
+  },
+  "contributor": "0x742d35Cc6631C0532925a3b844D35d2be8b6c6dD9",
+  "contributorWeight": 9100,
+  "contributedSamples": 5000,
+  "totalSamples": 55000
+}

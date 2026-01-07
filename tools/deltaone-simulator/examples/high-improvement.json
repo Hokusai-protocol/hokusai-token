@@ -1,0 +1,21 @@
+{
+  "pipelineRunId": "run_high_improvement",
+  "baselineMetrics": {
+    "accuracy": 7500,
+    "precision": 7200,
+    "recall": 7800,
+    "f1": 7400,
+    "auroc": 8000
+  },
+  "newMetrics": {
+    "accuracy": 9200,
+    "precision": 9000,
+    "recall": 9400,
+    "f1": 9150,
+    "auroc": 9500
+  },
+  "contributor": "0x742d35Cc6631C0532925a3b844D35d2be8b6c6dD9",
+  "contributorWeight": 10000,
+  "contributedSamples": 10000,
+  "totalSamples": 50000
+}

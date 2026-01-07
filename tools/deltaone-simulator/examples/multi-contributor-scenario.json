@@ -1,0 +1,21 @@
+{
+  "pipelineRunId": "run_multi_contributor",
+  "baselineMetrics": {
+    "accuracy": 8200,
+    "precision": 8000,
+    "recall": 8400,
+    "f1": 8100,
+    "auroc": 8600
+  },
+  "newMetrics": {
+    "accuracy": 8900,
+    "precision": 8700,
+    "recall": 9100,
+    "f1": 8850,
+    "auroc": 9300
+  },
+  "contributor": "0x742d35Cc6631C0532925a3b844D35d2be8b6c6dD9",
+  "contributorWeight": 3333,
+  "contributedSamples": 10000,
+  "totalSamples": 30000
+}

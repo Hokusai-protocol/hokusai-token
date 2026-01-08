@@ -196,12 +196,12 @@ function getPool(string memory modelId) external view returns (address) {
    - Deploy helper for tests
 
 **Acceptance Criteria**:
-- [ ] ModelRegistry uses string modelIds throughout
-- [ ] TokenManager.burnTokens() allows MINTER_ROLE holders
-- [ ] TokenManager.authorizeAMM() grants MINTER_ROLE correctly
-- [ ] MockUSDC matches real USDC interface (6 decimals)
-- [ ] All existing tests pass with updates
-- [ ] New authorization tests pass
+- [x] ModelRegistry uses string modelIds throughout
+- [x] TokenManager.burnTokens() allows MINTER_ROLE holders
+- [x] TokenManager.authorizeAMM() grants MINTER_ROLE correctly
+- [x] MockUSDC matches real USDC interface (6 decimals)
+- [x] All existing tests pass with updates (375 passing)
+- [x] New authorization tests pass (33 Phase 1 tests)
 
 **Testing Focus**:
 - Access control: only MINTER_ROLE can burn

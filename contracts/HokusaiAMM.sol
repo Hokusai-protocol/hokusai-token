@@ -357,6 +357,147 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     }
 
     // ============================================================
+    // ANALYTICS & VIEW FUNCTIONS
+    // ============================================================
+
+    /**
+     * @dev Get comprehensive pool state
+     * @return reserve Current USDC reserve balance
+     * @return supply Current token supply
+     * @return price Current spot price (6 decimals)
+     * @return reserveRatio CRR in PPM
+     * @return tradeFeeRate Trade fee in bps
+     * @return protocolFeeRate Protocol fee in bps
+     */
+    function getPoolState()
+        external
+        view
+        returns (
+            uint256 reserve,
+            uint256 supply,
+            uint256 price,
+            uint256 reserveRatio,
+            uint256 tradeFeeRate,
+            uint16 protocolFeeRate
+        )
+    {
+        reserve = reserveBalance;
+        supply = IERC20(hokusaiToken).totalSupply();
+        price = spotPrice();
+        reserveRatio = crr;
+        tradeFeeRate = tradeFee;
+        protocolFeeRate = protocolFeeBps;
+    }
+
+    /**
+     * @dev Get trading status information
+     * @return sellsEnabled Whether sells are currently enabled
+     * @return ibrEndTime Timestamp when IBR period ends
+     * @return isPaused Whether trading is paused
+     */
+    function getTradeInfo()
+        external
+        view
+        returns (
+            bool sellsEnabled,
+            uint256 ibrEndTime,
+            bool isPaused
+        )
+    {
+        sellsEnabled = isSellEnabled();
+        ibrEndTime = buyOnlyUntil;
+        isPaused = paused();
+    }
+
+    /**
+     * @dev Calculate price impact for a buy
+     * @param reserveIn Amount of USDC to deposit
+     * @return tokensOut Tokens that would be minted
+     * @return priceImpact Price impact in bps (10000 = 100%)
+     * @return newSpotPrice Spot price after trade
+     */
+    function calculateBuyImpact(uint256 reserveIn)
+        external
+        view
+        returns (
+            uint256 tokensOut,
+            uint256 priceImpact,
+            uint256 newSpotPrice
+        )
+    {
+        require(reserveIn > 0, "Amount must be > 0");
+
+        uint256 currentSpot = spotPrice();
+        tokensOut = getBuyQuote(reserveIn);
+
+        // Calculate new spot price after trade
+        // New reserve = current + reserveIn (after fee)
+        uint256 feeAmount = (reserveIn * tradeFee) / 10000;
+        uint256 newReserve = reserveBalance + (reserveIn - feeAmount);
+        uint256 newSupply = IERC20(hokusaiToken).totalSupply() + tokensOut;
+
+        // P = (R * PPM * 1e18) / (crr * S)
+        newSpotPrice = (newReserve * PPM * 1e18) / (crr * newSupply);
+
+        // Price impact = (newPrice - oldPrice) / oldPrice * 10000
+        if (currentSpot > 0) {
+            if (newSpotPrice > currentSpot) {
+                priceImpact = ((newSpotPrice - currentSpot) * 10000) / currentSpot;
+            } else {
+                priceImpact = 0; // Price decreased (shouldn't happen on buy)
+            }
+        } else {
+            priceImpact = 0;
+        }
+    }
+
+    /**
+     * @dev Calculate price impact for a sell
+     * @param tokensIn Amount of tokens to sell
+     * @return reserveOut USDC that would be returned
+     * @return priceImpact Price impact in bps (10000 = 100%)
+     * @return newSpotPrice Spot price after trade
+     */
+    function calculateSellImpact(uint256 tokensIn)
+        external
+        view
+        returns (
+            uint256 reserveOut,
+            uint256 priceImpact,
+            uint256 newSpotPrice
+        )
+    {
+        require(tokensIn > 0, "Amount must be > 0");
+
+        uint256 currentSpot = spotPrice();
+        reserveOut = getSellQuote(tokensIn);
+
+        // Calculate new spot price after trade
+        // New supply = current - tokensIn
+        uint256 newSupply = IERC20(hokusaiToken).totalSupply() - tokensIn;
+        // New reserve = current - reserveOut
+        uint256 newReserve = reserveBalance - reserveOut;
+
+        if (newSupply > 0) {
+            // P = (R * PPM * 1e18) / (crr * S)
+            newSpotPrice = (newReserve * PPM * 1e18) / (crr * newSupply);
+        } else {
+            newSpotPrice = 0;
+        }
+
+        // Price impact = (oldPrice - newPrice) / oldPrice * 10000
+        if (currentSpot > 0) {
+            if (currentSpot > newSpotPrice) {
+                priceImpact = ((currentSpot - newSpotPrice) * 10000) / currentSpot;
+            } else {
+                priceImpact = 0; // Price increased (shouldn't happen on sell)
+            }
+        } else {
+            priceImpact = 0;
+        }
+    }
+
+    // ============================================================
     // FEE MANAGEMENT
     // ============================================================
 

@@ -260,7 +260,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
       it("Should only allow owner to burn tokens", async function () {
         await expect(tokenManager.connect(nonOwner).burnTokens(modelId, user1.address, parseEther("100")))
-          .to.be.revertedWith("Ownable: caller is not the owner");
+          .to.be.revertedWith("Caller is not authorized to burn");
       });
 
       it("Should revert burning for unregistered model", async function () {

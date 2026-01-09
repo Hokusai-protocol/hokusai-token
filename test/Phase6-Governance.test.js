@@ -77,6 +77,9 @@ describe("Phase 6: Governance & Safety", function () {
         // Setup buyer
         await mockUSDC.mint(buyer1.address, parseUnits("100000", 6));
         await mockUSDC.connect(buyer1).approve(await hokusaiAMM.getAddress(), parseUnits("100000", 6));
+
+        // Set max trade size to 50% for these tests (they test large trades)
+        await hokusaiAMM.setMaxTradeBps(5000);
     });
 
     // ============================================================
@@ -446,10 +449,10 @@ describe("Phase 6: Governance & Safety", function () {
             // Get quote before any trades
             const quote1 = await hokusaiAMM.getBuyQuote(buyAmount);
 
-            // Another user makes large trade (price increases)
-            await mockUSDC.mint(attacker.address, parseUnits("50000", 6));
-            await mockUSDC.connect(attacker).approve(await hokusaiAMM.getAddress(), parseUnits("50000", 6));
-            await hokusaiAMM.connect(attacker).buy(parseUnits("50000", 6), 0, attacker.address, deadline);
+            // Another user makes large trade (price increases) - within 50% limit
+            await mockUSDC.mint(attacker.address, parseUnits("5000", 6));
+            await mockUSDC.connect(attacker).approve(await hokusaiAMM.getAddress(), parseUnits("5000", 6));
+            await hokusaiAMM.connect(attacker).buy(parseUnits("5000", 6), 0, attacker.address, deadline);
 
             // Original buyer's quote would be much worse now
             const quote2 = await hokusaiAMM.getBuyQuote(buyAmount);

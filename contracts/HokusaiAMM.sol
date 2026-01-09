@@ -40,6 +40,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     uint256 public tradeFee; // Trade fee in bps (basis points), default 25 = 0.25%
     uint16 public protocolFeeBps; // Protocol fee on deposits in bps, default 500 = 5%
     uint256 public buyOnlyUntil; // Timestamp when sells become enabled (IBR end)
+    uint256 public maxTradeBps; // Maximum trade size as % of reserve in bps, default 2000 = 20%
 
     // Constants
     uint256 public constant PRECISION = 1e18; // Fixed-point precision
@@ -47,6 +48,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant MIN_CRR = 50000; // 5% min
     uint256 public constant MAX_TRADE_FEE = 1000; // 10% max
     uint256 public constant MAX_PROTOCOL_FEE = 5000; // 50% max
+    uint256 public constant MAX_TRADE_BPS_LIMIT = 5000; // 50% max trade size
     uint256 public constant PPM = 1000000; // Parts per million
 
     // ============================================================
@@ -83,6 +85,8 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         uint256 newTradeFee,
         uint16 newProtocolFee
     );
+
+    event MaxTradeBpsUpdated(uint256 oldBps, uint256 newBps);
 
     // ============================================================
     // CONSTRUCTOR
@@ -129,6 +133,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         tradeFee = _tradeFee;
         protocolFeeBps = _protocolFeeBps;
         buyOnlyUntil = block.timestamp + _ibrDuration;
+        maxTradeBps = 2000; // Default 20% of reserve
     }
 
     // ============================================================
@@ -152,6 +157,10 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         require(block.timestamp <= deadline, "Transaction expired");
         require(reserveIn > 0, "Reserve amount must be > 0");
         require(to != address(0), "Invalid recipient");
+
+        // Check trade size limit (prevents whale manipulation and flash loan attacks)
+        uint256 maxTradeSize = (reserveBalance * maxTradeBps) / 10000;
+        require(reserveIn <= maxTradeSize, "Trade exceeds max size limit");
 
         // Calculate tokens to mint
         tokensOut = getBuyQuote(reserveIn);
@@ -206,6 +215,10 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         // Calculate USDC to return
         reserveOut = getSellQuote(tokensIn);
         require(reserveOut >= minReserveOut, "Slippage exceeded");
+
+        // Check trade size limit (prevents whale manipulation and flash loan attacks)
+        uint256 maxTradeSize = (reserveBalance * maxTradeBps) / 10000;
+        require(reserveOut <= maxTradeSize, "Trade exceeds max size limit");
 
         // Calculate and deduct trade fee
         uint256 feeAmount = (reserveOut * tradeFee) / 10000;
@@ -564,6 +577,24 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         protocolFeeBps = newProtocolFee;
 
         emit ParametersUpdated(newCrr, newTradeFee, newProtocolFee);
+    }
+
+    /**
+     * @dev Update maximum trade size limit
+     * @param newMaxTradeBps New max trade size in bps (basis points)
+     *
+     * Security: Prevents whale manipulation and flash loan attacks by limiting
+     * single-transaction trade sizes relative to reserve balance.
+     *
+     * Range: 0 bps (disabled) to 5000 bps (50% max)
+     * Default: 2000 bps (20% of reserve)
+     */
+    function setMaxTradeBps(uint256 newMaxTradeBps) external onlyOwner {
+        require(newMaxTradeBps > 0, "Max trade bps must be > 0");
+        require(newMaxTradeBps <= MAX_TRADE_BPS_LIMIT, "Max trade bps too high");
+
+        emit MaxTradeBpsUpdated(maxTradeBps, newMaxTradeBps);
+        maxTradeBps = newMaxTradeBps;
     }
 
     /**

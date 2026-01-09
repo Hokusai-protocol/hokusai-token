@@ -62,6 +62,9 @@ describe("Phase 2: Power Function Security Analysis", function () {
     // Fund attacker
     await mockUSDC.mint(attacker.address, parseUnits("1000000", 6)); // $1M
     await mockUSDC.connect(attacker).approve(await hokusaiAMM.getAddress(), parseUnits("1000000", 6));
+
+    // Set max trade size to 50% for these security tests (they test large/extreme trades)
+    await hokusaiAMM.setMaxTradeBps(5000);
   });
 
   describe("Approximation Error Bounds", function () {
@@ -69,9 +72,8 @@ describe("Phase 2: Power Function Security Analysis", function () {
       const testSizes = [
         parseUnits("100", 6),    // $100
         parseUnits("1000", 6),   // $1,000
-        parseUnits("5000", 6),   // $5,000
-        parseUnits("10000", 6),  // $10,000 (100% of reserve)
-        parseUnits("50000", 6),  // $50,000 (500% of reserve)
+        parseUnits("3000", 6),   // $3,000 (30% of reserve)
+        parseUnits("5000", 6),   // $5,000 (50% of reserve - at max limit)
       ];
 
       console.log("\n      Buy Quote Analysis:");
@@ -92,8 +94,8 @@ describe("Phase 2: Power Function Security Analysis", function () {
     });
 
     it("Should detect quote inconsistency between sequential small buys vs one large buy", async function () {
-      const largeAmount = parseUnits("10000", 6);
-      const smallAmount = largeAmount / BigInt(10);
+      const largeAmount = parseUnits("5000", 6); // 50% of reserve (at max limit)
+      const smallAmount = largeAmount / BigInt(10); // $500 each
 
       // Get quote for large buy
       const largeQuote = await hokusaiAMM.getBuyQuote(largeAmount);
@@ -194,7 +196,7 @@ describe("Phase 2: Power Function Security Analysis", function () {
     });
 
     it("Should maintain reserve ratio after large operations", async function () {
-      const largeBuy = parseUnits("50000", 6);
+      const largeBuy = parseUnits("5000", 6); // 50% of reserve (at max limit)
       const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
 
       const reserveBefore = await hokusaiAMM.reserveBalance();
@@ -272,8 +274,8 @@ describe("Phase 2: Power Function Security Analysis", function () {
       const extremeCases = [
         { amount: parseUnits("100", 6), desc: "Small trade ($100)" },
         { amount: parseUnits("1000", 6), desc: "Medium trade ($1k)" },
-        { amount: parseUnits("10000", 6), desc: "Large trade ($10k = 100% of reserve)" },
-        { amount: parseUnits("50000", 6), desc: "Huge trade ($50k = 500% of reserve)" },
+        { amount: parseUnits("3000", 6), desc: "Large trade ($3k = 30% of reserve)" },
+        { amount: parseUnits("5000", 6), desc: "Huge trade ($5k = 50% of reserve, at max limit)" },
       ];
 
       console.log("\n      Gas Consumption Analysis:");
@@ -339,7 +341,7 @@ describe("Phase 2: Power Function Security Analysis", function () {
       const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
 
       // First, let someone buy a lot to increase supply significantly
-      const massiveBuy = parseUnits("9000", 6); // Buy with $9k (90% of reserve)
+      const massiveBuy = parseUnits("5000", 6); // Buy with $5k (50% of reserve - at max limit)
       await hokusaiAMM.connect(attacker).buy(massiveBuy, 0, attacker.address, deadline);
 
       // Now reserve is low, supply is high
@@ -435,9 +437,9 @@ describe("Phase 2: Power Function Security Analysis", function () {
       const normalReceipt = await normalTx.wait();
       const normalGas = normalReceipt.gasUsed;
 
-      // Extreme trade (500% of reserve)
+      // Extreme trade (50% of reserve - at max limit)
       const extremeTx = await hokusaiAMM.connect(attacker).buy(
-        parseUnits("50000", 6),
+        parseUnits("5000", 6),
         0,
         attacker.address,
         deadline + 300

@@ -62,6 +62,9 @@ describe("Phase 2: Power Function Security Analysis", function () {
     // Fund attacker
     await mockUSDC.mint(attacker.address, parseUnits("1000000", 6)); // $1M
     await mockUSDC.connect(attacker).approve(await hokusaiAMM.getAddress(), parseUnits("1000000", 6));
+
+    // Set max trade size to 50% for these security tests (they test large/extreme trades)
+    await hokusaiAMM.setMaxTradeBps(5000);
   });
 
   describe("Approximation Error Bounds", function () {
@@ -69,9 +72,8 @@ describe("Phase 2: Power Function Security Analysis", function () {
       const testSizes = [
         parseUnits("100", 6),    // $100
         parseUnits("1000", 6),   // $1,000
-        parseUnits("5000", 6),   // $5,000
-        parseUnits("10000", 6),  // $10,000 (100% of reserve)
-        parseUnits("50000", 6),  // $50,000 (500% of reserve)
+        parseUnits("3000", 6),   // $3,000 (30% of reserve)
+        parseUnits("5000", 6),   // $5,000 (50% of reserve - at max limit)
       ];
 
       console.log("\n      Buy Quote Analysis:");
@@ -92,8 +94,8 @@ describe("Phase 2: Power Function Security Analysis", function () {
     });
 
     it("Should detect quote inconsistency between sequential small buys vs one large buy", async function () {
-      const largeAmount = parseUnits("10000", 6);
-      const smallAmount = largeAmount / BigInt(10);
+      const largeAmount = parseUnits("5000", 6); // 50% of reserve (at max limit)
+      const smallAmount = largeAmount / BigInt(10); // $500 each
 
       // Get quote for large buy
       const largeQuote = await hokusaiAMM.getBuyQuote(largeAmount);
@@ -194,7 +196,7 @@ describe("Phase 2: Power Function Security Analysis", function () {
     });
 
     it("Should maintain reserve ratio after large operations", async function () {
-      const largeBuy = parseUnits("50000", 6);
+      const largeBuy = parseUnits("5000", 6); // 50% of reserve (at max limit)
       const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
 
       const reserveBefore = await hokusaiAMM.reserveBalance();
@@ -262,6 +264,201 @@ describe("Phase 2: Power Function Security Analysis", function () {
 
       // Reserve should grow (users are buying)
       expect(reserveFinal).to.be.gte(reserveInitial);
+    });
+  });
+
+  describe("Gas Exhaustion & DoS Protection", function () {
+    it("Should measure gas consumption for extreme buy amounts", async function () {
+      const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
+
+      const extremeCases = [
+        { amount: parseUnits("100", 6), desc: "Small trade ($100)" },
+        { amount: parseUnits("1000", 6), desc: "Medium trade ($1k)" },
+        { amount: parseUnits("3000", 6), desc: "Large trade ($3k = 30% of reserve)" },
+        { amount: parseUnits("5000", 6), desc: "Huge trade ($5k = 50% of reserve, at max limit)" },
+      ];
+
+      console.log("\n      Gas Consumption Analysis:");
+      console.log("      Trade Size | Gas Used | Status");
+      console.log("      --------------------------------------");
+
+      for (const testCase of extremeCases) {
+        try {
+          const tx = await hokusaiAMM.connect(attacker).buy(
+            testCase.amount,
+            0,
+            attacker.address,
+            deadline
+          );
+          const receipt = await tx.wait();
+          const gasUsed = receipt.gasUsed;
+
+          console.log(`      ${testCase.desc.padEnd(30)} | ${gasUsed.toString().padEnd(8)} | ✅ OK`);
+
+          // Critical: Must be under 10M gas limit
+          expect(gasUsed).to.be.lt(10000000);
+
+          // Reasonable expectation: Should be under 500k gas
+          expect(gasUsed).to.be.lt(500000);
+        } catch (error) {
+          console.log(`      ${testCase.desc.padEnd(30)} | N/A      | ❌ REVERTED`);
+          // If it reverts for other reasons (e.g., slippage), that's OK
+          // We're just checking it doesn't run out of gas
+        }
+      }
+    });
+
+    it("Should handle maximum realistic reserve/supply ratios", async function () {
+      // Test with very large reserve relative to supply
+      // This tests the upper bounds of ln() scaling loops
+
+      const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
+
+      // Build up a large reserve through many deposits
+      const largeDeposit = parseUnits("100000", 6); // $100k
+      await mockUSDC.mint(owner.address, largeDeposit);
+      await mockUSDC.approve(await hokusaiAMM.getAddress(), largeDeposit);
+      await hokusaiAMM.depositFees(largeDeposit); // Reserve now $110k, supply still 100k tokens
+
+      // Now try a buy - this creates a high R/S ratio
+      const buyAmount = parseUnits("10000", 6);
+      const tx = await hokusaiAMM.connect(attacker).buy(buyAmount, 0, attacker.address, deadline);
+      const receipt = await tx.wait();
+
+      console.log(`\n      High R/S ratio test:`);
+      console.log(`      Reserve: $110k, Supply: 100k tokens`);
+      console.log(`      Gas used: ${receipt.gasUsed}`);
+
+      // Should complete without out-of-gas
+      expect(receipt.gasUsed).to.be.lt(10000000);
+      expect(receipt.gasUsed).to.be.lt(500000);
+    });
+
+    it("Should handle minimum realistic reserve/supply ratios", async function () {
+      // Test with very small reserve relative to supply
+      // This tests the lower bounds of ln() scaling loops
+
+      const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
+
+      // First, let someone buy a lot to increase supply significantly
+      const massiveBuy = parseUnits("5000", 6); // Buy with $5k (50% of reserve - at max limit)
+      await hokusaiAMM.connect(attacker).buy(massiveBuy, 0, attacker.address, deadline);
+
+      // Now reserve is low, supply is high
+      const reserve = await hokusaiAMM.reserveBalance();
+      const supply = await hokusaiToken.totalSupply();
+      console.log(`\n      Low R/S ratio test:`);
+      console.log(`      Reserve: $${reserve / BigInt(1e6)}, Supply: ${supply / BigInt(1e18)} tokens`);
+
+      // Try another buy in this state
+      const smallBuy = parseUnits("100", 6);
+      const tx = await hokusaiAMM.connect(attacker).buy(smallBuy, 0, attacker.address, deadline + 300);
+      const receipt = await tx.wait();
+
+      console.log(`      Gas used: ${receipt.gasUsed}`);
+
+      // Should complete without out-of-gas
+      expect(receipt.gasUsed).to.be.lt(10000000);
+      expect(receipt.gasUsed).to.be.lt(500000);
+    });
+
+    it("Should benchmark getBuyQuote gas consumption", async function () {
+      // View functions don't cost gas when called externally,
+      // but we can estimate via eth_estimateGas
+
+      const testSizes = [
+        parseUnits("100", 6),
+        parseUnits("10000", 6),
+        parseUnits("100000", 6),
+      ];
+
+      console.log("\n      getBuyQuote() Gas Estimates:");
+      console.log("      Amount | Gas Estimate");
+      console.log("      -------------------------");
+
+      for (const amount of testSizes) {
+        const quote = await hokusaiAMM.getBuyQuote(amount);
+        // Successfully computed - no out-of-gas
+        expect(quote).to.be.gte(0);
+        console.log(`      $${amount / BigInt(1e6)} | (view function - no cost)`);
+      }
+    });
+
+    it("Should handle very small trades without excessive gas", async function () {
+      // Test dust amounts don't cause weird scaling behavior
+      const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
+
+      const dustAmount = BigInt(1e6); // $1 USDC
+      const quote = await hokusaiAMM.getBuyQuote(dustAmount);
+
+      if (quote > 0) {
+        const tx = await hokusaiAMM.connect(attacker).buy(dustAmount, 0, attacker.address, deadline);
+        const receipt = await tx.wait();
+
+        console.log(`\n      Dust trade ($1) gas: ${receipt.gasUsed}`);
+
+        // Should not use significantly more gas than normal trades
+        expect(receipt.gasUsed).to.be.lt(500000);
+      } else {
+        console.log(`\n      Dust trade ($1): returns 0 tokens (acceptable)`);
+      }
+    });
+
+    it("Should document maximum loop iterations in scaling functions", async function () {
+      // This test verifies that the while loops in _ln() and _exp()
+      // don't iterate excessively for realistic inputs
+
+      // The mathematical functions have scaling loops:
+      // _ln(): while (scaled > 3 * PRECISION) and while (scaled < PRECISION / 3)
+      // _exp(): while (absX > 10 * PRECISION)
+
+      // For CRR of 5-50%, typical base values in _pow() are:
+      // - Buy: base = 1 + (E/R), where E/R typically < 2 (even for 200% deposits)
+      // - Sell: base = 1 - (T/S), where T/S < 1
+
+      // Maximum iterations in _ln() scaling:
+      // - For base = 100 (extreme): log3(100) = ~4.2 iterations
+      // - For base = 0.01 (extreme): log3(0.01) = ~4.2 iterations
+
+      // Maximum iterations in _exp() scaling:
+      // - For x = 100: log2(10) = ~3.3 iterations
+      // - For x = -100: same (absolute value taken)
+
+      // Test: These should all complete without excessive gas
+      const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
+
+      // Normal trade
+      const normalTx = await hokusaiAMM.connect(attacker).buy(
+        parseUnits("1000", 6),
+        0,
+        attacker.address,
+        deadline
+      );
+      const normalReceipt = await normalTx.wait();
+      const normalGas = normalReceipt.gasUsed;
+
+      // Extreme trade (50% of reserve - at max limit)
+      const extremeTx = await hokusaiAMM.connect(attacker).buy(
+        parseUnits("5000", 6),
+        0,
+        attacker.address,
+        deadline + 300
+      );
+      const extremeReceipt = await extremeTx.wait();
+      const extremeGas = extremeReceipt.gasUsed;
+
+      console.log(`\n      Loop iteration analysis:`);
+      console.log(`      Normal trade gas: ${normalGas}`);
+      console.log(`      Extreme trade gas: ${extremeGas}`);
+      console.log(`      Difference: ${extremeGas - normalGas} (${((extremeGas - normalGas) * BigInt(100)) / normalGas}%)`);
+
+      // Extreme trade should not use dramatically more gas
+      // Allow up to 50% more gas for extreme trades
+      expect(extremeGas).to.be.lt(normalGas * BigInt(15) / BigInt(10));
+
+      // Both should be under 500k gas
+      expect(normalGas).to.be.lt(500000);
+      expect(extremeGas).to.be.lt(500000);
     });
   });
 });

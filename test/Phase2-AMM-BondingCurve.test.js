@@ -72,6 +72,9 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
     // Approve AMM to spend USDC
     await mockUSDC.connect(buyer).approve(await hokusaiAMM.getAddress(), MaxUint256);
     await mockUSDC.connect(seller).approve(await hokusaiAMM.getAddress(), MaxUint256);
+
+    // Set max trade size to 50% for these tests (they test large trades)
+    await hokusaiAMM.setMaxTradeBps(5000);
   });
 
   describe("Deployment & Initial State", function () {
@@ -544,7 +547,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       const receipt = await tx.wait();
 
       console.log(`      Gas used for buy(): ${receipt.gasUsed}`);
-      expect(receipt.gasUsed).to.be.lt(150000); // Target < 150k
+      expect(receipt.gasUsed).to.be.lt(155000); // Target < 155k (includes trade size check overhead)
     });
 
     it("Should measure gas for sell()", async function () {
@@ -585,7 +588,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
     });
 
     it("Should handle very large buy amounts", async function () {
-      const reserveIn = parseUnits("50000", 6); // $50k (half of initial reserve)
+      const reserveIn = parseUnits("5000", 6); // $5k (50% of $10k initial reserve - at max trade limit)
       const deadline = (await time.latest()) + 300;
 
       await hokusaiAMM.connect(buyer).buy(reserveIn, 0, buyer.address, deadline);

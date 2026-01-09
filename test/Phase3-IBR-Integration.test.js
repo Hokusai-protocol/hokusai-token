@@ -99,6 +99,9 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
         // Approve AMM to spend buyers' USDC
         await mockUSDC.connect(buyer1).approve(await hokusaiAMM.getAddress(), parseUnits("100000", 6));
         await mockUSDC.connect(buyer2).approve(await hokusaiAMM.getAddress(), parseUnits("100000", 6));
+
+        // Set max trade size to 50% for these integration tests (they test large trades)
+        await hokusaiAMM.setMaxTradeBps(5000);
     });
 
     // ============================================================
@@ -290,8 +293,8 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
         it("Should raise spot price as reserve grows during IBR", async function () {
             const spotPriceBefore = await hokusaiAMM.spotPrice();
 
-            // Large buy increases reserve
-            const depositAmount = parseUnits("50000", 6); // $50k
+            // Large buy increases reserve (50% of $10k reserve - at max limit)
+            const depositAmount = parseUnits("5000", 6); // $5k
             const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
             await hokusaiAMM.connect(buyer1).buy(depositAmount, 0, buyer1.address, deadline);
 
@@ -386,9 +389,9 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
         it("Should handle complete IBR lifecycle: multiple buys → wait → sell", async function () {
             const deadline1 = (await ethers.provider.getBlock('latest')).timestamp + 300;
 
-            // Phase 1: Multiple buys during IBR
-            await hokusaiAMM.connect(buyer1).buy(parseUnits("10000", 6), 0, buyer1.address, deadline1);
-            await hokusaiAMM.connect(buyer2).buy(parseUnits("5000", 6), 0, buyer2.address, deadline1);
+            // Phase 1: Multiple buys during IBR (within 50% trade limit)
+            await hokusaiAMM.connect(buyer1).buy(parseUnits("5000", 6), 0, buyer1.address, deadline1);
+            await hokusaiAMM.connect(buyer2).buy(parseUnits("3000", 6), 0, buyer2.address, deadline1);
 
             const buyer1Tokens = await hokusaiToken.balanceOf(buyer1.address);
             const buyer2Tokens = await hokusaiToken.balanceOf(buyer2.address);
@@ -460,8 +463,8 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             const initialReserve = await hokusaiAMM.reserveBalance();
             const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
 
-            // Buy
-            const buyAmount = parseUnits("10000", 6);
+            // Buy (within 50% trade limit)
+            const buyAmount = parseUnits("5000", 6);
             await hokusaiAMM.connect(buyer1).buy(buyAmount, 0, buyer1.address, deadline);
 
             const reserveAfterBuy = await hokusaiAMM.reserveBalance();

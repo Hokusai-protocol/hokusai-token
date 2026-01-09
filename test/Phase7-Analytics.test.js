@@ -120,7 +120,8 @@ describe("Phase 7: Analytics & View Functions", function () {
             const [, , priceBefore] = await hokusaiAMM.getPoolState();
 
             const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
-            await hokusaiAMM.connect(buyer1).buy(parseUnits("10000", 6), 0, buyer1.address, deadline);
+            // Buy within 20% limit: $2000 (20% of $10k reserve)
+            await hokusaiAMM.connect(buyer1).buy(parseUnits("2000", 6), 0, buyer1.address, deadline);
 
             const [, , priceAfter] = await hokusaiAMM.getPoolState();
             expect(priceAfter).to.be.gt(priceBefore);
@@ -436,9 +437,9 @@ describe("Phase 7: Analytics & View Functions", function () {
             // Initial state
             const [reserve1, supply1, price1] = await hokusaiAMM.getPoolState();
 
-            // Execute buy
+            // Execute buy (within 20% limit: $2000 of $10k reserve)
             const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
-            await hokusaiAMM.connect(buyer1).buy(parseUnits("5000", 6), 0, buyer1.address, deadline);
+            await hokusaiAMM.connect(buyer1).buy(parseUnits("2000", 6), 0, buyer1.address, deadline);
 
             // State after buy
             const [reserve2, supply2, price2] = await hokusaiAMM.getPoolState();

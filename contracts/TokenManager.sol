@@ -189,6 +189,23 @@ contract TokenManager is Ownable, AccessControl {
     }
 
     /**
+     * @dev Authorizes an AMM contract to mint and burn tokens
+     * @param amm The AMM contract address to authorize
+     */
+    function authorizeAMM(address amm) external onlyOwner {
+        require(amm != address(0), "Invalid AMM address");
+        grantRole(MINTER_ROLE, amm);
+    }
+
+    /**
+     * @dev Revokes AMM authorization
+     * @param amm The AMM contract address to revoke
+     */
+    function revokeAMM(address amm) external onlyOwner {
+        revokeRole(MINTER_ROLE, amm);
+    }
+
+    /**
      * @dev Mints tokens for a specific model to a recipient
      * @param modelId The model identifier
      * @param recipient The address to receive the tokens
@@ -257,11 +274,15 @@ contract TokenManager is Ownable, AccessControl {
      * @param modelId The model identifier
      * @param account The address to burn tokens from
      * @param amount The amount of tokens to burn
+     * Note: Can be called by owner, MINTER_ROLE holders (e.g., AMM contracts), or deltaVerifier
      */
     function burnTokens(string memory modelId, address account, uint256 amount)
         external
-        onlyOwner
     {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to burn"
+        );
         require(bytes(modelId).length > 0, "Model ID cannot be empty");
         require(account != address(0), "Account cannot be zero address");
         require(amount > 0, "Amount must be greater than zero");

@@ -19,9 +19,17 @@ contract ModelRegistry is Ownable {
     mapping(address => uint256) public tokenToModel;
     uint256 public nextModelId = 1;
 
+    // New: String-based model registry for AMM integration
+    mapping(string => ModelInfo) public modelsByString;
+    mapping(string => bool) public isStringModelRegistered;
+    mapping(address => string) public tokenToStringModel;
+    mapping(string => address) public modelPools;
+
     event ModelRegistered(uint256 indexed modelId, address indexed tokenAddress, string performanceMetric);
     event ModelUpdated(uint256 indexed modelId, address indexed newTokenAddress);
     event MetricUpdated(uint256 indexed modelId, string newMetric);
+    event StringModelRegistered(string indexed modelId, address indexed tokenAddress, string performanceMetric);
+    event PoolRegistered(string indexed modelId, address indexed poolAddress);
 
     constructor() Ownable() {}
 
@@ -182,5 +190,99 @@ contract ModelRegistry is Ownable {
      */
     function exists(uint256 modelId) external view returns (bool) {
         return isModelRegistered[modelId];
+    }
+
+    // ============================================================
+    // STRING-BASED MODEL REGISTRY (for TokenManager integration)
+    // ============================================================
+
+    /**
+     * @dev Registers a new model with string ID
+     * @param modelId The unique string identifier for the model
+     * @param token The address of the token contract for this model
+     * @param performanceMetric The performance metric used for this model
+     */
+    function registerStringModel(string memory modelId, address token, string memory performanceMetric) external onlyOwner {
+        require(token != address(0), "Token address cannot be zero");
+        require(bytes(performanceMetric).length > 0, "Performance metric cannot be empty");
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
+        require(!isStringModelRegistered[modelId], "Model already registered");
+        require(bytes(tokenToStringModel[token]).length == 0, "Token already registered");
+
+        modelsByString[modelId] = ModelInfo({
+            tokenAddress: token,
+            performanceMetric: performanceMetric,
+            active: true
+        });
+        isStringModelRegistered[modelId] = true;
+        tokenToStringModel[token] = modelId;
+
+        emit StringModelRegistered(modelId, token, performanceMetric);
+    }
+
+    /**
+     * @dev Gets the token address for a given string model ID
+     * @param modelId The model identifier
+     * @return The token address for the model
+     */
+    function getStringToken(string memory modelId) external view returns (address) {
+        require(isStringModelRegistered[modelId], "Model not registered");
+        return modelsByString[modelId].tokenAddress;
+    }
+
+    /**
+     * @dev Gets the string model ID for a given token address (reverse lookup)
+     * @param tokenAddress The token address
+     * @return The model ID for the token
+     */
+    function getStringModelId(address tokenAddress) external view returns (string memory) {
+        require(bytes(tokenToStringModel[tokenAddress]).length > 0, "Token not registered");
+        return tokenToStringModel[tokenAddress];
+    }
+
+    /**
+     * @dev Checks if a string model is registered
+     * @param modelId The model identifier to check
+     * @return True if the model is registered, false otherwise
+     */
+    function isStringRegistered(string memory modelId) external view returns (bool) {
+        return isStringModelRegistered[modelId];
+    }
+
+    // ============================================================
+    // AMM POOL REGISTRY
+    // ============================================================
+
+    /**
+     * @dev Registers an AMM pool for a model
+     * @param modelId The string model identifier
+     * @param pool The AMM pool address
+     */
+    function registerPool(string memory modelId, address pool) external onlyOwner {
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
+        require(pool != address(0), "Pool address cannot be zero");
+        require(isStringModelRegistered[modelId], "Model not registered");
+        require(modelPools[modelId] == address(0), "Pool already exists");
+
+        modelPools[modelId] = pool;
+        emit PoolRegistered(modelId, pool);
+    }
+
+    /**
+     * @dev Gets the AMM pool address for a model
+     * @param modelId The string model identifier
+     * @return The pool address, or address(0) if no pool exists
+     */
+    function getPool(string memory modelId) external view returns (address) {
+        return modelPools[modelId];
+    }
+
+    /**
+     * @dev Checks if a model has an AMM pool
+     * @param modelId The string model identifier
+     * @return True if the model has a pool, false otherwise
+     */
+    function hasPool(string memory modelId) external view returns (bool) {
+        return modelPools[modelId] != address(0);
     }
 }

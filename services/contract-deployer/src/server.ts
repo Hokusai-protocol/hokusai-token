@@ -15,10 +15,13 @@ import { DeploymentProcessor } from './services/deployment-processor';
 import { ContractDeployer } from './blockchain/contract-deployer';
 import { deploymentRouter } from './routes/deployments';
 import { healthRouter } from './routes/health';
+import { monitoringRouter } from './routes/monitoring';
 import { errorHandler } from './middleware/error-handler';
 import { rateLimiter } from './middleware/rate-limiter';
 import { createLogger } from './utils/logger';
 import { validateEnv, type Config } from './config/env.validation';
+import { AMMMonitor } from './monitoring/amm-monitor';
+import { createMonitoringConfig } from './config/monitoring-config';
 
 // Load environment variables
 dotenv.config();
@@ -145,6 +148,25 @@ async function createServer(): Promise<express.Application> {
     console.log('[STARTUP] Skipping deployment service initialization (no queue)');
   }
 
+  // Initialize AMM monitoring (optional)
+  let ammMonitor: AMMMonitor | null = null;
+  if (process.env.MONITORING_ENABLED === 'true') {
+    try {
+      console.log('[STARTUP] Initializing AMM monitoring...');
+      const monitoringConfig = createMonitoringConfig();
+      ammMonitor = new AMMMonitor(monitoringConfig);
+      await ammMonitor.start();
+      console.log('[STARTUP] AMM monitoring started successfully');
+      logger.info('AMM monitoring initialized and started');
+    } catch (error) {
+      console.error('[STARTUP] Failed to initialize AMM monitoring:', error);
+      logger.warn('AMM monitoring disabled due to initialization error', { error });
+      ammMonitor = null;
+    }
+  } else {
+    console.log('[STARTUP] AMM monitoring disabled (MONITORING_ENABLED != true)');
+  }
+
   // Create Express app
   const app = express();
 
@@ -194,6 +216,22 @@ async function createServer(): Promise<express.Application> {
   
   app.use('/health', healthRouter);
 
+  // Monitoring routes (only if monitoring is enabled)
+  if (ammMonitor) {
+    app.use('/api/monitoring', monitoringRouter(ammMonitor));
+  } else {
+    app.use('/api/monitoring', (_req, res) => {
+      res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'AMM monitoring is not enabled',
+          timestamp: new Date().toISOString()
+        }
+      });
+    });
+  }
+
   // Default route
   app.get('/', (_req, res) => {
     res.json({
@@ -203,6 +241,7 @@ async function createServer(): Promise<express.Application> {
       timestamp: new Date().toISOString(),
       endpoints: {
         deployments: '/api/deployments',
+        monitoring: '/api/monitoring',
         health: '/health'
       }
     });
@@ -230,12 +269,12 @@ async function startServer(): Promise<void> {
   console.log('[STARTUP] startServer() called');
   try {
     console.log('[STARTUP] Getting config...');
-    const config: Config = await validateEnv();
+    const serverConfig: Config = await validateEnv();
     console.log('[STARTUP] Creating server application...');
     const app = await createServer();
     console.log('[STARTUP] Server application created');
-    
-    const port = config.PORT;
+
+    const port = serverConfig.PORT;
     const host = '0.0.0.0'; // Bind to all network interfaces for container accessibility
     console.log('[STARTUP] Port from config:', port);
     console.log('[STARTUP] Binding to:', host);
@@ -250,16 +289,37 @@ async function startServer(): Promise<void> {
       logger.info(`Health checks available at http://${host}:${port}/health`);
     });
 
+    // Store monitor reference for shutdown
+    let monitorRef: AMMMonitor | null = null;
+    if (process.env.MONITORING_ENABLED === 'true') {
+      try {
+        const monitoringConfig = createMonitoringConfig();
+        monitorRef = new AMMMonitor(monitoringConfig);
+      } catch (error) {
+        logger.warn('Could not initialize monitor for graceful shutdown', { error });
+      }
+    }
+
     // Graceful shutdown
     const gracefulShutdown = async (signal: string) => {
       logger.info(`Received ${signal}, starting graceful shutdown...`);
-      
+
       server.close(() => {
         logger.info('HTTP server closed');
       });
 
+      // Stop AMM monitoring
+      if (monitorRef) {
+        try {
+          await monitorRef.stop();
+          logger.info('AMM monitoring stopped');
+        } catch (error) {
+          logger.warn('Error stopping AMM monitoring', { error });
+        }
+      }
+
       // TODO: Stop deployment processor and clean up services
-      
+
       logger.info('Graceful shutdown completed');
       process.exit(0);
     };

@@ -4,19 +4,95 @@
 
 This guide provides step-by-step instructions for deploying the Hokusai Contract Deployer API service to AWS ECS. The service will be accessible at `https://contracts.hokus.ai`.
 
+**The service now includes two main functions:**
+1. **Contract Deployment** - Original queue-based contract deployment functionality
+2. **AMM Monitoring** - Real-time monitoring of Hokusai AMM pools on mainnet (Phase 1 complete)
+
 ## Architecture
 
+### Deployment Architecture
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Route 53  │────▶│     ALB     │────▶│  ECS Tasks  │
-│ contracts.  │     │   Port 443  │     │  Port 8002  │
-│  hokus.ai   │     └─────────────┘     └─────────────┘
-└─────────────┘              │                   │
-                             │                   ▼
-                             │           ┌─────────────┐
-                             └──────────▶│   Target    │
-                                        │   Group     │
-                                        └─────────────┘
+┌─────────────┐     ┌─────────────┐     ┌─────────────────────────────┐
+│   Route 53  │────▶│     ALB     │────▶│      ECS Tasks              │
+│ contracts.  │     │   Port 443  │     │      Port 8002              │
+│  hokus.ai   │     └─────────────┘     │                             │
+└─────────────┘              │          │  ┌─────────────────────┐    │
+                             │          │  │ Express API Server  │    │
+                             │          │  │   (server.ts)       │    │
+                             ▼          │  └─────────────────────┘    │
+                     ┌─────────────┐    │           │                 │
+                     │   Target    │    │           ├─ Contract       │
+                     │   Group     │    │           │  Deployment     │
+                     └─────────────┘    │           │  (Redis Queue)  │
+                                        │           │                 │
+                                        │           └─ AMM Monitoring │
+                                        │              (Phase 1)      │
+                                        └─────────────────────────────┘
+                                                      │
+                                        ┌─────────────┴──────────────┐
+                                        ▼                            ▼
+                                ┌──────────────┐           ┌──────────────┐
+                                │    Redis     │           │  Ethereum    │
+                                │ (ElastiCache)│           │ Mainnet RPC  │
+                                └──────────────┘           │   (Alchemy)  │
+                                                           └──────────────┘
+```
+
+### Service Components Architecture
+```
+┌────────────────────────────────────────────────────────────────┐
+│                   Contract Deployer Service                     │
+│                      (Node.js/Express)                          │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │              Express API Server (Port 8002)              │   │
+│  │  ┌──────────────────┐    ┌──────────────────┐           │   │
+│  │  │  /api/deployments│    │  /health/*       │           │   │
+│  │  │  (Original API)  │    │  (Health Checks) │           │   │
+│  │  └──────────────────┘    └──────────────────┘           │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │         Contract Deployment (Original Function)          │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │   │
+│  │  │ Queue Worker │→ │   Deployer   │→ │ Registry     │   │   │
+│  │  │ (Redis-based)│  │   (ethers.js)│  │ Integration  │   │   │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │         AMM Monitoring (New - Phase 1 Complete)          │   │
+│  │                                                           │   │
+│  │  ┌──────────────────┐  ┌──────────────────┐             │   │
+│  │  │  Pool Discovery  │  │  State Tracker   │             │   │
+│  │  │  (Auto-detect    │  │  (12s polling)   │             │   │
+│  │  │   new pools)     │  │                  │             │   │
+│  │  └──────────────────┘  └──────────────────┘             │   │
+│  │                                                           │   │
+│  │  ┌──────────────────┐  ┌──────────────────┐             │   │
+│  │  │  Event Listener  │  │ Metrics Collector│             │   │
+│  │  │  (Buy/Sell/      │  │ (Volume, TVL,    │             │   │
+│  │  │   Security)      │  │  Fees, Trades)   │             │   │
+│  │  └──────────────────┘  └──────────────────┘             │   │
+│  │                                                           │   │
+│  │  ┌──────────────────────────────────────────────────┐    │   │
+│  │  │          AMMMonitor (Orchestrator)               │    │   │
+│  │  │  - Coordinates all components                    │    │   │
+│  │  │  - Alert aggregation                             │    │   │
+│  │  │  - Provider failover (Alchemy → Backup)          │    │   │
+│  │  │  - Metrics API                                   │    │   │
+│  │  └──────────────────────────────────────────────────┘    │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                  Shared Infrastructure                   │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │   │
+│  │  │    Logger    │  │  AWS SDK     │  │  ethers.js   │   │   │
+│  │  │   (Winston)  │  │  (SES, CW)   │  │  (Provider)  │   │   │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ## Prerequisites
@@ -48,6 +124,7 @@ export AWS_PROFILE=hokusai-production
 
 All sensitive configuration values must be stored in AWS Systems Manager Parameter Store:
 
+#### Contract Deployment Parameters (Original)
 ```bash
 # Set Redis connection string
 aws ssm put-parameter \
@@ -98,6 +175,56 @@ aws ssm put-parameter \
   --overwrite
 ```
 
+#### AMM Monitoring Parameters (New - Phase 1)
+```bash
+# Mainnet RPC endpoints (Alchemy)
+aws ssm put-parameter \
+  --name "/hokusai/development/monitoring/mainnet_rpc_url" \
+  --value "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY" \
+  --type "SecureString" \
+  --overwrite
+
+aws ssm put-parameter \
+  --name "/hokusai/development/monitoring/backup_rpc_url" \
+  --value "https://mainnet.infura.io/v3/YOUR_INFURA_KEY" \
+  --type "SecureString" \
+  --overwrite
+
+# Alert email (AWS SES)
+aws ssm put-parameter \
+  --name "/hokusai/development/monitoring/alert_email" \
+  --value "me@timogilvie.com" \
+  --type "String" \
+  --overwrite
+
+# Monitoring toggles
+aws ssm put-parameter \
+  --name "/hokusai/development/monitoring/enabled" \
+  --value "true" \
+  --type "String" \
+  --overwrite
+
+# Alert thresholds (optional - defaults in code)
+aws ssm put-parameter \
+  --name "/hokusai/development/monitoring/alert_large_trade_usd" \
+  --value "10000" \
+  --type "String" \
+  --overwrite
+
+aws ssm put-parameter \
+  --name "/hokusai/development/monitoring/alert_reserve_drop_pct" \
+  --value "20" \
+  --type "String" \
+  --overwrite
+
+# CloudWatch configuration
+aws ssm put-parameter \
+  --name "/hokusai/development/monitoring/cloudwatch_namespace" \
+  --value "Hokusai/AMM" \
+  --type "String" \
+  --overwrite
+```
+
 ### 2. Create IAM Roles
 
 Create the task execution role:
@@ -145,23 +272,104 @@ aws iam create-role \
     }]
   }'
 
-# Add CloudWatch permissions
+# Add CloudWatch and SES permissions
 aws iam put-role-policy \
   --role-name hokusai-contracts-task-role \
-  --policy-name CloudWatchLogs \
+  --policy-name MonitoringPermissions \
   --policy-document '{
     "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "cloudwatch:PutMetricData"
-      ],
-      "Resource": "*"
-    }]
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "cloudwatch:PutMetricData"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "ses:SendEmail",
+          "ses:SendRawEmail"
+        ],
+        "Resource": "*",
+        "Condition": {
+          "StringEquals": {
+            "ses:FromAddress": "alerts@hokus.ai"
+          }
+        }
+      }
+    ]
   }'
+```
+
+## How AMM Monitoring Integrates
+
+The AMM monitoring system runs **within the same Node.js process** as the contract deployment service. This unified architecture provides:
+
+### Benefits
+- ✅ **Shared Infrastructure**: Uses existing Redis, AWS SDK, logging, and health checks
+- ✅ **Single Deployment**: One Docker image, one ECS service, one set of credentials
+- ✅ **Resource Efficiency**: No separate service to manage or pay for
+- ✅ **Unified Monitoring**: CloudWatch metrics and logs in one place
+
+### How It Works
+1. **Startup**: When the Express server starts, it optionally initializes the AMMMonitor
+2. **Configuration**: Reads `MONITORING_ENABLED` from environment variables
+3. **Orchestration**: AMMMonitor runs in the background, parallel to the API server
+4. **Alerts**: Triggers are sent via AWS SES (email) and logged to CloudWatch
+5. **Metrics**: Exposed via REST API endpoints on the same Express server
+
+### Deployment Artifact Integration
+The monitoring system automatically loads contract addresses from:
+```
+/deployments/mainnet-latest.json
+```
+
+This file is created by `scripts/deploy-mainnet.js` and contains:
+- All contract addresses (ModelRegistry, TokenManager, HokusaiAMMFactory, etc.)
+- Initial pool configurations (Conservative, Aggressive, Balanced)
+- Network and deployment metadata
+
+**No manual configuration needed** - just deploy contracts, then enable monitoring.
+
+### Environment Variable Control
+```bash
+# Master toggle
+MONITORING_ENABLED=true              # Set to false to disable all monitoring
+
+# Individual components
+POOL_DISCOVERY_ENABLED=true          # Auto-discover new pools
+EVENT_LISTENERS_ENABLED=true         # Listen for Buy/Sell events
+STATE_POLLING_ENABLED=true           # Poll pool state every 12s
+ALERTS_ENABLED=true                  # Send email alerts
+
+# Network selection
+NETWORK=mainnet                      # Load from mainnet-latest.json
+```
+
+### Monitoring Lifecycle
+```
+┌──────────────────────────────────────────────────────────┐
+│  Express Server Starts (server.ts)                       │
+└────────────────┬─────────────────────────────────────────┘
+                 │
+                 ├─► Initialize Health Checks (existing)
+                 ├─► Initialize Queue Worker (existing)
+                 │
+                 └─► Initialize AMMMonitor (new)
+                      │
+                      ├─► Load deployment artifact
+                      ├─► Connect to Alchemy RPC
+                      ├─► Start Pool Discovery
+                      ├─► Start State Tracker (12s polls)
+                      └─► Start Event Listener (Buy/Sell)
+                           │
+                           └─► Alerts sent via AWS SES
+                           └─► Metrics exposed on /api/monitoring/*
 ```
 
 ## Deployment Process
@@ -417,11 +625,21 @@ For issues or questions:
 See `.env.production` for complete list of configuration options.
 
 ### API Endpoints
-- `GET /health` - Basic health check
-- `GET /health/ready` - Readiness check
-- `GET /health/detailed` - Detailed health status
+
+#### Original Contract Deployment API
 - `POST /api/deployments` - Create deployment
 - `GET /api/deployments/:id/status` - Check deployment status
+
+#### Health Checks (Enhanced with AMM Monitoring)
+- `GET /health` - Basic health check
+- `GET /health/ready` - Readiness check
+- `GET /health/detailed` - Detailed health status (includes AMM monitoring status)
+
+#### AMM Monitoring API (New - Phase 1)
+- `GET /api/monitoring/metrics` - Get current metrics for all pools
+- `GET /api/monitoring/pools` - List discovered pools
+- `GET /api/monitoring/pools/:poolAddress/state` - Get current state for specific pool
+- `GET /api/monitoring/alerts/recent` - Get recent alerts (last 24h)
 
 ### Useful Commands
 ```bash

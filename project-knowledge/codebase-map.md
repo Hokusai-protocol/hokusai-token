@@ -1,15 +1,18 @@
 # Codebase Knowledge Map
-_Last updated: 2026-01-07_
+_Last updated: 2026-01-15_
 
 ## Components & Services
 
 ### Smart Contracts
 - HokusaiToken: ERC20 with controller-based mint/burn, dynamic name/symbol constructor [details: features/api-endpoint-contract-deploys/prd.md]
-- ModelRegistry: Maps model IDs to token addresses, provides bidirectional lookup [details: features/contract-deploy-listener/prd.md]
+- ModelRegistry: Maps model IDs to token addresses, provides bidirectional lookup, supports both uint256 and string model IDs [details: features/contract-deploy-listener/prd.md]
 - TokenManager: Exclusive controller for minting/burning operations, integrates with ModelRegistry, deploys tokens with 0.01 ETH fee [details: features/add-params-model-to-tokens/investigation.md]
 - DeltaVerifier: Calculates token rewards based on ML model performance metrics, uses baseRewardRate=1000, minImprovementBps=100, automatically records contributions in DataContributionRegistry [details: features/data-contribution-registry/plan.md]
 - HokusaiParams: Per-token governance-adjustable parameters module with tokensPerDeltaOne, infraMarkupBps, licenseRef [details: features/add-params-model-to-tokens/prd.md]
 - DataContributionRegistry: Tracks data contributions with attribution weights, supports verification workflow, provides paginated queries [details: features/data-contribution-registry/plan.md]
+- HokusaiAMM: Constant Reserve Ratio (CRR) AMM with buy/sell trading, price impact calculations, IBR period with sell restrictions, pause functionality, max trade limits [details: features/api-usage-documentation/prd.md]
+- HokusaiAMMFactory: Creates and tracks AMM pools, grants MINTER_ROLE to authorized pools, provides pool discovery and enumeration [details: features/api-usage-documentation/prd.md]
+- UsageFeeRouter: Collects API usage fees in USDC, splits between treasury and pool reserves, supports single and batch deposits with FEE_DEPOSITOR_ROLE authentication [details: features/api-usage-documentation/prd.md]
 
 ### Backend Services
 - contract-deployer (Queue Mode): Service monitoring Redis for model_ready_to_deploy events, deploys tokens automatically [details: features/contract-deploy-listener/prd.md]
@@ -113,6 +116,12 @@ _Last updated: 2026-01-07_
 - API key authentication for service operations (configurable list)
 - JWT tokens with user claims (planned for production)
 - Rate limiting per user (5/hour, 20/day)
+
+### Frontend View Functions (Phase 7 Analytics)
+- `getPoolState()`: Single-call retrieval of reserve, supply, spot price, CRR, fees [details: features/api-usage-documentation/prd.md]
+- `getTradeInfo()`: IBR status, pause state, enabling conditional UI buttons [details: features/api-usage-documentation/prd.md]
+- `calculateBuyImpact()` / `calculateSellImpact()`: Real-time price impact preview with basis points (100 = 1%) [details: features/api-usage-documentation/prd.md]
+- Decimal handling: USDC uses 6 decimals, tokens use 18 decimals [details: features/api-usage-documentation/prd.md]
 
 ## Testing Patterns
 

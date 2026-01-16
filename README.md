@@ -380,6 +380,35 @@ event RewardCalculated(
 );
 ```
 
+## Developer Documentation
+
+Comprehensive integration guides for developers:
+
+### Quick Links
+
+- **[📚 Documentation Index](docs/README.md)** - Complete documentation overview
+- **[🔧 Smart Contract Integration](docs/integration/smart-contracts.md)** - For protocol developers
+- **[⚙️ Backend Integration](docs/integration/backend-services.md)** - For server-side engineers
+- **[💻 Frontend Integration](docs/integration/frontend-development.md)** - For web developers
+- **[🐛 Troubleshooting Guide](docs/troubleshooting.md)** - Common errors and solutions
+
+### Integration Guides
+
+Choose your path:
+
+| Developer Type | Guide | Key Topics |
+|----------------|-------|------------|
+| Smart Contract | [Integration Guide](docs/integration/smart-contracts.md) | Deployment sequences, roles, parameter bounds |
+| Backend Service | [Integration Guide](docs/integration/backend-services.md) | Fee collection, ML verification, events |
+| Frontend | [Integration Guide](docs/integration/frontend-development.md) | View functions, price impact, real-time UI |
+
+### Code Examples
+
+Ready-to-use examples in [docs/examples/](docs/examples/):
+- **Solidity**: Pool deployment, token integration
+- **TypeScript**: Fee collection, event monitoring, ML verification
+- **React**: Trading interface, price impact preview, analytics dashboard
+
 ## API Documentation
 
 ### Contract Deployment API

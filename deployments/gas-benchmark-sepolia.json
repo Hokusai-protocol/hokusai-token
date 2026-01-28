@@ -1,0 +1,75 @@
+{
+  "network": "sepolia",
+  "timestamp": "2026-01-14T16:25:50.081Z",
+  "gasPrices": [
+    {
+      "label": "Low",
+      "gwei": "50"
+    },
+    {
+      "label": "Medium",
+      "gwei": "100"
+    },
+    {
+      "label": "High",
+      "gwei": "200"
+    }
+  ],
+  "benchmarks": [
+    {
+      "operation": "First buy (cold storage)",
+      "gas": "127476",
+      "type": "buy"
+    },
+    {
+      "operation": "Subsequent buys",
+      "gas": "110376",
+      "type": "buy"
+    },
+    {
+      "operation": "Average buy",
+      "gas": "111500",
+      "type": "buy"
+    },
+    {
+      "operation": "Sell transaction",
+      "gas": "143108",
+      "type": "sell"
+    },
+    {
+      "operation": "Authorize AMM pool",
+      "gas": "53151",
+      "type": "admin"
+    }
+  ],
+  "comparisons": [
+    {
+      "name": "Hokusai AMM (buy)",
+      "gas": "111500"
+    },
+    {
+      "name": "Hokusai AMM (sell)",
+      "gas": "143108"
+    },
+    {
+      "name": "Uniswap V2 (swap)",
+      "gas": "120000",
+      "note": "(typical)"
+    },
+    {
+      "name": "Uniswap V3 (swap)",
+      "gas": "180000",
+      "note": "(typical)"
+    },
+    {
+      "name": "Curve (swap)",
+      "gas": "160000",
+      "note": "(typical)"
+    },
+    {
+      "name": "Balancer V2 (swap)",
+      "gas": "140000",
+      "note": "(typical)"
+    }
+  ]
+}

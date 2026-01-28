@@ -3,13 +3,20 @@ import { logger } from '../utils/logger';
 import { PoolConfig, AlertThresholds } from '../config/monitoring-config';
 
 /**
- * State Tracker
+ * State Tracker (OPTIMIZED)
  *
- * Polls AMM pool state every 12 seconds (1 block on mainnet) and:
+ * Event-driven state tracking with fallback polling:
+ * - Updates state immediately when Buy/Sell/FeesDeposited events occur (zero polling overhead)
+ * - Fallback polling every 5 minutes (vs old 12s) to catch missed events
  * - Tracks reserve balance, spot price, token supply
  * - Detects anomalies (reserve drops, price spikes, supply mismatches)
  * - Maintains history for trend analysis
  * - Triggers alerts when thresholds exceeded
+ *
+ * RPC Optimization:
+ * - Event-driven updates: ~95% reduction in polling calls
+ * - Batched state reads: All pool state in single Promise.all
+ * - Address caching: Immutable addresses fetched once
  */
 
 export interface PoolState {
@@ -24,6 +31,11 @@ export interface PoolState {
   tokenSupply: bigint;         // Total token supply (18 decimals)
   paused: boolean;             // Emergency pause state
 
+  // Phase information
+  pricingPhase: 0 | 1;         // 0 = FLAT_PRICE, 1 = BONDING_CURVE
+  flatCurveThreshold: bigint;  // Reserve threshold for phase transition
+  flatCurvePrice: bigint;      // Fixed price during flat phase
+
   // Derived metrics
   reserveUSD: number;          // Reserve in USD (formatted)
   priceUSD: number;            // Price in USD (formatted)
@@ -37,7 +49,7 @@ export interface PoolState {
 }
 
 export interface StateAlert {
-  type: 'reserve_drop' | 'price_spike' | 'supply_mismatch' | 'paused' | 'low_reserve' | 'high_fees';
+  type: 'reserve_drop' | 'price_spike' | 'supply_anomaly' | 'true_supply_mismatch' | 'paused' | 'low_reserve' | 'high_fees';
   priority: 'critical' | 'high' | 'medium';
   poolAddress: string;
   modelId: string;
@@ -61,7 +73,18 @@ export class StateTracker {
   private maxHistoryLength: number = 300; // ~1 hour at 12s intervals
 
   private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private poolContracts: Map<string, ethers.Contract> = new Map(); // NEW: Store contracts for event cleanup
   private isTracking: boolean = false;
+
+  // Cache for immutable pool data (reduces RPC calls)
+  private tokenAddressCache: Map<string, string> = new Map(); // poolAddress -> tokenAddress
+  private usdcAddressCache: Map<string, string> = new Map();  // poolAddress -> usdcAddress
+  private flatCurveThresholdCache: Map<string, bigint> = new Map(); // poolAddress -> threshold
+  private flatCurvePriceCache: Map<string, bigint> = new Map();     // poolAddress -> flatPrice
+
+  // Statistics for suppressed alerts
+  private suppressedAlertCount: number = 0;
+  private suppressedAlertsByType: Map<string, number> = new Map();
 
   // AMM Pool ABI
   private static readonly POOL_ABI = [
@@ -70,7 +93,17 @@ export class StateTracker {
     'function hokusaiToken() view returns (address)',
     'function paused() view returns (bool)',
     'function crr() view returns (uint256)',
-    'function modelId() view returns (string)'
+    'function modelId() view returns (string)',
+    // Phase detection functions
+    'function getCurrentPhase() view returns (uint8)',
+    'function getPhaseInfo() view returns (uint8 phase, uint256 threshold, uint256 flatPrice, uint256 reserve, uint256 supply)',
+    'function FLAT_CURVE_THRESHOLD() view returns (uint256)',
+    'function FLAT_CURVE_PRICE() view returns (uint256)',
+    // Events for event-driven updates
+    'event Buy(address indexed buyer, uint256 reserveIn, uint256 tokensOut, uint256 fee, uint256 spotPrice)',
+    'event Sell(address indexed seller, uint256 tokensIn, uint256 reserveOut, uint256 fee, uint256 spotPrice)',
+    'event FeesDeposited(address indexed depositor, uint256 amount, uint256 newReserveBalance, uint256 newSpotPrice)',
+    'event PhaseTransition(uint8 indexed fromPhase, uint8 indexed toPhase, uint256 reserveBalance, uint256 timestamp)'
   ];
 
   // ERC20 Token ABI
@@ -96,6 +129,7 @@ export class StateTracker {
 
   /**
    * Start tracking a pool
+   * NEW: Event-driven updates instead of aggressive polling
    */
   async startTracking(poolConfig: PoolConfig, pollingIntervalMs: number = 12000): Promise<void> {
     const { ammAddress, modelId } = poolConfig;
@@ -105,47 +139,87 @@ export class StateTracker {
       return;
     }
 
-    logger.info(`Starting state tracking for ${modelId} (${ammAddress}), interval: ${pollingIntervalMs}ms`);
+    logger.info(`Starting state tracking for ${modelId} (${ammAddress}), mode: event-driven + periodic fallback`);
 
-    // Initial poll
+    // Initial state fetch
     await this.pollPoolState(poolConfig);
 
-    // Set up polling interval
+    // NEW: Event-driven updates - update state when events occur
+    // This replaces the aggressive 12s polling with on-demand updates
+    const pool = new ethers.Contract(ammAddress, StateTracker.POOL_ABI, this.provider);
+
+    const updateState = async () => {
+      try {
+        await this.pollPoolState(poolConfig);
+      } catch (error) {
+        logger.error(`Failed to update state for ${modelId}:`, error);
+      }
+    };
+
+    // Listen for trade events that change state
+    pool.on('Buy', updateState);
+    pool.on('Sell', updateState);
+    pool.on('FeesDeposited', updateState);
+
+    // Store listeners for cleanup
+    this.poolContracts.set(ammAddress, pool);
+
+    // Fallback: Periodic polling at much longer interval (5 minutes instead of 12s)
+    // This catches any state changes we might have missed
+    const fallbackIntervalMs = Math.max(pollingIntervalMs, 5 * 60 * 1000); // Min 5 minutes
     const interval = setInterval(async () => {
       try {
         await this.pollPoolState(poolConfig);
       } catch (error) {
         logger.error(`Failed to poll state for ${modelId}:`, error);
       }
-    }, pollingIntervalMs);
+    }, fallbackIntervalMs);
 
     this.pollingIntervals.set(ammAddress, interval);
     this.isTracking = true;
 
-    logger.info(`State tracking started for ${modelId}`);
+    logger.info(`State tracking started for ${modelId} (event-driven + ${fallbackIntervalMs}ms fallback)`);
   }
 
   /**
    * Stop tracking a pool
    */
   stopTracking(poolAddress: string): void {
+    // Stop polling interval
     const interval = this.pollingIntervals.get(poolAddress);
     if (interval) {
       clearInterval(interval);
       this.pollingIntervals.delete(poolAddress);
-      logger.info(`Stopped tracking pool ${poolAddress}`);
     }
+
+    // Clean up event listeners
+    const pool = this.poolContracts.get(poolAddress);
+    if (pool) {
+      pool.removeAllListeners();
+      this.poolContracts.delete(poolAddress);
+    }
+
+    logger.info(`Stopped tracking pool ${poolAddress}`);
   }
 
   /**
    * Stop tracking all pools
    */
   stopAllTracking(): void {
+    // Stop all polling intervals
     for (const [poolAddress, interval] of this.pollingIntervals) {
       clearInterval(interval);
       logger.info(`Stopped tracking pool ${poolAddress}`);
     }
     this.pollingIntervals.clear();
+
+    // Clean up all event listeners
+    for (const [poolAddress, pool] of this.poolContracts) {
+      pool.removeAllListeners();
+      logger.info(`Cleaned up event listeners for pool ${poolAddress}`);
+    }
+    this.poolContracts.clear();
+
     this.isTracking = false;
     logger.info('All state tracking stopped');
   }
@@ -164,22 +238,87 @@ export class StateTracker {
       // Create contract instances
       const pool = new ethers.Contract(ammAddress, StateTracker.POOL_ABI, this.provider);
 
-      // Get pool state
-      const [reserveBalance, spotPrice, tokenAddress, paused] = await Promise.all([
-        pool.reserveBalance(),
-        pool.spotPrice(),
-        pool.hokusaiToken(),
-        pool.paused()
+      // Get pool state with null checks
+      const reserveBalanceFn = pool.reserveBalance;
+      const spotPriceFn = pool.spotPrice;
+      const tokenFn = pool.hokusaiToken;
+      const pausedFn = pool.paused;
+
+      if (!reserveBalanceFn || !spotPriceFn || !tokenFn || !pausedFn) {
+        throw new Error('Pool contract methods not found');
+      }
+
+      // Get token address from cache or fetch once
+      let tokenAddress: string = this.tokenAddressCache.get(ammAddress) || '';
+      if (!tokenAddress) {
+        const fetchedAddress = await tokenFn();
+        if (!fetchedAddress) {
+          throw new Error('Token address is undefined');
+        }
+        tokenAddress = fetchedAddress;
+        this.tokenAddressCache.set(ammAddress, tokenAddress);
+        logger.debug(`Cached token address for ${modelId}: ${tokenAddress}`);
+      }
+
+      // Get USDC address from cache or fetch once (do this before state reads)
+      let usdcAddress: string = this.usdcAddressCache.get(ammAddress) || '';
+      if (!usdcAddress) {
+        const fetchedUsdcAddress = await this.getUSDCAddress(poolConfig);
+        if (!fetchedUsdcAddress) {
+          throw new Error('USDC address is undefined');
+        }
+        usdcAddress = fetchedUsdcAddress;
+        this.usdcAddressCache.set(ammAddress, usdcAddress);
+        logger.debug(`Cached USDC address for ${modelId}: ${usdcAddress}`);
+      }
+
+      // Get phase parameters from cache or fetch once
+      let flatCurveThreshold = this.flatCurveThresholdCache.get(ammAddress);
+      let flatCurvePrice = this.flatCurvePriceCache.get(ammAddress);
+
+      // Get phase detection functions with null checks
+      const getCurrentPhaseFn = pool.getCurrentPhase;
+      const getThresholdFn = pool.FLAT_CURVE_THRESHOLD;
+      const getPriceFn = pool.FLAT_CURVE_PRICE;
+
+      if (!getCurrentPhaseFn || !getThresholdFn || !getPriceFn) {
+        throw new Error('Phase detection methods not found on pool contract');
+      }
+
+      // OPTIMIZED: Batch all state reads into a single Promise.all (reduces RPC calls)
+      const token = new ethers.Contract(tokenAddress, StateTracker.TOKEN_ABI, this.provider);
+      const usdc = new ethers.Contract(usdcAddress, StateTracker.USDC_ABI, this.provider);
+
+      const totalSupplyFn = token.totalSupply;
+      const balanceOfFn = usdc.balanceOf;
+
+      if (!totalSupplyFn || !balanceOfFn) {
+        throw new Error('Token contract methods not found');
+      }
+
+      const [reserveBalance, spotPrice, paused, tokenSupply, contractUSDCBalance,
+             currentPhase, fetchedThreshold, fetchedPrice] = await Promise.all([
+        reserveBalanceFn(),
+        spotPriceFn(),
+        pausedFn(),
+        totalSupplyFn(),
+        balanceOfFn(ammAddress),
+        getCurrentPhaseFn(),
+        flatCurveThreshold ? Promise.resolve(flatCurveThreshold) : getThresholdFn(),
+        flatCurvePrice ? Promise.resolve(flatCurvePrice) : getPriceFn()
       ]);
 
-      // Get token state
-      const token = new ethers.Contract(tokenAddress, StateTracker.TOKEN_ABI, this.provider);
-      const tokenSupply = await token.totalSupply();
-
-      // Get USDC balance
-      const usdcAddress = await this.getUSDCAddress(poolConfig);
-      const usdc = new ethers.Contract(usdcAddress, StateTracker.USDC_ABI, this.provider);
-      const contractUSDCBalance = await usdc.balanceOf(ammAddress);
+      // Cache immutable phase parameters
+      if (!flatCurveThreshold) {
+        this.flatCurveThresholdCache.set(ammAddress, fetchedThreshold);
+        flatCurveThreshold = fetchedThreshold;
+        logger.debug(`Cached flat curve threshold for ${modelId}: ${ethers.formatUnits(fetchedThreshold, 6)} USDC`);
+      }
+      if (!flatCurvePrice) {
+        this.flatCurvePriceCache.set(ammAddress, fetchedPrice);
+        flatCurvePrice = fetchedPrice;
+        logger.debug(`Cached flat curve price for ${modelId}: $${ethers.formatUnits(fetchedPrice, 6)}`);
+      }
 
       // Calculate derived metrics
       const reserveUSD = Number(ethers.formatUnits(reserveBalance, 6));
@@ -197,7 +336,7 @@ export class StateTracker {
       }
 
       // Treasury fees = contract balance - tracked reserve
-      const treasuryFees = contractUSDCBalance - reserveBalance;
+      const treasuryFees = BigInt(contractUSDCBalance) - BigInt(reserveBalance);
 
       // Create state snapshot
       const state: PoolState = {
@@ -209,6 +348,9 @@ export class StateTracker {
         spotPrice,
         tokenSupply,
         paused,
+        pricingPhase: currentPhase as 0 | 1,
+        flatCurveThreshold: flatCurveThreshold!,
+        flatCurvePrice: flatCurvePrice!,
         reserveUSD,
         priceUSD,
         supplyFormatted,
@@ -263,6 +405,16 @@ export class StateTracker {
     }
 
     const alerts: StateAlert[] = [];
+    const isBootstrapPhase = currentState.pricingPhase === 0; // FLAT_PRICE
+
+    // Log phase for debugging
+    logger.debug(`Checking anomalies for ${currentState.modelId}`, {
+      phase: isBootstrapPhase ? 'FLAT_PRICE' : 'BONDING_CURVE',
+      reserveUSD: currentState.reserveUSD,
+      threshold: Number(ethers.formatUnits(currentState.flatCurveThreshold, 6))
+    });
+
+    // ALWAYS CHECK: Critical security alerts (all phases)
 
     // Check if paused
     if (currentState.paused) {
@@ -280,31 +432,54 @@ export class StateTracker {
       }
     }
 
-    // Check reserve drop
-    const reserveDropAlert = this.checkReserveDrop(currentState, history);
-    if (reserveDropAlert) alerts.push(reserveDropAlert);
-
-    // Check low reserve
-    if (currentState.reserveUSD < this.thresholds.minReserveUSD) {
-      alerts.push({
-        type: 'low_reserve',
-        priority: 'high',
-        poolAddress: currentState.poolAddress,
-        modelId: currentState.modelId,
-        message: `Reserve below minimum: $${currentState.reserveUSD.toFixed(2)} < $${this.thresholds.minReserveUSD}`,
-        currentState
-      });
+    // ALWAYS CHECK: Supply invariant (detects unauthorized minting/burning)
+    const supplyInvariantAlert = this.checkSupplyInvariant(currentState, poolConfig);
+    if (supplyInvariantAlert) {
+      alerts.push(supplyInvariantAlert);
     }
 
-    // Check price volatility
-    const priceAlert = this.checkPriceVolatility(currentState, history);
-    if (priceAlert) alerts.push(priceAlert);
+    // PHASE-AWARE: Only check percentage-based alerts in bonding curve phase
+    if (!isBootstrapPhase) {
+      logger.debug(`Running bonding curve phase alerts for ${currentState.modelId}`);
 
-    // Check supply changes
-    const supplyAlert = this.checkSupplyAnomaly(currentState, history);
-    if (supplyAlert) alerts.push(supplyAlert);
+      // Check reserve drop
+      const reserveDropAlert = this.checkReserveDrop(currentState, history);
+      if (reserveDropAlert) alerts.push(reserveDropAlert);
 
-    // Check high treasury fees
+      // Check low reserve (absolute minimum)
+      if (currentState.reserveUSD < this.thresholds.minReserveUSD && this.thresholds.minReserveUSD > 0) {
+        alerts.push({
+          type: 'low_reserve',
+          priority: 'high',
+          poolAddress: currentState.poolAddress,
+          modelId: currentState.modelId,
+          message: `Reserve below minimum: $${currentState.reserveUSD.toFixed(2)} < $${this.thresholds.minReserveUSD}`,
+          currentState
+        });
+      }
+
+      // Check price volatility
+      const priceAlert = this.checkPriceVolatility(currentState, history);
+      if (priceAlert) alerts.push(priceAlert);
+
+      // Check supply anomaly (renamed from supply_mismatch)
+      const supplyAlert = this.checkSupplyAnomaly(currentState, history);
+      if (supplyAlert) alerts.push(supplyAlert);
+    } else {
+      // Bootstrap phase: Count which alerts were suppressed
+      logger.debug(`Suppressing percentage-based alerts for ${currentState.modelId} (flat phase)`);
+
+      const potentialAlerts = ['reserve_drop', 'price_spike', 'supply_anomaly', 'low_reserve'];
+      for (const alertType of potentialAlerts) {
+        this.suppressedAlertCount++;
+        this.suppressedAlertsByType.set(
+          alertType,
+          (this.suppressedAlertsByType.get(alertType) || 0) + 1
+        );
+      }
+    }
+
+    // Check high treasury fees (all phases, but medium priority)
     const treasuryFeesUSD = Number(ethers.formatUnits(currentState.treasuryFees, 6));
     if (treasuryFeesUSD > this.thresholds.treasuryFeesThresholdUSD) {
       alerts.push({
@@ -408,7 +583,7 @@ export class StateTracker {
 
     if (changePercentage > this.thresholds.supplyChange1hPercentage) {
       return {
-        type: 'supply_mismatch',
+        type: 'supply_anomaly',
         priority: 'high',
         poolAddress: currentState.poolAddress,
         modelId: currentState.modelId,
@@ -423,6 +598,89 @@ export class StateTracker {
   }
 
   /**
+   * Check if actual supply matches expected supply based on bonding curve math
+   *
+   * This detects:
+   * - Unauthorized minting/burning outside AMM
+   * - Contract bugs that violate curve invariants
+   * - Exploits that manipulate supply/reserve relationship
+   *
+   * Approach: Validate reserve ratio matches CRR
+   * Formula: actualRatio = (reserve * 1e18) / (price * supply)
+   * Expected: actualRatio ≈ CRR (within tolerance)
+   */
+  private checkSupplyInvariant(currentState: PoolState, poolConfig: PoolConfig): StateAlert | null {
+    const { pricingPhase, reserveBalance, tokenSupply, spotPrice } = currentState;
+    const { crr } = poolConfig;
+
+    // Skip check if essential values are zero (pool not initialized yet)
+    if (reserveBalance === 0n || tokenSupply === 0n || spotPrice === 0n) {
+      return null;
+    }
+
+    // In flat phase, supply invariant is complex due to fixed pricing
+    // For MVP, only validate in bonding curve phase where math is well-defined
+    if (pricingPhase === 0) {
+      logger.debug(`Skipping supply invariant check for ${currentState.modelId} (flat phase - complex validation)`);
+      return null;
+    }
+
+    // BONDING CURVE PHASE: Validate reserve ratio
+    // The reserve ratio should match CRR: R / (P * S) = w
+    // Where w = CRR in decimal form (e.g., 0.1 for 10%)
+
+    const expectedRatio = crr / 1000000; // CRR in decimal form (ppm to decimal)
+    const actualRatio = currentState.reserveRatio; // Already calculated in PoolState
+
+    // Tolerance: 5% deviation allowed
+    // This accounts for:
+    // - Rounding in power function calculations
+    // - Small precision losses in fixed-point math
+    // - Fee accumulation edge cases
+    const tolerance = 0.05;
+
+    const deviation = Math.abs(actualRatio - expectedRatio) / expectedRatio;
+
+    if (deviation > tolerance) {
+      logger.warn(`Supply invariant violation detected for ${currentState.modelId}`, {
+        expectedRatio,
+        actualRatio,
+        deviationPercent: (deviation * 100).toFixed(2),
+        reserveUSD: currentState.reserveUSD,
+        supplyFormatted: currentState.supplyFormatted,
+        priceUSD: currentState.priceUSD
+      });
+
+      return {
+        type: 'true_supply_mismatch',
+        priority: 'critical',
+        poolAddress: currentState.poolAddress,
+        modelId: currentState.modelId,
+        message: `Supply/reserve ratio deviates from bonding curve: actual ${actualRatio.toFixed(4)} vs expected ${expectedRatio.toFixed(4)} (${(deviation * 100).toFixed(1)}% deviation). Possible unauthorized minting/burning detected.`,
+        currentState,
+        metadata: {
+          expectedRatio,
+          actualRatio,
+          deviationPercent: deviation * 100,
+          crr,
+          reserveBalance: reserveBalance.toString(),
+          tokenSupply: tokenSupply.toString(),
+          spotPrice: spotPrice.toString()
+        }
+      };
+    }
+
+    // Invariant validated
+    logger.debug(`Supply invariant OK for ${currentState.modelId}`, {
+      expectedRatio: expectedRatio.toFixed(4),
+      actualRatio: actualRatio.toFixed(4),
+      deviation: (deviation * 100).toFixed(2) + '%'
+    });
+
+    return null;
+  }
+
+  /**
    * Get paused duration in milliseconds
    */
   private getPausedDuration(poolAddress: string): number {
@@ -430,7 +688,8 @@ export class StateTracker {
 
     // Find when pool was first paused
     for (let i = history.length - 1; i >= 0; i--) {
-      if (!history[i].paused) {
+      const currentState = history[i];
+      if (currentState && !currentState.paused) {
         // Found first non-paused state, calculate duration since then
         const pausedSince = history[i + 1];
         if (pausedSince) {
@@ -440,8 +699,9 @@ export class StateTracker {
     }
 
     // If all history is paused, use oldest timestamp
-    if (history.length > 0 && history[0].paused) {
-      return Date.now() - (history[0].timestamp * 1000);
+    const firstState = history[0];
+    if (history.length > 0 && firstState && firstState.paused) {
+      return Date.now() - (firstState.timestamp * 1000);
     }
 
     return 0;
@@ -485,9 +745,26 @@ export class StateTracker {
   }
 
   /**
+   * Get overall tracking status
+   */
+  getIsTracking(): boolean {
+    return this.isTracking;
+  }
+
+  /**
    * Get number of tracked pools
    */
   getTrackedPoolCount(): number {
     return this.pollingIntervals.size;
+  }
+
+  /**
+   * Get suppressed alert statistics
+   */
+  getSuppressedAlertStats() {
+    return {
+      total: this.suppressedAlertCount,
+      byType: Object.fromEntries(this.suppressedAlertsByType)
+    };
   }
 }

@@ -18,6 +18,8 @@ RUN npm ci --only=production && \
 COPY src ./src
 COPY dist ./dist
 COPY contracts ./contracts
+COPY deployments ./deployments
+
 
 # Skip build for now - using pre-built dist
 # RUN npm run build
@@ -43,6 +45,9 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 # Copy contracts
 COPY --from=builder --chown=nodejs:nodejs /app/contracts ./contracts
 
+# Copy deployments
+COPY --from=builder --chown=nodejs:nodejs /app/deployments ./deployments
+
 # Copy package.json for reference
 COPY --chown=nodejs:nodejs package*.json ./
 
@@ -59,5 +64,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start the application (API server mode)
+# Start the application (API server by default)
+# Use dist/monitoring-server.js for monitoring service
 CMD ["node", "dist/server.js"]

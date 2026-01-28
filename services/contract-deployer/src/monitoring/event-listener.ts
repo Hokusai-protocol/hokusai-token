@@ -92,13 +92,13 @@ export class EventListener {
     'function modelId() view returns (string)'
   ];
 
-  // TokenManager ABI - Events
-  private static readonly TOKEN_MANAGER_ABI = [
-    'event TokensMinted(string indexed modelId, address indexed recipient, uint256 amount)',
-    'event TokensBurned(string indexed modelId, address indexed account, uint256 amount)',
-    'event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)',
-    'event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender)'
-  ];
+  // TokenManager ABI - Events (reserved for future use)
+  // private static readonly TOKEN_MANAGER_ABI = [
+  //   'event TokensMinted(string indexed modelId, address indexed recipient, uint256 amount)',
+  //   'event TokensBurned(string indexed modelId, address indexed account, uint256 amount)',
+  //   'event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)',
+  //   'event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender)'
+  // ];
 
   constructor(
     provider: ethers.Provider,
@@ -508,6 +508,13 @@ export class EventListener {
    */
   isListeningToPool(poolAddress: string): boolean {
     return this.poolContracts.has(poolAddress);
+  }
+
+  /**
+   * Get overall listening status
+   */
+  getIsListening(): boolean {
+    return this.isListening;
   }
 
   /**

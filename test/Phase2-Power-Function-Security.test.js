@@ -15,6 +15,8 @@ describe("Phase 2: Power Function Security Analysis", function () {
   const TRADE_FEE = 25;
   const PROTOCOL_FEE = 500;
   const IBR_DURATION = 7 * 24 * 60 * 60;
+  const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $1k threshold
+  const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
   const INITIAL_SUPPLY = parseEther("100000");
   const INITIAL_RESERVE = parseUnits("10000", 6);
 
@@ -48,7 +50,9 @@ describe("Phase 2: Power Function Security Analysis", function () {
       CRR,
       TRADE_FEE,
       PROTOCOL_FEE,
-      IBR_DURATION
+      IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
     );
     await hokusaiAMM.waitForDeployment();
 

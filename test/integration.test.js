@@ -64,7 +64,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     it("Should reject deployment with zero registry address", async function () {
       const TokenManager = await ethers.getContractFactory("TokenManager");
       await expect(TokenManager.deploy(ZeroAddress))
-        .to.be.revertedWith("Registry address cannot be zero");
+        .to.be.revertedWithCustomError(TokenManager, "ZeroAddress");
     });
   });
 
@@ -220,12 +220,12 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
       it("Should revert minting to zero address", async function () {
         await expect(tokenManager.mintTokens(modelId, ZeroAddress, parseEther("100")))
-          .to.be.revertedWith("Recipient cannot be zero address");
+          .to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
       });
 
       it("Should revert minting zero amount", async function () {
         await expect(tokenManager.mintTokens(modelId, user1.address, 0))
-          .to.be.revertedWith("Amount must be greater than zero");
+          .to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
       });
     });
 
@@ -271,12 +271,12 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
       it("Should revert burning from zero address", async function () {
         await expect(tokenManager.burnTokens(modelId, ZeroAddress, parseEther("100")))
-          .to.be.revertedWith("Account cannot be zero address");
+          .to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
       });
 
       it("Should revert burning zero amount", async function () {
         await expect(tokenManager.burnTokens(modelId, user1.address, 0))
-          .to.be.revertedWith("Amount must be greater than zero");
+          .to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
       });
 
       it("Should revert burning more than balance", async function () {

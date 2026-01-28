@@ -84,13 +84,13 @@ describe("TokenManager Batch Minting", function () {
 
       await expect(
         tokenManager.connect(minter).batchMintTokens(MODEL_ID, recipients, amounts)
-      ).to.be.revertedWith("Array length mismatch");
+      ).to.be.revertedWithCustomError(tokenManager, "ArrayLengthMismatch");
     });
 
     it("should revert if empty arrays provided", async function () {
       await expect(
         tokenManager.connect(minter).batchMintTokens(MODEL_ID, [], [])
-      ).to.be.revertedWith("Empty recipients array");
+      ).to.be.revertedWithCustomError(tokenManager, "ArrayEmpty");
     });
 
     it("should revert if any recipient is zero address", async function () {
@@ -107,7 +107,7 @@ describe("TokenManager Batch Minting", function () {
 
       await expect(
         tokenManager.connect(minter).batchMintTokens(MODEL_ID, recipients, amounts)
-      ).to.be.revertedWith("Invalid recipient address");
+      ).to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
     });
 
     it("should revert if any amount is zero", async function () {
@@ -116,7 +116,7 @@ describe("TokenManager Batch Minting", function () {
 
       await expect(
         tokenManager.connect(minter).batchMintTokens(MODEL_ID, recipients, amounts)
-      ).to.be.revertedWith("Amount must be greater than zero");
+      ).to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
     });
 
     it("should enforce access control", async function () {
@@ -179,7 +179,7 @@ describe("TokenManager Batch Minting", function () {
 
       await expect(
         tokenManager.connect(minter).batchMintTokens(MODEL_ID, recipients, amounts)
-      ).to.be.revertedWith("Batch size exceeds limit");
+      ).to.be.revertedWithCustomError(tokenManager, "ArrayTooLarge");
     });
   });
 

@@ -90,22 +90,22 @@ describe("Backward Compatibility", function () {
     });
 
     it("Should maintain same behavior as original function", async function () {
-      // Test all original validations still work
+      // Test all original validations still work (now using custom errors)
       await expect(
         tokenManager.deployToken("", "Token", "TOK", parseEther("1000"))
-      ).to.be.revertedWith("Model ID cannot be empty");
+      ).to.be.revertedWithCustomError(tokenManager, "EmptyString");
 
       await expect(
         tokenManager.deployToken("model-1", "", "TOK", parseEther("1000"))
-      ).to.be.revertedWith("Token name cannot be empty");
+      ).to.be.revertedWithCustomError(tokenManager, "EmptyString");
 
       await expect(
         tokenManager.deployToken("model-1", "Token", "", parseEther("1000"))
-      ).to.be.revertedWith("Token symbol cannot be empty");
+      ).to.be.revertedWithCustomError(tokenManager, "EmptyString");
 
       await expect(
         tokenManager.deployToken("model-1", "Token", "TOK", 0)
-      ).to.be.revertedWith("Total supply must be greater than zero");
+      ).to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
     });
 
     it("Should prevent duplicate model deployments", async function () {

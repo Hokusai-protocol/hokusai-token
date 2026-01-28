@@ -382,7 +382,7 @@ describe("Integration: JSON Wallet Address Support", function () {
 
       await expect(
         deltaVerifier.submitEvaluationWithContributorInfo(MODEL_ID, evaluationData)
-      ).to.be.revertedWith("Invalid wallet address");
+      ).to.be.revertedWithCustomError(deltaVerifier, "ZeroAddress");
     });
 
     it("should validate weight ranges", async function () {

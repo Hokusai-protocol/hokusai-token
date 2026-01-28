@@ -6,12 +6,20 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "./TokenManager.sol";
+import "./libraries/ValidationLib.sol";
+import "./libraries/FeeLib.sol";
+import "./libraries/BondingCurveMath.sol";
 
 /**
  * @title HokusaiAMM
- * @dev Constant-Reserve-Ratio (CRR) AMM for a single Hokusai token
+ * @dev Two-phase AMM for Hokusai tokens: Fixed price initial period, then CRR bonding curve
  *
- * Bonding Curve Formulas:
+ * Phase 1 (Flat Price): Simple pricing until threshold
+ * - Price: Fixed (e.g., $0.01 per token)
+ * - Formula: tokens = reserveIn / FLAT_CURVE_PRICE
+ * - No overflow issues, unlimited trade sizes
+ *
+ * Phase 2 (Bonding Curve): Exponential pricing after threshold
  * - Buy:  T = S × ((1 + E/R)^w - 1)
  * - Sell: F = R × (1 - (1 - T/S)^(1/w))
  * - Spot: P = R / (w × S)
@@ -42,6 +50,10 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     uint256 public buyOnlyUntil; // Timestamp when sells become enabled (IBR end)
     uint256 public maxTradeBps; // Maximum trade size as % of reserve in bps, default 2000 = 20%
 
+    // Two-phase pricing parameters (immutable)
+    uint256 public immutable FLAT_CURVE_THRESHOLD; // Reserve amount where bonding curve activates (6 decimals)
+    uint256 public immutable FLAT_CURVE_PRICE;     // Fixed price during flat period (6 decimals)
+
     // Constants
     uint256 public constant PRECISION = 1e18; // Fixed-point precision
     uint256 public constant MAX_CRR = 500000; // 50% max
@@ -50,6 +62,15 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant MAX_PROTOCOL_FEE = 5000; // 50% max
     uint256 public constant MAX_TRADE_BPS_LIMIT = 5000; // 50% max trade size
     uint256 public constant PPM = 1000000; // Parts per million
+
+    // ============================================================
+    // ENUMS
+    // ============================================================
+
+    enum PricingPhase {
+        FLAT_PRICE,      // 0: Before threshold
+        BONDING_CURVE    // 1: After threshold
+    }
 
     // ============================================================
     // EVENTS
@@ -69,6 +90,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         uint256 reserveOut,
         uint256 fee,
         uint256 spotPrice
+    );
+
+    event PhaseTransition(
+        PricingPhase fromPhase,
+        PricingPhase toPhase,
+        uint256 reserveBalance,
+        uint256 timestamp
     );
 
     event FeesDeposited(
@@ -93,7 +121,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     // ============================================================
 
     /**
-     * @dev Initialize the AMM pool
+     * @dev Initialize the AMM pool with two-phase pricing
      * @param _reserveToken USDC token address
      * @param _hokusaiToken Hokusai token address
      * @param _tokenManager TokenManager contract address
@@ -103,6 +131,8 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @param _tradeFee Trade fee in bps
      * @param _protocolFeeBps Protocol fee in bps
      * @param _ibrDuration Initial Bonding Round duration in seconds (e.g., 7 days)
+     * @param _flatCurveThreshold Reserve amount where bonding curve activates (6 decimals)
+     * @param _flatCurvePrice Fixed price per token during flat period (6 decimals)
      */
     constructor(
         address _reserveToken,
@@ -113,16 +143,21 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         uint256 _crr,
         uint256 _tradeFee,
         uint16 _protocolFeeBps,
-        uint256 _ibrDuration
+        uint256 _ibrDuration,
+        uint256 _flatCurveThreshold,
+        uint256 _flatCurvePrice
     ) Ownable() {
-        require(_reserveToken != address(0), "Invalid reserve token");
-        require(_hokusaiToken != address(0), "Invalid hokusai token");
-        require(_tokenManager != address(0), "Invalid token manager");
-        require(_treasury != address(0), "Invalid treasury");
-        require(bytes(_modelId).length > 0, "Empty model ID");
-        require(_crr >= MIN_CRR && _crr <= MAX_CRR, "CRR out of bounds");
-        require(_tradeFee <= MAX_TRADE_FEE, "Trade fee too high");
-        require(_protocolFeeBps <= MAX_PROTOCOL_FEE, "Protocol fee too high");
+        // Use ValidationLib for cleaner validation
+        ValidationLib.requireNonZeroAddress(_reserveToken, "reserve token");
+        ValidationLib.requireNonZeroAddress(_hokusaiToken, "Hokusai token");
+        ValidationLib.requireNonZeroAddress(_tokenManager, "token manager");
+        ValidationLib.requireNonZeroAddress(_treasury, "treasury");
+        ValidationLib.requireNonEmptyString(_modelId, "model ID");
+        ValidationLib.requireInBounds(_crr, MIN_CRR, MAX_CRR);
+        FeeLib.requireValidFee(_tradeFee, MAX_TRADE_FEE);
+        FeeLib.requireValidFee(_protocolFeeBps, MAX_PROTOCOL_FEE);
+        ValidationLib.requirePositiveAmount(_flatCurveThreshold, "flat curve threshold");
+        ValidationLib.requirePositiveAmount(_flatCurvePrice, "flat curve price");
 
         reserveToken = IERC20(_reserveToken);
         hokusaiToken = _hokusaiToken;
@@ -134,6 +169,11 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         protocolFeeBps = _protocolFeeBps;
         buyOnlyUntil = block.timestamp + _ibrDuration;
         maxTradeBps = 2000; // Default 20% of reserve
+
+        FLAT_CURVE_THRESHOLD = _flatCurveThreshold;
+        FLAT_CURVE_PRICE = _flatCurvePrice;
+
+        // Pool starts with 0 reserve (reserveBalance is already 0 by default)
     }
 
     // ============================================================
@@ -158,17 +198,23 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         require(reserveIn > 0, "Reserve amount must be > 0");
         require(to != address(0), "Invalid recipient");
 
-        // Check trade size limit (prevents whale manipulation and flash loan attacks)
-        uint256 maxTradeSize = (reserveBalance * maxTradeBps) / 10000;
-        require(reserveIn <= maxTradeSize, "Trade exceeds max size limit");
+        // Store phase before trade
+        PricingPhase phaseBefore = getCurrentPhase();
+
+        // Check trade size limit only in bonding curve phase
+        // During flat phase, unlimited trade sizes are allowed
+        if (phaseBefore == PricingPhase.BONDING_CURVE) {
+            uint256 maxTradeSize = (reserveBalance * maxTradeBps) / 10000;
+            require(reserveIn <= maxTradeSize, "Trade exceeds max size limit");
+        }
 
         // Calculate tokens to mint
         tokensOut = getBuyQuote(reserveIn);
         require(tokensOut >= minTokensOut, "Slippage exceeded");
+        require(tokensOut > 0, "Insufficient output");
 
-        // Calculate and deduct trade fee
-        uint256 feeAmount = (reserveIn * tradeFee) / 10000;
-        uint256 reserveAfterFee = reserveIn - feeAmount;
+        // Calculate and deduct trade fee using FeeLib
+        (uint256 reserveAfterFee, uint256 feeAmount) = FeeLib.applyFee(reserveIn, tradeFee);
 
         // Transfer USDC from buyer
         require(
@@ -189,6 +235,12 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
 
         // Mint tokens via TokenManager
         tokenManager.mintTokens(modelId, to, tokensOut);
+
+        // Check if phase changed after trade
+        PricingPhase phaseAfter = getCurrentPhase();
+        if (phaseBefore != phaseAfter) {
+            emit PhaseTransition(phaseBefore, phaseAfter, reserveBalance, block.timestamp);
+        }
 
         emit Buy(msg.sender, reserveIn, tokensOut, feeAmount, spotPrice());
     }
@@ -220,9 +272,8 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         uint256 maxTradeSize = (reserveBalance * maxTradeBps) / 10000;
         require(reserveOut <= maxTradeSize, "Trade exceeds max size limit");
 
-        // Calculate and deduct trade fee
-        uint256 feeAmount = (reserveOut * tradeFee) / 10000;
-        uint256 reserveAfterFee = reserveOut - feeAmount;
+        // Calculate and deduct trade fee using FeeLib
+        (uint256 reserveAfterFee, uint256 feeAmount) = FeeLib.applyFee(reserveOut, tradeFee);
 
         // Update reserve balance (including fee which stays in reserve)
         reserveBalance -= reserveOut;
@@ -258,31 +309,44 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @param reserveIn Amount of USDC to deposit
      * @return tokensOut Tokens to be minted
      *
-     * Formula: T = S × ((1 + E/R)^w - 1)
+     * Handles three cases:
+     * 1. Entirely in flat price phase
+     * 2. Entirely in bonding curve phase
+     * 3. Trade crosses threshold (hybrid calculation)
      */
     function getBuyQuote(uint256 reserveIn) public view returns (uint256 tokensOut) {
         if (reserveIn == 0) return 0;
 
         uint256 supply = IERC20(hokusaiToken).totalSupply();
-        if (supply == 0 || reserveBalance == 0) {
-            // Initial condition: 1:1 ratio
-            return reserveIn * (10 ** 12); // USDC has 6 decimals, token has 18
+        uint256 futureReserve = reserveBalance + reserveIn;
+
+        // Case 1: Entirely in flat price phase
+        if (futureReserve <= FLAT_CURVE_THRESHOLD) {
+            return _calculateFlatPriceTokens(reserveIn);
         }
 
-        // Deduct trade fee first
-        uint256 reserveAfterFee = reserveIn - ((reserveIn * tradeFee) / 10000);
+        // Case 2: Entirely in bonding curve phase
+        if (reserveBalance >= FLAT_CURVE_THRESHOLD) {
+            return _calculateBondingCurveTokens(reserveIn, reserveBalance, supply);
+        }
 
-        // T = S × ((1 + E/R)^w - 1)
-        // Using fixed-point arithmetic
-        uint256 ratio = (reserveAfterFee * PRECISION) / reserveBalance; // E/R
-        uint256 base = PRECISION + ratio; // 1 + E/R
-        uint256 exponent = (crr * PRECISION) / PPM; // w as fixed-point
-        uint256 power = _pow(base, exponent); // (1 + E/R)^w
+        // Case 3: Trade crosses threshold (hybrid calculation)
+        uint256 flatPortion = FLAT_CURVE_THRESHOLD - reserveBalance;
+        uint256 curvePortion = reserveIn - flatPortion;
 
-        if (power <= PRECISION) return 0;
+        // Calculate tokens from flat price portion
+        uint256 tokensFromFlat = _calculateFlatPriceTokens(flatPortion);
 
-        uint256 multiplier = power - PRECISION; // (...)^w - 1
-        tokensOut = (supply * multiplier) / PRECISION;
+        // Calculate tokens from bonding curve portion
+        // Use threshold as starting reserve and adjusted supply
+        uint256 adjustedSupply = supply + tokensFromFlat;
+        uint256 tokensFromCurve = _calculateBondingCurveTokens(
+            curvePortion,
+            FLAT_CURVE_THRESHOLD,
+            adjustedSupply
+        );
+
+        return tokensFromFlat + tokensFromCurve;
     }
 
     /**
@@ -290,7 +354,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @param tokensIn Amount of tokens to sell
      * @return reserveOut USDC to be returned
      *
-     * Formula: F = R × (1 - (1 - T/S)^(1/w))
+     * Uses flat price during flat phase, bonding curve formula otherwise
      */
     function getSellQuote(uint256 tokensIn) public view returns (uint256 reserveOut) {
         if (tokensIn == 0) return 0;
@@ -299,50 +363,42 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         if (supply == 0 || tokensIn > supply) return 0;
         if (reserveBalance == 0) return 0;
 
-        // F = R × (1 - (1 - T/S)^(1/w))
-        uint256 tokenRatio = (tokensIn * PRECISION) / supply; // T/S
-        uint256 base = PRECISION - tokenRatio; // 1 - T/S
-        uint256 exponent = (PPM * PRECISION) / crr; // 1/w as fixed-point
-        uint256 power = _pow(base, exponent); // (1 - T/S)^(1/w)
+        // If we're in flat price phase, use flat pricing
+        if (reserveBalance < FLAT_CURVE_THRESHOLD) {
+            // Selling at fixed price (fee applied in sell() function)
+            reserveOut = (tokensIn * FLAT_CURVE_PRICE) / 1e18;
+            return reserveOut;
+        }
 
-        if (power >= PRECISION) return 0;
-
-        uint256 multiplier = PRECISION - power; // 1 - (...)
-        reserveOut = (reserveBalance * multiplier) / PRECISION;
+        // Use BondingCurveMath library for bonding curve sell calculation
+        reserveOut = BondingCurveMath.calculateSell(
+            supply,
+            reserveBalance,
+            tokensIn,
+            crr
+        );
     }
 
     /**
      * @dev Get current spot price
      * @return Current price in USDC per token (6 decimals)
      *
-     * Formula: P = R / (w × S)
+     * Returns flat price during flat phase, bonding curve formula otherwise
      */
     function spotPrice() public view returns (uint256) {
         uint256 supply = IERC20(hokusaiToken).totalSupply();
-        if (supply == 0 || reserveBalance == 0) return 1e6; // Default $1.00 (6 decimals)
+
+        // During flat price phase, return fixed price
+        if (reserveBalance < FLAT_CURVE_THRESHOLD) {
+            return FLAT_CURVE_PRICE;
+        }
+
+        // After threshold, use bonding curve formula
+        if (supply == 0 || reserveBalance == 0) {
+            return FLAT_CURVE_PRICE; // Default to flat price
+        }
 
         // P = R / (w × S)
-        // Where: R is 6 decimals (USDC), S is 18 decimals (tokens), w is in PPM (parts per million)
-        // Result should be 6 decimals (USDC per token)
-
-        // Rearrange to: P = (R * PPM) / (crr * S)
-        // To get the right decimal places, we need to account for token decimals
-        // Token is 18 decimals, USDC is 6 decimals
-        // So we need to divide by 1e12 to get USDC per token
-
-        // P = R / (w × S) where w = crr / PPM
-        // Rearranged: P = (R * PPM) / (crr * S)
-        //
-        // Decimal handling:
-        // R = 6 decimals (USDC units: 1 USDC = 1e6)
-        // S = 18 decimals (token units: 1 token = 1e18)
-        // Result should be 6 decimals (USDC per token, so 1 USDC = 1e6)
-        //
-        // When we compute (R * PPM) / (crr * S):
-        // Units: (USDCunits * 1) / (1 * tokenUnits) = USDCunits / tokenUnits
-        // Decimals: (6 + 0) / (0 + 18) = 6 - 18 = -12 decimals
-        // To get to 6 decimals for the result, we need to multiply by 1e18
-
         uint256 numerator = reserveBalance * PPM * 1e18;
         uint256 denominator = crr * supply;
 
@@ -612,143 +668,105 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     }
 
     // ============================================================
-    // INTERNAL FUNCTIONS
+    // PHASE DETECTION
     // ============================================================
 
     /**
-     * @dev Fixed-point exponentiation: base^exponent
-     * @param base Base value (fixed-point 1e18)
-     * @param exponent Exponent value (fixed-point 1e18)
-     * @return result base^exponent (fixed-point 1e18)
-     *
-     * Uses x^y = exp(y * ln(x)) with Taylor series for ln and exp.
-     * Accurate for CRR range (5-50%) with typical deposit sizes.
-     *
-     * Security: This implementation provides sufficient precision for financial calculations
-     * while being gas-efficient. Thoroughly tested for the bonding curve use case.
+     * @dev Get current pricing phase
+     * @return Current phase (FLAT_PRICE or BONDING_CURVE)
      */
-    function _pow(uint256 base, uint256 exponent) internal pure returns (uint256 result) {
-        if (exponent == 0) return PRECISION;
-        if (base == 0) return 0;
-        if (base == PRECISION) return PRECISION;
-
-        // For very small exponents or bases close to 1, use binomial expansion
-        // (1+x)^n ≈ 1 + nx + n(n-1)x^2/2 + n(n-1)(n-2)x^3/6
-        if (exponent < PRECISION / 100) { // Less than 1%
-            int256 x = int256(base) - int256(PRECISION);
-            int256 n = int256(exponent);
-
-            // First order: 1 + nx
-            int256 term1 = (n * x) / int256(PRECISION);
-
-            // Second order: n(n-1)x^2/2
-            int256 term2 = (n * (n - int256(PRECISION)) * x * x) / (2 * int256(PRECISION) * int256(PRECISION) * int256(PRECISION));
-
-            // Third order: n(n-1)(n-2)x^3/6
-            int256 term3 = (n * (n - int256(PRECISION)) * (n - 2*int256(PRECISION)) * x * x * x) /
-                           (6 * int256(PRECISION) * int256(PRECISION) * int256(PRECISION) * int256(PRECISION) * int256(PRECISION));
-
-            int256 resultInt = int256(PRECISION) + term1 + term2 + term3;
-            require(resultInt > 0, "Power underflow");
-            return uint256(resultInt);
+    function getCurrentPhase() public view returns (PricingPhase) {
+        if (reserveBalance < FLAT_CURVE_THRESHOLD) {
+            return PricingPhase.FLAT_PRICE;
         }
-
-        // For larger exponents, use exp(y * ln(x))
-        // This is more accurate than direct binary exponentiation with fractional parts
-
-        // Compute ln(base) using Taylor series around 1
-        int256 lnBase = _ln(base);
-
-        // Multiply by exponent: y * ln(x)
-        int256 product = (int256(exponent) * lnBase) / int256(PRECISION);
-
-        // Compute exp(product)
-        return _exp(product);
+        return PricingPhase.BONDING_CURVE;
     }
 
     /**
-     * @dev Natural logarithm (ln) using Taylor series
-     * @param x Input value (fixed-point 1e18)
-     * @return Natural logarithm of x (fixed-point 1e18)
+     * @dev Get detailed phase information for frontend
+     * @return currentPhase Current pricing phase
+     * @return currentReserve Current reserve balance
+     * @return thresholdReserve Threshold for phase transition
+     * @return flatPrice Fixed price during flat period
+     * @return percentToThreshold Progress toward threshold (0-100)
      */
-    function _ln(uint256 x) internal pure returns (int256) {
-        require(x > 0, "ln(0) undefined");
+    function getPhaseInfo() external view returns (
+        PricingPhase currentPhase,
+        uint256 currentReserve,
+        uint256 thresholdReserve,
+        uint256 flatPrice,
+        uint256 percentToThreshold
+    ) {
+        currentPhase = getCurrentPhase();
+        currentReserve = reserveBalance;
+        thresholdReserve = FLAT_CURVE_THRESHOLD;
+        flatPrice = FLAT_CURVE_PRICE;
 
-        // Scale x to be close to 1 for better convergence
-        // ln(x) = ln(x/e^k) + k where we choose k to make x/e^k ≈ 1
-        int256 k = 0;
-        uint256 scaled = x;
-
-        // Scale down if x > e ≈ 2.718
-        while (scaled > 3 * PRECISION) {
-            scaled = (scaled * PRECISION) / (3 * PRECISION);
-            k++;
+        if (currentReserve >= FLAT_CURVE_THRESHOLD) {
+            percentToThreshold = 100;
+        } else if (FLAT_CURVE_THRESHOLD > 0) {
+            percentToThreshold = (currentReserve * 100) / FLAT_CURVE_THRESHOLD;
+        } else {
+            percentToThreshold = 100;
         }
+    }
 
-        // Scale up if x < 1/e ≈ 0.368
-        while (scaled < PRECISION / 3) {
-            scaled = (scaled * 3 * PRECISION) / PRECISION;
-            k--;
-        }
+    // ============================================================
+    // INTERNAL CALCULATION FUNCTIONS
+    // ============================================================
 
-        // Now compute ln(scaled) using Taylor series: ln(1+y) = y - y^2/2 + y^3/3 - y^4/4...
-        int256 y = int256(scaled) - int256(PRECISION);
-        int256 yPower = y;
-        int256 sum = 0;
+    /**
+     * @dev Calculate tokens received for USDC at flat price
+     * @param reserveIn Amount of USDC (6 decimals)
+     * @return tokensOut Amount of tokens (18 decimals)
+     */
+    function _calculateFlatPriceTokens(uint256 reserveIn) internal view returns (uint256) {
+        // Deduct trade fee using FeeLib
+        (uint256 reserveAfterFee, ) = FeeLib.applyFee(reserveIn, tradeFee);
 
-        // Terms up to y^8 for precision
-        for (uint256 i = 1; i <= 8; i++) {
-            int256 term = yPower / int256(i);
-            if (i % 2 == 0) {
-                sum -= term;
-            } else {
-                sum += term;
-            }
-            yPower = (yPower * y) / int256(PRECISION);
-        }
+        // Simple fixed price calculation
+        // USDC is 6 decimals, token is 18 decimals
+        // reserveAfterFee is in USDC units (6 decimals)
+        // FLAT_CURVE_PRICE is in USDC per token (6 decimals)
+        // Result should be in token units (18 decimals)
 
-        // Add back the scaling factor
-        return sum + (k * int256(PRECISION));
+        uint256 tokensOut = (reserveAfterFee * 1e18) / FLAT_CURVE_PRICE;
+        return tokensOut;
     }
 
     /**
-     * @dev Exponential function using Taylor series
-     * @param x Input value (fixed-point 1e18, can be negative)
-     * @return exp(x) (fixed-point 1e18)
+     * @dev Calculate tokens received using bonding curve formula
+     * @param reserveIn Amount of USDC to spend (6 decimals)
+     * @param currentReserve Current reserve balance (6 decimals)
+     * @param currentSupply Current token supply (18 decimals)
+     * @return tokensOut Amount of tokens (18 decimals)
+     *
+     * Formula: T = S × ((1 + E/R)^w - 1)
      */
-    function _exp(int256 x) internal pure returns (uint256) {
-        // Handle negative exponents: exp(-x) = 1/exp(x)
-        bool isNegative = x < 0;
-        uint256 absX = isNegative ? uint256(-x) : uint256(x);
-
-        // Scale large values: exp(x) = exp(x/2^k)^(2^k)
-        uint256 k = 0;
-        while (absX > 10 * PRECISION) {
-            absX = absX / 2;
-            k++;
+    function _calculateBondingCurveTokens(
+        uint256 reserveIn,
+        uint256 currentReserve,
+        uint256 currentSupply
+    ) internal view returns (uint256) {
+        if (currentReserve == 0 || currentSupply == 0) {
+            // Safety fallback to flat pricing
+            return _calculateFlatPriceTokens(reserveIn);
         }
 
-        // Taylor series: exp(x) = 1 + x + x^2/2! + x^3/3! + ...
-        uint256 sum = PRECISION; // 1
-        uint256 term = absX; // x
+        // Deduct trade fee using FeeLib
+        (uint256 reserveAfterFee, ) = FeeLib.applyFee(reserveIn, tradeFee);
 
-        // Add terms up to x^10/10! for precision
-        for (uint256 i = 1; i <= 10; i++) {
-            sum += term;
-            term = (term * absX) / (PRECISION * (i + 1));
-            if (term == 0) break; // Converged
-        }
-
-        // Apply scaling: result^(2^k)
-        for (uint256 i = 0; i < k; i++) {
-            sum = (sum * sum) / PRECISION;
-        }
-
-        // Handle negative exponent
-        if (isNegative) {
-            return (PRECISION * PRECISION) / sum;
-        }
-
-        return sum;
+        // Use BondingCurveMath library for bonding curve calculation
+        return BondingCurveMath.calculateBuy(
+            currentSupply,
+            currentReserve,
+            reserveAfterFee,
+            crr
+        );
     }
+
+    // ============================================================
+    // NOTE: Mathematical functions (_pow, _ln, _exp) have been
+    // extracted to BondingCurveMath library for reusability
+    // ============================================================
 }

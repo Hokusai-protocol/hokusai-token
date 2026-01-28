@@ -179,14 +179,14 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         newMetrics: sampleNewMetrics
       };
 
-      // Should revert with batch size > 100
+      // Should revert with batch size > 100 (now using custom error)
       await expect(
         deltaVerifier.submitEvaluationWithMultipleContributors(
           MODEL_ID,
           evalData,
           contributors
         )
-      ).to.be.revertedWith("Batch size exceeds limit");
+      ).to.be.revertedWithCustomError(deltaVerifier, "ArrayTooLarge");
     });
   });
 

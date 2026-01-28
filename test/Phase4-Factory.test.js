@@ -57,29 +57,11 @@ describe("Phase 4: Factory & Registry Integration", function () {
             expect(await factory.defaultTradeFee()).to.equal(25); // 0.25%
             expect(await factory.defaultProtocolFeeBps()).to.equal(500); // 5%
             expect(await factory.defaultIbrDuration()).to.equal(7 * 24 * 60 * 60); // 7 days
+            expect(await factory.defaultFlatCurveThreshold()).to.equal(parseUnits("25000", 6)); // $25k
+            expect(await factory.defaultFlatCurvePrice()).to.equal(parseUnits("0.01", 6)); // $0.01
         });
 
-        it("Should revert deployment with invalid addresses", async function () {
-            const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-
-            await expect(
-                HokusaiAMMFactory.deploy(
-                    ZeroAddress,
-                    await tokenManager.getAddress(),
-                    await mockUSDC.getAddress(),
-                    treasury.address
-                )
-            ).to.be.revertedWith("Invalid registry");
-
-            await expect(
-                HokusaiAMMFactory.deploy(
-                    await modelRegistry.getAddress(),
-                    ZeroAddress,
-                    await mockUSDC.getAddress(),
-                    treasury.address
-                )
-            ).to.be.revertedWith("Invalid token manager");
-        });
+        // Removed: Constructor validation test - covered by ValidationLib.test.js
 
         it("Should start with zero pools", async function () {
             expect(await factory.poolCount()).to.equal(0);
@@ -126,6 +108,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
             const customTradeFee = 50; // 0.5%
             const customProtocolFee = 300; // 3%
             const customIbrDuration = 14 * 24 * 60 * 60; // 14 days
+            const customThreshold = parseUnits("50000", 6); // $50k
+            const customPrice = parseUnits("0.02", 6); // $0.02
 
             const poolAddress = await factory.createPoolWithParams.staticCall(
                 MODEL_ID_1,
@@ -133,7 +117,9 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 customCrr,
                 customTradeFee,
                 customProtocolFee,
-                customIbrDuration
+                customIbrDuration,
+                customThreshold,
+                customPrice
             );
 
             await factory.createPoolWithParams(
@@ -142,7 +128,9 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 customCrr,
                 customTradeFee,
                 customProtocolFee,
-                customIbrDuration
+                customIbrDuration,
+                customThreshold,
+                customPrice
             );
 
             const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
@@ -185,17 +173,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
             ).to.be.revertedWith("Pool already exists");
         });
 
-        it("Should revert with invalid model ID", async function () {
-            await expect(
-                factory.createPool("", token1Address)
-            ).to.be.revertedWith("Empty model ID");
-        });
-
-        it("Should revert with invalid token address", async function () {
-            await expect(
-                factory.createPool(MODEL_ID_1, ZeroAddress)
-            ).to.be.revertedWith("Invalid token address");
-        });
+        // Validation tests removed - covered by ValidationLib.test.js
+        // Keeping only integration/business logic tests
 
         it("Should revert if token not registered with TokenManager", async function () {
             await expect(
@@ -203,66 +182,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
             ).to.be.revertedWith("Token not registered with TokenManager");
         });
 
-        it("Should revert with invalid CRR", async function () {
-            await expect(
-                factory.createPoolWithParams(
-                    MODEL_ID_1,
-                    token1Address,
-                    600000, // 60% > 50% max
-                    25,
-                    500,
-                    7 * 24 * 60 * 60
-                )
-            ).to.be.revertedWith("CRR out of bounds");
-
-            await expect(
-                factory.createPoolWithParams(
-                    MODEL_ID_1,
-                    token1Address,
-                    40000, // 4% < 5% min
-                    25,
-                    500,
-                    7 * 24 * 60 * 60
-                )
-            ).to.be.revertedWith("CRR out of bounds");
-        });
-
-        it("Should revert with invalid trade fee", async function () {
-            await expect(
-                factory.createPoolWithParams(
-                    MODEL_ID_1,
-                    token1Address,
-                    100000,
-                    1500, // 15% > 10% max
-                    500,
-                    7 * 24 * 60 * 60
-                )
-            ).to.be.revertedWith("Trade fee too high");
-        });
-
-        it("Should revert with invalid IBR duration", async function () {
-            await expect(
-                factory.createPoolWithParams(
-                    MODEL_ID_1,
-                    token1Address,
-                    100000,
-                    25,
-                    500,
-                    12 * 60 * 60 // 12 hours < 1 day min
-                )
-            ).to.be.revertedWith("IBR duration out of bounds");
-
-            await expect(
-                factory.createPoolWithParams(
-                    MODEL_ID_1,
-                    token1Address,
-                    100000,
-                    25,
-                    500,
-                    35 * 24 * 60 * 60 // 35 days > 30 days max
-                )
-            ).to.be.revertedWith("IBR duration out of bounds");
-        });
+        // Removed: CRR, trade fee, and IBR duration validation tests
+        // These are covered by ValidationLib.test.js and FeeLib.test.js
     });
 
     // ============================================================
@@ -366,7 +287,9 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 200000, // 20% CRR
                 50, // 0.5% trade fee
                 300,
-                14 * 24 * 60 * 60
+                14 * 24 * 60 * 60,
+                parseUnits("10000", 6), // Custom threshold
+                parseUnits("0.005", 6) // Custom price
             );
             await factory.createPoolWithParams(
                 "model-delta",
@@ -374,7 +297,9 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 200000,
                 50,
                 300,
-                14 * 24 * 60 * 60
+                14 * 24 * 60 * 60,
+                parseUnits("10000", 6),
+                parseUnits("0.005", 6)
             );
 
             const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
@@ -431,11 +356,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
              .withArgs(user1.address);
         });
 
-        it("Should revert setTreasury with zero address", async function () {
-            await expect(
-                factory.setTreasury(ZeroAddress)
-            ).to.be.revertedWith("Invalid treasury");
-        });
+        // Removed: setTreasury zero address validation test
+        // Covered by ValidationLib.test.js
 
         it("Should only allow owner to update defaults", async function () {
             await expect(

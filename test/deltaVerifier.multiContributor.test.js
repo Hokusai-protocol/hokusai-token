@@ -157,7 +157,7 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
 
       await expect(
         deltaVerifier.submitEvaluationWithContributorInfo(MODEL_ID, invalidData)
-      ).to.be.revertedWith("Invalid wallet address");
+      ).to.be.revertedWithCustomError(deltaVerifier, "ZeroAddress");
     });
   });
 
@@ -291,7 +291,7 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           evaluationData,
           []
         )
-      ).to.be.revertedWith("No contributors provided");
+      ).to.be.revertedWithCustomError(deltaVerifier, "ArrayEmpty");
     });
 
     it("should validate total weights equal 100%", async function () {

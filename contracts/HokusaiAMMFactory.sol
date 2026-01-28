@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./libraries/ValidationLib.sol";
+import "./libraries/FeeLib.sol";
 import "./HokusaiAMM.sol";
 import "./ModelRegistry.sol";
 import "./TokenManager.sol";
@@ -31,6 +33,8 @@ contract HokusaiAMMFactory is Ownable {
     uint256 public defaultTradeFee; // Default trade fee in bps
     uint16 public defaultProtocolFeeBps; // Default protocol fee in bps
     uint256 public defaultIbrDuration; // Default IBR duration in seconds
+    uint256 public defaultFlatCurveThreshold; // Default flat curve threshold (6 decimals)
+    uint256 public defaultFlatCurvePrice; // Default flat curve price (6 decimals)
 
     // Pool tracking
     mapping(string => address) public pools; // modelId => pool address
@@ -89,10 +93,10 @@ contract HokusaiAMMFactory is Ownable {
         address _reserveToken,
         address _treasury
     ) Ownable() {
-        require(_modelRegistry != address(0), "Invalid registry");
-        require(_tokenManager != address(0), "Invalid token manager");
-        require(_reserveToken != address(0), "Invalid reserve token");
-        require(_treasury != address(0), "Invalid treasury");
+        ValidationLib.requireNonZeroAddress(_modelRegistry, "registry");
+        ValidationLib.requireNonZeroAddress(_tokenManager, "token manager");
+        ValidationLib.requireNonZeroAddress(_reserveToken, "reserve token");
+        ValidationLib.requireNonZeroAddress(_treasury, "treasury");
 
         modelRegistry = ModelRegistry(_modelRegistry);
         tokenManager = TokenManager(_tokenManager);
@@ -104,6 +108,8 @@ contract HokusaiAMMFactory is Ownable {
         defaultTradeFee = 25; // 0.25%
         defaultProtocolFeeBps = 500; // 5%
         defaultIbrDuration = 7 days;
+        defaultFlatCurveThreshold = 25000 * 1e6; // $25,000 USDC
+        defaultFlatCurvePrice = 1e4; // $0.01 (6 decimals: 0.01 * 1e6 = 10000)
     }
 
     // ============================================================
@@ -126,7 +132,9 @@ contract HokusaiAMMFactory is Ownable {
             defaultCrr,
             defaultTradeFee,
             defaultProtocolFeeBps,
-            defaultIbrDuration
+            defaultIbrDuration,
+            defaultFlatCurveThreshold,
+            defaultFlatCurvePrice
         );
     }
 
@@ -138,6 +146,8 @@ contract HokusaiAMMFactory is Ownable {
      * @param tradeFee Trade fee in bps
      * @param protocolFeeBps Protocol fee in bps
      * @param ibrDuration IBR duration in seconds
+     * @param flatCurveThreshold Reserve amount where bonding curve activates (6 decimals)
+     * @param flatCurvePrice Fixed price per token during flat period (6 decimals)
      * @return poolAddress Deployed pool address
      */
     function createPoolWithParams(
@@ -146,19 +156,20 @@ contract HokusaiAMMFactory is Ownable {
         uint256 crr,
         uint256 tradeFee,
         uint16 protocolFeeBps,
-        uint256 ibrDuration
+        uint256 ibrDuration,
+        uint256 flatCurveThreshold,
+        uint256 flatCurvePrice
     ) public onlyOwner returns (address poolAddress) {
         // Validate inputs
-        require(bytes(modelId).length > 0, "Empty model ID");
-        require(tokenAddress != address(0), "Invalid token address");
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(tokenAddress, "token address");
         require(pools[modelId] == address(0), "Pool already exists");
-        require(crr >= MIN_CRR && crr <= MAX_CRR, "CRR out of bounds");
-        require(tradeFee <= MAX_TRADE_FEE, "Trade fee too high");
-        require(protocolFeeBps <= MAX_PROTOCOL_FEE, "Protocol fee too high");
-        require(
-            ibrDuration >= MIN_IBR_DURATION && ibrDuration <= MAX_IBR_DURATION,
-            "IBR duration out of bounds"
-        );
+        ValidationLib.requireInBounds(crr, MIN_CRR, MAX_CRR);
+        FeeLib.requireValidFee(tradeFee, MAX_TRADE_FEE);
+        FeeLib.requireValidFee(protocolFeeBps, MAX_PROTOCOL_FEE);
+        ValidationLib.requireInBounds(ibrDuration, MIN_IBR_DURATION, MAX_IBR_DURATION);
+        ValidationLib.requirePositiveAmount(flatCurveThreshold, "flat curve threshold");
+        ValidationLib.requirePositiveAmount(flatCurvePrice, "flat curve price");
 
         // Verify token is registered with TokenManager
         require(
@@ -180,7 +191,9 @@ contract HokusaiAMMFactory is Ownable {
             crr,
             tradeFee,
             protocolFeeBps,
-            ibrDuration
+            ibrDuration,
+            flatCurveThreshold,
+            flatCurvePrice
         );
         poolAddress = address(newPool);
 
@@ -278,13 +291,10 @@ contract HokusaiAMMFactory is Ownable {
         uint16 newProtocolFeeBps,
         uint256 newIbrDuration
     ) external onlyOwner {
-        require(newCrr >= MIN_CRR && newCrr <= MAX_CRR, "CRR out of bounds");
-        require(newTradeFee <= MAX_TRADE_FEE, "Trade fee too high");
-        require(newProtocolFeeBps <= MAX_PROTOCOL_FEE, "Protocol fee too high");
-        require(
-            newIbrDuration >= MIN_IBR_DURATION && newIbrDuration <= MAX_IBR_DURATION,
-            "IBR duration out of bounds"
-        );
+        ValidationLib.requireInBounds(newCrr, MIN_CRR, MAX_CRR);
+        FeeLib.requireValidFee(newTradeFee, MAX_TRADE_FEE);
+        FeeLib.requireValidFee(newProtocolFeeBps, MAX_PROTOCOL_FEE);
+        ValidationLib.requireInBounds(newIbrDuration, MIN_IBR_DURATION, MAX_IBR_DURATION);
 
         defaultCrr = newCrr;
         defaultTradeFee = newTradeFee;
@@ -299,7 +309,7 @@ contract HokusaiAMMFactory is Ownable {
      * @param newTreasury New treasury address
      */
     function setTreasury(address newTreasury) external onlyOwner {
-        require(newTreasury != address(0), "Invalid treasury");
+        ValidationLib.requireNonZeroAddress(newTreasury, "treasury");
         treasury = newTreasury;
         emit TreasuryUpdated(newTreasury);
     }

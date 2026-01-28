@@ -19,6 +19,8 @@ describe("Phase 7: Analytics & View Functions", function () {
     const TRADE_FEE = 25; // 0.25%
     const PROTOCOL_FEE = 500; // 5%
     const IBR_DURATION = 7 * 24 * 60 * 60;
+    const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $1k threshold
+    const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
 
     beforeEach(async function () {
         [owner, treasury, buyer1] = await ethers.getSigners();
@@ -59,7 +61,9 @@ describe("Phase 7: Analytics & View Functions", function () {
             CRR,
             TRADE_FEE,
             PROTOCOL_FEE,
-            IBR_DURATION
+            IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
         );
         await hokusaiAMM.waitForDeployment();
 

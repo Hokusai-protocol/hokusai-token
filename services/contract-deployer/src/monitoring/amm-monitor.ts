@@ -72,8 +72,26 @@ export class AMMMonitor {
     // Load or use provided config
     this.config = config || createMonitoringConfig();
 
-    // Create provider
-    this.provider = new ethers.JsonRpcProvider(this.config.rpcUrl);
+    // Create provider - use WebSocket if URL starts with ws:// or wss://
+    if (this.config.rpcUrl.startsWith('ws://') || this.config.rpcUrl.startsWith('wss://')) {
+      this.provider = new ethers.WebSocketProvider(this.config.rpcUrl);
+      logger.info('Using WebSocket provider for event listening (reduces RPC calls)');
+    } else {
+      // Convert https:// to wss:// for Alchemy URLs
+      const wsUrl = this.config.rpcUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+      if (wsUrl.startsWith('wss://') || wsUrl.startsWith('ws://')) {
+        try {
+          this.provider = new ethers.WebSocketProvider(wsUrl);
+          logger.info(`Converted to WebSocket provider: ${wsUrl.split('.com')[0]}.com/...`);
+        } catch (error) {
+          logger.warn('Failed to create WebSocket provider, falling back to HTTP', { error });
+          this.provider = new ethers.JsonRpcProvider(this.config.rpcUrl);
+        }
+      } else {
+        this.provider = new ethers.JsonRpcProvider(this.config.rpcUrl);
+        logger.warn('Using HTTP provider - consider switching to WebSocket for efficiency');
+      }
+    }
 
     // Create backup provider if configured
     if (this.config.backupRpcUrl) {

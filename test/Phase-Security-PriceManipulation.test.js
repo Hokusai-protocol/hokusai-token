@@ -14,6 +14,8 @@ describe("Phase 6: Price Manipulation Attack Security", function () {
     const TRADE_FEE = 25; // 0.25%
     const PROTOCOL_FEE = 500; // 5%
     const IBR_DURATION = 7 * 24 * 60 * 60; // 7 days
+    const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $25k threshold
+    const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
 
     beforeEach(async function () {
         [owner, treasury, victim, attacker] = await ethers.getSigners();
@@ -48,7 +50,9 @@ describe("Phase 6: Price Manipulation Attack Security", function () {
             CRR,
             TRADE_FEE,
             PROTOCOL_FEE,
-            IBR_DURATION
+            IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
         );
         await hokusaiAMM.waitForDeployment();
 

@@ -31,12 +31,16 @@ export interface PoolConfig {
   protocolFee: number;
   ibrDuration: number;
   ibrEndsAt?: string;
+  // Two-phase pricing parameters
+  flatCurveThreshold: string;  // e.g., "25000000000" (25k USDC, 6 decimals)
+  flatCurvePrice: string;       // e.g., "10000" ($0.01 USDC, 6 decimals)
 }
 
 export interface AlertThresholds {
   // Reserve monitoring
-  minReserveUSD: number;              // Minimum reserve in USD
-  reserveDropPercentage: number;      // Alert if reserve drops >X% in time window
+  minReserveUSD: number;              // Minimum reserve in USD (set to 0 to disable absolute minimum alerts)
+                                       // Recommend: Use reserveDropPercentage instead for better anomaly detection
+  reserveDropPercentage: number;      // Alert if reserve drops >X% in time window (detects exploits, bank runs)
   reserveDropWindowMs: number;        // Time window for reserve drop detection (ms)
 
   // Price volatility
@@ -74,8 +78,9 @@ export interface MonitoringConfig {
 
   thresholds: AlertThresholds;
 
-  // Polling configuration
-  statePollingIntervalMs: number;     // How often to poll pool state (12s = 1 block)
+  // Polling configuration (OPTIMIZED)
+  statePollingIntervalMs: number;     // Fallback polling interval (default: 5 min, was 12s)
+                                      // Note: State updates are now event-driven, polling is just fallback
   eventPollingFromBlock: number | 'latest';
 
   // Alert configuration
@@ -92,10 +97,16 @@ export interface MonitoringConfig {
 
 /**
  * Default alert thresholds (based on monitoring-requirements.md)
+ *
+ * NOTE: minReserveUSD is set to 0 (disabled) because:
+ * - New pools naturally start below arbitrary minimums
+ * - Reserve drop detection is more effective at catching anomalies
+ * - Absolute minimums create false positives for healthy new pools
+ * To enable, set ALERT_RESERVE_MIN_USD environment variable
  */
 export const DEFAULT_THRESHOLDS: AlertThresholds = {
-  minReserveUSD: 1000,
-  reserveDropPercentage: 20,
+  minReserveUSD: 0,  // DISABLED: Use reserveDropPercentage for anomaly detection
+  reserveDropPercentage: 20,  // Alert if reserve drops >20% in 1h (detects exploits/bank runs)
   reserveDropWindowMs: 60 * 60 * 1000, // 1 hour
 
   priceChange1hPercentage: 20,
@@ -120,8 +131,45 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
  */
 export function loadDeploymentConfig(network: string): { contracts: ContractAddresses, pools: PoolConfig[] } {
   try {
-    const deploymentPath = join(process.cwd(), '..', '..', 'deployments', `${network}-latest.json`);
+    // Try multiple possible deployment paths (for Docker vs local development)
+    const possiblePaths = [
+      join(process.cwd(), 'deployments', `${network}-latest.json`), // Docker: /app/deployments
+      join(process.cwd(), '..', '..', 'deployments', `${network}-latest.json`), // Local dev
+      join(__dirname, '..', '..', 'deployments', `${network}-latest.json`) // Relative to compiled code
+    ];
+
+    let deploymentPath: string | undefined;
+    for (const path of possiblePaths) {
+      try {
+        if (readFileSync(path, 'utf8')) {
+          deploymentPath = path;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (!deploymentPath) {
+      throw new Error(`Could not find deployment file for ${network} in any of the expected locations`);
+    }
+
     const deployment = JSON.parse(readFileSync(deploymentPath, 'utf8'));
+
+    // Parse pools with phase parameters
+    const pools = (deployment.pools || []).map((p: any) => ({
+      modelId: p.modelId,
+      tokenAddress: p.tokenAddress,
+      ammAddress: p.ammAddress,
+      crr: p.crr,
+      tradeFee: p.tradeFee,
+      protocolFee: p.protocolFee,
+      ibrDuration: p.ibrDuration,
+      ibrEndsAt: p.ibrEndsAt,
+      // Phase parameters (with defaults for legacy deployments)
+      flatCurveThreshold: p.flatCurveThreshold || '0',
+      flatCurvePrice: p.flatCurvePrice || '0'
+    }));
 
     return {
       contracts: {
@@ -133,7 +181,7 @@ export function loadDeploymentConfig(network: string): { contracts: ContractAddr
         deltaVerifier: deployment.contracts.DeltaVerifier,
         usdc: deployment.config?.usdcAddress || deployment.contracts.MockUSDC || deployment.contracts.USDC
       },
-      pools: deployment.pools || []
+      pools
     };
   } catch (error) {
     throw new Error(`Failed to load deployment config for ${network}: ${error}`);
@@ -182,7 +230,7 @@ export function createMonitoringConfig(): MonitoringConfig {
       pausedDurationHours: parseFloat(process.env.ALERT_PAUSED_DURATION_HOURS || String(DEFAULT_THRESHOLDS.pausedDurationHours))
     },
 
-    statePollingIntervalMs: parseInt(process.env.MONITORING_INTERVAL_MS || '12000'), // 12 seconds = 1 block
+    statePollingIntervalMs: parseInt(process.env.MONITORING_INTERVAL_MS || '300000'), // 5 minutes fallback (was 12s)
     eventPollingFromBlock: process.env.MONITORING_START_BLOCK === 'latest' ? 'latest' :
                            parseInt(process.env.MONITORING_START_BLOCK || 'latest'),
 
@@ -260,7 +308,11 @@ Contracts:
   USDC:             ${config.contracts.usdc}
 
 Initial Pools:    ${config.initialPools.length} pools
-  ${config.initialPools.map(p => `- ${p.modelId}: ${p.ammAddress}`).join('\n  ')}
+  ${config.initialPools.map(p => {
+    const threshold = p.flatCurveThreshold !== '0' ? `$${(Number(p.flatCurveThreshold) / 1e6).toLocaleString()}` : 'N/A';
+    const price = p.flatCurvePrice !== '0' ? `$${(Number(p.flatCurvePrice) / 1e6).toFixed(2)}` : 'N/A';
+    return `- ${p.modelId}: ${p.ammAddress}\n    Threshold: ${threshold}, Flat Price: ${price}`;
+  }).join('\n  ')}
 
 Alert Thresholds:
   Reserve Drop:     >${config.thresholds.reserveDropPercentage}% in 1h

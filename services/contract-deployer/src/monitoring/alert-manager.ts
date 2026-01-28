@@ -253,7 +253,48 @@ export class AlertManager {
   private buildStateAlertDetails(alert: StateAlert): string {
     const { currentState, previousState } = alert;
 
+    // Add phase information
+    const phaseName = currentState.pricingPhase === 0 ? 'Flat Price (Bootstrap)' : 'Bonding Curve (Active)';
+    const phaseColor = currentState.pricingPhase === 0 ? '#10B981' : '#3B82F6';
+    const thresholdUSD = Number(currentState.flatCurveThreshold) / 1e6;
+
+    // Special formatting for TRUE_SUPPLY_MISMATCH
+    const supplyMismatchWarning = alert.type === 'true_supply_mismatch' && alert.metadata ? `
+      <div class="details" style="background-color: #FEE2E2; border: 2px solid #DC2626; padding: 15px; margin-bottom: 20px;">
+        <h3 style="color: #DC2626; margin-top: 0;">⚠️ CRITICAL: Supply Invariant Violation Detected</h3>
+        <p style="color: #991B1B; font-weight: bold;">
+          Possible unauthorized minting/burning detected. The reserve/supply ratio deviates from expected bonding curve parameters.
+        </p>
+        <div class="detail-row">
+          <span class="detail-label">Expected Ratio (CRR):</span>
+          <span class="detail-value">${alert.metadata.expectedRatio?.toFixed(4) || 'N/A'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Actual Ratio:</span>
+          <span class="detail-value" style="color: #DC2626; font-weight: bold;">${alert.metadata.actualRatio?.toFixed(4) || 'N/A'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Deviation:</span>
+          <span class="detail-value" style="color: #DC2626; font-weight: bold;">${alert.metadata.deviationPercent?.toFixed(1) || 'N/A'}%</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Reserve Balance:</span>
+          <span class="detail-value">${alert.metadata.reserveBalance || 'N/A'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Token Supply:</span>
+          <span class="detail-value">${alert.metadata.tokenSupply || 'N/A'}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Spot Price:</span>
+          <span class="detail-value">${alert.metadata.spotPrice || 'N/A'}</span>
+        </div>
+      </div>
+    ` : '';
+
     return `
+      ${supplyMismatchWarning}
+
       <div class="details">
         <h3>Pool Information</h3>
         <div class="detail-row">
@@ -263,6 +304,14 @@ export class AlertManager {
         <div class="detail-row">
           <span class="detail-label">Model ID:</span>
           <span class="detail-value">${alert.modelId}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Pricing Phase:</span>
+          <span class="detail-value" style="color: ${phaseColor}; font-weight: bold;">${phaseName}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Phase Threshold:</span>
+          <span class="detail-value">$${thresholdUSD.toLocaleString()}</span>
         </div>
       </div>
 

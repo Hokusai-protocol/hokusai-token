@@ -87,7 +87,11 @@ export class PoolDiscovery {
 
       // Try to get all pools from factory
       try {
-        const poolAddresses = await this.factoryContract.getAllPools();
+        const getAllPools = this.factoryContract.getAllPools;
+        if (!getAllPools) {
+          throw new Error('getAllPools method not found on factory contract');
+        }
+        const poolAddresses = await getAllPools();
         logger.info(`Factory reports ${poolAddresses.length} existing pools`);
 
         for (const poolAddress of poolAddresses) {
@@ -183,7 +187,11 @@ export class PoolDiscovery {
       const currentBlock = await this.provider.getBlockNumber();
       logger.info(`Querying historical PoolCreated events from block ${fromBlock} to ${currentBlock}`);
 
-      const filter = this.factoryContract.filters.PoolCreated();
+      const filters = this.factoryContract.filters;
+      if (!filters || !filters.PoolCreated) {
+        throw new Error('PoolCreated filter not found on factory contract');
+      }
+      const filter = filters.PoolCreated();
       const events = await this.factoryContract.queryFilter(filter, fromBlock, currentBlock);
 
       logger.info(`Found ${events.length} historical PoolCreated events`);
@@ -242,6 +250,25 @@ export class PoolDiscovery {
     const block = await event.getBlock();
     const ibrEndsAt = new Date((block.timestamp + ibrDuration) * 1000).toISOString();
 
+    // Fetch phase parameters from pool contract
+    const pool = new ethers.Contract(poolAddress, [
+      'function FLAT_CURVE_THRESHOLD() view returns (uint256)',
+      'function FLAT_CURVE_PRICE() view returns (uint256)'
+    ], this.provider);
+
+    const thresholdFn = pool.FLAT_CURVE_THRESHOLD;
+    const priceFn = pool.FLAT_CURVE_PRICE;
+
+    if (!thresholdFn || !priceFn) {
+      throw new Error('Phase parameter methods not found on pool contract');
+    }
+
+    const flatCurveThreshold = await thresholdFn();
+    const flatCurvePrice = await priceFn();
+
+    logger.info(`   Flat Curve Threshold: ${ethers.formatUnits(flatCurveThreshold, 6)} USDC`);
+    logger.info(`   Flat Curve Price: $${ethers.formatUnits(flatCurvePrice, 6)}`);
+
     // Create pool config
     const poolConfig: PoolConfig = {
       modelId,
@@ -251,7 +278,9 @@ export class PoolDiscovery {
       tradeFee,
       protocolFee: protocolFeeBps,
       ibrDuration,
-      ibrEndsAt
+      ibrEndsAt,
+      flatCurveThreshold: flatCurveThreshold.toString(),
+      flatCurvePrice: flatCurvePrice.toString()
     };
 
     // Store pool
@@ -274,18 +303,41 @@ export class PoolDiscovery {
         'function crr() view returns (uint256)',
         'function tradeFee() view returns (uint256)',
         'function protocolFeeBps() view returns (uint16)',
-        'function buyOnlyUntil() view returns (uint256)'
+        'function buyOnlyUntil() view returns (uint256)',
+        'function FLAT_CURVE_THRESHOLD() view returns (uint256)',
+        'function FLAT_CURVE_PRICE() view returns (uint256)'
       ];
 
       const pool = new ethers.Contract(poolAddress, poolAbi, this.provider);
 
-      const [modelId, tokenAddress, crr, tradeFee, protocolFeeBps, buyOnlyUntil] = await Promise.all([
-        pool.modelId(),
-        pool.hokusaiToken(),
-        pool.crr(),
-        pool.tradeFee(),
-        pool.protocolFeeBps(),
-        pool.buyOnlyUntil()
+      // Safely call contract methods with null checks
+      const modelIdFn = pool.modelId;
+      const tokenFn = pool.hokusaiToken;
+      const crrFn = pool.crr;
+      const tradeFeeFn = pool.tradeFee;
+      const protocolFeeFn = pool.protocolFeeBps;
+      const ibrFn = pool.buyOnlyUntil;
+
+      if (!modelIdFn || !tokenFn || !crrFn || !tradeFeeFn || !protocolFeeFn || !ibrFn) {
+        throw new Error('Pool contract methods not found');
+      }
+
+      const thresholdFn = pool.FLAT_CURVE_THRESHOLD;
+      const priceFn = pool.FLAT_CURVE_PRICE;
+
+      if (!thresholdFn || !priceFn) {
+        throw new Error('Phase parameter methods not found');
+      }
+
+      const [modelId, tokenAddress, crr, tradeFee, protocolFeeBps, buyOnlyUntil, flatCurveThreshold, flatCurvePrice] = await Promise.all([
+        modelIdFn(),
+        tokenFn(),
+        crrFn(),
+        tradeFeeFn(),
+        protocolFeeFn(),
+        ibrFn(),
+        thresholdFn(),
+        priceFn()
       ]);
 
       const currentTime = Math.floor(Date.now() / 1000);
@@ -300,7 +352,9 @@ export class PoolDiscovery {
         tradeFee: Number(tradeFee),
         protocolFee: Number(protocolFeeBps),
         ibrDuration,
-        ibrEndsAt
+        ibrEndsAt,
+        flatCurveThreshold: flatCurveThreshold.toString(),
+        flatCurvePrice: flatCurvePrice.toString()
       };
 
     } catch (error) {

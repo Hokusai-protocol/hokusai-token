@@ -83,13 +83,25 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    * GET /api/monitoring/pools/:poolAddress/state
    * Get current state for a specific pool
    */
-  router.get('/pools/:poolAddress/state', (req: Request, res: Response) => {
+  router.get('/pools/:poolAddress/state', (req: Request, res: Response): void => {
     try {
-      const { poolAddress } = req.params;
+      const poolAddress = req.params.poolAddress;
+      if (!poolAddress) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_PARAMETER',
+            message: 'Pool address is required',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       const state = ammMonitor.getPoolState(poolAddress);
 
       if (!state) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: {
             code: 'POOL_NOT_FOUND',
@@ -97,6 +109,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
             timestamp: new Date().toISOString()
           }
         });
+        return;
       }
 
       res.json({
@@ -120,15 +133,27 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    * GET /api/monitoring/pools/:poolAddress/history
    * Get state history for a specific pool
    */
-  router.get('/pools/:poolAddress/history', (req: Request, res: Response) => {
+  router.get('/pools/:poolAddress/history', (req: Request, res: Response): void => {
     try {
-      const { poolAddress } = req.params;
+      const poolAddress = req.params.poolAddress;
+      if (!poolAddress) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_PARAMETER',
+            message: 'Pool address is required',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
 
       const history = ammMonitor.getPoolStateHistory(poolAddress, limit);
 
       if (!history || history.length === 0) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: {
             code: 'POOL_NOT_FOUND',
@@ -136,6 +161,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
             timestamp: new Date().toISOString()
           }
         });
+        return;
       }
 
       res.json({
@@ -263,7 +289,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
           list: pools.map(p => ({
             address: p.ammAddress,
             modelId: p.modelId,
-            name: p.name
+            tokenAddress: p.tokenAddress
           }))
         },
         systemMetrics: metrics.systemMetrics,

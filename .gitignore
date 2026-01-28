@@ -14,12 +14,20 @@ coverage.json
 gas-report.txt
 
 # Hardhat network files
-hardhat.config.js
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
+*.local.json
+
+# Backup files
+*.bak
+
+# Deployment logs and artifacts
+deployments/*.log
+deployments/*.backup.json
 
 # IDE files
 .vscode

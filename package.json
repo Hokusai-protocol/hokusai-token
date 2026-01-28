@@ -7,7 +7,7 @@
     "test-queue": "npx ts-node scripts/test-queue.ts"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@openzeppelin/contracts": "^4.9.6",
     "@prb/math": "^4.1.0",
     "dotenv": "^16.5.0",

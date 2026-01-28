@@ -72,3 +72,32 @@ The `/tools` directory contains workflow automation for:
 - Creating feature branches
 - Generating PRDs and design specs from templates
 - Automating pull request creation
+
+## Deployment
+
+### Docker Image Architecture Requirements
+
+**IMPORTANT**: When building Docker images for AWS ECS Fargate deployment, you MUST build for the AMD64 architecture, not ARM64.
+
+- Local Mac development uses ARM64 (Apple Silicon)
+- AWS ECS Fargate defaults to x86_64/AMD64 when RuntimePlatform is null
+- Building ARM64 images on Mac will result in "exec format error" when deployed to ECS
+
+**Always use this command for ECS deployments**:
+```bash
+docker buildx build --platform linux/amd64 -t <image-name> --load .
+```
+
+### ECS Services
+
+The project has two separate ECS services:
+
+1. **hokusai-contracts-development** (API Service)
+   - ECR: `932100697590.dkr.ecr.us-east-1.amazonaws.com/hokusai/contracts`
+   - Dockerfile CMD: `["node", "dist/server.js"]`
+   - Build/deploy scripts: `services/contract-deployer/scripts/build-and-push.sh` and `deploy.sh`
+
+2. **hokusai-monitor-testnet** (Monitoring Service)
+   - ECR: `932100697590.dkr.ecr.us-east-1.amazonaws.com/hokusai-monitoring`
+   - Dockerfile CMD: `["node", "dist/monitoring-server.js"]`
+   - Implements event-driven AMM pool monitoring with RPC optimizations

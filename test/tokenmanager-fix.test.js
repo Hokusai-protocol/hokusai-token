@@ -197,7 +197,7 @@ describe("TokenManager Frontend Integration Fix", function () {
           totalSupply,
           { value: await tokenManager.deploymentFee() }
         )
-      ).to.be.revertedWith("Total supply must be greater than zero");
+      ).to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
     });
 
     it("Should validate modelId is not empty", async function () {
@@ -214,7 +214,7 @@ describe("TokenManager Frontend Integration Fix", function () {
           totalSupply,
           { value: await tokenManager.deploymentFee() }
         )
-      ).to.be.revertedWith("Model ID cannot be empty");
+      ).to.be.revertedWithCustomError(tokenManager, "EmptyString");
     });
   });
 

@@ -56,7 +56,7 @@ describe("TokenManager", function () {
     it("Should reject zero address for registry", async function () {
       const TokenManager = await ethers.getContractFactory("TokenManager");
       await expect(TokenManager.deploy(ZeroAddress))
-        .to.be.revertedWith("Registry address cannot be zero");
+        .to.be.revertedWithCustomError(TokenManager, "ZeroAddress");
     });
   });
 
@@ -162,24 +162,24 @@ describe("TokenManager", function () {
   describe("Input Validation", function () {
     it("Should reject zero recipient address", async function () {
       await expect(tokenManager.mintTokens(MODEL_ID_1, ZeroAddress, parseEther("100")))
-        .to.be.revertedWith("Recipient cannot be zero address");
+        .to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
     });
 
     it("Should reject zero amount", async function () {
       await expect(tokenManager.mintTokens(MODEL_ID_1, user1.address, 0))
-        .to.be.revertedWith("Amount must be greater than zero");
+        .to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
     });
 
     it("Should handle maximum uint256 amount", async function () {
       // This will likely fail due to total supply constraints, but we test the handling
       await expect(tokenManager.mintTokens(MODEL_ID_1, user1.address, MaxUint256))
-        .to.not.be.revertedWith("Amount must be greater than zero");
+        .to.not.be.revertedWithCustomError(tokenManager, "InvalidAmount");
     });
 
     it("Should handle edge case model IDs", async function () {
       // Empty string model ID
       await expect(tokenManager.mintTokens("", user1.address, parseEther("100")))
-        .to.be.revertedWith("Model ID cannot be empty");
+        .to.be.revertedWithCustomError(tokenManager, "EmptyString");
 
       // Non-existent model ID
       await expect(tokenManager.mintTokens("non-existent", user1.address, parseEther("100")))
@@ -315,7 +315,7 @@ describe("TokenManager", function () {
     it("Should handle invalid model ID gracefully", async function () {
       // Test with empty string model ID
       await expect(tokenManager.mintTokens("", user1.address, parseEther("100")))
-        .to.be.revertedWith("Model ID cannot be empty");
+        .to.be.revertedWithCustomError(tokenManager, "EmptyString");
 
       // Test with non-existent model ID
       await expect(tokenManager.mintTokens("invalid-model", user1.address, parseEther("100")))

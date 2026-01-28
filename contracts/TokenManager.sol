@@ -2,7 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "./libraries/AccessControlBase.sol";
+import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
 import "./HokusaiToken.sol";
 import "./HokusaiParams.sol";
@@ -12,7 +13,7 @@ import "./HokusaiParams.sol";
  * @dev Manages token deployment and operations for models
  * Users can deploy tokens directly and pay gas fees themselves
  */
-contract TokenManager is Ownable, AccessControl {
+contract TokenManager is Ownable, AccessControlBase {
     ModelRegistry public registry;
     address public deltaVerifier;
 
@@ -59,13 +60,19 @@ contract TokenManager is Ownable, AccessControl {
     event DeploymentFeeUpdated(uint256 newFee);
 
 
-    constructor(address registryAddress) Ownable() {
-        require(registryAddress != address(0), "Registry address cannot be zero");
+    constructor(address registryAddress)
+        Ownable()
+        AccessControlBase(msg.sender)
+    {
+        ValidationLib.requireNonZeroAddress(registryAddress, "registry address");
         registry = ModelRegistry(registryAddress);
         feeRecipient = msg.sender;
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _setupRole(MINTER_ROLE, msg.sender);
-        _setupRole(DEPLOYER_ROLE, msg.sender);
+
+        // Grant additional roles using AccessControlBase
+        bytes32[] memory roles = new bytes32[](2);
+        roles[0] = MINTER_ROLE;
+        roles[1] = DEPLOYER_ROLE;
+        _grantRoles(roles, msg.sender);
     }
 
     /**
@@ -110,12 +117,12 @@ contract TokenManager is Ownable, AccessControl {
         uint256 totalSupply,
         InitialParams memory initialParams
     ) public payable returns (address tokenAddress) {
-        // Validate inputs
-        require(bytes(modelId).length > 0, "Model ID cannot be empty");
-        require(bytes(name).length > 0, "Token name cannot be empty");
-        require(bytes(symbol).length > 0, "Token symbol cannot be empty");
-        require(totalSupply > 0, "Total supply must be greater than zero");
-        require(initialParams.governor != address(0), "Governor cannot be zero address");
+        // Validate inputs using ValidationLib
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonEmptyString(name, "token name");
+        ValidationLib.requireNonEmptyString(symbol, "token symbol");
+        ValidationLib.requirePositiveAmount(totalSupply, "total supply");
+        ValidationLib.requireNonZeroAddress(initialParams.governor, "governor");
 
         // Check if model already has a token
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
@@ -174,7 +181,7 @@ contract TokenManager is Ownable, AccessControl {
      * @dev Set fee recipient (owner only)
      */
     function setFeeRecipient(address _recipient) external onlyOwner {
-        require(_recipient != address(0), "Invalid recipient");
+        ValidationLib.requireNonZeroAddress(_recipient, "fee recipient");
         feeRecipient = _recipient;
     }
 
@@ -183,7 +190,7 @@ contract TokenManager is Ownable, AccessControl {
      * @param _deltaVerifier The DeltaVerifier contract address
      */
     function setDeltaVerifier(address _deltaVerifier) external onlyOwner {
-        require(_deltaVerifier != address(0), "Invalid delta verifier address");
+        ValidationLib.requireNonZeroAddress(_deltaVerifier, "delta verifier");
         deltaVerifier = _deltaVerifier;
         emit DeltaVerifierUpdated(_deltaVerifier);
     }
@@ -193,7 +200,7 @@ contract TokenManager is Ownable, AccessControl {
      * @param amm The AMM contract address to authorize
      */
     function authorizeAMM(address amm) external onlyOwner {
-        require(amm != address(0), "Invalid AMM address");
+        ValidationLib.requireNonZeroAddress(amm, "AMM address");
         grantRole(MINTER_ROLE, amm);
     }
 
@@ -218,9 +225,11 @@ contract TokenManager is Ownable, AccessControl {
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to mint"
         );
-        require(bytes(modelId).length > 0, "Model ID cannot be empty");
-        require(recipient != address(0), "Recipient cannot be zero address");
-        require(amount > 0, "Amount must be greater than zero");
+
+        // Use ValidationLib for cleaner validation
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(recipient, "recipient");
+        ValidationLib.requirePositiveAmount(amount, "amount");
 
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
@@ -247,10 +256,10 @@ contract TokenManager is Ownable, AccessControl {
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Unauthorized"
         );
-        require(bytes(modelId).length > 0, "Model ID cannot be empty");
-        require(recipients.length > 0, "Empty recipients array");
-        require(recipients.length == amounts.length, "Array length mismatch");
-        require(recipients.length <= 100, "Batch size exceeds limit");
+
+        // Use ValidationLib for batch validation
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireValidBatch(recipients.length, amounts.length, 100);
 
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
@@ -259,8 +268,8 @@ contract TokenManager is Ownable, AccessControl {
         uint256 totalAmount = 0;
 
         for (uint256 i = 0; i < recipients.length; i++) {
-            require(recipients[i] != address(0), "Invalid recipient address");
-            require(amounts[i] > 0, "Amount must be greater than zero");
+            ValidationLib.requireNonZeroAddress(recipients[i], "recipient");
+            ValidationLib.requirePositiveAmount(amounts[i], "amount");
 
             token.mint(recipients[i], amounts[i]);
             totalAmount += amounts[i];
@@ -283,9 +292,11 @@ contract TokenManager is Ownable, AccessControl {
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to burn"
         );
-        require(bytes(modelId).length > 0, "Model ID cannot be empty");
-        require(account != address(0), "Account cannot be zero address");
-        require(amount > 0, "Amount must be greater than zero");
+
+        // Use ValidationLib for cleaner validation
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(account, "account");
+        ValidationLib.requirePositiveAmount(amount, "amount");
 
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
@@ -319,8 +330,8 @@ contract TokenManager is Ownable, AccessControl {
      * @return The model identifier
      */
     function getModelId(address tokenAddress) external view returns (string memory) {
-        require(tokenAddress != address(0), "Token address cannot be zero");
-        require(bytes(tokenToModel[tokenAddress]).length > 0, "Token not found");
+        ValidationLib.requireNonZeroAddress(tokenAddress, "token address");
+        ValidationLib.requireNonEmptyString(tokenToModel[tokenAddress], "token");
         return tokenToModel[tokenAddress];
     }
 

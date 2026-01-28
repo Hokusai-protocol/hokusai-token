@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
 import "./TokenManager.sol";
 import "./HokusaiToken.sol";
@@ -97,11 +98,11 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         uint256 _minImprovementBps,
         uint256 _maxReward
     ) {
-        require(_modelRegistry != address(0), "Invalid model registry");
-        require(_tokenManager != address(0), "Invalid token manager");
-        require(_contributionRegistry != address(0), "Invalid contribution registry");
-        require(_baseRewardRate > 0, "Invalid reward rate");
-        require(_minImprovementBps > 0, "Invalid min improvement");
+        ValidationLib.requireNonZeroAddress(_modelRegistry, "model registry");
+        ValidationLib.requireNonZeroAddress(_tokenManager, "token manager");
+        ValidationLib.requireNonZeroAddress(_contributionRegistry, "contribution registry");
+        ValidationLib.requirePositiveAmount(_baseRewardRate, "reward rate");
+        ValidationLib.requirePositiveAmount(_minImprovementBps, "min improvement");
 
         modelRegistry = ModelRegistry(_modelRegistry);
         tokenManager = TokenManager(_tokenManager);
@@ -129,8 +130,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         
         // Validate wallet address
-        require(data.contributorInfo.walletAddress != address(0), "Invalid wallet address");
-        require(_isValidAddress(data.contributorInfo.walletAddress), "Invalid wallet address format");
+        ValidationLib.requireNonZeroAddress(data.contributorInfo.walletAddress, "wallet address");
         
         // Create evaluation data from contributor info
         EvaluationData memory evalData = EvaluationData({
@@ -154,8 +154,8 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     ) external nonReentrant whenNotPaused returns (uint256) {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
-        require(contributors.length > 0, "No contributors provided");
-        require(contributors.length <= 100, "Batch size exceeds limit");
+        ValidationLib.requireNonEmptyArray(contributors.length);
+        ValidationLib.requireMaxArrayLength(contributors.length, 100);
         
         // Validate contributors and weights
         uint256 totalWeight = 0;
@@ -163,14 +163,13 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         uint256[] memory rewardAmounts = new uint256[](contributors.length);
         
         for (uint256 i = 0; i < contributors.length; i++) {
-            require(contributors[i].walletAddress != address(0), "Invalid wallet address");
-            require(_isValidAddress(contributors[i].walletAddress), "Invalid wallet address format");
-            
+            ValidationLib.requireNonZeroAddress(contributors[i].walletAddress, "wallet address");
+
             // Check for duplicates
             for (uint256 j = 0; j < i; j++) {
                 require(contributors[i].walletAddress != contributorAddresses[j], "Duplicate contributor address");
             }
-            
+
             contributorAddresses[i] = contributors[i].walletAddress;
             totalWeight += contributors[i].weight;
         }
@@ -371,53 +370,53 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     
     function _validateEvaluationData(EvaluationData calldata data) private pure {
         // Validate contributor address
-        require(data.contributor != address(0), "Invalid contributor address");
-        
+        ValidationLib.requireNonZeroAddress(data.contributor, "contributor address");
+
         // Validate contributor weight
-        require(data.contributorWeight <= 10000, "Invalid contributor weight");
-        
+        ValidationLib.requireMaxValue(data.contributorWeight, 10000);
+
         // Validate metrics are within valid range (0-100%)
         _validateMetrics(data.baselineMetrics);
         _validateMetrics(data.newMetrics);
-        
+
         // Validate sample counts
-        require(data.contributedSamples > 0, "Invalid contributed samples");
+        ValidationLib.requirePositiveAmount(data.contributedSamples, "contributed samples");
         require(data.totalSamples >= data.contributedSamples, "Invalid total samples");
     }
     
     function _validateMetrics(Metrics memory metrics) private pure {
-        require(metrics.accuracy <= 10000, "Invalid metric value");
-        require(metrics.precision <= 10000, "Invalid metric value");
-        require(metrics.recall <= 10000, "Invalid metric value");
-        require(metrics.f1 <= 10000, "Invalid metric value");
-        require(metrics.auroc <= 10000, "Invalid metric value");
+        ValidationLib.requireMaxValue(metrics.accuracy, 10000);
+        ValidationLib.requireMaxValue(metrics.precision, 10000);
+        ValidationLib.requireMaxValue(metrics.recall, 10000);
+        ValidationLib.requireMaxValue(metrics.f1, 10000);
+        ValidationLib.requireMaxValue(metrics.auroc, 10000);
     }
 
     function _validateEvaluationDataMemory(EvaluationData memory data) private pure {
         // Validate contributor address
-        require(data.contributor != address(0), "Invalid contributor address");
-        
+        ValidationLib.requireNonZeroAddress(data.contributor, "contributor address");
+
         // Validate contributor weight
-        require(data.contributorWeight <= 10000, "Invalid contributor weight");
-        
+        ValidationLib.requireMaxValue(data.contributorWeight, 10000);
+
         // Validate metrics are within valid range (0-100%)
         _validateMetrics(data.baselineMetrics);
         _validateMetrics(data.newMetrics);
-        
+
         // Validate sample counts
-        require(data.contributedSamples > 0, "Invalid contributed samples");
+        ValidationLib.requirePositiveAmount(data.contributedSamples, "contributed samples");
         require(data.totalSamples >= data.contributedSamples, "Invalid total samples");
     }
     
     // Admin functions
     function setBaseRewardRate(uint256 _baseRewardRate) external onlyOwner {
-        require(_baseRewardRate > 0, "Invalid reward rate");
+        ValidationLib.requirePositiveAmount(_baseRewardRate, "reward rate");
         baseRewardRate = _baseRewardRate;
         emit RewardParametersUpdated(baseRewardRate, minImprovementBps, maxReward);
     }
-    
+
     function setMinImprovementBps(uint256 _minImprovementBps) external onlyOwner {
-        require(_minImprovementBps > 0, "Invalid min improvement");
+        ValidationLib.requirePositiveAmount(_minImprovementBps, "min improvement");
         minImprovementBps = _minImprovementBps;
         emit RewardParametersUpdated(baseRewardRate, minImprovementBps, maxReward);
     }
@@ -433,10 +432,6 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     
     function unpause() external onlyOwner {
         _unpause();
-    }
-
-    function _isValidAddress(address addr) private pure returns (bool) {
-        return addr != address(0);
     }
 
     /**

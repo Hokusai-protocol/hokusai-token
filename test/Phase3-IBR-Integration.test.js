@@ -19,6 +19,8 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
     const TRADE_FEE = 25; // 0.25% (25 bps)
     const PROTOCOL_FEE = 500; // 5% (500 bps)
     const IBR_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
+    const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $25k threshold
+    const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
 
     // For testing, we'll simulate starting state (s0=100k, r0=$10k)
     const SIMULATED_SUPPLY = parseEther("100000"); // What supply should be after initialization
@@ -65,7 +67,9 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             CRR,
             TRADE_FEE,
             PROTOCOL_FEE,
-            IBR_DURATION
+            IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
         );
         await hokusaiAMM.waitForDeployment();
 
@@ -170,9 +174,11 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
                     CRR,
                     TRADE_FEE,
                     PROTOCOL_FEE,
-                    IBR_DURATION
+                    IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
                 )
-            ).to.be.revertedWith("Invalid reserve token");
+            ).to.be.revertedWithCustomError(HokusaiAMM, "ZeroAddress");
 
             // Invalid CRR (too high)
             await expect(
@@ -185,7 +191,9 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
                     600000, // 60% > 50% max
                     TRADE_FEE,
                     PROTOCOL_FEE,
-                    IBR_DURATION
+                    IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
                 )
             ).to.be.revertedWith("CRR out of bounds");
 
@@ -200,7 +208,9 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
                     CRR,
                     1500, // 15% > 10% max
                     PROTOCOL_FEE,
-                    IBR_DURATION
+                    IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
                 )
             ).to.be.revertedWith("Trade fee too high");
         });

@@ -198,7 +198,7 @@ describe("TokenManager with Params", function () {
           parseEther("10000"),
           defaultInitialParams
         )
-      ).to.be.revertedWith("Model ID cannot be empty");
+      ).to.be.revertedWithCustomError(tokenManager, "EmptyString");
     });
 
     it("Should reject empty token name", async function () {
@@ -210,7 +210,7 @@ describe("TokenManager with Params", function () {
           parseEther("10000"),
           defaultInitialParams
         )
-      ).to.be.revertedWith("Token name cannot be empty");
+      ).to.be.revertedWithCustomError(tokenManager, "EmptyString");
     });
 
     it("Should reject empty token symbol", async function () {
@@ -222,7 +222,7 @@ describe("TokenManager with Params", function () {
           parseEther("10000"),
           defaultInitialParams
         )
-      ).to.be.revertedWith("Token symbol cannot be empty");
+      ).to.be.revertedWithCustomError(tokenManager, "EmptyString");
     });
 
     it("Should reject zero total supply", async function () {
@@ -234,7 +234,7 @@ describe("TokenManager with Params", function () {
           0,
           defaultInitialParams
         )
-      ).to.be.revertedWith("Total supply must be greater than zero");
+      ).to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
     });
 
     it("Should reject zero address governor", async function () {
@@ -248,7 +248,7 @@ describe("TokenManager with Params", function () {
           parseEther("10000"),
           invalidParams
         )
-      ).to.be.revertedWith("Governor cannot be zero address");
+      ).to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
     });
 
     it("Should reject duplicate model ID", async function () {

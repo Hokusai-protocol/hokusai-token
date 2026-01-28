@@ -283,7 +283,7 @@ describe("DeltaVerifier", function () {
 
       await expect(
         deltaVerifier.submitEvaluation(MODEL_ID, evaluationData)
-      ).to.be.revertedWith("Invalid metric value");
+      ).to.be.revertedWithCustomError(deltaVerifier, "InvalidAmount");
     });
 
     it("Should reject invalid contributor weight", async function () {
@@ -299,7 +299,7 @@ describe("DeltaVerifier", function () {
 
       await expect(
         deltaVerifier.submitEvaluation(MODEL_ID, evaluationData)
-      ).to.be.revertedWith("Invalid contributor weight");
+      ).to.be.revertedWithCustomError(deltaVerifier, "InvalidAmount");
     });
 
     it("Should reject zero contributor address", async function () {
@@ -315,7 +315,7 @@ describe("DeltaVerifier", function () {
 
       await expect(
         deltaVerifier.submitEvaluation(MODEL_ID, evaluationData)
-      ).to.be.revertedWith("Invalid contributor address");
+      ).to.be.revertedWithCustomError(deltaVerifier, "ZeroAddress");
     });
   });
 

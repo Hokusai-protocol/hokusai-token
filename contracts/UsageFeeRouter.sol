@@ -2,8 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "./libraries/AccessControlBase.sol";
+import "./libraries/ValidationLib.sol";
+import "./libraries/FeeLib.sol";
 import "./HokusaiAMM.sol";
 import "./HokusaiAMMFactory.sol";
 
@@ -18,7 +20,7 @@ import "./HokusaiAMMFactory.sol";
  * - Support batch deposits for gas efficiency
  * - Emit events for tracking and analytics
  */
-contract UsageFeeRouter is AccessControl, ReentrancyGuard {
+contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
     // ============================================================
     // STATE VARIABLES
     // ============================================================
@@ -82,18 +84,17 @@ contract UsageFeeRouter is AccessControl, ReentrancyGuard {
         address _reserveToken,
         address _treasury,
         uint16 _protocolFeeBps
-    ) {
-        require(_factory != address(0), "Invalid factory");
-        require(_reserveToken != address(0), "Invalid reserve token");
-        require(_treasury != address(0), "Invalid treasury");
-        require(_protocolFeeBps <= MAX_PROTOCOL_FEE, "Protocol fee too high");
+    ) AccessControlBase(msg.sender) {
+        ValidationLib.requireNonZeroAddress(_factory, "factory");
+        ValidationLib.requireNonZeroAddress(_reserveToken, "reserve token");
+        ValidationLib.requireNonZeroAddress(_treasury, "treasury");
+        FeeLib.requireValidFee(_protocolFeeBps, MAX_PROTOCOL_FEE);
 
         factory = HokusaiAMMFactory(_factory);
         reserveToken = IERC20(_reserveToken);
         treasury = _treasury;
         protocolFeeBps = _protocolFeeBps;
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(FEE_DEPOSITOR_ROLE, msg.sender);
     }
 
@@ -111,15 +112,14 @@ contract UsageFeeRouter is AccessControl, ReentrancyGuard {
         nonReentrant
         onlyRole(FEE_DEPOSITOR_ROLE)
     {
-        require(amount > 0, "Amount must be > 0");
+        ValidationLib.requirePositiveAmount(amount, "amount");
         require(factory.hasPool(modelId), "Pool does not exist");
 
         address poolAddress = factory.getPool(modelId);
-        require(poolAddress != address(0), "Invalid pool address");
+        ValidationLib.requireNonZeroAddress(poolAddress, "pool address");
 
-        // Calculate protocol fee
-        uint256 protocolFee = (amount * protocolFeeBps) / 10000;
-        uint256 poolDeposit = amount - protocolFee;
+        // Calculate protocol fee using FeeLib
+        (uint256 poolDeposit, uint256 protocolFee) = FeeLib.applyFee(amount, protocolFeeBps);
 
         // Transfer USDC from depositor to this contract
         require(
@@ -164,15 +164,15 @@ contract UsageFeeRouter is AccessControl, ReentrancyGuard {
         string[] memory modelIds,
         uint256[] memory amounts
     ) external nonReentrant onlyRole(FEE_DEPOSITOR_ROLE) {
-        require(modelIds.length == amounts.length, "Array length mismatch");
-        require(modelIds.length > 0, "Empty arrays");
+        ValidationLib.requireMatchingArrayLengths(modelIds.length, amounts.length);
+        ValidationLib.requireNonEmptyArray(modelIds.length);
 
         uint256 totalAmount = 0;
         uint256 totalProtocolFee = 0;
 
         // Calculate totals and validate
         for (uint256 i = 0; i < modelIds.length; i++) {
-            require(amounts[i] > 0, "Amount must be > 0");
+            ValidationLib.requirePositiveAmount(amounts[i], "amount");
             require(factory.hasPool(modelIds[i]), "Pool does not exist");
             totalAmount += amounts[i];
         }
@@ -189,9 +189,8 @@ contract UsageFeeRouter is AccessControl, ReentrancyGuard {
             uint256 amount = amounts[i];
             address poolAddress = factory.getPool(modelId);
 
-            // Calculate protocol fee for this deposit
-            uint256 protocolFee = (amount * protocolFeeBps) / 10000;
-            uint256 poolDeposit = amount - protocolFee;
+            // Calculate protocol fee using FeeLib
+            (uint256 poolDeposit, uint256 protocolFee) = FeeLib.applyFee(amount, protocolFeeBps);
 
             totalProtocolFee += protocolFee;
 
@@ -244,7 +243,7 @@ contract UsageFeeRouter is AccessControl, ReentrancyGuard {
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        require(newProtocolFeeBps <= MAX_PROTOCOL_FEE, "Protocol fee too high");
+        FeeLib.requireValidFee(newProtocolFeeBps, MAX_PROTOCOL_FEE);
         protocolFeeBps = newProtocolFeeBps;
         emit ProtocolFeeUpdated(newProtocolFeeBps);
     }
@@ -257,7 +256,7 @@ contract UsageFeeRouter is AccessControl, ReentrancyGuard {
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        require(newTreasury != address(0), "Invalid treasury");
+        ValidationLib.requireNonZeroAddress(newTreasury, "treasury");
         treasury = newTreasury;
         emit TreasuryUpdated(newTreasury);
     }
@@ -270,7 +269,7 @@ contract UsageFeeRouter is AccessControl, ReentrancyGuard {
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        require(amount > 0, "Amount must be > 0");
+        ValidationLib.requirePositiveAmount(amount, "amount");
         uint256 balance = reserveToken.balanceOf(address(this));
         require(amount <= balance, "Insufficient balance");
 
@@ -318,8 +317,7 @@ contract UsageFeeRouter is AccessControl, ReentrancyGuard {
         view
         returns (uint256 protocolFee, uint256 poolDeposit)
     {
-        protocolFee = (amount * protocolFeeBps) / 10000;
-        poolDeposit = amount - protocolFee;
+        (poolDeposit, protocolFee) = FeeLib.applyFee(amount, protocolFeeBps);
     }
 
     /**

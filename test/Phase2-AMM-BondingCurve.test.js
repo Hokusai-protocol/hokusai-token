@@ -16,6 +16,8 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
   const TRADE_FEE = 25; // 0.25%
   const PROTOCOL_FEE = 500; // 5%
   const IBR_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
+    const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $1k threshold (lower than initial reserve)
+    const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
   const INITIAL_SUPPLY = parseEther("100000"); // 100k tokens
   const INITIAL_RESERVE = parseUnits("10000", 6); // $10,000 USDC
 
@@ -53,7 +55,9 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       CRR,
       TRADE_FEE,
       PROTOCOL_FEE,
-      IBR_DURATION
+      IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
     );
     await hokusaiAMM.waitForDeployment();
 
@@ -123,9 +127,11 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
           CRR,
           TRADE_FEE,
           PROTOCOL_FEE,
-          IBR_DURATION
+          IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
         )
-      ).to.be.revertedWith("Invalid reserve token");
+      ).to.be.revertedWithCustomError(HokusaiAMM, "ZeroAddress");
 
       // CRR too low
       await expect(
@@ -138,7 +144,9 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
           40000, // 4% - below minimum
           TRADE_FEE,
           PROTOCOL_FEE,
-          IBR_DURATION
+          IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
         )
       ).to.be.revertedWith("CRR out of bounds");
 
@@ -153,7 +161,9 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
           600000, // 60% - above maximum
           TRADE_FEE,
           PROTOCOL_FEE,
-          IBR_DURATION
+          IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
         )
       ).to.be.revertedWith("CRR out of bounds");
     });
@@ -346,7 +356,9 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
         CRR,
         TRADE_FEE,
         PROTOCOL_FEE,
-        IBR_DURATION
+        IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
       );
 
       const deadline = (await time.latest()) + 300;
@@ -630,7 +642,9 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
         CRR,
         TRADE_FEE,
         PROTOCOL_FEE,
-        IBR_DURATION
+        IBR_DURATION,
+            FLAT_CURVE_THRESHOLD,
+            FLAT_CURVE_PRICE
       );
 
       expect(await newAMM.isSellEnabled()).to.be.false;

@@ -180,7 +180,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     it("Should revert with zero address", async function () {
       await expect(
         tokenManager.authorizeAMM(ZeroAddress)
-      ).to.be.revertedWith("Invalid AMM address");
+      ).to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
     });
 
     it("Should only allow owner to authorize", async function () {

@@ -96,26 +96,19 @@ async function main() {
     else results.failed.push("MockUSDC");
   }
 
-  // 5. UsageFeeRouter (no constructor args)
-  if (deployment.contracts.UsageFeeRouter) {
-    const success = await verifyContract(
-      deployment.contracts.UsageFeeRouter,
-      [],
-      "UsageFeeRouter"
-    );
-    if (success) results.success.push("UsageFeeRouter");
-    else results.failed.push("UsageFeeRouter");
-  }
-
-  // 6. HokusaiAMMFactory (constructor: USDC address, feeRouter address)
+  // 5. HokusaiAMMFactory (constructor: ModelRegistry, TokenManager, USDC, treasury)
   if (deployment.contracts.HokusaiAMMFactory &&
-      deployment.contracts.MockUSDC &&
-      deployment.contracts.UsageFeeRouter) {
+      deployment.contracts.ModelRegistry &&
+      deployment.contracts.TokenManager &&
+      deployment.contracts.MockUSDC) {
+    const treasury = deployment.treasury || deployment.deployer;
     const success = await verifyContract(
       deployment.contracts.HokusaiAMMFactory,
       [
+        deployment.contracts.ModelRegistry,
+        deployment.contracts.TokenManager,
         deployment.contracts.MockUSDC,
-        deployment.contracts.UsageFeeRouter
+        treasury
       ],
       "HokusaiAMMFactory"
     );
@@ -123,11 +116,45 @@ async function main() {
     else results.failed.push("HokusaiAMMFactory");
   }
 
-  // 7. DeltaVerifier (no constructor args)
-  if (deployment.contracts.DeltaVerifier) {
+  // 6. UsageFeeRouter (constructor: factory, USDC, treasury, protocolFeeBps)
+  if (deployment.contracts.UsageFeeRouter &&
+      deployment.contracts.HokusaiAMMFactory &&
+      deployment.contracts.MockUSDC) {
+    const treasury = deployment.treasury || deployment.deployer;
+    const success = await verifyContract(
+      deployment.contracts.UsageFeeRouter,
+      [
+        deployment.contracts.HokusaiAMMFactory,
+        deployment.contracts.MockUSDC,
+        treasury,
+        500  // 5% protocol fee on API usage fees
+      ],
+      "UsageFeeRouter"
+    );
+    if (success) results.success.push("UsageFeeRouter");
+    else results.failed.push("UsageFeeRouter");
+  }
+
+  // 7. DeltaVerifier (constructor: ModelRegistry, TokenManager, DataContributionRegistry, baseRewardRate, minImprovementBps, maxReward)
+  if (deployment.contracts.DeltaVerifier &&
+      deployment.contracts.ModelRegistry &&
+      deployment.contracts.TokenManager &&
+      deployment.contracts.DataContributionRegistry) {
+    // Default parameters from deployment scripts
+    const baseRewardRate = 1000;  // 1000 tokens per 1% improvement
+    const minImprovementBps = 100;  // 1% minimum improvement
+    const maxReward = hre.ethers.parseEther("1000000");  // 1M tokens max
+
     const success = await verifyContract(
       deployment.contracts.DeltaVerifier,
-      [],
+      [
+        deployment.contracts.ModelRegistry,
+        deployment.contracts.TokenManager,
+        deployment.contracts.DataContributionRegistry,
+        baseRewardRate,
+        minImprovementBps,
+        maxReward
+      ],
       "DeltaVerifier"
     );
     if (success) results.success.push("DeltaVerifier");
@@ -152,10 +179,36 @@ async function main() {
   }
 
   // 9. Verify all AMM pools
-  // Note: AMM pools have complex constructor args that need to be reconstructed
-  console.log("\n📝 Note: AMM pool verification requires exact constructor parameters.");
-  console.log("   Skipping automatic verification for AMM pools.");
-  console.log("   Verify manually if needed using the deployment logs.");
+  console.log("\n🏊 Verifying AMM Pools...");
+  for (const pool of deployment.pools || []) {
+    if (pool.ammAddress && deployment.contracts.MockUSDC && deployment.contracts.TokenManager) {
+      const treasury = deployment.treasury || deployment.deployer;
+
+      // HokusaiAMM constructor parameters (after protocolFee removal):
+      // 1. reserveToken, 2. hokusaiToken, 3. tokenManager, 4. modelId, 5. treasury
+      // 6. crr, 7. tradeFee, 8. ibrDuration, 9. flatCurveThreshold, 10. flatCurvePrice
+      const constructorArgs = [
+        deployment.contracts.MockUSDC,           // _reserveToken
+        pool.tokenAddress,                       // _hokusaiToken
+        deployment.contracts.TokenManager,       // _tokenManager
+        pool.modelId,                           // _modelId
+        treasury,                               // _treasury
+        pool.crr,                               // _crr
+        pool.tradeFee,                          // _tradeFee (NOT protocolFee!)
+        pool.ibrDuration,                       // _ibrDuration
+        pool.flatCurveThreshold,                // _flatCurveThreshold
+        pool.flatCurvePrice                     // _flatCurvePrice
+      ];
+
+      const success = await verifyContract(
+        pool.ammAddress,
+        constructorArgs,
+        `${pool.modelId} AMM Pool`
+      );
+      if (success) results.success.push(`${pool.modelId} Pool`);
+      else results.failed.push(`${pool.modelId} Pool`);
+    }
+  }
 
   // Summary
   console.log("\n" + "=".repeat(70));

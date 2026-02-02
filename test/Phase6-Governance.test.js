@@ -16,8 +16,7 @@ describe("Phase 6: Governance & Safety", function () {
     const INITIAL_SUPPLY = parseEther("1");
     const INITIAL_RESERVE = parseUnits("10000", 6);
     const CRR = 100000; // 10%
-    const TRADE_FEE = 25; // 0.25%
-    const PROTOCOL_FEE = 500; // 5%
+    const TRADE_FEE = 30; // 0.30%
     const IBR_DURATION = 7 * 24 * 60 * 60;
     const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $1k threshold
     const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
@@ -60,7 +59,6 @@ describe("Phase 6: Governance & Safety", function () {
             treasury.address,
             CRR,
             TRADE_FEE,
-            PROTOCOL_FEE,
             IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -94,8 +92,7 @@ describe("Phase 6: Governance & Safety", function () {
         it("Should update CRR within bounds", async function () {
             await hokusaiAMM.setParameters(
                 150000, // 15% CRR
-                TRADE_FEE,
-                PROTOCOL_FEE
+                TRADE_FEE
             );
 
             expect(await hokusaiAMM.crr()).to.equal(150000);
@@ -104,43 +101,30 @@ describe("Phase 6: Governance & Safety", function () {
         it("Should update trade fee", async function () {
             await hokusaiAMM.setParameters(
                 CRR,
-                50, // 0.5% trade fee
-                PROTOCOL_FEE
+                50 // 0.5% trade fee
             );
 
             expect(await hokusaiAMM.tradeFee()).to.equal(50);
         });
 
-        it("Should update protocol fee", async function () {
-            await hokusaiAMM.setParameters(
-                CRR,
-                TRADE_FEE,
-                300 // 3% protocol fee
-            );
-
-            expect(await hokusaiAMM.protocolFeeBps()).to.equal(300);
-        });
-
         it("Should update all parameters at once", async function () {
-            await hokusaiAMM.setParameters(200000, 100, 1000);
+            await hokusaiAMM.setParameters(200000, 100);
 
             expect(await hokusaiAMM.crr()).to.equal(200000);
             expect(await hokusaiAMM.tradeFee()).to.equal(100);
-            expect(await hokusaiAMM.protocolFeeBps()).to.equal(1000);
         });
 
         it("Should emit ParametersUpdated event", async function () {
-            await expect(hokusaiAMM.setParameters(150000, 50, 300))
+            await expect(hokusaiAMM.setParameters(150000, 50))
                 .to.emit(hokusaiAMM, "ParametersUpdated")
-                .withArgs(150000, 50, 300);
+                .withArgs(150000, 50);
         });
 
         it("Should enforce CRR minimum bound (5%)", async function () {
             await expect(
                 hokusaiAMM.setParameters(
                     40000, // 4% < 5% min
-                    TRADE_FEE,
-                    PROTOCOL_FEE
+                    TRADE_FEE
                 )
             ).to.be.revertedWith("CRR out of bounds");
         });
@@ -149,8 +133,7 @@ describe("Phase 6: Governance & Safety", function () {
             await expect(
                 hokusaiAMM.setParameters(
                     600000, // 60% > 50% max
-                    TRADE_FEE,
-                    PROTOCOL_FEE
+                    TRADE_FEE
                 )
             ).to.be.revertedWith("CRR out of bounds");
         });
@@ -159,45 +142,29 @@ describe("Phase 6: Governance & Safety", function () {
             await expect(
                 hokusaiAMM.setParameters(
                     CRR,
-                    1500, // 15% > 10% max
-                    PROTOCOL_FEE
+                    1500 // 15% > 10% max
                 )
             ).to.be.revertedWith("Trade fee too high");
         });
 
-        it("Should enforce protocol fee maximum (50%)", async function () {
-            await expect(
-                hokusaiAMM.setParameters(
-                    CRR,
-                    TRADE_FEE,
-                    6000 // 60% > 50% max
-                )
-            ).to.be.revertedWith("Protocol fee too high");
-        });
-
         it("Should allow setting CRR to minimum (5%)", async function () {
-            await hokusaiAMM.setParameters(50000, TRADE_FEE, PROTOCOL_FEE);
+            await hokusaiAMM.setParameters(50000, TRADE_FEE);
             expect(await hokusaiAMM.crr()).to.equal(50000);
         });
 
         it("Should allow setting CRR to maximum (50%)", async function () {
-            await hokusaiAMM.setParameters(500000, TRADE_FEE, PROTOCOL_FEE);
+            await hokusaiAMM.setParameters(500000, TRADE_FEE);
             expect(await hokusaiAMM.crr()).to.equal(500000);
         });
 
         it("Should allow setting trade fee to zero", async function () {
-            await hokusaiAMM.setParameters(CRR, 0, PROTOCOL_FEE);
+            await hokusaiAMM.setParameters(CRR, 0);
             expect(await hokusaiAMM.tradeFee()).to.equal(0);
-        });
-
-        it("Should allow setting protocol fee to zero", async function () {
-            await hokusaiAMM.setParameters(CRR, TRADE_FEE, 0);
-            expect(await hokusaiAMM.protocolFeeBps()).to.equal(0);
         });
 
         it("Should only allow owner to update parameters", async function () {
             await expect(
-                hokusaiAMM.connect(buyer1).setParameters(150000, 50, 300)
+                hokusaiAMM.connect(buyer1).setParameters(150000, 50)
             ).to.be.revertedWith("Ownable: caller is not the owner");
         });
 
@@ -208,7 +175,7 @@ describe("Phase 6: Governance & Safety", function () {
             const tokensOut1 = await hokusaiAMM.getBuyQuote(buyAmount);
 
             // Update trade fee
-            await hokusaiAMM.setParameters(CRR, 100, PROTOCOL_FEE); // Double the trade fee
+            await hokusaiAMM.setParameters(CRR, 100); // Increase the trade fee
 
             // Quote should be different now (less tokens due to higher fee)
             const tokensOut2 = await hokusaiAMM.getBuyQuote(buyAmount);
@@ -219,7 +186,7 @@ describe("Phase 6: Governance & Safety", function () {
             const spotPriceBefore = await hokusaiAMM.spotPrice();
 
             // Increase CRR (formula: P = R / (w × S), where w = crr/PPM)
-            await hokusaiAMM.setParameters(200000, TRADE_FEE, PROTOCOL_FEE); // 20% vs 10%
+            await hokusaiAMM.setParameters(200000, TRADE_FEE); // 20% vs 10%
 
             const spotPriceAfter = await hokusaiAMM.spotPrice();
             // Higher CRR = lower spot price (w increases in denominator)
@@ -540,7 +507,7 @@ describe("Phase 6: Governance & Safety", function () {
             await hokusaiAMM.pause();
 
             // Parameters can be updated while paused
-            await hokusaiAMM.setParameters(150000, 50, 300);
+            await hokusaiAMM.setParameters(150000, 50);
             expect(await hokusaiAMM.crr()).to.equal(150000);
 
             // Resume with new parameters
@@ -554,7 +521,7 @@ describe("Phase 6: Governance & Safety", function () {
 
         it("Should maintain safety checks across parameter changes", async function () {
             // Update to higher trade fee
-            await hokusaiAMM.setParameters(CRR, 100, PROTOCOL_FEE); // 1% fee
+            await hokusaiAMM.setParameters(CRR, 100); // 1% fee
 
             const buyAmount = parseUnits("1000", 6);
             const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;

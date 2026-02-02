@@ -54,8 +54,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should set correct default parameters", async function () {
             expect(await factory.defaultCrr()).to.equal(100000); // 10%
-            expect(await factory.defaultTradeFee()).to.equal(25); // 0.25%
-            expect(await factory.defaultProtocolFeeBps()).to.equal(500); // 5%
+            expect(await factory.defaultTradeFee()).to.equal(30); // 0.30%
             expect(await factory.defaultIbrDuration()).to.equal(7 * 24 * 60 * 60); // 7 days
             expect(await factory.defaultFlatCurveThreshold()).to.equal(parseUnits("25000", 6)); // $25k
             expect(await factory.defaultFlatCurvePrice()).to.equal(parseUnits("0.01", 6)); // $0.01
@@ -106,7 +105,6 @@ describe("Phase 4: Factory & Registry Integration", function () {
         it("Should create pool with custom parameters", async function () {
             const customCrr = 150000; // 15%
             const customTradeFee = 50; // 0.5%
-            const customProtocolFee = 300; // 3%
             const customIbrDuration = 14 * 24 * 60 * 60; // 14 days
             const customThreshold = parseUnits("50000", 6); // $50k
             const customPrice = parseUnits("0.02", 6); // $0.02
@@ -116,7 +114,6 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 token1Address,
                 customCrr,
                 customTradeFee,
-                customProtocolFee,
                 customIbrDuration,
                 customThreshold,
                 customPrice
@@ -127,7 +124,6 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 token1Address,
                 customCrr,
                 customTradeFee,
-                customProtocolFee,
                 customIbrDuration,
                 customThreshold,
                 customPrice
@@ -138,7 +134,6 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
             expect(await pool.crr()).to.equal(customCrr);
             expect(await pool.tradeFee()).to.equal(customTradeFee);
-            expect(await pool.protocolFeeBps()).to.equal(customProtocolFee);
         });
 
         it("Should allow manual registration in ModelRegistry", async function () {
@@ -286,7 +281,6 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 token4Address,
                 200000, // 20% CRR
                 50, // 0.5% trade fee
-                300,
                 14 * 24 * 60 * 60,
                 parseUnits("10000", 6), // Custom threshold
                 parseUnits("0.005", 6) // Custom price
@@ -296,7 +290,6 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 token4Address,
                 200000,
                 50,
-                300,
                 14 * 24 * 60 * 60,
                 parseUnits("10000", 6),
                 parseUnits("0.005", 6)
@@ -313,7 +306,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
             const defaultPool = await factory.getPool(MODEL_ID_1);
             const defaultPoolContract = HokusaiAMM.attach(defaultPool);
             expect(await defaultPoolContract.crr()).to.equal(100000);
-            expect(await defaultPoolContract.tradeFee()).to.equal(25);
+            expect(await defaultPoolContract.tradeFee()).to.equal(30);
         });
     });
 
@@ -326,21 +319,19 @@ describe("Phase 4: Factory & Registry Integration", function () {
             await factory.setDefaults(
                 150000, // 15% CRR
                 50, // 0.5% trade fee
-                300, // 3% protocol fee
                 14 * 24 * 60 * 60 // 14 days IBR
             );
 
             expect(await factory.defaultCrr()).to.equal(150000);
             expect(await factory.defaultTradeFee()).to.equal(50);
-            expect(await factory.defaultProtocolFeeBps()).to.equal(300);
             expect(await factory.defaultIbrDuration()).to.equal(14 * 24 * 60 * 60);
         });
 
         it("Should emit DefaultsUpdated event", async function () {
             await expect(
-                factory.setDefaults(150000, 50, 300, 14 * 24 * 60 * 60)
+                factory.setDefaults(150000, 50, 14 * 24 * 60 * 60)
             ).to.emit(factory, "DefaultsUpdated")
-             .withArgs(150000, 50, 300, 14 * 24 * 60 * 60);
+             .withArgs(150000, 50, 14 * 24 * 60 * 60);
         });
 
         it("Should update treasury address", async function () {
@@ -361,7 +352,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should only allow owner to update defaults", async function () {
             await expect(
-                factory.connect(user1).setDefaults(150000, 50, 300, 14 * 24 * 60 * 60)
+                factory.connect(user1).setDefaults(150000, 50, 14 * 24 * 60 * 60)
             ).to.be.revertedWith("Ownable: caller is not the owner");
         });
 
@@ -389,7 +380,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
             const originalCrr = await pool.crr();
 
             // Change defaults
-            await factory.setDefaults(200000, 100, 1000, 10 * 24 * 60 * 60);
+            await factory.setDefaults(200000, 100, 10 * 24 * 60 * 60);
 
             // Existing pool should still have original parameters
             expect(await pool.crr()).to.equal(originalCrr);
@@ -423,7 +414,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
             expect(poolAddress).to.equal(pool1Address);
             expect(tokenAddress).to.equal(token1Address);
             expect(crr).to.equal(100000);
-            expect(tradeFee).to.equal(25);
+            expect(tradeFee).to.equal(30);
             expect(reserveBalance).to.equal(0); // No reserve yet
             expect(spotPrice).to.be.gt(0);
         });

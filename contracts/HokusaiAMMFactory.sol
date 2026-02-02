@@ -31,7 +31,6 @@ contract HokusaiAMMFactory is Ownable {
     address public treasury; // Fee recipient
     uint256 public defaultCrr; // Default reserve ratio in ppm
     uint256 public defaultTradeFee; // Default trade fee in bps
-    uint16 public defaultProtocolFeeBps; // Default protocol fee in bps
     uint256 public defaultIbrDuration; // Default IBR duration in seconds
     uint256 public defaultFlatCurveThreshold; // Default flat curve threshold (6 decimals)
     uint256 public defaultFlatCurvePrice; // Default flat curve price (6 decimals)
@@ -49,7 +48,6 @@ contract HokusaiAMMFactory is Ownable {
     uint256 public constant MIN_CRR = 50000; // 5%
     uint256 public constant MAX_CRR = 500000; // 50%
     uint256 public constant MAX_TRADE_FEE = 1000; // 10%
-    uint256 public constant MAX_PROTOCOL_FEE = 5000; // 50%
     uint256 public constant MIN_IBR_DURATION = 1 days;
     uint256 public constant MAX_IBR_DURATION = 30 days;
 
@@ -63,14 +61,12 @@ contract HokusaiAMMFactory is Ownable {
         address indexed tokenAddress,
         uint256 crr,
         uint256 tradeFee,
-        uint16 protocolFeeBps,
         uint256 ibrDuration
     );
 
     event DefaultsUpdated(
         uint256 newCrr,
         uint256 newTradeFee,
-        uint16 newProtocolFeeBps,
         uint256 newIbrDuration
     );
 
@@ -105,8 +101,7 @@ contract HokusaiAMMFactory is Ownable {
 
         // Set defaults (can be changed by owner)
         defaultCrr = 100000; // 10%
-        defaultTradeFee = 25; // 0.25%
-        defaultProtocolFeeBps = 500; // 5%
+        defaultTradeFee = 30; // 0.30%
         defaultIbrDuration = 7 days;
         defaultFlatCurveThreshold = 25000 * 1e6; // $25,000 USDC
         defaultFlatCurvePrice = 1e4; // $0.01 (6 decimals: 0.01 * 1e6 = 10000)
@@ -131,7 +126,6 @@ contract HokusaiAMMFactory is Ownable {
             tokenAddress,
             defaultCrr,
             defaultTradeFee,
-            defaultProtocolFeeBps,
             defaultIbrDuration,
             defaultFlatCurveThreshold,
             defaultFlatCurvePrice
@@ -144,7 +138,6 @@ contract HokusaiAMMFactory is Ownable {
      * @param tokenAddress Token address for this model
      * @param crr Reserve ratio in ppm
      * @param tradeFee Trade fee in bps
-     * @param protocolFeeBps Protocol fee in bps
      * @param ibrDuration IBR duration in seconds
      * @param flatCurveThreshold Reserve amount where bonding curve activates (6 decimals)
      * @param flatCurvePrice Fixed price per token during flat period (6 decimals)
@@ -155,7 +148,6 @@ contract HokusaiAMMFactory is Ownable {
         address tokenAddress,
         uint256 crr,
         uint256 tradeFee,
-        uint16 protocolFeeBps,
         uint256 ibrDuration,
         uint256 flatCurveThreshold,
         uint256 flatCurvePrice
@@ -166,7 +158,6 @@ contract HokusaiAMMFactory is Ownable {
         require(pools[modelId] == address(0), "Pool already exists");
         ValidationLib.requireInBounds(crr, MIN_CRR, MAX_CRR);
         FeeLib.requireValidFee(tradeFee, MAX_TRADE_FEE);
-        FeeLib.requireValidFee(protocolFeeBps, MAX_PROTOCOL_FEE);
         ValidationLib.requireInBounds(ibrDuration, MIN_IBR_DURATION, MAX_IBR_DURATION);
         ValidationLib.requirePositiveAmount(flatCurveThreshold, "flat curve threshold");
         ValidationLib.requirePositiveAmount(flatCurvePrice, "flat curve price");
@@ -190,7 +181,6 @@ contract HokusaiAMMFactory is Ownable {
             treasury,
             crr,
             tradeFee,
-            protocolFeeBps,
             ibrDuration,
             flatCurveThreshold,
             flatCurvePrice
@@ -209,7 +199,6 @@ contract HokusaiAMMFactory is Ownable {
             tokenAddress,
             crr,
             tradeFee,
-            protocolFeeBps,
             ibrDuration
         );
 
@@ -282,26 +271,22 @@ contract HokusaiAMMFactory is Ownable {
      * @dev Update default parameters for new pools
      * @param newCrr New default reserve ratio
      * @param newTradeFee New default trade fee
-     * @param newProtocolFeeBps New default protocol fee
      * @param newIbrDuration New default IBR duration
      */
     function setDefaults(
         uint256 newCrr,
         uint256 newTradeFee,
-        uint16 newProtocolFeeBps,
         uint256 newIbrDuration
     ) external onlyOwner {
         ValidationLib.requireInBounds(newCrr, MIN_CRR, MAX_CRR);
         FeeLib.requireValidFee(newTradeFee, MAX_TRADE_FEE);
-        FeeLib.requireValidFee(newProtocolFeeBps, MAX_PROTOCOL_FEE);
         ValidationLib.requireInBounds(newIbrDuration, MIN_IBR_DURATION, MAX_IBR_DURATION);
 
         defaultCrr = newCrr;
         defaultTradeFee = newTradeFee;
-        defaultProtocolFeeBps = newProtocolFeeBps;
         defaultIbrDuration = newIbrDuration;
 
-        emit DefaultsUpdated(newCrr, newTradeFee, newProtocolFeeBps, newIbrDuration);
+        emit DefaultsUpdated(newCrr, newTradeFee, newIbrDuration);
     }
 
     /**

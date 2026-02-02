@@ -28,7 +28,6 @@ const MAINNET_USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const FACTORY_DEFAULTS = {
   crr: 200000,              // 20% CRR default
   tradeFee: 30,             // 0.30% trade fee default
-  protocolFee: 3000,        // 30% protocol fee default
   ibrDuration: 7 * 24 * 60 * 60  // 7 days IBR (production)
 };
 
@@ -185,13 +184,11 @@ async function main() {
     console.log("\n   ⚙️  Setting factory defaults...");
     console.log(`     CRR:          ${FACTORY_DEFAULTS.crr / 10000}%`);
     console.log(`     Trade Fee:    ${FACTORY_DEFAULTS.tradeFee / 100}%`);
-    console.log(`     Protocol Fee: ${FACTORY_DEFAULTS.protocolFee / 100}%`);
     console.log(`     IBR Duration: ${FACTORY_DEFAULTS.ibrDuration / 86400} days`);
 
     const setDefaultsTx = await factory.setDefaults(
       FACTORY_DEFAULTS.crr,
       FACTORY_DEFAULTS.tradeFee,
-      FACTORY_DEFAULTS.protocolFee,
       FACTORY_DEFAULTS.ibrDuration
     );
     await setDefaultsTx.wait();

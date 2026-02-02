@@ -11,7 +11,6 @@ describe("Two-Phase Pricing System", function () {
     const INITIAL_SUPPLY = parseUnits("1000000", 18); // 1M tokens
     const CRR = 200000; // 20% reserve ratio
     const TRADE_FEE = 30; // 0.30%
-    const PROTOCOL_FEE = 500; // 5%
     const IBR_DURATION = 7 * 24 * 60 * 60; // 7 days
     const FLAT_CURVE_THRESHOLD = parseUnits("25000", 6); // $25k threshold
     const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
@@ -49,7 +48,6 @@ describe("Two-Phase Pricing System", function () {
             treasury.address,
             CRR,
             TRADE_FEE,
-            PROTOCOL_FEE,
             IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -406,7 +404,6 @@ describe("Two-Phase Pricing System", function () {
                     treasury.address,
                     CRR,
                     TRADE_FEE,
-                    PROTOCOL_FEE,
                     IBR_DURATION,
                     0, // Invalid threshold
                     FLAT_CURVE_PRICE
@@ -426,7 +423,6 @@ describe("Two-Phase Pricing System", function () {
                     treasury.address,
                     CRR,
                     TRADE_FEE,
-                    PROTOCOL_FEE,
                     IBR_DURATION,
                     FLAT_CURVE_THRESHOLD,
                     0 // Invalid price

@@ -41,7 +41,6 @@ const MODEL_CONFIG = {
   initialReserve: ethers.parseUnits("5000", 6), // $5K USDC (testnet)
   crr: 200000, // 20% CRR (balanced)
   tradeFee: 30, // 0.30% trade fee
-  protocolFee: 3000, // 30% of fees to protocol
   ibr: 2 * 24 * 60 * 60, // 2 days IBR for testnet (faster testing)
 
   // Metadata
@@ -132,7 +131,6 @@ async function main() {
   console.log(`   Initial Reserve:  $${ethers.formatUnits(MODEL_CONFIG.initialReserve, 6)} USDC`);
   console.log(`   CRR:              ${MODEL_CONFIG.crr / 10000}%`);
   console.log(`   Trade Fee:        ${MODEL_CONFIG.tradeFee / 100}%`);
-  console.log(`   Protocol Fee:     ${MODEL_CONFIG.protocolFee / 100}%`);
   console.log(`   IBR Duration:     ${MODEL_CONFIG.ibr / 86400} days`);
 
   // Confirmation pause
@@ -209,8 +207,9 @@ async function main() {
     tokenAddress,
     MODEL_CONFIG.crr,
     MODEL_CONFIG.tradeFee,
-    MODEL_CONFIG.protocolFee,
-    MODEL_CONFIG.ibr
+    MODEL_CONFIG.ibr,
+    ethers.parseUnits("25000", 6), // $25k flat curve threshold
+    ethers.parseUnits("0.01", 6)   // $0.01 flat curve price
   );
   const poolReceipt = await poolTx.wait();
   console.log(`⛽ Gas used: ${poolReceipt.gasUsed.toString()}`);
@@ -308,9 +307,10 @@ async function main() {
     initialReserve: MODEL_CONFIG.initialReserve.toString(),
     crr: MODEL_CONFIG.crr,
     tradeFee: MODEL_CONFIG.tradeFee,
-    protocolFee: MODEL_CONFIG.protocolFee,
     ibrDuration: MODEL_CONFIG.ibr,
     ibrEndsAt: new Date(Number(poolIBREnd) * 1000).toISOString(),
+    flatCurveThreshold: "25000",
+    flatCurvePrice: "0.01",
     deployedAt: new Date().toISOString(),
     tags: MODEL_CONFIG.tags,
     licenseType: MODEL_CONFIG.licenseType

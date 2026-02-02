@@ -32,7 +32,6 @@ const POOL_CONFIGS = {
     initialSupply: ethers.parseEther("10000"), // 10,000 tokens initially (at $0.01 = $100)
     crr: 100000, // 10% CRR
     tradeFee: 30, // 0.30% (30 bps)
-    protocolFee: 3000, // 30% of trade fees (3000 bps)
     ibr: 7 * 24 * 60 * 60, // 7 days
     flatCurveThreshold: ethers.parseUnits("25000", 6), // $25k threshold
     flatCurvePrice: ethers.parseUnits("0.01", 6), // $0.01 per token
@@ -155,7 +154,6 @@ async function main() {
     await factory.setDefaults(
       200000,  // 20% CRR default
       30,      // 0.30% trade fee default
-      3000,    // 30% protocol fee default
       1 * 24 * 60 * 60  // 1 day IBR for testnet (min allowed)
     );
     console.log("   ✅ Factory defaults configured");
@@ -211,7 +209,6 @@ async function main() {
         tokenAddress,
         config.crr,
         config.tradeFee,
-        config.protocolFee,
         config.ibr,
         config.flatCurveThreshold,
         config.flatCurvePrice
@@ -283,7 +280,6 @@ async function main() {
         initialReserve: config.initialReserve.toString(),
         crr: config.crr,
         tradeFee: config.tradeFee,
-        protocolFee: config.protocolFee,
         ibrDuration: config.ibr,
         flatCurveThreshold: flatCurveThreshold.toString(),
         flatCurvePrice: flatCurvePrice.toString()
@@ -392,7 +388,6 @@ async function main() {
       console.log(`     Model ID:       ${pool.modelId}`);
       console.log(`     CRR:            ${pool.crr / 10000}%`);
       console.log(`     Trade Fee:      ${pool.tradeFee / 100}%`);
-      console.log(`     Protocol Fee:   ${pool.protocolFee / 100}%`);
       console.log(`     IBR Duration:   ${pool.ibrDuration / 86400} days`);
     }
 

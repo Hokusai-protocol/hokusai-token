@@ -16,8 +16,7 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
     const INITIAL_SUPPLY = parseEther("1"); // Minimal initial supply for deployment
     const INITIAL_RESERVE = parseUnits("10000", 6); // $10k USDC (r0)
     const CRR = 100000; // 10% (100k PPM)
-    const TRADE_FEE = 25; // 0.25% (25 bps)
-    const PROTOCOL_FEE = 500; // 5% (500 bps)
+    const TRADE_FEE = 30; // 0.30% (30 bps)
     const IBR_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
     const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $25k threshold
     const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
@@ -66,7 +65,6 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             treasury.address,
             CRR,
             TRADE_FEE,
-            PROTOCOL_FEE,
             IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -121,7 +119,6 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             expect(await hokusaiAMM.treasury()).to.equal(treasury.address);
             expect(await hokusaiAMM.crr()).to.equal(CRR);
             expect(await hokusaiAMM.tradeFee()).to.equal(TRADE_FEE);
-            expect(await hokusaiAMM.protocolFeeBps()).to.equal(PROTOCOL_FEE);
         });
 
         it("Should set IBR period correctly (7 days)", async function () {
@@ -173,7 +170,6 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
                     treasury.address,
                     CRR,
                     TRADE_FEE,
-                    PROTOCOL_FEE,
                     IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -190,7 +186,6 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
                     treasury.address,
                     600000, // 60% > 50% max
                     TRADE_FEE,
-                    PROTOCOL_FEE,
                     IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -207,7 +202,6 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
                     treasury.address,
                     CRR,
                     1500, // 15% > 10% max
-                    PROTOCOL_FEE,
                     IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE

@@ -13,8 +13,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
 
   const modelId = "test-model-v1";
   const CRR = 100000; // 10%
-  const TRADE_FEE = 25; // 0.25%
-  const PROTOCOL_FEE = 500; // 5%
+  const TRADE_FEE = 30; // 0.30%
   const IBR_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
     const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $1k threshold (lower than initial reserve)
     const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
@@ -54,7 +53,6 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       treasury.address,
       CRR,
       TRADE_FEE,
-      PROTOCOL_FEE,
       IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -90,7 +88,6 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       expect(await hokusaiAMM.treasury()).to.equal(treasury.address);
       expect(await hokusaiAMM.crr()).to.equal(CRR);
       expect(await hokusaiAMM.tradeFee()).to.equal(TRADE_FEE);
-      expect(await hokusaiAMM.protocolFeeBps()).to.equal(PROTOCOL_FEE);
     });
 
     it("Should set IBR end time correctly", async function () {
@@ -126,7 +123,6 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
           treasury.address,
           CRR,
           TRADE_FEE,
-          PROTOCOL_FEE,
           IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -143,7 +139,6 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
           treasury.address,
           40000, // 4% - below minimum
           TRADE_FEE,
-          PROTOCOL_FEE,
           IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -160,7 +155,6 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
           treasury.address,
           600000, // 60% - above maximum
           TRADE_FEE,
-          PROTOCOL_FEE,
           IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -355,7 +349,6 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
         treasury.address,
         CRR,
         TRADE_FEE,
-        PROTOCOL_FEE,
         IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -492,38 +485,35 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
     it("Should allow owner to update parameters", async function () {
       const newCrr = 150000; // 15%
       const newTradeFee = 50; // 0.5%
-      const newProtocolFee = 1000; // 10%
 
-      await hokusaiAMM.setParameters(newCrr, newTradeFee, newProtocolFee);
+      await hokusaiAMM.setParameters(newCrr, newTradeFee);
 
       expect(await hokusaiAMM.crr()).to.equal(newCrr);
       expect(await hokusaiAMM.tradeFee()).to.equal(newTradeFee);
-      expect(await hokusaiAMM.protocolFeeBps()).to.equal(newProtocolFee);
     });
 
     it("Should emit ParametersUpdated event", async function () {
       const newCrr = 150000;
       const newTradeFee = 50;
-      const newProtocolFee = 1000;
 
-      await expect(hokusaiAMM.setParameters(newCrr, newTradeFee, newProtocolFee))
+      await expect(hokusaiAMM.setParameters(newCrr, newTradeFee))
         .to.emit(hokusaiAMM, "ParametersUpdated")
-        .withArgs(newCrr, newTradeFee, newProtocolFee);
+        .withArgs(newCrr, newTradeFee);
     });
 
     it("Should enforce CRR bounds", async function () {
       await expect(
-        hokusaiAMM.setParameters(40000, TRADE_FEE, PROTOCOL_FEE) // 4% - too low
+        hokusaiAMM.setParameters(40000, TRADE_FEE) // 4% - too low
       ).to.be.revertedWith("CRR out of bounds");
 
       await expect(
-        hokusaiAMM.setParameters(600000, TRADE_FEE, PROTOCOL_FEE) // 60% - too high
+        hokusaiAMM.setParameters(600000, TRADE_FEE) // 60% - too high
       ).to.be.revertedWith("CRR out of bounds");
     });
 
     it("Should only allow owner to update parameters", async function () {
       await expect(
-        hokusaiAMM.connect(buyer).setParameters(150000, TRADE_FEE, PROTOCOL_FEE)
+        hokusaiAMM.connect(buyer).setParameters(150000, TRADE_FEE)
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
@@ -641,7 +631,6 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
         treasury.address,
         CRR,
         TRADE_FEE,
-        PROTOCOL_FEE,
         IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE

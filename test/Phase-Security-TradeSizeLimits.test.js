@@ -12,8 +12,7 @@ describe("Security: Maximum Trade Size Limits", function () {
 
   const modelId = "trade-limit-test-model";
   const CRR = 100000; // 10%
-  const TRADE_FEE = 25;
-  const PROTOCOL_FEE = 500;
+  const TRADE_FEE = 30;
   const IBR_DURATION = 7 * 24 * 60 * 60;
   const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $1k threshold
   const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
@@ -49,7 +48,6 @@ describe("Security: Maximum Trade Size Limits", function () {
       treasury.address,
       CRR,
       TRADE_FEE,
-      PROTOCOL_FEE,
       IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE

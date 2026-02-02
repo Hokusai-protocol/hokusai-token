@@ -11,8 +11,7 @@ describe("Phase 3: Flash Loan Attack Security", function () {
     const INITIAL_RESERVE = parseUnits("10000", 6); // $10k USDC
     const INITIAL_SUPPLY = parseUnits("100000", 18); // 100k tokens
     const CRR = 100000; // 10% reserve ratio
-    const TRADE_FEE = 25; // 0.25%
-    const PROTOCOL_FEE = 500; // 5%
+    const TRADE_FEE = 30; // 0.30%
     const IBR_DURATION = 7 * 24 * 60 * 60; // 7 days
     const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $25k threshold
     const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
@@ -49,7 +48,6 @@ describe("Phase 3: Flash Loan Attack Security", function () {
             treasury.address,
             CRR,
             TRADE_FEE,
-            PROTOCOL_FEE,
             IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE

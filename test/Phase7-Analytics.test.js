@@ -16,8 +16,7 @@ describe("Phase 7: Analytics & View Functions", function () {
     const INITIAL_SUPPLY = parseEther("1");
     const INITIAL_RESERVE = parseUnits("10000", 6);
     const CRR = 100000; // 10%
-    const TRADE_FEE = 25; // 0.25%
-    const PROTOCOL_FEE = 500; // 5%
+    const TRADE_FEE = 30; // 0.30%
     const IBR_DURATION = 7 * 24 * 60 * 60;
     const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $1k threshold
     const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
@@ -60,7 +59,6 @@ describe("Phase 7: Analytics & View Functions", function () {
             treasury.address,
             CRR,
             TRADE_FEE,
-            PROTOCOL_FEE,
             IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -97,7 +95,6 @@ describe("Phase 7: Analytics & View Functions", function () {
             expect(price).to.be.gt(0);
             expect(reserveRatio).to.equal(CRR);
             expect(tradeFeeRate).to.equal(TRADE_FEE);
-            expect(protocolFeeRate).to.equal(PROTOCOL_FEE);
         });
 
         it("Should update reserve after buy", async function () {
@@ -132,12 +129,11 @@ describe("Phase 7: Analytics & View Functions", function () {
         });
 
         it("Should reflect parameter updates", async function () {
-            await hokusaiAMM.setParameters(150000, 50, 300);
+            await hokusaiAMM.setParameters(150000, 50);
 
-            const [, , , reserveRatio, tradeFeeRate, protocolFeeRate] = await hokusaiAMM.getPoolState();
+            const [, , , reserveRatio, tradeFeeRate] = await hokusaiAMM.getPoolState();
             expect(reserveRatio).to.equal(150000);
             expect(tradeFeeRate).to.equal(50);
-            expect(protocolFeeRate).to.equal(300);
         });
 
         it("Should be callable by anyone (view function)", async function () {
@@ -248,12 +244,12 @@ describe("Phase 7: Analytics & View Functions", function () {
             const buyAmount = parseUnits("1000", 6);
 
             // Change fee and recalculate
-            await hokusaiAMM.setParameters(CRR, 100, PROTOCOL_FEE); // 1% fee vs 0.25%
+            await hokusaiAMM.setParameters(CRR, 100); // 1% fee vs 0.30%
 
             const [tokensOutHighFee] = await hokusaiAMM.calculateBuyImpact(buyAmount);
 
             // Reset fee
-            await hokusaiAMM.setParameters(CRR, TRADE_FEE, PROTOCOL_FEE);
+            await hokusaiAMM.setParameters(CRR, TRADE_FEE);
             const [tokensOutLowFee] = await hokusaiAMM.calculateBuyImpact(buyAmount);
 
             // Higher fee = fewer tokens
@@ -331,7 +327,7 @@ describe("Phase 7: Analytics & View Functions", function () {
             const [reserveOut1] = await hokusaiAMM.calculateSellImpact(sellAmount);
 
             // Change to higher fee and recalculate
-            await hokusaiAMM.setParameters(CRR, 100, PROTOCOL_FEE); // 1% fee vs 0.25%
+            await hokusaiAMM.setParameters(CRR, 100); // 1% fee vs 0.30%
             const [reserveOut2] = await hokusaiAMM.calculateSellImpact(sellAmount);
 
             // Quote shows raw reserve out (before fee deduction)
@@ -367,7 +363,6 @@ describe("Phase 7: Analytics & View Functions", function () {
             expect(price).to.be.gt(0);
             expect(reserveRatio).to.be.gte(50000).and.lte(500000);
             expect(tradeFeeRate).to.be.lte(1000);
-            expect(protocolFeeRate).to.be.lte(5000);
         });
 
         it("Should allow frontend to check trade feasibility", async function () {

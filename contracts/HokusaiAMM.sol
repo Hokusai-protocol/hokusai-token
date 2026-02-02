@@ -45,8 +45,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
 
     uint256 public reserveBalance; // Tracked USDC balance
     uint256 public crr; // Reserve ratio in ppm (parts per million), default 100000 = 10%
-    uint256 public tradeFee; // Trade fee in bps (basis points), default 25 = 0.25%
-    uint16 public protocolFeeBps; // Protocol fee on deposits in bps, default 500 = 5%
+    uint256 public tradeFee; // Trade fee in bps (basis points), default 30 = 0.30%
     uint256 public buyOnlyUntil; // Timestamp when sells become enabled (IBR end)
     uint256 public maxTradeBps; // Maximum trade size as % of reserve in bps, default 2000 = 20%
 
@@ -59,7 +58,6 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant MAX_CRR = 500000; // 50% max
     uint256 public constant MIN_CRR = 50000; // 5% min
     uint256 public constant MAX_TRADE_FEE = 1000; // 10% max
-    uint256 public constant MAX_PROTOCOL_FEE = 5000; // 50% max
     uint256 public constant MAX_TRADE_BPS_LIMIT = 5000; // 50% max trade size
     uint256 public constant PPM = 1000000; // Parts per million
 
@@ -110,8 +108,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
 
     event ParametersUpdated(
         uint256 newCrr,
-        uint256 newTradeFee,
-        uint16 newProtocolFee
+        uint256 newTradeFee
     );
 
     event MaxTradeBpsUpdated(uint256 oldBps, uint256 newBps);
@@ -129,7 +126,6 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @param _treasury Treasury address for fees
      * @param _crr Reserve ratio in ppm
      * @param _tradeFee Trade fee in bps
-     * @param _protocolFeeBps Protocol fee in bps
      * @param _ibrDuration Initial Bonding Round duration in seconds (e.g., 7 days)
      * @param _flatCurveThreshold Reserve amount where bonding curve activates (6 decimals)
      * @param _flatCurvePrice Fixed price per token during flat period (6 decimals)
@@ -142,7 +138,6 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         address _treasury,
         uint256 _crr,
         uint256 _tradeFee,
-        uint16 _protocolFeeBps,
         uint256 _ibrDuration,
         uint256 _flatCurveThreshold,
         uint256 _flatCurvePrice
@@ -155,7 +150,6 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         ValidationLib.requireNonEmptyString(_modelId, "model ID");
         ValidationLib.requireInBounds(_crr, MIN_CRR, MAX_CRR);
         FeeLib.requireValidFee(_tradeFee, MAX_TRADE_FEE);
-        FeeLib.requireValidFee(_protocolFeeBps, MAX_PROTOCOL_FEE);
         ValidationLib.requirePositiveAmount(_flatCurveThreshold, "flat curve threshold");
         ValidationLib.requirePositiveAmount(_flatCurvePrice, "flat curve price");
 
@@ -166,7 +160,6 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         treasury = _treasury;
         crr = _crr;
         tradeFee = _tradeFee;
-        protocolFeeBps = _protocolFeeBps;
         buyOnlyUntil = block.timestamp + _ibrDuration;
         maxTradeBps = 2000; // Default 20% of reserve
 
@@ -436,7 +429,6 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @return price Current spot price (6 decimals)
      * @return reserveRatio CRR in PPM
      * @return tradeFeeRate Trade fee in bps
-     * @return protocolFeeRate Protocol fee in bps
      */
     function getPoolState()
         external
@@ -446,8 +438,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
             uint256 supply,
             uint256 price,
             uint256 reserveRatio,
-            uint256 tradeFeeRate,
-            uint16 protocolFeeRate
+            uint256 tradeFeeRate
         )
     {
         reserve = reserveBalance;
@@ -455,7 +446,6 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         price = spotPrice();
         reserveRatio = crr;
         tradeFeeRate = tradeFee;
-        protocolFeeRate = protocolFeeBps;
     }
 
     /**
@@ -617,22 +607,18 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @dev Update AMM parameters
      * @param newCrr New reserve ratio in ppm
      * @param newTradeFee New trade fee in bps
-     * @param newProtocolFee New protocol fee in bps
      */
     function setParameters(
         uint256 newCrr,
-        uint256 newTradeFee,
-        uint16 newProtocolFee
+        uint256 newTradeFee
     ) external onlyOwner {
         require(newCrr >= MIN_CRR && newCrr <= MAX_CRR, "CRR out of bounds");
         require(newTradeFee <= MAX_TRADE_FEE, "Trade fee too high");
-        require(newProtocolFee <= MAX_PROTOCOL_FEE, "Protocol fee too high");
 
         crr = newCrr;
         tradeFee = newTradeFee;
-        protocolFeeBps = newProtocolFee;
 
-        emit ParametersUpdated(newCrr, newTradeFee, newProtocolFee);
+        emit ParametersUpdated(newCrr, newTradeFee);
     }
 
     /**

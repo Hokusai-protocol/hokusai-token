@@ -11,8 +11,7 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
     const INITIAL_RESERVE = parseUnits("10000", 6); // $10k USDC
     const INITIAL_SUPPLY = parseUnits("100000", 18); // 100k tokens
     const CRR = 100000; // 10% reserve ratio
-    const TRADE_FEE = 25; // 0.25%
-    const PROTOCOL_FEE = 500; // 5%
+    const TRADE_FEE = 30; // 0.30%
     const IBR_DURATION = 7 * 24 * 60 * 60; // 7 days
     const FLAT_CURVE_THRESHOLD = parseUnits("1000", 6); // $25k threshold
     const FLAT_CURVE_PRICE = parseUnits("0.01", 6); // $0.01 per token
@@ -46,7 +45,6 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
             treasury.address,
             CRR,
             TRADE_FEE,
-            PROTOCOL_FEE,
             IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
@@ -300,17 +298,12 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
         it("Should handle maximum governance parameter values", async function () {
             // CRR at maximum (500000 = 50%)
             await expect(
-                hokusaiAMM.setParameters(500000, 25, 500)
+                hokusaiAMM.setParameters(500000, 30)
             ).to.not.be.reverted;
 
             // Trade fee at maximum (1000 = 10%)
             await expect(
-                hokusaiAMM.setParameters(100000, 1000, 500)
-            ).to.not.be.reverted;
-
-            // Protocol fee at maximum (5000 = 50%)
-            await expect(
-                hokusaiAMM.setParameters(100000, 25, 5000)
+                hokusaiAMM.setParameters(100000, 1000)
             ).to.not.be.reverted;
 
             // Max trade bps at maximum (5000 = 50%)
@@ -322,18 +315,13 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
         it("Should reject parameters beyond maximum", async function () {
             // CRR over max (50%)
             await expect(
-                hokusaiAMM.setParameters(500001, 25, 500)
+                hokusaiAMM.setParameters(500001, 30)
             ).to.be.revertedWith("CRR out of bounds");
 
             // Trade fee over max (10%)
             await expect(
-                hokusaiAMM.setParameters(100000, 1001, 500)
+                hokusaiAMM.setParameters(100000, 1001)
             ).to.be.revertedWith("Trade fee too high");
-
-            // Protocol fee over max (50%)
-            await expect(
-                hokusaiAMM.setParameters(100000, 25, 5001)
-            ).to.be.revertedWith("Protocol fee too high");
 
             // Max trade bps over max (50%)
             await expect(

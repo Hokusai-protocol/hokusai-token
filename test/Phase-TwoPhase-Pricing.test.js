@@ -287,6 +287,72 @@ describe("Two-Phase Pricing System", function () {
             expect(phase).to.equal(1);
         });
 
+        it("Should permanently stay in BONDING_CURVE phase even if reserve drops below threshold", async function () {
+            // Verify we're in bonding curve phase
+            let phase = await hokusaiAMM.getCurrentPhase();
+            expect(phase).to.equal(1); // BONDING_CURVE
+
+            // Check hasGraduated flag is set
+            const hasGraduated = await hokusaiAMM.hasGraduated();
+            expect(hasGraduated).to.be.true;
+
+            // Fast forward past IBR to enable sells
+            await ethers.provider.send("evm_increaseTime", [IBR_DURATION + 1]);
+            await ethers.provider.send("evm_mine");
+
+            // Get buyer's token balance
+            const tokenBalance = await hokusaiToken.balanceOf(buyer1.address);
+
+            // Approve AMM to spend tokens
+            await hokusaiToken.connect(buyer1).approve(await hokusaiAMM.getAddress(), tokenBalance);
+
+            // Sell tokens in multiple batches to drop reserve below threshold
+            // maxTradeBps is 2000 (20%), so max sell is 20% of reserve per tx
+            const deadline = (await ethers.provider.getBlock('latest')).timestamp + 600;
+
+            for (let i = 0; i < 10; i++) {
+                const reserveBefore = await hokusaiAMM.reserveBalance();
+                if (reserveBefore < FLAT_CURVE_THRESHOLD) break; // Stop if we're below threshold
+
+                // Calculate max sell amount (15% of reserve to be safe, limit is 20%)
+                const maxReserveOut = (reserveBefore * 1500n) / 10000n; // 15% of reserve
+
+                // Find how many tokens would give us approximately this much USDC
+                const sellerBalance = await hokusaiToken.balanceOf(buyer1.address);
+                if (sellerBalance === 0n) break; // Stop if seller has no tokens left
+
+                // Use binary search to find the right token amount
+                // For simplicity, start with a small percentage
+                const tokenSupply = await hokusaiToken.totalSupply();
+                const tokensToSell = tokenSupply * 5n / 100n; // Try 5% of supply
+
+                if (tokensToSell > sellerBalance || tokensToSell === 0n) break;
+
+                // Get the actual quote to verify it's within limits
+                const quote = await hokusaiAMM.getSellQuote(tokensToSell);
+                if (quote > maxReserveOut) {
+                    // Quote too large, sell less tokens
+                    const adjustedTokens = tokensToSell * maxReserveOut / quote;
+                    if (adjustedTokens === 0n) break;
+                    await hokusaiAMM.connect(buyer1).sell(adjustedTokens, 0, buyer1.address, deadline);
+                } else {
+                    await hokusaiAMM.connect(buyer1).sell(tokensToSell, 0, buyer1.address, deadline);
+                }
+            }
+
+            // Check reserve is now below threshold
+            const reserveBalance = await hokusaiAMM.reserveBalance();
+            expect(reserveBalance).to.be.lt(FLAT_CURVE_THRESHOLD);
+
+            // CRITICAL TEST: Phase should still be BONDING_CURVE
+            phase = await hokusaiAMM.getCurrentPhase();
+            expect(phase).to.equal(1); // Should remain BONDING_CURVE
+
+            // Verify hasGraduated is still true
+            const stillGraduated = await hokusaiAMM.hasGraduated();
+            expect(stillGraduated).to.be.true;
+        });
+
         it("Should increase spot price with subsequent buys", async function () {
             const spotBefore = await hokusaiAMM.spotPrice();
 

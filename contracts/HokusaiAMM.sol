@@ -53,6 +53,9 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     uint256 public immutable FLAT_CURVE_THRESHOLD; // Reserve amount where bonding curve activates (6 decimals)
     uint256 public immutable FLAT_CURVE_PRICE;     // Fixed price during flat period (6 decimals)
 
+    // Graduation flag - once true, permanently in bonding curve phase
+    bool public hasGraduated;
+
     // Constants
     uint256 public constant PRECISION = 1e18; // Fixed-point precision
     uint256 public constant MAX_CRR = 500000; // 50% max
@@ -217,6 +220,11 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
 
         // Update reserve balance (excluding fee)
         reserveBalance += reserveAfterFee;
+
+        // Check for graduation to bonding curve phase (permanent)
+        if (!hasGraduated && reserveBalance >= FLAT_CURVE_THRESHOLD) {
+            hasGraduated = true;
+        }
 
         // Transfer fee to treasury
         if (feeAmount > 0) {
@@ -578,6 +586,11 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         // Update reserve balance (increases spot price)
         reserveBalance += amount;
 
+        // Check for graduation to bonding curve phase (permanent)
+        if (!hasGraduated && reserveBalance >= FLAT_CURVE_THRESHOLD) {
+            hasGraduated = true;
+        }
+
         emit FeesDeposited(msg.sender, amount, reserveBalance, spotPrice());
     }
 
@@ -660,8 +673,12 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     /**
      * @dev Get current pricing phase
      * @return Current phase (FLAT_PRICE or BONDING_CURVE)
+     * @notice Once graduated to bonding curve, phase is permanent regardless of reserve level
      */
     function getCurrentPhase() public view returns (PricingPhase) {
+        if (hasGraduated) {
+            return PricingPhase.BONDING_CURVE;
+        }
         if (reserveBalance < FLAT_CURVE_THRESHOLD) {
             return PricingPhase.FLAT_PRICE;
         }

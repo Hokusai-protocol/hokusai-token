@@ -25,11 +25,11 @@ const path = require('path');
 const POOL_CONFIGS = {
   lscor: {
     name: "LSCOR Pool (10% CRR)",
-    modelId: "sales-lead-scoring-v2",
+    modelId: "21", // Model ID from hokus.ai/explore-models/21
     tokenName: "Hokusai LSCOR",
     tokenSymbol: "LSCOR",
     initialReserve: ethers.parseUnits("100", 6), // $100 - Small initial reserve to test flat price phase
-    initialSupply: ethers.parseEther("10000"), // 10,000 tokens initially (at $0.01 = $100)
+    initialSupply: ethers.parseEther("1000"), // 1,000 tokens initially - small initial supply
     crr: 100000, // 10% CRR
     tradeFee: 30, // 0.30% (30 bps)
     ibr: 7 * 24 * 60 * 60, // 7 days
@@ -330,7 +330,7 @@ async function main() {
       registryAddress,
       managerAddress,
       contributionRegistryAddress,
-      1000,                           // baseRewardRate
+      100000,                         // baseRewardRate - 100,000 tokens per delta-one
       100,                            // minImprovementBps (1%)
       ethers.parseEther("1000000")    // maxReward (1M tokens)
     );

@@ -1,0 +1,41 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "timestamp": "2026-02-04T18:00:17.350Z",
+  "deployer": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "treasury": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "contracts": {
+    "ModelRegistry": "0xf88844FB75e44030f775BFA1ed0A6BFd5685F2Fc",
+    "TokenManager": "0xe08da225C1B49610DB0d3606Ee2642b043B5Db08",
+    "DataContributionRegistry": "0xfd1dDDDcCA3F695c2cD2C2c044443Cc703AA6cfe",
+    "MockUSDC": "0x2e0336fB2f65aa2953ABF2035Fd812572D68AAF9",
+    "HokusaiAMMFactory": "0xaB877Ce2b3e193103374c813E44522f964137e1d",
+    "UsageFeeRouter": "0x7e3593642BF99bF648e7EB810635bE3b191258fC",
+    "DeltaVerifier": "0x8dE6dc062beca7C202A8E3C8B6bdb45bc7C4637b"
+  },
+  "tokens": [
+    {
+      "configKey": "lscor",
+      "modelId": "21",
+      "name": "Hokusai LSCOR",
+      "symbol": "LSCOR",
+      "address": "0x0fC57906d2E34826c4b7e76Eaf6D421EFaD31cfD",
+      "initialSupply": "1000000000000000000000"
+    }
+  ],
+  "pools": [
+    {
+      "configKey": "lscor",
+      "modelId": "21",
+      "tokenAddress": "0x0fC57906d2E34826c4b7e76Eaf6D421EFaD31cfD",
+      "ammAddress": "0xf01873C0324A213f8268Fb5a5c234113185D20c1",
+      "initialReserve": "100000000",
+      "crr": 100000,
+      "tradeFee": 30,
+      "ibrDuration": 604800,
+      "flatCurveThreshold": "25000000000",
+      "flatCurvePrice": "10000"
+    }
+  ],
+  "gasUsed": {}
+}

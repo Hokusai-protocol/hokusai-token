@@ -86,6 +86,10 @@ export class StateTracker {
   private suppressedAlertCount: number = 0;
   private suppressedAlertsByType: Map<string, number> = new Map();
 
+  // Track active alert conditions to prevent duplicate alerts
+  // Key: poolAddress:alertType, Value: timestamp when alert became active
+  private activeAlerts: Map<string, number> = new Map();
+
   // AMM Pool ABI
   private static readonly POOL_ABI = [
     'function reserveBalance() view returns (uint256)',
@@ -197,6 +201,12 @@ export class StateTracker {
     if (pool) {
       pool.removeAllListeners();
       this.poolContracts.delete(poolAddress);
+    }
+
+    // Clear all active alerts for this pool
+    const alertTypes = ['reserve_drop', 'price_spike', 'supply_anomaly', 'low_reserve', 'paused', 'high_fees', 'true_supply_mismatch'];
+    for (const alertType of alertTypes) {
+      this.clearAlert(poolAddress, alertType);
     }
 
     logger.info(`Stopped tracking pool ${poolAddress}`);
@@ -328,11 +338,13 @@ export class StateTracker {
       // Market cap approximation: reserve / (CRR / 1000000)
       const marketCapUSD = reserveUSD / (crr / 1000000);
 
-      // Reserve ratio: (reserve * 1e18) / (price * supply)
+      // Reserve ratio: (reserve / price) / supply
+      // Accounting for decimals: reserve (6), price (6), supply (18)
+      // Formula: (reserve * 1e18) / (price * supply * 1e6)
       // This should match CRR if bonding curve is working correctly
       let reserveRatio = 0;
       if (spotPrice > 0n && tokenSupply > 0n) {
-        reserveRatio = Number(reserveBalance) * 1e18 / (Number(spotPrice) * Number(tokenSupply));
+        reserveRatio = Number(reserveBalance) * 1e18 / (Number(spotPrice) * Number(tokenSupply) * 1e6);
       }
 
       // Treasury fees = contract balance - tracked reserve
@@ -396,6 +408,30 @@ export class StateTracker {
   }
 
   /**
+   * Check if an alert condition is already active
+   */
+  private isAlertActive(poolAddress: string, alertType: string): boolean {
+    const key = `${poolAddress}:${alertType}`;
+    return this.activeAlerts.has(key);
+  }
+
+  /**
+   * Mark an alert condition as active
+   */
+  private setAlertActive(poolAddress: string, alertType: string): void {
+    const key = `${poolAddress}:${alertType}`;
+    this.activeAlerts.set(key, Date.now());
+  }
+
+  /**
+   * Clear an alert condition (no longer active)
+   */
+  private clearAlert(poolAddress: string, alertType: string): void {
+    const key = `${poolAddress}:${alertType}`;
+    this.activeAlerts.delete(key);
+  }
+
+  /**
    * Check for anomalies and trigger alerts
    */
   private async checkAnomalies(currentState: PoolState, poolConfig: PoolConfig): Promise<void> {
@@ -417,11 +453,15 @@ export class StateTracker {
     // ALWAYS CHECK: Critical security alerts (all phases)
 
     // Check if paused
+    const pausedAlertType = 'paused';
     if (currentState.paused) {
       const pausedDuration = this.getPausedDuration(currentState.poolAddress);
-      if (pausedDuration > this.thresholds.pausedDurationHours * 60 * 60 * 1000) {
+      const isPausedConditionMet = pausedDuration > this.thresholds.pausedDurationHours * 60 * 60 * 1000;
+
+      if (isPausedConditionMet && !this.isAlertActive(currentState.poolAddress, pausedAlertType)) {
+        this.setAlertActive(currentState.poolAddress, pausedAlertType);
         alerts.push({
-          type: 'paused',
+          type: pausedAlertType,
           priority: 'critical',
           poolAddress: currentState.poolAddress,
           modelId: currentState.modelId,
@@ -430,6 +470,9 @@ export class StateTracker {
           metadata: { pausedDurationMs: pausedDuration }
         });
       }
+    } else {
+      // No longer paused, clear alert
+      this.clearAlert(currentState.poolAddress, pausedAlertType);
     }
 
     // ALWAYS CHECK: Supply invariant (detects unauthorized minting/burning)
@@ -447,15 +490,23 @@ export class StateTracker {
       if (reserveDropAlert) alerts.push(reserveDropAlert);
 
       // Check low reserve (absolute minimum)
-      if (currentState.reserveUSD < this.thresholds.minReserveUSD && this.thresholds.minReserveUSD > 0) {
-        alerts.push({
-          type: 'low_reserve',
-          priority: 'high',
-          poolAddress: currentState.poolAddress,
-          modelId: currentState.modelId,
-          message: `Reserve below minimum: $${currentState.reserveUSD.toFixed(2)} < $${this.thresholds.minReserveUSD}`,
-          currentState
-        });
+      const lowReserveAlertType = 'low_reserve';
+      const isLowReserveConditionMet = currentState.reserveUSD < this.thresholds.minReserveUSD && this.thresholds.minReserveUSD > 0;
+
+      if (isLowReserveConditionMet) {
+        if (!this.isAlertActive(currentState.poolAddress, lowReserveAlertType)) {
+          this.setAlertActive(currentState.poolAddress, lowReserveAlertType);
+          alerts.push({
+            type: lowReserveAlertType,
+            priority: 'high',
+            poolAddress: currentState.poolAddress,
+            modelId: currentState.modelId,
+            message: `Reserve below minimum: $${currentState.reserveUSD.toFixed(2)} < $${this.thresholds.minReserveUSD}`,
+            currentState
+          });
+        }
+      } else {
+        this.clearAlert(currentState.poolAddress, lowReserveAlertType);
       }
 
       // Check price volatility
@@ -480,17 +531,25 @@ export class StateTracker {
     }
 
     // Check high treasury fees (all phases, but medium priority)
+    const highFeesAlertType = 'high_fees';
     const treasuryFeesUSD = Number(ethers.formatUnits(currentState.treasuryFees, 6));
-    if (treasuryFeesUSD > this.thresholds.treasuryFeesThresholdUSD) {
-      alerts.push({
-        type: 'high_fees',
-        priority: 'medium',
-        poolAddress: currentState.poolAddress,
-        modelId: currentState.modelId,
-        message: `High treasury fees: $${treasuryFeesUSD.toFixed(2)} (threshold: $${this.thresholds.treasuryFeesThresholdUSD})`,
-        currentState,
-        metadata: { treasuryFeesUSD }
-      });
+    const isHighFeesConditionMet = treasuryFeesUSD > this.thresholds.treasuryFeesThresholdUSD;
+
+    if (isHighFeesConditionMet) {
+      if (!this.isAlertActive(currentState.poolAddress, highFeesAlertType)) {
+        this.setAlertActive(currentState.poolAddress, highFeesAlertType);
+        alerts.push({
+          type: highFeesAlertType,
+          priority: 'medium',
+          poolAddress: currentState.poolAddress,
+          modelId: currentState.modelId,
+          message: `High treasury fees: $${treasuryFeesUSD.toFixed(2)} (threshold: $${this.thresholds.treasuryFeesThresholdUSD})`,
+          currentState,
+          metadata: { treasuryFeesUSD }
+        });
+      }
+    } else {
+      this.clearAlert(currentState.poolAddress, highFeesAlertType);
     }
 
     // Send alerts
@@ -519,17 +578,27 @@ export class StateTracker {
 
     const dropPercentage = ((oldReserve - currentReserve) / oldReserve) * 100;
 
-    if (dropPercentage > this.thresholds.reserveDropPercentage) {
-      return {
-        type: 'reserve_drop',
-        priority: 'critical',
-        poolAddress: currentState.poolAddress,
-        modelId: currentState.modelId,
-        message: `Reserve dropped ${dropPercentage.toFixed(1)}% in ${windowMs / (60 * 60 * 1000)}h: $${oldState.reserveUSD.toFixed(2)} → $${currentState.reserveUSD.toFixed(2)}`,
-        currentState,
-        previousState: oldState,
-        metadata: { dropPercentage, oldReserveUSD: oldState.reserveUSD, newReserveUSD: currentState.reserveUSD }
-      };
+    const alertType = 'reserve_drop';
+    const isConditionMet = dropPercentage > this.thresholds.reserveDropPercentage;
+
+    if (isConditionMet) {
+      // Only send alert if not already active
+      if (!this.isAlertActive(currentState.poolAddress, alertType)) {
+        this.setAlertActive(currentState.poolAddress, alertType);
+        return {
+          type: alertType,
+          priority: 'critical',
+          poolAddress: currentState.poolAddress,
+          modelId: currentState.modelId,
+          message: `Reserve dropped ${dropPercentage.toFixed(1)}% in ${windowMs / (60 * 60 * 1000)}h: $${oldState.reserveUSD.toFixed(2)} → $${currentState.reserveUSD.toFixed(2)}`,
+          currentState,
+          previousState: oldState,
+          metadata: { dropPercentage, oldReserveUSD: oldState.reserveUSD, newReserveUSD: currentState.reserveUSD }
+        };
+      }
+    } else {
+      // Condition no longer met, clear the alert
+      this.clearAlert(currentState.poolAddress, alertType);
     }
 
     return null;
@@ -550,17 +619,27 @@ export class StateTracker {
 
     const changePercentage = Math.abs(((currentPrice - oldPrice) / oldPrice) * 100);
 
-    if (changePercentage > this.thresholds.priceChange1hPercentage) {
-      return {
-        type: 'price_spike',
-        priority: 'high',
-        poolAddress: currentState.poolAddress,
-        modelId: currentState.modelId,
-        message: `Price changed ${changePercentage.toFixed(1)}% in 1h: $${oldState.priceUSD.toFixed(6)} → $${currentState.priceUSD.toFixed(6)}`,
-        currentState,
-        previousState: oldState,
-        metadata: { changePercentage, oldPriceUSD: oldState.priceUSD, newPriceUSD: currentState.priceUSD }
-      };
+    const alertType = 'price_spike';
+    const isConditionMet = changePercentage > this.thresholds.priceChange1hPercentage;
+
+    if (isConditionMet) {
+      // Only send alert if not already active
+      if (!this.isAlertActive(currentState.poolAddress, alertType)) {
+        this.setAlertActive(currentState.poolAddress, alertType);
+        return {
+          type: alertType,
+          priority: 'high',
+          poolAddress: currentState.poolAddress,
+          modelId: currentState.modelId,
+          message: `Price changed ${changePercentage.toFixed(1)}% in 1h: $${oldState.priceUSD.toFixed(6)} → $${currentState.priceUSD.toFixed(6)}`,
+          currentState,
+          previousState: oldState,
+          metadata: { changePercentage, oldPriceUSD: oldState.priceUSD, newPriceUSD: currentState.priceUSD }
+        };
+      }
+    } else {
+      // Condition no longer met, clear the alert
+      this.clearAlert(currentState.poolAddress, alertType);
     }
 
     return null;
@@ -581,17 +660,27 @@ export class StateTracker {
 
     const changePercentage = Math.abs(((currentSupply - oldSupply) / oldSupply) * 100);
 
-    if (changePercentage > this.thresholds.supplyChange1hPercentage) {
-      return {
-        type: 'supply_anomaly',
-        priority: 'high',
-        poolAddress: currentState.poolAddress,
-        modelId: currentState.modelId,
-        message: `Supply changed ${changePercentage.toFixed(1)}% in 1h: ${oldState.supplyFormatted.toFixed(0)} → ${currentState.supplyFormatted.toFixed(0)} tokens`,
-        currentState,
-        previousState: oldState,
-        metadata: { changePercentage, oldSupply: oldState.supplyFormatted, newSupply: currentState.supplyFormatted }
-      };
+    const alertType = 'supply_anomaly';
+    const isConditionMet = changePercentage > this.thresholds.supplyChange1hPercentage;
+
+    if (isConditionMet) {
+      // Only send alert if not already active
+      if (!this.isAlertActive(currentState.poolAddress, alertType)) {
+        this.setAlertActive(currentState.poolAddress, alertType);
+        return {
+          type: alertType,
+          priority: 'high',
+          poolAddress: currentState.poolAddress,
+          modelId: currentState.modelId,
+          message: `Supply changed ${changePercentage.toFixed(1)}% in 1h: ${oldState.supplyFormatted.toFixed(0)} → ${currentState.supplyFormatted.toFixed(0)} tokens`,
+          currentState,
+          previousState: oldState,
+          metadata: { changePercentage, oldSupply: oldState.supplyFormatted, newSupply: currentState.supplyFormatted }
+        };
+      }
+    } else {
+      // Condition no longer met, clear the alert
+      this.clearAlert(currentState.poolAddress, alertType);
     }
 
     return null;
@@ -612,9 +701,11 @@ export class StateTracker {
   private checkSupplyInvariant(currentState: PoolState, poolConfig: PoolConfig): StateAlert | null {
     const { pricingPhase, reserveBalance, tokenSupply, spotPrice } = currentState;
     const { crr } = poolConfig;
+    const alertType = 'true_supply_mismatch';
 
     // Skip check if essential values are zero (pool not initialized yet)
     if (reserveBalance === 0n || tokenSupply === 0n || spotPrice === 0n) {
+      this.clearAlert(currentState.poolAddress, alertType);
       return null;
     }
 
@@ -622,10 +713,27 @@ export class StateTracker {
     // For MVP, only validate in bonding curve phase where math is well-defined
     if (pricingPhase === 0) {
       logger.debug(`Skipping supply invariant check for ${currentState.modelId} (flat phase - complex validation)`);
+      this.clearAlert(currentState.poolAddress, alertType);
       return null;
     }
 
     // BONDING CURVE PHASE: Validate reserve ratio
+    // However, pools that graduated from flat price phase have an initial reserve/supply ratio
+    // that doesn't match the bonding curve invariant (tokens were minted at fixed price).
+    // Skip validation for recently graduated pools (reserve near initial reserve).
+
+    // Check if pool appears to be freshly deployed/graduated with minimal trading
+    // Heuristic: If reserve is close to flatCurveThreshold, likely just graduated
+    const thresholdUSD = Number(currentState.flatCurveThreshold) / 1e6;
+    const marginPercent = 0.15; // 15% margin below threshold
+    const minReserveForValidation = thresholdUSD * (1 + marginPercent);
+
+    if (currentState.reserveUSD < minReserveForValidation) {
+      logger.debug(`Skipping supply invariant check for ${currentState.modelId} (recently graduated, reserve ${currentState.reserveUSD} < ${minReserveForValidation.toFixed(0)} validation threshold)`);
+      this.clearAlert(currentState.poolAddress, alertType);
+      return null;
+    }
+
     // The reserve ratio should match CRR: R / (P * S) = w
     // Where w = CRR in decimal form (e.g., 0.1 for 10%)
 
@@ -642,32 +750,39 @@ export class StateTracker {
     const deviation = Math.abs(actualRatio - expectedRatio) / expectedRatio;
 
     if (deviation > tolerance) {
-      logger.warn(`Supply invariant violation detected for ${currentState.modelId}`, {
-        expectedRatio,
-        actualRatio,
-        deviationPercent: (deviation * 100).toFixed(2),
-        reserveUSD: currentState.reserveUSD,
-        supplyFormatted: currentState.supplyFormatted,
-        priceUSD: currentState.priceUSD
-      });
-
-      return {
-        type: 'true_supply_mismatch',
-        priority: 'critical',
-        poolAddress: currentState.poolAddress,
-        modelId: currentState.modelId,
-        message: `Supply/reserve ratio deviates from bonding curve: actual ${actualRatio.toFixed(4)} vs expected ${expectedRatio.toFixed(4)} (${(deviation * 100).toFixed(1)}% deviation). Possible unauthorized minting/burning detected.`,
-        currentState,
-        metadata: {
+      // Only send alert if not already active
+      if (!this.isAlertActive(currentState.poolAddress, alertType)) {
+        this.setAlertActive(currentState.poolAddress, alertType);
+        logger.warn(`Supply invariant violation detected for ${currentState.modelId}`, {
           expectedRatio,
           actualRatio,
-          deviationPercent: deviation * 100,
-          crr,
-          reserveBalance: reserveBalance.toString(),
-          tokenSupply: tokenSupply.toString(),
-          spotPrice: spotPrice.toString()
-        }
-      };
+          deviationPercent: (deviation * 100).toFixed(2),
+          reserveUSD: currentState.reserveUSD,
+          supplyFormatted: currentState.supplyFormatted,
+          priceUSD: currentState.priceUSD
+        });
+
+        return {
+          type: alertType,
+          priority: 'critical',
+          poolAddress: currentState.poolAddress,
+          modelId: currentState.modelId,
+          message: `Supply/reserve ratio deviates from bonding curve: actual ${actualRatio.toFixed(4)} vs expected ${expectedRatio.toFixed(4)} (${(deviation * 100).toFixed(1)}% deviation). Possible unauthorized minting/burning detected.`,
+          currentState,
+          metadata: {
+            expectedRatio,
+            actualRatio,
+            deviationPercent: deviation * 100,
+            crr,
+            reserveBalance: reserveBalance.toString(),
+            tokenSupply: tokenSupply.toString(),
+            spotPrice: spotPrice.toString()
+          }
+        };
+      }
+    } else {
+      // Condition no longer met, clear the alert
+      this.clearAlert(currentState.poolAddress, alertType);
     }
 
     // Invariant validated

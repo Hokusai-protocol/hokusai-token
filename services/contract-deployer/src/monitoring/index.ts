@@ -1,7 +1,7 @@
 /**
  * Hokusai AMM Monitoring
  *
- * Real-time monitoring system for Hokusai AMM pools
+ * Real-time monitoring system for Hokusai AMM pools and Infrastructure Cost Accrual
  */
 
 // Main orchestrator
@@ -26,6 +26,15 @@ export {
   AlertManager,
   AlertManagerConfig
 } from './alert-manager';
+
+// Infrastructure monitoring (NEW)
+export {
+  InfrastructureMonitor,
+  InfrastructureState,
+  InfrastructureAlert,
+  InfrastructureThresholds,
+  InfrastructureMonitorCallbacks
+} from './infrastructure-monitor';
 
 // Configuration
 export {

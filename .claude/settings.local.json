@@ -28,7 +28,8 @@
       "Bash(docker build:*)",
       "Bash(docker tag:*)",
       "Bash(aws ecs describe-task-definition:*)",
-      "Bash(npx hardhat test:*)"
+      "Bash(npx hardhat test:*)",
+      "Bash(aws ecs list-clusters:*)"
     ],
     "deny": []
   }

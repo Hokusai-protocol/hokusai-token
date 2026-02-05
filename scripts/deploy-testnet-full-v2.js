@@ -3,22 +3,23 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Comprehensive Testnet Deployment Script
+ * Comprehensive Testnet Deployment Script V2 (with Infrastructure Cost Accrual)
  *
  * Deploys all Hokusai contracts to Sepolia testnet:
  * 1. ModelRegistry
- * 2. HokusaiParams (via TokenManager)
- * 3. TokenManager
- * 4. MockUSDC
- * 5. HokusaiAMMFactory (with two-phase pricing)
- * 6. HokusaiToken - LSCOR token via TokenManager
- * 7. HokusaiAMM - LSCOR pool with 10% CRR and two-phase pricing
- * 8. UsageFeeRouter
+ * 2. TokenManager (with updated HokusaiParams - infrastructure accrual)
+ * 3. MockUSDC
+ * 4. HokusaiAMMFactory (with two-phase pricing)
+ * 5. InfrastructureReserve (NEW)
+ * 6. UsageFeeRouter (UPDATED - no protocol fee, infrastructure split)
+ * 7. HokusaiToken - LSCOR token via TokenManager
+ * 8. HokusaiAMM - LSCOR pool with 10% CRR and two-phase pricing
  * 9. DataContributionRegistry
  * 10. DeltaVerifier
  *
  * Environment Variables:
- * - TREASURY_ADDRESS: Address to receive trading fees (defaults to deployer)
+ * - TREASURY_ADDRESS: Address to receive fees and manage infrastructure payments (defaults to deployer)
+ * - BACKEND_SERVICE_ADDRESS: Backend service for FEE_DEPOSITOR_ROLE (defaults to deployer)
  */
 
 // Pool configurations
@@ -29,30 +30,36 @@ const POOL_CONFIGS = {
     tokenName: "Hokusai LSCOR",
     tokenSymbol: "LSCOR",
     initialReserve: ethers.parseUnits("100", 6), // $100 - Small initial reserve to test flat price phase
-    initialSupply: ethers.parseEther("1000"), // 1,000 tokens initially - small initial supply
+    initialSupply: ethers.parseEther("1000"), // 1,000 tokens initially
     crr: 100000, // 10% CRR
     tradeFee: 30, // 0.30% (30 bps)
     ibr: 7 * 24 * 60 * 60, // 7 days
     flatCurveThreshold: ethers.parseUnits("25000", 6), // $25k threshold
     flatCurvePrice: ethers.parseUnits("0.01", 6), // $0.01 per token
+    infrastructureAccrualBps: 8000, // 80% infrastructure accrual (default)
   }
 };
 
 async function main() {
-  console.log("🚀 Starting Full Testnet Deployment...\n");
+  console.log("🚀 Starting Full Testnet Deployment V2 (Infrastructure Cost Accrual)...\n");
   console.log("=".repeat(70));
 
   const [deployer] = await ethers.getSigners();
   const network = await ethers.provider.getNetwork();
 
-  // Treasury address - use environment variable or default to deployer
+  // Treasury and backend service addresses
   const treasuryAddress = process.env.TREASURY_ADDRESS || deployer.address;
+  const backendAddress = process.env.BACKEND_SERVICE_ADDRESS || deployer.address;
 
   console.log("Network:", network.name, `(chainId: ${network.chainId})`);
   console.log("Deployer:", deployer.address);
   console.log("Treasury:", treasuryAddress);
+  console.log("Backend Service:", backendAddress);
   if (treasuryAddress === deployer.address) {
     console.log("   ⚠️  Using deployer as treasury (set TREASURY_ADDRESS env var to change)");
+  }
+  if (backendAddress === deployer.address) {
+    console.log("   ⚠️  Using deployer as backend service (set BACKEND_SERVICE_ADDRESS env var to change)");
   }
   console.log("Balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)), "ETH");
   console.log("=".repeat(70));
@@ -64,15 +71,17 @@ async function main() {
     timestamp: new Date().toISOString(),
     deployer: deployer.address,
     treasury: treasuryAddress,
+    backendService: backendAddress,
     contracts: {},
     tokens: [],
     pools: [],
+    roles: {},
     gasUsed: {}
   };
 
   try {
     // ============================================================
-    // PHASE 1: Core Infrastructure (no dependencies)
+    // PHASE 1: Core Infrastructure
     // ============================================================
 
     console.log("📦 PHASE 1: Core Infrastructure");
@@ -87,7 +96,7 @@ async function main() {
     deployment.contracts.ModelRegistry = registryAddress;
     console.log("   ✅ ModelRegistry:", registryAddress);
 
-    // 2. Deploy TokenManager (depends on ModelRegistry)
+    // 2. Deploy TokenManager
     console.log("\n2️⃣  Deploying TokenManager...");
     const TokenManager = await ethers.getContractFactory("TokenManager");
     const tokenManager = await TokenManager.deploy(registryAddress);
@@ -149,31 +158,74 @@ async function main() {
     deployment.contracts.HokusaiAMMFactory = factoryAddress;
     console.log("   ✅ HokusaiAMMFactory:", factoryAddress);
 
-    // Set default pool parameters
-    console.log("   ⚙️  Setting factory defaults...");
-    await factory.setDefaults(
-      200000,  // 20% CRR default
-      30,      // 0.30% trade fee default
-      1 * 24 * 60 * 60  // 1 day IBR for testnet (min allowed)
-    );
-    console.log("   ✅ Factory defaults configured");
-
     // ============================================================
-    // PHASE 4: Create Tokens and Pools
+    // PHASE 4: Infrastructure Cost Accrual System (NEW)
     // ============================================================
 
-    console.log("\n\n📦 PHASE 4: Tokens and Pools");
+    console.log("\n\n📦 PHASE 4: Infrastructure Cost Accrual System");
     console.log("-".repeat(70));
 
-    const poolOrder = ['lscor'];
+    // 6. Deploy InfrastructureReserve
+    console.log("\n6️⃣  Deploying InfrastructureReserve...");
+    const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
+    const infraReserve = await InfrastructureReserve.deploy(
+      usdcAddress,       // reserveToken (USDC)
+      factoryAddress,    // HokusaiAMMFactory
+      treasuryAddress    // treasury (for emergency withdrawals)
+    );
+    await infraReserve.waitForDeployment();
+    const infraReserveAddress = await infraReserve.getAddress();
+    deployment.contracts.InfrastructureReserve = infraReserveAddress;
+    console.log("   ✅ InfrastructureReserve:", infraReserveAddress);
 
-    for (const configKey of poolOrder) {
-      const config = POOL_CONFIGS[configKey];
-      console.log(`\n🏊 Creating ${config.name}...`);
-      console.log("   " + "-".repeat(66));
+    // 7. Deploy UsageFeeRouter (updated - no protocol fee)
+    console.log("\n7️⃣  Deploying UsageFeeRouter (V2 - Infrastructure Split)...");
+    const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
+    const feeRouter = await UsageFeeRouter.deploy(
+      factoryAddress,       // factory
+      usdcAddress,          // reserveToken (USDC)
+      infraReserveAddress   // infrastructureReserve (NEW)
+    );
+    await feeRouter.waitForDeployment();
+    const feeRouterAddress = await feeRouter.getAddress();
+    deployment.contracts.UsageFeeRouter = feeRouterAddress;
+    console.log("   ✅ UsageFeeRouter:", feeRouterAddress);
+    console.log("   ℹ️  No protocol fee - splits dynamically per model (default 80/20)");
 
-      // 6. Deploy token via TokenManager
-      console.log(`   📝 Deploying token: ${config.tokenName} (${config.tokenSymbol})`);
+    // Configure infrastructure system roles
+    console.log("\n   🔐 Configuring Infrastructure System Roles...");
+
+    const DEPOSITOR_ROLE = await infraReserve.DEPOSITOR_ROLE();
+    const PAYER_ROLE = await infraReserve.PAYER_ROLE();
+    const FEE_DEPOSITOR_ROLE = await feeRouter.FEE_DEPOSITOR_ROLE();
+
+    // Grant DEPOSITOR_ROLE to UsageFeeRouter
+    await infraReserve.grantRole(DEPOSITOR_ROLE, feeRouterAddress);
+    console.log("   ✅ DEPOSITOR_ROLE granted to UsageFeeRouter");
+    deployment.roles.InfrastructureReserve_DEPOSITOR = feeRouterAddress;
+
+    // Grant PAYER_ROLE to Treasury
+    await infraReserve.grantRole(PAYER_ROLE, treasuryAddress);
+    console.log("   ✅ PAYER_ROLE granted to Treasury");
+    deployment.roles.InfrastructureReserve_PAYER = treasuryAddress;
+
+    // Grant FEE_DEPOSITOR_ROLE to Backend Service
+    await feeRouter.grantRole(FEE_DEPOSITOR_ROLE, backendAddress);
+    console.log("   ✅ FEE_DEPOSITOR_ROLE granted to Backend Service");
+    deployment.roles.UsageFeeRouter_FEE_DEPOSITOR = backendAddress;
+
+    // ============================================================
+    // PHASE 5: Deploy Tokens and Pools
+    // ============================================================
+
+    console.log("\n\n📦 PHASE 5: Deploy Tokens and Pools");
+    console.log("-".repeat(70));
+
+    for (const [configKey, config] of Object.entries(POOL_CONFIGS)) {
+      console.log(`\n🎯 Deploying ${config.name}...`);
+
+      // 8. Deploy token via TokenManager (automatically creates HokusaiParams with new infrastructure accrual)
+      console.log(`   🪙 Deploying ${config.tokenSymbol} token...`);
       const tokenTx = await tokenManager.deployToken(
         config.modelId,
         config.tokenName,
@@ -196,12 +248,17 @@ async function main() {
       }
       console.log(`   ✅ Token deployed: ${tokenAddress}`);
 
+      // Get HokusaiParams address
+      const paramsAddress = await tokenManager.modelParams(config.modelId);
+      console.log(`   📋 HokusaiParams: ${paramsAddress}`);
+      console.log(`   ℹ️  Default infrastructure accrual: 80% (can be adjusted by governance)`);
+
       // Register model in ModelRegistry
       console.log(`   📋 Registering model in ModelRegistry...`);
       await modelRegistry.registerStringModel(config.modelId, tokenAddress, "accuracy");
       console.log(`   ✅ Model registered: ${config.modelId}`);
 
-      // 7. Create pool via Factory
+      // 9. Create pool via Factory
       console.log(`   🏊 Creating AMM pool...`);
 
       const poolTx = await factory.createPoolWithParams(
@@ -229,13 +286,18 @@ async function main() {
       }
       console.log(`   ✅ Pool created: ${poolAddress}`);
 
-      // 8. Authorize AMM to mint tokens
+      // 10. Authorize AMM to mint tokens
       console.log(`   🔐 Authorizing AMM to mint tokens...`);
       const authorizeTx = await tokenManager.authorizeAMM(poolAddress);
       await authorizeTx.wait();
       console.log(`   ✅ AMM authorized with MINTER_ROLE`);
 
-      // 9. Initialize pool with liquidity (if any)
+      // 11. Set provider for infrastructure payments
+      console.log(`   🏭 Setting infrastructure provider to treasury...`);
+      await infraReserve.setProvider(config.modelId, treasuryAddress);
+      console.log(`   ✅ Provider set (can be updated later)`);
+
+      // 12. Initialize pool with liquidity (if any)
       if (config.initialReserve > 0n) {
         console.log(`   💰 Adding initial liquidity...`);
         const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
@@ -269,7 +331,9 @@ async function main() {
         name: config.tokenName,
         symbol: config.tokenSymbol,
         address: tokenAddress,
-        initialSupply: config.initialSupply.toString()
+        paramsAddress: paramsAddress,
+        initialSupply: config.initialSupply.toString(),
+        infrastructureAccrualBps: config.infrastructureAccrualBps
       });
 
       deployment.pools.push({
@@ -277,6 +341,7 @@ async function main() {
         modelId: config.modelId,
         tokenAddress: tokenAddress,
         ammAddress: poolAddress,
+        paramsAddress: paramsAddress,
         initialReserve: config.initialReserve.toString(),
         crr: config.crr,
         tradeFee: config.tradeFee,
@@ -289,42 +354,14 @@ async function main() {
     }
 
     // ============================================================
-    // PHASE 5: Usage Fee Router
-    // ============================================================
-
-    console.log("\n\n📦 PHASE 5: Usage Fee Router");
-    console.log("-".repeat(70));
-
-    // 10. Deploy UsageFeeRouter
-    console.log("\n🔟 Deploying UsageFeeRouter...");
-    console.log(`   Treasury: ${treasuryAddress}`);
-    const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
-    const feeRouter = await UsageFeeRouter.deploy(
-      factoryAddress,      // factory
-      usdcAddress,         // reserveToken (USDC)
-      treasuryAddress,     // treasury
-      500                  // 5% protocol fee
-    );
-    await feeRouter.waitForDeployment();
-    const feeRouterAddress = await feeRouter.getAddress();
-    deployment.contracts.UsageFeeRouter = feeRouterAddress;
-    console.log("   ✅ UsageFeeRouter:", feeRouterAddress);
-
-    // Grant FEE_DEPOSITOR_ROLE to deployer (for testing)
-    console.log("   🔐 Granting FEE_DEPOSITOR_ROLE to deployer...");
-    const FEE_DEPOSITOR_ROLE = await feeRouter.FEE_DEPOSITOR_ROLE();
-    await feeRouter.grantRole(FEE_DEPOSITOR_ROLE, deployer.address);
-    console.log("   ✅ FEE_DEPOSITOR_ROLE granted");
-
-    // ============================================================
     // PHASE 6: Delta Verifier
     // ============================================================
 
     console.log("\n\n📦 PHASE 6: Delta Verifier");
     console.log("-".repeat(70));
 
-    // 11. Deploy DeltaVerifier
-    console.log("\n1️⃣1️⃣ Deploying DeltaVerifier...");
+    // 13. Deploy DeltaVerifier
+    console.log("\n1️⃣3️⃣ Deploying DeltaVerifier...");
     const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier");
     const deltaVerifier = await DeltaVerifier.deploy(
       registryAddress,
@@ -370,14 +407,21 @@ async function main() {
     console.log(`   DataContributionRegistry:  ${deployment.contracts.DataContributionRegistry}`);
     console.log(`   MockUSDC:                  ${deployment.contracts.MockUSDC}`);
     console.log(`   HokusaiAMMFactory:         ${deployment.contracts.HokusaiAMMFactory}`);
-    console.log(`   UsageFeeRouter:            ${deployment.contracts.UsageFeeRouter}`);
+
+    console.log("\n💰 Infrastructure Cost Accrual System (NEW):");
+    console.log(`   InfrastructureReserve:     ${deployment.contracts.InfrastructureReserve}`);
+    console.log(`   UsageFeeRouter (V2):       ${deployment.contracts.UsageFeeRouter}`);
+
+    console.log("\n📊 Other Contracts:");
     console.log(`   DeltaVerifier:             ${deployment.contracts.DeltaVerifier}`);
 
     console.log("\n🪙 Tokens:");
     for (const token of deployment.tokens) {
       console.log(`   ${token.name} (${token.symbol}):`);
-      console.log(`     Address:    ${token.address}`);
-      console.log(`     Model ID:   ${token.modelId}`);
+      console.log(`     Token Address:   ${token.address}`);
+      console.log(`     Params Address:  ${token.paramsAddress}`);
+      console.log(`     Model ID:        ${token.modelId}`);
+      console.log(`     Infra Accrual:   ${token.infrastructureAccrualBps / 100}%`);
     }
 
     console.log("\n🏊 Pools:");
@@ -391,11 +435,16 @@ async function main() {
       console.log(`     IBR Duration:   ${pool.ibrDuration / 86400} days`);
     }
 
+    console.log("\n🔐 Roles:");
+    console.log(`   InfrastructureReserve DEPOSITOR: ${deployment.roles.InfrastructureReserve_DEPOSITOR}`);
+    console.log(`   InfrastructureReserve PAYER:     ${deployment.roles.InfrastructureReserve_PAYER}`);
+    console.log(`   UsageFeeRouter FEE_DEPOSITOR:    ${deployment.roles.UsageFeeRouter_FEE_DEPOSITOR}`);
+
     if (network.chainId === 11155111n) {
       console.log("\n🔗 View on Sepolia Etherscan:");
-      console.log(`   ModelRegistry:    https://sepolia.etherscan.io/address/${deployment.contracts.ModelRegistry}`);
-      console.log(`   Factory:          https://sepolia.etherscan.io/address/${deployment.contracts.HokusaiAMMFactory}`);
-      console.log(`   UsageFeeRouter:   https://sepolia.etherscan.io/address/${deployment.contracts.UsageFeeRouter}`);
+      console.log(`   Factory:              https://sepolia.etherscan.io/address/${deployment.contracts.HokusaiAMMFactory}`);
+      console.log(`   InfrastructureReserve: https://sepolia.etherscan.io/address/${deployment.contracts.InfrastructureReserve}`);
+      console.log(`   UsageFeeRouter:       https://sepolia.etherscan.io/address/${deployment.contracts.UsageFeeRouter}`);
 
       console.log("\n   Tokens:");
       for (const token of deployment.tokens) {
@@ -415,32 +464,32 @@ async function main() {
     }
 
     const timestamp = new Date().toISOString().split('T')[0];
-    const filename = `${network.name}-${timestamp}.json`;
+    const filename = `${network.name}-v2-${timestamp}.json`;
     const filepath = path.join(deploymentDir, filename);
 
     fs.writeFileSync(filepath, JSON.stringify(deployment, null, 2));
     console.log(`\n💾 Deployment info saved to: deployments/${filename}`);
 
     // Also save as "latest" for easy reference
-    const latestPath = path.join(deploymentDir, `${network.name}-latest.json`);
+    const latestPath = path.join(deploymentDir, `${network.name}-v2-latest.json`);
     fs.writeFileSync(latestPath, JSON.stringify(deployment, null, 2));
-    console.log(`💾 Also saved as: deployments/${network.name}-latest.json`);
+    console.log(`💾 Also saved as: deployments/${network.name}-v2-latest.json`);
 
-    console.log("\n✅ All 9 contract types deployed successfully!");
-    console.log("   - 7 core contracts");
-    console.log("   - 3 tokens");
-    console.log("   - 3 AMM pools");
+    console.log("\n✅ All contracts deployed successfully!");
+    console.log("   - 10 contract types");
+    console.log("   - Infrastructure cost accrual system integrated");
+    console.log("   - 80/20 default infrastructure/profit split");
 
     console.log("\n📝 Next Steps:");
-    console.log("   1. Run validation tests: npx hardhat test test/testnet/multi-pool-validation.test.js --network sepolia");
-    console.log("   2. Verify events: node scripts/verify-events.js");
-    console.log("   3. Test emergency controls: npx hardhat test test/testnet/emergency-controls.test.js --network sepolia");
+    console.log("   1. Test API fee deposit: feeRouter.depositFee(modelId, amount)");
+    console.log("   2. Verify 80/20 split: Check infraReserve.accrued() and pool.reserveBalance()");
+    console.log("   3. Test infrastructure payment: infraReserve.payInfrastructureCost()");
+    console.log("   4. Monitor accrual runway: infraReserve.getAccrualRunway(modelId, dailyBurnRate)");
+    console.log("   5. Adjust split via governance: params.setInfrastructureAccrualBps(newBps)");
 
   } catch (error) {
     console.error("\n❌ Deployment failed:", error.message);
-    console.error("\n📜 Full error:");
-    console.error(error);
-    process.exit(1);
+    throw error;
   }
 }
 

@@ -19,14 +19,17 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /// @dev Maximum allowed value for tokensPerDeltaOne
     uint256 public constant MAX_TOKENS_PER_DELTA_ONE = 100000;
 
-    /// @dev Maximum allowed value for infraMarkupBps (10% in basis points)
-    uint16 public constant MAX_INFRA_MARKUP_BPS = 1000;
+    /// @dev Minimum allowed value for infrastructureAccrualBps (50% in basis points)
+    uint16 public constant MIN_INFRASTRUCTURE_ACCRUAL_BPS = 5000;
+
+    /// @dev Maximum allowed value for infrastructureAccrualBps (100% in basis points)
+    uint16 public constant MAX_INFRASTRUCTURE_ACCRUAL_BPS = 10000;
 
     /// @dev Number of tokens to mint per unit of deltaOne improvement
     uint256 private _tokensPerDeltaOne;
 
-    /// @dev Infrastructure markup percentage in basis points (0-1000 = 0-10%)
-    uint16 private _infraMarkupBps;
+    /// @dev Infrastructure cost accrual percentage in basis points (5000-10000 = 50-100%)
+    uint16 private _infrastructureAccrualBps;
 
     /// @dev Hash of the license reference
     bytes32 private _licenseHash;
@@ -37,14 +40,14 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /**
      * @dev Constructor to initialize the parameter contract
      * @param initialTokensPerDeltaOne Initial tokens per deltaOne value (100-100000)
-     * @param initialInfraMarkupBps Initial infrastructure markup in basis points (0-1000)
+     * @param initialInfrastructureAccrualBps Initial infrastructure accrual in basis points (5000-10000)
      * @param initialLicenseHash Initial license reference hash
      * @param initialLicenseURI Initial license reference URI
      * @param governor Address to grant GOV_ROLE to
      */
     constructor(
         uint256 initialTokensPerDeltaOne,
-        uint16 initialInfraMarkupBps,
+        uint16 initialInfrastructureAccrualBps,
         bytes32 initialLicenseHash,
         string memory initialLicenseURI,
         address governor
@@ -56,13 +59,14 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
             "tokensPerDeltaOne must be between 100 and 100000"
         );
         require(
-            initialInfraMarkupBps <= MAX_INFRA_MARKUP_BPS,
-            "infraMarkupBps cannot exceed 1000 (10%)"
+            initialInfrastructureAccrualBps >= MIN_INFRASTRUCTURE_ACCRUAL_BPS &&
+            initialInfrastructureAccrualBps <= MAX_INFRASTRUCTURE_ACCRUAL_BPS,
+            "infrastructureAccrualBps must be between 5000 and 10000"
         );
 
         // Set initial values
         _tokensPerDeltaOne = initialTokensPerDeltaOne;
-        _infraMarkupBps = initialInfraMarkupBps;
+        _infrastructureAccrualBps = initialInfrastructureAccrualBps;
         _licenseHash = initialLicenseHash;
         _licenseURI = initialLicenseURI;
 
@@ -81,8 +85,15 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /**
      * @inheritdoc IHokusaiParams
      */
-    function infraMarkupBps() external view override returns (uint16) {
-        return _infraMarkupBps;
+    function infrastructureAccrualBps() external view override returns (uint16) {
+        return _infrastructureAccrualBps;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function getProfitShareBps() external view override returns (uint16) {
+        return 10000 - _infrastructureAccrualBps;
     }
 
     /**
@@ -124,13 +135,16 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /**
      * @inheritdoc IHokusaiParams
      */
-    function setInfraMarkupBps(uint16 newBps) external override onlyRole(GOV_ROLE) {
-        require(newBps <= MAX_INFRA_MARKUP_BPS, "infraMarkupBps cannot exceed 1000 (10%)");
+    function setInfrastructureAccrualBps(uint16 newBps) external override onlyRole(GOV_ROLE) {
+        require(
+            newBps >= MIN_INFRASTRUCTURE_ACCRUAL_BPS && newBps <= MAX_INFRASTRUCTURE_ACCRUAL_BPS,
+            "infrastructureAccrualBps must be between 5000 and 10000"
+        );
 
-        uint16 oldBps = _infraMarkupBps;
-        _infraMarkupBps = newBps;
+        uint16 oldBps = _infrastructureAccrualBps;
+        _infrastructureAccrualBps = newBps;
 
-        emit InfraMarkupBpsSet(oldBps, newBps, msg.sender);
+        emit InfrastructureAccrualBpsSet(oldBps, newBps, msg.sender);
     }
 
     /**

@@ -15,10 +15,16 @@ interface IHokusaiParams {
     function tokensPerDeltaOne() external view returns (uint256);
 
     /**
-     * @dev Returns the infrastructure markup percentage in basis points
-     * @return The markup percentage (0-10000 basis points, where 10000 = 100%)
+     * @dev Returns the infrastructure cost accrual percentage in basis points
+     * @return The accrual percentage (5000-10000 basis points, where 5000 = 50%, 10000 = 100%)
      */
-    function infraMarkupBps() external view returns (uint16);
+    function infrastructureAccrualBps() external view returns (uint16);
+
+    /**
+     * @dev Returns the profit share percentage in basis points (residual after infrastructure)
+     * @return The profit share percentage (calculated as 10000 - infrastructureAccrualBps)
+     */
+    function getProfitShareBps() external view returns (uint16);
 
     /**
      * @dev Returns the license reference hash
@@ -49,13 +55,13 @@ interface IHokusaiParams {
     function setTokensPerDeltaOne(uint256 newValue) external;
 
     /**
-     * @dev Sets the infrastructure markup percentage
-     * @param newBps The new markup in basis points (must be 0-1000, max 10%)
+     * @dev Sets the infrastructure cost accrual percentage
+     * @param newBps The new accrual in basis points (must be 5000-10000, i.e., 50-100%)
      * Requirements:
      * - Only addresses with GOV_ROLE can call this function
-     * - newBps must be <= 1000 (10%)
+     * - newBps must be between 5000 and 10000 (50-100%)
      */
-    function setInfraMarkupBps(uint16 newBps) external;
+    function setInfrastructureAccrualBps(uint16 newBps) external;
 
     /**
      * @dev Sets the license reference
@@ -75,12 +81,12 @@ interface IHokusaiParams {
     event TokensPerDeltaOneSet(uint256 indexed oldValue, uint256 indexed newValue, address indexed updatedBy);
 
     /**
-     * @dev Emitted when infraMarkupBps is updated
-     * @param oldBps The previous markup in basis points
-     * @param newBps The new markup in basis points
+     * @dev Emitted when infrastructureAccrualBps is updated
+     * @param oldBps The previous accrual in basis points
+     * @param newBps The new accrual in basis points
      * @param updatedBy The address that made the update
      */
-    event InfraMarkupBpsSet(uint16 indexed oldBps, uint16 indexed newBps, address indexed updatedBy);
+    event InfrastructureAccrualBpsSet(uint16 indexed oldBps, uint16 indexed newBps, address indexed updatedBy);
 
     /**
      * @dev Emitted when license reference is updated

@@ -19,11 +19,11 @@ contract TokenManager is Ownable, AccessControlBase {
 
     /// @dev Structure for initial parameter values when deploying a token
     struct InitialParams {
-        uint256 tokensPerDeltaOne;    // Tokens per deltaOne improvement (100-100000)
-        uint16 infraMarkupBps;        // Infrastructure markup in basis points (0-1000)
-        bytes32 licenseHash;          // Hash of license reference
-        string licenseURI;            // URI for license reference
-        address governor;             // Address to grant GOV_ROLE
+        uint256 tokensPerDeltaOne;          // Tokens per deltaOne improvement (100-100000)
+        uint16 infrastructureAccrualBps;    // Infrastructure accrual in basis points (5000-10000, i.e., 50-100%)
+        bytes32 licenseHash;                // Hash of license reference
+        string licenseURI;                  // URI for license reference
+        address governor;                   // Address to grant GOV_ROLE
     }
     
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -51,7 +51,7 @@ contract TokenManager is Ownable, AccessControlBase {
         address indexed paramsAddress,
         address indexed deployer,
         uint256 tokensPerDeltaOne,
-        uint16 infraMarkupBps
+        uint16 infrastructureAccrualBps
     );
     event TokensMinted(string indexed modelId, address indexed recipient, uint256 amount);
     event TokensBurned(string indexed modelId, address indexed account, uint256 amount);
@@ -92,7 +92,7 @@ contract TokenManager is Ownable, AccessControlBase {
         // Use default parameters
         InitialParams memory defaultParams = InitialParams({
             tokensPerDeltaOne: 1000,
-            infraMarkupBps: 500, // 5%
+            infrastructureAccrualBps: 8000, // 80% infrastructure accrual (default)
             licenseHash: keccak256(abi.encodePacked("default-license")),
             licenseURI: "https://hokusai.ai/licenses/default",
             governor: owner()
@@ -144,7 +144,7 @@ contract TokenManager is Ownable, AccessControlBase {
         // Deploy HokusaiParams first
         HokusaiParams newParams = new HokusaiParams(
             initialParams.tokensPerDeltaOne,
-            initialParams.infraMarkupBps,
+            initialParams.infrastructureAccrualBps,
             initialParams.licenseHash,
             initialParams.licenseURI,
             initialParams.governor
@@ -163,7 +163,7 @@ contract TokenManager is Ownable, AccessControlBase {
         // Note: Registry registration is not attempted as it uses uint256 modelId
         // The ModelRegistry can be updated separately to support string modelIds if needed
 
-        emit ParamsDeployed(modelId, paramsAddress, msg.sender, initialParams.tokensPerDeltaOne, initialParams.infraMarkupBps);
+        emit ParamsDeployed(modelId, paramsAddress, msg.sender, initialParams.tokensPerDeltaOne, initialParams.infrastructureAccrualBps);
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
 
         return tokenAddress;

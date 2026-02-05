@@ -11,7 +11,7 @@ describe("HokusaiParams", function () {
   let addrs;
 
   const DEFAULT_TOKENS_PER_DELTA_ONE = 1000;
-  const DEFAULT_INFRA_MARKUP_BPS = 500; // 5%
+  const DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS = 8000; // 80%
   const DEFAULT_LICENSE_HASH = keccak256(toUtf8Bytes("default-license"));
   const DEFAULT_LICENSE_URI = "https://hokusai.ai/licenses/default";
 
@@ -21,7 +21,7 @@ describe("HokusaiParams", function () {
 
     params = await HokusaiParams.deploy(
       DEFAULT_TOKENS_PER_DELTA_ONE,
-      DEFAULT_INFRA_MARKUP_BPS,
+      DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
       DEFAULT_LICENSE_HASH,
       DEFAULT_LICENSE_URI,
       governor.address
@@ -32,7 +32,8 @@ describe("HokusaiParams", function () {
   describe("Constructor", function () {
     it("Should initialize with correct default values", async function () {
       expect(await params.tokensPerDeltaOne()).to.equal(DEFAULT_TOKENS_PER_DELTA_ONE);
-      expect(await params.infraMarkupBps()).to.equal(DEFAULT_INFRA_MARKUP_BPS);
+      expect(await params.infrastructureAccrualBps()).to.equal(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS);
+      expect(await params.getProfitShareBps()).to.equal(10000 - DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS);
       expect(await params.licenseHash()).to.equal(DEFAULT_LICENSE_HASH);
       expect(await params.licenseURI()).to.equal(DEFAULT_LICENSE_URI);
     });
@@ -57,7 +58,7 @@ describe("HokusaiParams", function () {
       await expect(
         HokusaiParams.deploy(
           DEFAULT_TOKENS_PER_DELTA_ONE,
-          DEFAULT_INFRA_MARKUP_BPS,
+          DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           ZeroAddress
@@ -69,7 +70,7 @@ describe("HokusaiParams", function () {
       await expect(
         HokusaiParams.deploy(
           99, // Below minimum of 100
-          DEFAULT_INFRA_MARKUP_BPS,
+          DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
@@ -81,7 +82,7 @@ describe("HokusaiParams", function () {
       await expect(
         HokusaiParams.deploy(
           100001, // Above maximum of 100000
-          DEFAULT_INFRA_MARKUP_BPS,
+          DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
@@ -89,16 +90,28 @@ describe("HokusaiParams", function () {
       ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 100000");
     });
 
-    it("Should reject infraMarkupBps above maximum", async function () {
+    it("Should reject infrastructureAccrualBps below minimum (5000)", async function () {
       await expect(
         HokusaiParams.deploy(
           DEFAULT_TOKENS_PER_DELTA_ONE,
-          1001, // Above maximum of 1000 (10%)
+          4999, // Below minimum of 5000 (50%)
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
         )
-      ).to.be.revertedWith("infraMarkupBps cannot exceed 1000 (10%)");
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
+    });
+
+    it("Should reject infrastructureAccrualBps above maximum (10000)", async function () {
+      await expect(
+        HokusaiParams.deploy(
+          DEFAULT_TOKENS_PER_DELTA_ONE,
+          10001, // Above maximum of 10000 (100%)
+          DEFAULT_LICENSE_HASH,
+          DEFAULT_LICENSE_URI,
+          governor.address
+        )
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
     });
   });
 
@@ -119,19 +132,20 @@ describe("HokusaiParams", function () {
       ).to.be.reverted;
     });
 
-    it("Should allow governor to update infraMarkupBps", async function () {
-      const newBps = 750;
-      await expect(params.connect(governor).setInfraMarkupBps(newBps))
-        .to.emit(params, "InfraMarkupBpsSet")
-        .withArgs(DEFAULT_INFRA_MARKUP_BPS, newBps, governor.address);
+    it("Should allow governor to update infrastructureAccrualBps", async function () {
+      const newBps = 7000; // 70%
+      await expect(params.connect(governor).setInfrastructureAccrualBps(newBps))
+        .to.emit(params, "InfrastructureAccrualBpsSet")
+        .withArgs(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS, newBps, governor.address);
 
-      expect(await params.infraMarkupBps()).to.equal(newBps);
+      expect(await params.infrastructureAccrualBps()).to.equal(newBps);
+      expect(await params.getProfitShareBps()).to.equal(10000 - newBps);
     });
 
-    it("Should prevent non-governor from updating infraMarkupBps", async function () {
-      const newBps = 750;
+    it("Should prevent non-governor from updating infrastructureAccrualBps", async function () {
+      const newBps = 7000;
       await expect(
-        params.connect(user1).setInfraMarkupBps(newBps)
+        params.connect(user1).setInfrastructureAccrualBps(newBps)
       ).to.be.reverted;
     });
 
@@ -190,26 +204,61 @@ describe("HokusaiParams", function () {
       expect(await params.tokensPerDeltaOne()).to.equal(100000);
     });
 
-    it("Should reject infraMarkupBps above maximum (1000)", async function () {
+    it("Should reject infrastructureAccrualBps below minimum (5000)", async function () {
       await expect(
-        params.connect(governor).setInfraMarkupBps(1001)
-      ).to.be.revertedWith("infraMarkupBps cannot exceed 1000 (10%)");
+        params.connect(governor).setInfrastructureAccrualBps(4999)
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
     });
 
-    it("Should accept infraMarkupBps at maximum boundary", async function () {
-      await expect(params.connect(governor).setInfraMarkupBps(1000))
-        .to.emit(params, "InfraMarkupBpsSet")
-        .withArgs(DEFAULT_INFRA_MARKUP_BPS, 1000, governor.address);
-
-      expect(await params.infraMarkupBps()).to.equal(1000);
+    it("Should reject infrastructureAccrualBps above maximum (10000)", async function () {
+      await expect(
+        params.connect(governor).setInfrastructureAccrualBps(10001)
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
     });
 
-    it("Should accept infraMarkupBps at zero", async function () {
-      await expect(params.connect(governor).setInfraMarkupBps(0))
-        .to.emit(params, "InfraMarkupBpsSet")
-        .withArgs(DEFAULT_INFRA_MARKUP_BPS, 0, governor.address);
+    it("Should accept infrastructureAccrualBps at minimum boundary (50%)", async function () {
+      await expect(params.connect(governor).setInfrastructureAccrualBps(5000))
+        .to.emit(params, "InfrastructureAccrualBpsSet")
+        .withArgs(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS, 5000, governor.address);
 
-      expect(await params.infraMarkupBps()).to.equal(0);
+      expect(await params.infrastructureAccrualBps()).to.equal(5000);
+      expect(await params.getProfitShareBps()).to.equal(5000); // 50% profit
+    });
+
+    it("Should accept infrastructureAccrualBps at maximum boundary (100%)", async function () {
+      await expect(params.connect(governor).setInfrastructureAccrualBps(10000))
+        .to.emit(params, "InfrastructureAccrualBpsSet")
+        .withArgs(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS, 10000, governor.address);
+
+      expect(await params.infrastructureAccrualBps()).to.equal(10000);
+      expect(await params.getProfitShareBps()).to.equal(0); // 0% profit
+    });
+  });
+
+  describe("Profit Share Calculation", function () {
+    it("Should correctly calculate profit share (80/20 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(8000);
+      expect(await params.getProfitShareBps()).to.equal(2000); // 20%
+    });
+
+    it("Should correctly calculate profit share (70/30 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(7000);
+      expect(await params.getProfitShareBps()).to.equal(3000); // 30%
+    });
+
+    it("Should correctly calculate profit share (90/10 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(9000);
+      expect(await params.getProfitShareBps()).to.equal(1000); // 10%
+    });
+
+    it("Should correctly calculate profit share (50/50 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(5000);
+      expect(await params.getProfitShareBps()).to.equal(5000); // 50%
+    });
+
+    it("Should correctly calculate profit share (100/0 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(10000);
+      expect(await params.getProfitShareBps()).to.equal(0); // 0%
     });
   });
 
@@ -223,13 +272,13 @@ describe("HokusaiParams", function () {
         .withArgs(DEFAULT_TOKENS_PER_DELTA_ONE, newValue, governor.address);
     });
 
-    it("Should emit InfraMarkupBpsSet with correct parameters", async function () {
-      const newBps = 200;
-      const tx = await params.connect(governor).setInfraMarkupBps(newBps);
+    it("Should emit InfrastructureAccrualBpsSet with correct parameters", async function () {
+      const newBps = 6000;
+      const tx = await params.connect(governor).setInfrastructureAccrualBps(newBps);
 
       await expect(tx)
-        .to.emit(params, "InfraMarkupBpsSet")
-        .withArgs(DEFAULT_INFRA_MARKUP_BPS, newBps, governor.address);
+        .to.emit(params, "InfrastructureAccrualBpsSet")
+        .withArgs(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS, newBps, governor.address);
     });
 
     it("Should emit LicenseRefSet with correct parameters", async function () {
@@ -249,9 +298,10 @@ describe("HokusaiParams", function () {
       await params.connect(governor).setTokensPerDeltaOne(1500);
       expect(await params.tokensPerDeltaOne()).to.equal(1500);
 
-      // Update infraMarkupBps
-      await params.connect(governor).setInfraMarkupBps(800);
-      expect(await params.infraMarkupBps()).to.equal(800);
+      // Update infrastructureAccrualBps
+      await params.connect(governor).setInfrastructureAccrualBps(7500);
+      expect(await params.infrastructureAccrualBps()).to.equal(7500);
+      expect(await params.getProfitShareBps()).to.equal(2500);
 
       // Update license reference
       const newHash = keccak256(toUtf8Bytes("sequence-license"));
@@ -263,7 +313,7 @@ describe("HokusaiParams", function () {
 
       // Verify all values are still correct
       expect(await params.tokensPerDeltaOne()).to.equal(1500);
-      expect(await params.infraMarkupBps()).to.equal(800);
+      expect(await params.infrastructureAccrualBps()).to.equal(7500);
 
       const [hash, uri] = await params.licenseRef();
       expect(hash).to.equal(newHash);
@@ -272,36 +322,19 @@ describe("HokusaiParams", function () {
 
     it("Should maintain state consistency across multiple updates", async function () {
       const updates = [
-        { tokens: 200, markup: 100 },
-        { tokens: 5000, markup: 500 },
-        { tokens: 99999, markup: 999 }
+        { tokens: 200, infra: 5000 },
+        { tokens: 5000, infra: 7500 },
+        { tokens: 99999, infra: 9500 }
       ];
 
       for (const update of updates) {
         await params.connect(governor).setTokensPerDeltaOne(update.tokens);
-        await params.connect(governor).setInfraMarkupBps(update.markup);
+        await params.connect(governor).setInfrastructureAccrualBps(update.infra);
 
         expect(await params.tokensPerDeltaOne()).to.equal(update.tokens);
-        expect(await params.infraMarkupBps()).to.equal(update.markup);
+        expect(await params.infrastructureAccrualBps()).to.equal(update.infra);
+        expect(await params.getProfitShareBps()).to.equal(10000 - update.infra);
       }
-    });
-  });
-
-  describe("Gas Efficiency", function () {
-    it("Should read critical parameters efficiently", async function () {
-      // Test actual function calls to measure real gas usage
-      const tx1 = await params.tokensPerDeltaOne();
-      const tx2 = await params.infraMarkupBps();
-      const tx3 = await params.licenseHash();
-
-      // Verify the functions work correctly (gas test is informational)
-      expect(tx1).to.equal(DEFAULT_TOKENS_PER_DELTA_ONE);
-      expect(tx2).to.equal(DEFAULT_INFRA_MARKUP_BPS);
-      expect(tx3).to.equal(DEFAULT_LICENSE_HASH);
-
-      // Note: View function gas estimation includes transaction overhead
-      // In actual DeltaVerifier usage, these will be part of larger transactions
-      // where the marginal gas cost is much lower
     });
   });
 

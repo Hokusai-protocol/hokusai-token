@@ -1,0 +1,41 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "timestamp": "2026-01-XX:XX:XX.XXXZ",
+  "deployer": "0x...",
+  "contracts": {
+    "ModelRegistry": "0x...",
+    "TokenManager": "0x...",
+    "HokusaiParams": "0x...",
+    "DataContributionRegistry": "0x...",
+    "HokusaiAMMFactory": "0x...",
+    "UsageFeeRouter": "0x...",
+    "DeltaVerifier": "0x..."
+  },
+  "config": {
+    "usdcAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "factoryDefaults": {
+      "crr": 200000,
+      "tradeFee": 30,
+      "protocolFee": 3000,
+      "ibrDuration": 604800
+    },
+    "deltaVerifierParams": {
+      "baseRewardRate": 1000,
+      "minImprovementBps": 100,
+      "maxReward": "1000000000000000000000000"
+    },
+    "usageFeeParams": {
+      "protocolFeeBps": 500
+    }
+  },
+  "tokens": [],
+  "pools": [],
+  "gasUsed": {},
+  "poolsCreatedAt": null,
+  "notes": [
+    "This is a template for mainnet deployment artifact",
+    "tokens[] and pools[] will be populated by create-mainnet-pools.js",
+    "All addresses starting with 0x... must be replaced with actual deployed addresses"
+  ]
+}

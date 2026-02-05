@@ -1,0 +1,77 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "timestamp": "2026-01-12T17:20:31.529Z",
+  "deployer": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "contracts": {
+    "ModelRegistry": "0x7793D34871135713940673230AbE2Bb68799d508",
+    "TokenManager": "0xdD57e6C770E5A5644Ec8132FF40B4c68ab65325e",
+    "DataContributionRegistry": "0x97c738D0aE723533f3eE97C45ec91A3abBBf491D",
+    "MockUSDC": "0x7A9F8817EbF9815B9388E6bbFE7e4C46cef382e3",
+    "HokusaiAMMFactory": "0x60500936CEb844fCcB75f2246852A65B9508eAd7",
+    "UsageFeeRouter": "0x2C5C22229ae63A187aafc89AF392dF53253D17d7",
+    "DeltaVerifier": "0x564cE700370F9Fb0b6Fe0EdbEdAb7623eC7c131B"
+  },
+  "tokens": [
+    {
+      "configKey": "conservative",
+      "modelId": "model-conservative-001",
+      "name": "Hokusai Conservative",
+      "symbol": "HKS-CON",
+      "address": "0xE3423d52c42b61bc1Dd6abfbDa9bEBa827a4c806",
+      "initialSupply": "1000000000000000000000000"
+    },
+    {
+      "configKey": "aggressive",
+      "modelId": "model-aggressive-002",
+      "name": "Hokusai Aggressive",
+      "symbol": "HKS-AGG",
+      "address": "0xc6d747bC7884e50104C6A919C86f02001a76E281",
+      "initialSupply": "500000000000000000000000"
+    },
+    {
+      "configKey": "balanced",
+      "modelId": "model-balanced-003",
+      "name": "Hokusai Balanced",
+      "symbol": "HKS-BAL",
+      "address": "0xeA2Ec4A52fDE565CC5a1B92A213C3CC156a6F63e",
+      "initialSupply": "2000000000000000000000000"
+    }
+  ],
+  "pools": [
+    {
+      "configKey": "conservative",
+      "modelId": "model-conservative-001",
+      "tokenAddress": "0xE3423d52c42b61bc1Dd6abfbDa9bEBa827a4c806",
+      "ammAddress": "0x58565F787C49F09C7Bf33990e7C5B7208580901a",
+      "initialReserve": "10000000000",
+      "crr": 300000,
+      "tradeFee": 25,
+      "protocolFee": 2000,
+      "ibrDuration": 86400
+    },
+    {
+      "configKey": "aggressive",
+      "modelId": "model-aggressive-002",
+      "tokenAddress": "0xc6d747bC7884e50104C6A919C86f02001a76E281",
+      "ammAddress": "0xEf815E7F11eD0B88cE33Dd30FC9568f7F66abC5a",
+      "initialReserve": "50000000000",
+      "crr": 100000,
+      "tradeFee": 50,
+      "protocolFee": 5000,
+      "ibrDuration": 86400
+    },
+    {
+      "configKey": "balanced",
+      "modelId": "model-balanced-003",
+      "tokenAddress": "0xeA2Ec4A52fDE565CC5a1B92A213C3CC156a6F63e",
+      "ammAddress": "0x76A59583430243D595E8985cA089a00Cc18B73af",
+      "initialReserve": "25000000000",
+      "crr": 200000,
+      "tradeFee": 30,
+      "protocolFee": 3000,
+      "ibrDuration": 86400
+    }
+  ],
+  "gasUsed": {}
+}

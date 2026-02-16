@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 const path = require("path");
 const fs = require("fs");
 
@@ -16,6 +16,12 @@ const fs = require("fs");
  */
 
 describe("Parameter Validation", function () {
+  before(function () {
+    if (network.name !== "sepolia") {
+      this.skip();
+    }
+  });
+
   let deployment;
   let params, token;
   let signer;
@@ -47,18 +53,19 @@ describe("Parameter Validation", function () {
   describe("Read Current Parameters", function () {
     it("Should read all governance parameters", async function () {
       const tokensPerDeltaOne = await params.tokensPerDeltaOne();
-      const infraMarkupBps = await params.infraMarkupBps();
+      const infrastructureAccrualBps = await params.infrastructureAccrualBps();
       const licenseHash = await params.licenseHash();
       const licenseURI = await params.licenseURI();
 
       console.log(`      📊 Current Parameters:`);
       console.log(`         Tokens Per Delta One: ${tokensPerDeltaOne}`);
-      console.log(`         Infra Markup: ${infraMarkupBps} bps (${Number(infraMarkupBps) / 100}%)`);
+      console.log(`         Infrastructure Accrual: ${infrastructureAccrualBps} bps (${Number(infrastructureAccrualBps) / 100}%)`);
       console.log(`         License Hash: ${licenseHash}`);
       console.log(`         License URI: ${licenseURI}`);
 
       expect(tokensPerDeltaOne).to.be.gt(0, "TokensPerDeltaOne should be positive");
-      expect(infraMarkupBps).to.be.gte(0, "InfraMarkup should be non-negative");
+      expect(infrastructureAccrualBps).to.be.gte(5000, "InfrastructureAccrualBps should be >= 5000");
+      expect(infrastructureAccrualBps).to.be.lte(10000, "InfrastructureAccrualBps should be <= 10000");
 
       console.log(`      ✅ All parameters readable`);
     });
@@ -112,23 +119,25 @@ describe("Parameter Validation", function () {
     it("Should validate constraint values", async function () {
       const MIN_TOKENS = await params.MIN_TOKENS_PER_DELTA_ONE();
       const MAX_TOKENS = await params.MAX_TOKENS_PER_DELTA_ONE();
-      const MAX_MARKUP = await params.MAX_INFRA_MARKUP_BPS();
+      const MIN_INFRA = await params.MIN_INFRASTRUCTURE_ACCRUAL_BPS();
+      const MAX_INFRA = await params.MAX_INFRASTRUCTURE_ACCRUAL_BPS();
 
       console.log(`      📏 Parameter Constraints:`);
       console.log(`         TokensPerDeltaOne: ${MIN_TOKENS} - ${MAX_TOKENS}`);
-      console.log(`         InfraMarkupBps: 0 - ${MAX_MARKUP} (${Number(MAX_MARKUP) / 100}%)`);
+      console.log(`         InfrastructureAccrualBps: ${MIN_INFRA} - ${MAX_INFRA} (${Number(MIN_INFRA) / 100}% - ${Number(MAX_INFRA) / 100}%)`);
 
       const currentTokens = await params.tokensPerDeltaOne();
-      const currentMarkup = await params.infraMarkupBps();
+      const currentAccrual = await params.infrastructureAccrualBps();
 
       console.log(`\n      Current Values:`);
       console.log(`         TokensPerDeltaOne: ${currentTokens}`);
-      console.log(`         InfraMarkupBps: ${currentMarkup}`);
+      console.log(`         InfrastructureAccrualBps: ${currentAccrual}`);
 
       // Validate within constraints
       expect(currentTokens).to.be.gte(MIN_TOKENS);
       expect(currentTokens).to.be.lte(MAX_TOKENS);
-      expect(currentMarkup).to.be.lte(MAX_MARKUP);
+      expect(currentAccrual).to.be.gte(MIN_INFRA);
+      expect(currentAccrual).to.be.lte(MAX_INFRA);
 
       console.log(`      ✅ All values within valid constraints`);
     });
@@ -144,14 +153,14 @@ describe("Parameter Validation", function () {
         const testParams = await ethers.getContractAt("HokusaiParams", testParamsAddr);
 
         const tokensPerDeltaOne = await testParams.tokensPerDeltaOne();
-        const infraMarkupBps = await testParams.infraMarkupBps();
+        const infrastructureAccrualBps = await testParams.infrastructureAccrualBps();
         const [licenseHash, licenseURI] = await testParams.licenseRef();
 
         console.log(`      ${poolConfig.configKey.toUpperCase()}:`);
         console.log(`         Token: ${poolConfig.tokenAddress}`);
         console.log(`         Params: ${testParamsAddr}`);
         console.log(`         TokensPerDeltaOne: ${tokensPerDeltaOne}`);
-        console.log(`         InfraMarkup: ${infraMarkupBps} bps (${Number(infraMarkupBps) / 100}%)`);
+        console.log(`         InfrastructureAccrual: ${infrastructureAccrualBps} bps (${Number(infrastructureAccrualBps) / 100}%)`);
         console.log(`         License: ${licenseURI}`);
         console.log();
       }
@@ -166,8 +175,8 @@ describe("Parameter Validation", function () {
 
       console.log(`\n      📝 Parameter Update Process:`);
       console.log(`         1. Caller must have GOV_ROLE`);
-      console.log(`         2. Call setTokensPerDeltaOne(newValue)`);
-      console.log(`         3. Call setInfraMarkupBps(newBps)`);
+      console.log(`         2. Call setTokensPerDeltaOne(newValue) [range: 100-100000]`);
+      console.log(`         3. Call setInfrastructureAccrualBps(newBps) [range: 5000-10000]`);
       console.log(`         4. Call setLicenseRef(hash, uri)`);
       console.log();
       console.log(`      🔐 Current GOV_ROLE Setup:`);
@@ -196,9 +205,9 @@ describe("Parameter Validation", function () {
   describe("Parameter Change Events", function () {
     it("Should list expected events", async function () {
       console.log(`\n      📡 Parameter Change Events:`);
-      console.log(`         • TokensPerDeltaOneSet(oldValue, newValue, updater)`);
-      console.log(`         • InfraMarkupBpsSet(oldBps, newBps, updater)`);
-      console.log(`         • LicenseRefSet(oldHash, newHash, newURI, updater)`);
+      console.log(`         • TokensPerDeltaOneSet(oldValue, newValue, updatedBy)`);
+      console.log(`         • InfrastructureAccrualBpsSet(oldBps, newBps, updatedBy)`);
+      console.log(`         • LicenseRefSet(oldHash, newHash, newUri, updatedBy)`);
       console.log();
       console.log(`      ✅ Events documented`);
     });

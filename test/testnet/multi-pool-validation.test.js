@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const path = require("path");
 const fs = require("fs");
@@ -26,6 +26,12 @@ const fs = require("fs");
  */
 
 describe("Testnet Multi-Pool Validation", function () {
+  before(function () {
+    if (network.name !== "sepolia") {
+      this.skip();
+    }
+  });
+
   let deployment;
   let mockUSDC;
   let deployer, trader;

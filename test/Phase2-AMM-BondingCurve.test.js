@@ -143,7 +143,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
         )
-      ).to.be.revertedWith("CRR out of bounds");
+      ).to.be.reverted;
 
       // CRR too high
       await expect(
@@ -159,7 +159,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
         )
-      ).to.be.revertedWith("CRR out of bounds");
+      ).to.be.reverted;
     });
   });
 

@@ -19,7 +19,7 @@ describe("Full Integration: Params Module", function () {
   // Initial parameters for the model
   const initialParams = {
     tokensPerDeltaOne: 1500,
-    infraMarkupBps: 300, // 3%
+    infrastructureAccrualBps: 7000, // 70%
     licenseHash: keccak256(toUtf8Bytes("gpt-4-license-v1")),
     licenseURI: "https://openai.com/licenses/gpt-4",
     governor: null // Will be set in beforeEach
@@ -117,7 +117,7 @@ describe("Full Integration: Params Module", function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       const params = HokusaiParams.attach(paramsAddress);
       expect(await params.tokensPerDeltaOne()).to.equal(initialParams.tokensPerDeltaOne);
-      expect(await params.infraMarkupBps()).to.equal(initialParams.infraMarkupBps);
+      expect(await params.infrastructureAccrualBps()).to.equal(initialParams.infrastructureAccrualBps);
       expect(await params.licenseHash()).to.equal(initialParams.licenseHash);
       expect(await params.licenseURI()).to.equal(initialParams.licenseURI);
 
@@ -249,10 +249,10 @@ describe("Full Integration: Params Module", function () {
         .to.emit(params, "TokensPerDeltaOneSet");
       expect(await params.tokensPerDeltaOne()).to.equal(2000);
 
-      // Update infraMarkupBps
-      await expect(params.connect(governor).setInfraMarkupBps(750))
-        .to.emit(params, "InfraMarkupBpsSet");
-      expect(await params.infraMarkupBps()).to.equal(750);
+      // Update infrastructureAccrualBps
+      await expect(params.connect(governor).setInfrastructureAccrualBps(7500))
+        .to.emit(params, "InfrastructureAccrualBpsSet");
+      expect(await params.infrastructureAccrualBps()).to.equal(7500);
 
       // Update license reference
       const newHash = keccak256(toUtf8Bytes("gpt-4-license-v2"));
@@ -271,7 +271,7 @@ describe("Full Integration: Params Module", function () {
       ).to.be.reverted;
 
       await expect(
-        params.connect(user1).setInfraMarkupBps(750)
+        params.connect(user1).setInfrastructureAccrualBps(7500)
       ).to.be.reverted;
 
       await expect(
@@ -286,7 +286,7 @@ describe("Full Integration: Params Module", function () {
       const params1 = {
         ...initialParams,
         tokensPerDeltaOne: 1000,
-        infraMarkupBps: 200 // 2%
+        infrastructureAccrualBps: 6000 // 60%
       };
       await tokenManager.deployTokenWithParams("1", "Model One", "M1", parseEther("100000"), params1);
 
@@ -294,7 +294,7 @@ describe("Full Integration: Params Module", function () {
       const params2 = {
         ...initialParams,
         tokensPerDeltaOne: 2000,
-        infraMarkupBps: 400 // 4%
+        infrastructureAccrualBps: 8000 // 80%
       };
       await tokenManager.deployTokenWithParams("2", "Model Two", "M2", parseEther("200000"), params2);
 

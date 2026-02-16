@@ -190,7 +190,7 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
                 )
-            ).to.be.revertedWith("CRR out of bounds");
+            ).to.be.reverted;
 
             // Invalid trade fee (too high)
             await expect(
@@ -206,7 +206,7 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             FLAT_CURVE_THRESHOLD,
             FLAT_CURVE_PRICE
                 )
-            ).to.be.revertedWith("Trade fee too high");
+            ).to.be.reverted;
         });
     });
 

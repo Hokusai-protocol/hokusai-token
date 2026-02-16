@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const path = require("path");
 const fs = require("fs");
@@ -24,6 +24,12 @@ const fs = require("fs");
  */
 
 describe("Emergency Control Validation", function () {
+  before(function () {
+    if (network.name !== "sepolia") {
+      this.skip();
+    }
+  });
+
   let deployment;
   let pool, token, mockUSDC;
   let owner, user, attacker;

@@ -48,7 +48,7 @@ describe("Backward Compatibility", function () {
       const params = HokusaiParams.attach(paramsAddress);
 
       expect(await params.tokensPerDeltaOne()).to.equal(1000); // Default
-      expect(await params.infraMarkupBps()).to.equal(500); // Default 5%
+      expect(await params.infrastructureAccrualBps()).to.equal(8000); // Default 80%
       expect(await params.licenseHash()).to.equal(keccak256(toUtf8Bytes("default-license")));
       expect(await params.licenseURI()).to.equal("https://hokusai.ai/licenses/default");
 
@@ -85,7 +85,7 @@ describe("Backward Compatibility", function () {
         const params = HokusaiParams.attach(paramsAddress);
 
         expect(await params.tokensPerDeltaOne()).to.equal(1000);
-        expect(await params.infraMarkupBps()).to.equal(500);
+        expect(await params.infrastructureAccrualBps()).to.equal(8000);
       }
     });
 
@@ -127,7 +127,7 @@ describe("Backward Compatibility", function () {
       // Deploy using new function
       const customParams = {
         tokensPerDeltaOne: 2000,
-        infraMarkupBps: 300,
+        infrastructureAccrualBps: 6000,
         licenseHash: keccak256(toUtf8Bytes("custom-license")),
         licenseURI: "https://example.com/license",
         governor: owner.address
@@ -156,8 +156,8 @@ describe("Backward Compatibility", function () {
       expect(await oldParams.tokensPerDeltaOne()).to.equal(1000); // Default
       expect(await newParams.tokensPerDeltaOne()).to.equal(2000); // Custom
 
-      expect(await oldParams.infraMarkupBps()).to.equal(500); // Default
-      expect(await newParams.infraMarkupBps()).to.equal(300); // Custom
+      expect(await oldParams.infrastructureAccrualBps()).to.equal(8000); // Default 80%
+      expect(await newParams.infrastructureAccrualBps()).to.equal(6000); // Custom 60%
     });
   });
 });

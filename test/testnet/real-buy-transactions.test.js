@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 const { parseUnits } = require("ethers");
 const path = require("path");
 const fs = require("fs");
@@ -25,6 +25,12 @@ const fs = require("fs");
  */
 
 describe("Real Buy Transactions", function () {
+  before(function () {
+    if (network.name !== "sepolia") {
+      this.skip();
+    }
+  });
+
   let deployment;
   let pool, token, mockUSDC;
   let buyer;

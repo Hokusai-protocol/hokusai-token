@@ -131,7 +131,7 @@ describe("Integration: JSON Wallet Address Support", function () {
     const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
     const hokusaiParams = await HokusaiParams.deploy(
       1000, // tokensPerDeltaOne
-      500, // infraMarkupBps (5%)
+      8000, // infrastructureAccrualBps (80%)
       ethers.ZeroHash,
       "",
       owner.address

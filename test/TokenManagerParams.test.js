@@ -17,7 +17,7 @@ describe("TokenManager with Params", function () {
   // Default initial params for testing
   const defaultInitialParams = {
     tokensPerDeltaOne: 1000,
-    infraMarkupBps: 500, // 5%
+    infrastructureAccrualBps: 8000, // 80%
     licenseHash: keccak256(toUtf8Bytes("standard-license")),
     licenseURI: "https://hokusai.ai/licenses/standard",
     governor: null // Will be set in beforeEach
@@ -134,7 +134,7 @@ describe("TokenManager with Params", function () {
       const params = HokusaiParams.attach(paramsAddress);
 
       expect(await params.tokensPerDeltaOne()).to.equal(defaultInitialParams.tokensPerDeltaOne);
-      expect(await params.infraMarkupBps()).to.equal(defaultInitialParams.infraMarkupBps);
+      expect(await params.infrastructureAccrualBps()).to.equal(defaultInitialParams.infrastructureAccrualBps);
       expect(await params.licenseHash()).to.equal(defaultInitialParams.licenseHash);
       expect(await params.licenseURI()).to.equal(defaultInitialParams.licenseURI);
 
@@ -293,8 +293,8 @@ describe("TokenManager with Params", function () {
 
   describe("Multiple Token Deployment", function () {
     it("Should deploy multiple tokens with different parameters", async function () {
-      const params1 = { ...defaultInitialParams, tokensPerDeltaOne: 1000, infraMarkupBps: 300 };
-      const params2 = { ...defaultInitialParams, tokensPerDeltaOne: 2000, infraMarkupBps: 700 };
+      const params1 = { ...defaultInitialParams, tokensPerDeltaOne: 1000, infrastructureAccrualBps: 6000 };
+      const params2 = { ...defaultInitialParams, tokensPerDeltaOne: 2000, infrastructureAccrualBps: 7000 };
 
       await tokenManager.deployTokenWithParams(MODEL_ID_1, "GPT-4 Token", "GPT4", parseEther("10000"), params1);
       await tokenManager.deployTokenWithParams(MODEL_ID_2, "DALL-E Token", "DALLE", parseEther("5000"), params2);
@@ -314,8 +314,8 @@ describe("TokenManager with Params", function () {
 
       expect(await paramsContract1.tokensPerDeltaOne()).to.equal(1000);
       expect(await paramsContract2.tokensPerDeltaOne()).to.equal(2000);
-      expect(await paramsContract1.infraMarkupBps()).to.equal(300);
-      expect(await paramsContract2.infraMarkupBps()).to.equal(700);
+      expect(await paramsContract1.infrastructureAccrualBps()).to.equal(6000);
+      expect(await paramsContract2.infrastructureAccrualBps()).to.equal(7000);
     });
   });
 
@@ -436,7 +436,7 @@ describe("TokenManager with Params", function () {
     it("Should handle params deployment failure gracefully", async function () {
       const invalidParams = {
         ...defaultInitialParams,
-        infraMarkupBps: 2000 // Above maximum of 1000
+        infrastructureAccrualBps: 4999 // Below minimum of 5000
       };
 
       await expect(
@@ -447,7 +447,7 @@ describe("TokenManager with Params", function () {
           parseEther("10000"),
           invalidParams
         )
-      ).to.be.revertedWith("infraMarkupBps cannot exceed 1000 (10%)");
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
 
       // Verify no token was created
       expect(await tokenManager.hasToken(MODEL_ID_1)).to.be.false;

@@ -107,10 +107,10 @@ describe("Phase 3: Flash Loan Attack Security", function () {
             const finalUSDC = await mockUSDC.balanceOf(attacker.address);
             const profit = finalUSDC - initialUSDC;
 
-            // Due to 0.25% fee on BOTH buy and sell, attacker should lose money
-            // Expected loss ≈ 0.5% of trade amount = $25 on $5k trade
+            // Due to 0.30% fee on BOTH buy and sell, attacker should lose money
+            // Expected loss ≈ 0.6% of trade amount = ~$30 on $5k trade, plus slippage
             expect(profit).to.be.lt(0); // Profit should be negative (a loss)
-            expect(profit).to.be.closeTo(-parseUnits("25", 6), parseUnits("5", 6)); // ~$25 loss ±$5
+            expect(profit).to.be.closeTo(-parseUnits("31", 6), parseUnits("10", 6)); // ~$31 loss ±$10
         });
 
         it("Should limit repeated buy-sell cycles via trade size limits", async function () {

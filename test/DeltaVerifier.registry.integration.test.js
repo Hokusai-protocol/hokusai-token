@@ -45,7 +45,7 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
     const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
     hokusaiParams = await HokusaiParams.deploy(
       1000,
-      500,
+      8000,
       ethers.ZeroHash,
       "",
       owner.address

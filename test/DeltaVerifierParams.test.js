@@ -44,7 +44,7 @@ describe("DeltaVerifier with Dynamic Params", function () {
   // Default initial params for testing
   const defaultInitialParams = {
     tokensPerDeltaOne: 1000,
-    infraMarkupBps: 500, // 5%
+    infrastructureAccrualBps: 8000, // 80%
     licenseHash: keccak256(toUtf8Bytes("test-license")),
     licenseURI: "https://test.license",
     governor: null // Will be set in beforeEach

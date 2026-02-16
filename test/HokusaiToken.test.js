@@ -22,7 +22,7 @@ describe("HokusaiToken", function () {
     // Deploy params contract first
     params = await HokusaiParams.deploy(
       1000, // tokensPerDeltaOne
-      500,  // infraMarkupBps (5%)
+      8000, // infrastructureAccrualBps (80%)
       keccak256(toUtf8Bytes("test-license")), // licenseHash
       "https://test.license", // licenseURI
       governor.address // governor
@@ -556,7 +556,7 @@ describe("HokusaiToken", function () {
       const paramsContract = await ethers.getContractAt("IHokusaiParams", await token.params());
 
       expect(await paramsContract.tokensPerDeltaOne()).to.equal(1000);
-      expect(await paramsContract.infraMarkupBps()).to.equal(500);
+      expect(await paramsContract.infrastructureAccrualBps()).to.equal(8000);
 
       const [hash, uri] = await paramsContract.licenseRef();
       expect(hash).to.equal(keccak256(toUtf8Bytes("test-license")));

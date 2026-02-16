@@ -25,7 +25,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
     hokusaiParams = await HokusaiParams.deploy(
       1000, // tokensPerDeltaOne
-      500,  // infraMarkupBps (5%)
+      8000, // infrastructureAccrualBps (80%)
       keccak256(toUtf8Bytes("test-license")), // licenseHash
       "https://test.license", // licenseURI
       owner.address // governor

@@ -110,13 +110,21 @@ describe("TokenManager Batch Minting", function () {
       ).to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
     });
 
-    it("should revert if any amount is zero", async function () {
+    it("should skip zero-amount entries and emit ContributorSkipped (HOK-713)", async function () {
       const recipients = [recipient1.address, recipient2.address];
       const amounts = [ethers.parseEther("100"), 0];
 
-      await expect(
-        tokenManager.connect(minter).batchMintTokens(MODEL_ID, recipients, amounts)
-      ).to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
+      const tx = await tokenManager.connect(minter).batchMintTokens(MODEL_ID, recipients, amounts);
+
+      // Should emit ContributorSkipped for the zero-amount entry
+      await expect(tx)
+        .to.emit(tokenManager, "ContributorSkipped")
+        .withArgs(recipient2.address, 1);
+
+      // Non-zero recipient should receive tokens
+      expect(await hokusaiToken.balanceOf(recipient1.address)).to.equal(ethers.parseEther("100"));
+      // Zero-amount recipient should not receive tokens
+      expect(await hokusaiToken.balanceOf(recipient2.address)).to.equal(0);
     });
 
     it("should enforce access control", async function () {

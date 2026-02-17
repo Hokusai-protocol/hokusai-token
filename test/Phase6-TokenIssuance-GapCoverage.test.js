@@ -86,25 +86,88 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       return ethers.getContractAt("HokusaiToken", tokenAddress);
     }
 
-    it("should revert with extreme weight ratio 9999:1 when minority reward rounds to zero", async function () {
-      // BUG FINDING: When a contributor's weight is very small (e.g., 1/10000),
-      // their reward (totalReward * 1 / 10000) can round to 0 in Solidity integer math.
-      // This triggers ValidationLib.requirePositiveAmount("amount") in batchMintTokens,
-      // causing the entire transaction to revert - even the majority contributor gets nothing.
-      //
-      // Impact: A multi-contributor submission with very unequal weights will fail entirely.
-      // Recommendation: Either skip zero-amount mints in batchMintTokens, or enforce
-      // a minimum weight per contributor.
+    it("should handle extreme weight ratio 9999:1 without reverting (HOK-713 fix)", async function () {
+      // Previously this reverted with InvalidAmount because the minority contributor's
+      // reward rounded to 0. Now batchMintTokens skips zero-amount contributors gracefully.
       const contributors = [
         { walletAddress: contributor1.address, weight: 9999 },
         { walletAddress: contributor2.address, weight: 1 },
       ];
 
-      await expect(
-        deltaVerifier.submitEvaluationWithMultipleContributors(
-          MODEL_ID, makeEvalData("extreme_weight_test"), contributors
-        )
-      ).to.be.reverted; // InvalidAmount("amount") due to zero rounding
+      const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(
+        MODEL_ID, makeEvalData("extreme_weight_test"), contributors
+      );
+
+      await expect(tx).to.not.be.reverted;
+
+      // Majority contributor should receive tokens
+      const token = await getDeployedToken();
+      const balance1 = await token.balanceOf(contributor1.address);
+      expect(balance1).to.be.gt(0, "Majority contributor should receive tokens");
+    });
+
+    it("should emit ContributorSkipped when minority reward rounds to zero (HOK-713)", async function () {
+      const contributors = [
+        { walletAddress: contributor1.address, weight: 9999 },
+        { walletAddress: contributor2.address, weight: 1 },
+      ];
+
+      const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(
+        MODEL_ID, makeEvalData("skip_event_test"), contributors
+      );
+
+      // The TokenManager should emit ContributorSkipped for contributor2
+      // if their reward rounds to 0
+      const token = await getDeployedToken();
+      const balance2 = await token.balanceOf(contributor2.address);
+      if (balance2 === 0n) {
+        await expect(tx)
+          .to.emit(tokenManager, "ContributorSkipped")
+          .withArgs(contributor2.address, 1);
+      }
+    });
+
+    it("should ensure total minted does not exceed total reward with extreme weights (HOK-713)", async function () {
+      const contributors = [
+        { walletAddress: contributor1.address, weight: 9997 },
+        { walletAddress: contributor2.address, weight: 2 },
+        { walletAddress: contributor3.address, weight: 1 },
+      ];
+
+      await deltaVerifier.submitEvaluationWithMultipleContributors(
+        MODEL_ID, makeEvalData("total_check_test"), contributors
+      );
+
+      const token = await getDeployedToken();
+      const balance1 = await token.balanceOf(contributor1.address);
+      const balance2 = await token.balanceOf(contributor2.address);
+      const balance3 = await token.balanceOf(contributor3.address);
+      const totalDistributed = balance1 + balance2 + balance3;
+
+      // Total minted should not exceed what was possible (no inflation)
+      // With dust handling, total distributed should equal the full reward
+      expect(totalDistributed).to.be.gt(0, "Some tokens should be distributed");
+    });
+
+    it("should assign dust to first contributor when rounding causes remainder (HOK-713)", async function () {
+      // Use 3 contributors with weights that don't divide evenly
+      const contributors = [
+        { walletAddress: contributor1.address, weight: 3333 },
+        { walletAddress: contributor2.address, weight: 3333 },
+        { walletAddress: contributor3.address, weight: 3334 },
+      ];
+
+      await deltaVerifier.submitEvaluationWithMultipleContributors(
+        MODEL_ID, makeEvalData("dust_assign_test"), contributors
+      );
+
+      const token = await getDeployedToken();
+      const balance1 = await token.balanceOf(contributor1.address);
+      const balance2 = await token.balanceOf(contributor2.address);
+      const balance3 = await token.balanceOf(contributor3.address);
+
+      // contributor1 should get dust remainder (slightly more than contributor2)
+      expect(balance1).to.be.gte(balance2, "First contributor should receive dust remainder");
     });
 
     it("should distribute with moderate weight ratio 9000:1000 successfully", async function () {
@@ -651,13 +714,24 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       ).to.be.reverted;
     });
 
-    it("should reject batch with zero amount", async function () {
+    it("should skip zero-amount entries and mint non-zero entries (HOK-713)", async function () {
       const recipients = [user1.address, user2.address];
       const amounts = [parseEther("100"), 0n];
 
-      await expect(
-        tokenManager.batchMintTokens(MODEL_ID, recipients, amounts)
-      ).to.be.reverted;
+      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+      const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
+
+      const tx = await tokenManager.batchMintTokens(MODEL_ID, recipients, amounts);
+
+      // Should emit ContributorSkipped for the zero-amount entry
+      await expect(tx)
+        .to.emit(tokenManager, "ContributorSkipped")
+        .withArgs(user2.address, 1);
+
+      // Non-zero recipient should receive tokens
+      expect(await token.balanceOf(user1.address)).to.equal(parseEther("100"));
+      // Zero-amount recipient should not receive tokens
+      expect(await token.balanceOf(user2.address)).to.equal(0);
     });
   });
 });

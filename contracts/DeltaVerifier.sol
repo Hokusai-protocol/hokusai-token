@@ -196,7 +196,14 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
                     emit RewardCalculated(contributors[i].walletAddress, deltaInBps, contributorReward);
                 }
 
-                // Mint tokens in batch
+                // Assign rounding dust to the first contributor to prevent token loss
+                uint256 dust = totalReward - totalDistributed;
+                if (dust > 0) {
+                    rewardAmounts[0] += dust;
+                    totalDistributed += dust;
+                }
+
+                // Mint tokens in batch (zero-amount contributors are skipped by TokenManager)
                 tokenManager.batchMintTokens(modelIdStr, contributorAddresses, rewardAmounts);
 
                 emit BatchRewardsDistributed(modelId, contributorAddresses, rewardAmounts, totalDistributed);

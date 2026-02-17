@@ -57,6 +57,7 @@ contract TokenManager is Ownable, AccessControlBase {
     event TokensBurned(string indexed modelId, address indexed account, uint256 amount);
     event DeltaVerifierUpdated(address indexed newDeltaVerifier);
     event BatchMinted(string indexed modelId, address[] recipients, uint256[] amounts, uint256 totalAmount);
+    event ContributorSkipped(address indexed contributor, uint256 index);
     event DeploymentFeeUpdated(uint256 newFee);
 
 
@@ -269,7 +270,11 @@ contract TokenManager is Ownable, AccessControlBase {
 
         for (uint256 i = 0; i < recipients.length; i++) {
             ValidationLib.requireNonZeroAddress(recipients[i], "recipient");
-            ValidationLib.requirePositiveAmount(amounts[i], "amount");
+
+            if (amounts[i] == 0) {
+                emit ContributorSkipped(recipients[i], i);
+                continue;
+            }
 
             token.mint(recipients[i], amounts[i]);
             totalAmount += amounts[i];

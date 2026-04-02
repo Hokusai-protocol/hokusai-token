@@ -210,6 +210,54 @@ describe("BondingCurveMath", function () {
             expect(result).to.be.closeTo(ethers.parseEther("48.8"), ethers.parseEther("1"));
         });
 
+        it("should calculate tokens for 60% CRR buy", async function () {
+            const supply = ethers.parseEther("1000");
+            const reserve = ethers.parseUnits("500", 6); // 500 USDC
+            const deposit = ethers.parseUnits("50", 6); // 50 USDC (10% increase)
+            const crrPpm = 600000; // 60% CRR
+
+            const result = await bondingCurve.testCalculateBuy(supply, reserve, deposit, crrPpm);
+
+            // With 10% deposit and 60% CRR:
+            // T = 1000 × ((1 + 0.1)^0.6 - 1)
+            // T = 1000 × (1.1^0.6 - 1)
+            // T = 1000 × (1.0582 - 1)
+            // T ≈ 58.2 tokens
+            expect(result).to.be.closeTo(ethers.parseEther("58.2"), ethers.parseEther("1"));
+        });
+
+        it("should calculate tokens for 80% CRR buy", async function () {
+            const supply = ethers.parseEther("1000");
+            const reserve = ethers.parseUnits("500", 6); // 500 USDC
+            const deposit = ethers.parseUnits("50", 6); // 50 USDC (10% increase)
+            const crrPpm = 800000; // 80% CRR
+
+            const result = await bondingCurve.testCalculateBuy(supply, reserve, deposit, crrPpm);
+
+            // With 10% deposit and 80% CRR:
+            // T = 1000 × ((1 + 0.1)^0.8 - 1)
+            // T = 1000 × (1.1^0.8 - 1)
+            // T = 1000 × (1.0792 - 1)
+            // T ≈ 79.2 tokens
+            expect(result).to.be.closeTo(ethers.parseEther("79.2"), ethers.parseEther("2"));
+        });
+
+        it("should calculate tokens for 100% CRR buy", async function () {
+            const supply = ethers.parseEther("1000");
+            const reserve = ethers.parseUnits("500", 6); // 500 USDC
+            const deposit = ethers.parseUnits("50", 6); // 50 USDC (10% increase)
+            const crrPpm = 1000000; // 100% CRR
+
+            const result = await bondingCurve.testCalculateBuy(supply, reserve, deposit, crrPpm);
+
+            // With 10% deposit and 100% CRR:
+            // T = 1000 × ((1 + 0.1)^1.0 - 1)
+            // T = 1000 × (1.1 - 1)
+            // T = 1000 × 0.1
+            // T = 100 tokens (linear relationship)
+            expect(result).to.be.closeTo(ethers.parseEther("100"), ethers.parseEther("2"));
+        });
+
         it("should handle small deposit amounts", async function () {
             const supply = ethers.parseEther("1000000"); // 1M tokens
             const reserve = ethers.parseUnits("10000", 6); // 10k USDC
@@ -256,6 +304,46 @@ describe("BondingCurveMath", function () {
             // For 5% tokens sold, might get back more than 5% of reserve with low CRR
             expect(result).to.be.gt(0);
             expect(result).to.be.lte(ethers.parseUnits("100", 6)); // Less than total reserve
+        });
+
+        it("should calculate reserve for 60% CRR sell", async function () {
+            const supply = ethers.parseEther("1000");
+            const reserve = ethers.parseUnits("500", 6);
+            const tokens = ethers.parseEther("50"); // 5% of supply
+            const crrPpm = 600000; // 60% CRR
+
+            const result = await bondingCurve.testCalculateSell(supply, reserve, tokens, crrPpm);
+
+            // With higher CRR, sell curve is less aggressive (more linear)
+            expect(result).to.be.gt(0);
+            expect(result).to.be.lte(ethers.parseUnits("500", 6)); // Less than total reserve
+        });
+
+        it("should calculate reserve for 80% CRR sell", async function () {
+            const supply = ethers.parseEther("1000");
+            const reserve = ethers.parseUnits("500", 6);
+            const tokens = ethers.parseEther("50"); // 5% of supply
+            const crrPpm = 800000; // 80% CRR
+
+            const result = await bondingCurve.testCalculateSell(supply, reserve, tokens, crrPpm);
+
+            // With higher CRR, sell curve is less aggressive (more linear)
+            expect(result).to.be.gt(0);
+            expect(result).to.be.lte(ethers.parseUnits("500", 6)); // Less than total reserve
+        });
+
+        it("should calculate reserve for 100% CRR sell", async function () {
+            const supply = ethers.parseEther("1000");
+            const reserve = ethers.parseUnits("500", 6);
+            const tokens = ethers.parseEther("50"); // 5% of supply
+            const crrPpm = 1000000; // 100% CRR
+
+            const result = await bondingCurve.testCalculateSell(supply, reserve, tokens, crrPpm);
+
+            // With 100% CRR, relationship should be linear:
+            // For 5% tokens burned, should get back ~5% of reserve
+            // 5% of 500 USDC = 25 USDC
+            expect(result).to.be.closeTo(ethers.parseUnits("25", 6), ethers.parseUnits("1", 6));
         });
 
         it("should be roughly inverse of buy", async function () {

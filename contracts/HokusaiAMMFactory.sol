@@ -46,7 +46,7 @@ contract HokusaiAMMFactory is Ownable {
     // ============================================================
 
     uint256 public constant MIN_CRR = 50000; // 5%
-    uint256 public constant MAX_CRR = 500000; // 50%
+    uint256 public constant MAX_CRR = 1000000; // 100%
     uint256 public constant MAX_TRADE_FEE = 1000; // 10%
     uint256 public constant MIN_IBR_DURATION = 1 days;
     uint256 public constant MAX_IBR_DURATION = 30 days;

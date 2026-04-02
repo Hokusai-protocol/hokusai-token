@@ -184,7 +184,7 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
                     await tokenManager.getAddress(),
                     MODEL_ID,
                     treasury.address,
-                    600000, // 60% > 50% max
+                    1100000, // 110% > 100% max
                     TRADE_FEE,
                     IBR_DURATION,
             FLAT_CURVE_THRESHOLD,

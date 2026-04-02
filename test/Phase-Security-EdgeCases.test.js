@@ -313,9 +313,9 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
         });
 
         it("Should reject parameters beyond maximum", async function () {
-            // CRR over max (50%)
+            // CRR over max (100%)
             await expect(
-                hokusaiAMM.setParameters(500001, 30)
+                hokusaiAMM.setParameters(1000001, 30)
             ).to.be.revertedWith("CRR out of bounds");
 
             // Trade fee over max (10%)

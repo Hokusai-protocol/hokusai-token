@@ -87,10 +87,10 @@ describe("BondingCurveMath - High CRR Precision (50-100%)", function () {
             }
         });
 
-        it("should maintain precision for intermediate CRR values", async function () {
+        it("should maintain precision for intermediate CRR values (buy path)", async function () {
             const base = ethers.parseEther("1.1"); // 10% increase
 
-            // Test at various CRR points
+            // Test BUY exponents: w = CRR
             const testPoints = [
                 { crr: 500000, name: "50% CRR" },
                 { crr: 600000, name: "60% CRR" },
@@ -104,11 +104,36 @@ describe("BondingCurveMath - High CRR Precision (50-100%)", function () {
                 const exponent = (BigInt(point.crr) * PRECISION) / PPM;
                 const result = await bondingCurve.testPow(base, exponent);
 
-                // Result should be >= 1.0 and <= base
+                // Result should be >= 1.0 and <= base (since exponent <= 1.0)
                 expect(result).to.be.gte(PRECISION);
                 expect(result).to.be.lte(base);
 
                 console.log(`  ${point.name}: pow(1.1, ${ethers.formatEther(exponent)}) = ${ethers.formatEther(result)}`);
+            }
+        });
+
+        it("should maintain precision for intermediate CRR values (sell path)", async function () {
+            const base = ethers.parseEther("0.95"); // 5% decrease (typical sell scenario)
+
+            // Test SELL exponents: 1/w = 1/CRR (as mentioned in issue description)
+            const testPoints = [
+                { crr: 1000000, expectedExp: 1.0, name: "100% CRR" },
+                { crr: 800000, expectedExp: 1.25, name: "80% CRR" },
+                { crr: 666667, expectedExp: 1.5, name: "~66.7% CRR" },
+                { crr: 600000, expectedExp: 1.667, name: "60% CRR" },
+                { crr: 500000, expectedExp: 2.0, name: "50% CRR" }
+            ];
+
+            for (const point of testPoints) {
+                // Calculate exponent: 1/w = PPM / CRR
+                const exponent = (PPM * PRECISION) / BigInt(point.crr);
+                const result = await bondingCurve.testPow(base, exponent);
+
+                // At higher CRR (lower exponent), result should be closer to base
+                expect(result).to.be.gt(0);
+                expect(result).to.be.lte(PRECISION); // Result < 1.0 since base < 1.0
+
+                console.log(`  ${point.name}: pow(0.95, ${ethers.formatEther(exponent)}) = ${ethers.formatEther(result)}`);
             }
         });
     });

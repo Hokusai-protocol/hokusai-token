@@ -361,7 +361,7 @@ describe("Phase 7: Analytics & View Functions", function () {
             expect(reserve).to.be.gt(0);
             expect(supply).to.be.gt(0);
             expect(price).to.be.gt(0);
-            expect(reserveRatio).to.be.gte(50000).and.lte(500000);
+            expect(reserveRatio).to.be.gte(50000).and.lte(1000000);
             expect(tradeFeeRate).to.be.lte(1000);
         });
 

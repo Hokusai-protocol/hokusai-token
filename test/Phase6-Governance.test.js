@@ -129,10 +129,10 @@ describe("Phase 6: Governance & Safety", function () {
             ).to.be.revertedWith("CRR out of bounds");
         });
 
-        it("Should enforce CRR maximum bound (50%)", async function () {
+        it("Should enforce CRR maximum bound (100%)", async function () {
             await expect(
                 hokusaiAMM.setParameters(
-                    600000, // 60% > 50% max
+                    1100000, // 110% > 100% max
                     TRADE_FEE
                 )
             ).to.be.revertedWith("CRR out of bounds");
@@ -152,9 +152,9 @@ describe("Phase 6: Governance & Safety", function () {
             expect(await hokusaiAMM.crr()).to.equal(50000);
         });
 
-        it("Should allow setting CRR to maximum (50%)", async function () {
-            await hokusaiAMM.setParameters(500000, TRADE_FEE);
-            expect(await hokusaiAMM.crr()).to.equal(500000);
+        it("Should allow setting CRR to maximum (100%)", async function () {
+            await hokusaiAMM.setParameters(1000000, TRADE_FEE);
+            expect(await hokusaiAMM.crr()).to.equal(1000000);
         });
 
         it("Should allow setting trade fee to zero", async function () {

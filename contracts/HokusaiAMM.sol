@@ -58,7 +58,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
 
     // Constants
     uint256 public constant PRECISION = 1e18; // Fixed-point precision
-    uint256 public constant MAX_CRR = 500000; // 50% max
+    uint256 public constant MAX_CRR = 1000000; // 100% max
     uint256 public constant MIN_CRR = 50000; // 5% min
     uint256 public constant MAX_TRADE_FEE = 1000; // 10% max
     uint256 public constant MAX_TRADE_BPS_LIMIT = 5000; // 50% max trade size

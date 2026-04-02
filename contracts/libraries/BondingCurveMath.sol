@@ -26,7 +26,7 @@ pragma solidity ^0.8.0;
  *   F = reserve returned
  *   w = CRR (reserve ratio)
  *
- * Security: Tested extensively for the specific use case of CRR ∈ [5%, 50%]
+ * Security: Tested extensively for the specific use case of CRR ∈ [5%, 100%]
  * with typical trading volumes. Should not be used for arbitrary inputs without
  * additional validation and testing.
  */

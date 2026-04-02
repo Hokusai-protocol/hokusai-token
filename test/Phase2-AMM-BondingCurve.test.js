@@ -153,7 +153,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
           await tokenManager.getAddress(),
           modelId,
           treasury.address,
-          600000, // 60% - above maximum
+          1100000, // 110% - above maximum
           TRADE_FEE,
           IBR_DURATION,
             FLAT_CURVE_THRESHOLD,
@@ -507,7 +507,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       ).to.be.revertedWith("CRR out of bounds");
 
       await expect(
-        hokusaiAMM.setParameters(600000, TRADE_FEE) // 60% - too high
+        hokusaiAMM.setParameters(1100000, TRADE_FEE) // 110% - too high
       ).to.be.revertedWith("CRR out of bounds");
     });
 

@@ -199,9 +199,9 @@ describe("BondingCurveMath - High CRR Precision (50-100%)", function () {
                 const depositPercentage = (deposit * 10000n) / reserve;
                 const tokensPercentage = (tokensOut * 10000n) / supply;
 
-                // At high CRR, these percentages should be similar
+                // At high CRR, these percentages should be similar (tighter tolerance for precision)
                 if (crr >= 800000) {
-                    expect(tokensPercentage).to.be.closeTo(depositPercentage, depositPercentage / 2n);
+                    expect(tokensPercentage).to.be.closeTo(depositPercentage, depositPercentage / 10n);
                 }
             }
         });
@@ -422,12 +422,13 @@ describe("BondingCurveMath - High CRR Precision (50-100%)", function () {
     });
 
     describe("Edge Cases - CRR = 100%", function () {
-        it("should behave as constant-product AMM at CRR = 100%", async function () {
+        it("should behave as linear bonding curve at CRR = 100%", async function () {
             const supply = ethers.parseEther("1000");
             const reserve = ethers.parseUnits("1000", 6);
             const crr = 1000000; // 100% CRR
 
-            // At CRR=100%, the curve should be linear: k = R * S (constant product)
+            // At CRR=100%, the curve becomes linear (constant price, not constant product)
+            // The product k = R * S will increase with each trade
             const k = supply * reserve;
 
             // Buy some tokens
@@ -437,11 +438,11 @@ describe("BondingCurveMath - High CRR Precision (50-100%)", function () {
             const newSupply = supply + tokensBought;
             const newReserve = reserve + deposit;
 
-            // New k should be approximately the same (allowing for precision loss)
+            // In a linear bonding curve, k increases with deposits
             const newK = newSupply * newReserve;
             const kRatio = (newK * 1000n) / k;
 
-            // k should increase slightly due to the deposit
+            // k should increase due to the deposit (linear curve, not constant product)
             expect(kRatio).to.be.gte(1000n); // At least same or higher
             expect(kRatio).to.be.lte(1250n); // Not more than 25% increase (allowing for Taylor series precision)
         });

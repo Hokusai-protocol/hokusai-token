@@ -13,8 +13,8 @@ describe("TokenManager - Allocation Split", function () {
 
   const MODEL_ID = "test-model-1";
   const MODEL_SUPPLIER_ALLOCATION = parseEther("2500000"); // 2.5M tokens
-  const INVESTOR_ALLOCATION = parseEther("10000000"); // 10M tokens
-  const TOTAL_SUPPLY = MODEL_SUPPLIER_ALLOCATION + INVESTOR_ALLOCATION; // 12.5M tokens
+  const INVESTOR_ALLOCATION = parseEther("10000000"); // 10M tokens (max cap, not immediately minted)
+  const MAX_SUPPLY = MODEL_SUPPLIER_ALLOCATION + INVESTOR_ALLOCATION; // 12.5M tokens
 
   // Default initial params for testing
   const defaultInitialParams = {
@@ -44,7 +44,7 @@ describe("TokenManager - Allocation Split", function () {
   });
 
   describe("deployTokenWithAllocations", function () {
-    it("Should deploy token with correct allocation split", async function () {
+    it("Should deploy token with correct allocation caps (not immediately minted)", async function () {
       const tx = await tokenManager.deployTokenWithAllocations(
         MODEL_ID,
         "Test Model Token",
@@ -52,7 +52,6 @@ describe("TokenManager - Allocation Split", function () {
         MODEL_SUPPLIER_ALLOCATION,
         modelSupplier.address,
         INVESTOR_ALLOCATION,
-        investor.address,
         defaultInitialParams
       );
 
@@ -69,13 +68,20 @@ describe("TokenManager - Allocation Split", function () {
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
       const token = HokusaiToken.attach(tokenAddress);
 
-      // Verify allocations
-      expect(await token.balanceOf(modelSupplier.address)).to.equal(MODEL_SUPPLIER_ALLOCATION);
-      expect(await token.balanceOf(investor.address)).to.equal(INVESTOR_ALLOCATION);
-      expect(await token.totalSupply()).to.equal(TOTAL_SUPPLY);
+      // Verify max supply is set correctly
+      expect(await token.maxSupply()).to.equal(MAX_SUPPLY);
 
-      // TokenManager should have zero balance after distribution
-      expect(await token.balanceOf(await tokenManager.getAddress())).to.equal(0);
+      // Verify model supplier allocation is recorded but NOT minted yet
+      expect(await token.modelSupplierAllocation()).to.equal(MODEL_SUPPLIER_ALLOCATION);
+      expect(await token.modelSupplierRecipient()).to.equal(modelSupplier.address);
+      expect(await token.modelSupplierDistributed()).to.equal(false);
+
+      // No tokens should be minted yet (investor allocation is a cap)
+      expect(await token.totalSupply()).to.equal(0);
+      expect(await token.balanceOf(modelSupplier.address)).to.equal(0);
+
+      // Remaining supply should equal max supply
+      expect(await token.getRemainingSupply()).to.equal(MAX_SUPPLY);
     });
 
     it("Should emit AllocationDistributed event with correct parameters", async function () {
@@ -87,7 +93,6 @@ describe("TokenManager - Allocation Split", function () {
           MODEL_SUPPLIER_ALLOCATION,
           modelSupplier.address,
           INVESTOR_ALLOCATION,
-          investor.address,
           defaultInitialParams
         )
       ).to.emit(tokenManager, "AllocationDistributed")
@@ -95,12 +100,12 @@ describe("TokenManager - Allocation Split", function () {
           MODEL_ID,
           modelSupplier.address,
           MODEL_SUPPLIER_ALLOCATION,
-          investor.address,
+          ZeroAddress, // No immediate investor recipient (minted via AMM)
           INVESTOR_ALLOCATION
         );
     });
 
-    it("Should correctly set total supply as sum of allocations", async function () {
+    it("Should correctly set max supply as sum of allocations", async function () {
       await tokenManager.deployTokenWithAllocations(
         MODEL_ID,
         "Test Model Token",
@@ -108,7 +113,6 @@ describe("TokenManager - Allocation Split", function () {
         MODEL_SUPPLIER_ALLOCATION,
         modelSupplier.address,
         INVESTOR_ALLOCATION,
-        investor.address,
         defaultInitialParams
       );
 
@@ -116,27 +120,10 @@ describe("TokenManager - Allocation Split", function () {
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
       const token = HokusaiToken.attach(tokenAddress);
 
-      expect(await token.totalSupply()).to.equal(MODEL_SUPPLIER_ALLOCATION + INVESTOR_ALLOCATION);
-    });
-
-    it("Should handle same recipient for both allocations", async function () {
-      await tokenManager.deployTokenWithAllocations(
-        MODEL_ID,
-        "Test Model Token",
-        "TMT",
-        MODEL_SUPPLIER_ALLOCATION,
-        modelSupplier.address,
-        INVESTOR_ALLOCATION,
-        modelSupplier.address, // Same as model supplier
-        defaultInitialParams
-      );
-
-      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
-      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-      const token = HokusaiToken.attach(tokenAddress);
-
-      // Model supplier should receive both allocations
-      expect(await token.balanceOf(modelSupplier.address)).to.equal(TOTAL_SUPPLY);
+      // Max supply should be sum of allocations
+      expect(await token.maxSupply()).to.equal(MODEL_SUPPLIER_ALLOCATION + INVESTOR_ALLOCATION);
+      // But total supply should be 0 (nothing minted yet)
+      expect(await token.totalSupply()).to.equal(0);
     });
 
     it("Should handle custom allocation amounts", async function () {
@@ -150,7 +137,6 @@ describe("TokenManager - Allocation Split", function () {
         customSupplierAllocation,
         modelSupplier.address,
         customInvestorAllocation,
-        investor.address,
         defaultInitialParams
       );
 
@@ -158,9 +144,11 @@ describe("TokenManager - Allocation Split", function () {
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
       const token = HokusaiToken.attach(tokenAddress);
 
-      expect(await token.balanceOf(modelSupplier.address)).to.equal(customSupplierAllocation);
-      expect(await token.balanceOf(investor.address)).to.equal(customInvestorAllocation);
-      expect(await token.totalSupply()).to.equal(customSupplierAllocation + customInvestorAllocation);
+      // Verify caps are set correctly
+      expect(await token.modelSupplierAllocation()).to.equal(customSupplierAllocation);
+      expect(await token.maxSupply()).to.equal(customSupplierAllocation + customInvestorAllocation);
+      // No tokens minted yet
+      expect(await token.totalSupply()).to.equal(0);
     });
   });
 
@@ -174,7 +162,6 @@ describe("TokenManager - Allocation Split", function () {
           0, // Zero allocation
           modelSupplier.address,
           INVESTOR_ALLOCATION,
-          investor.address,
           defaultInitialParams
         )
       ).to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
@@ -189,7 +176,6 @@ describe("TokenManager - Allocation Split", function () {
           MODEL_SUPPLIER_ALLOCATION,
           modelSupplier.address,
           0, // Zero allocation
-          investor.address,
           defaultInitialParams
         )
       ).to.be.revertedWithCustomError(tokenManager, "InvalidAmount");
@@ -204,22 +190,6 @@ describe("TokenManager - Allocation Split", function () {
           MODEL_SUPPLIER_ALLOCATION,
           ZeroAddress, // Invalid address
           INVESTOR_ALLOCATION,
-          investor.address,
-          defaultInitialParams
-        )
-      ).to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
-    });
-
-    it("Should reject zero address for investor recipient", async function () {
-      await expect(
-        tokenManager.deployTokenWithAllocations(
-          MODEL_ID,
-          "Test Model Token",
-          "TMT",
-          MODEL_SUPPLIER_ALLOCATION,
-          modelSupplier.address,
-          INVESTOR_ALLOCATION,
-          ZeroAddress, // Invalid address
           defaultInitialParams
         )
       ).to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
@@ -234,7 +204,6 @@ describe("TokenManager - Allocation Split", function () {
           MODEL_SUPPLIER_ALLOCATION,
           modelSupplier.address,
           INVESTOR_ALLOCATION,
-          investor.address,
           defaultInitialParams
         )
       ).to.be.revertedWithCustomError(tokenManager, "EmptyString");
@@ -249,7 +218,6 @@ describe("TokenManager - Allocation Split", function () {
         MODEL_SUPPLIER_ALLOCATION,
         modelSupplier.address,
         INVESTOR_ALLOCATION,
-        investor.address,
         defaultInitialParams
       );
 
@@ -262,7 +230,6 @@ describe("TokenManager - Allocation Split", function () {
           MODEL_SUPPLIER_ALLOCATION,
           modelSupplier.address,
           INVESTOR_ALLOCATION,
-          investor.address,
           defaultInitialParams
         )
       ).to.be.revertedWith("Token already deployed for this model");
@@ -308,8 +275,8 @@ describe("TokenManager - Allocation Split", function () {
     });
   });
 
-  describe("Integration with Minting", function () {
-    it("Should allow minting additional tokens after deployment", async function () {
+  describe("Model Supplier Distribution", function () {
+    it("Should distribute model supplier allocation when called by owner", async function () {
       await tokenManager.deployTokenWithAllocations(
         MODEL_ID,
         "Test Model Token",
@@ -317,23 +284,29 @@ describe("TokenManager - Allocation Split", function () {
         MODEL_SUPPLIER_ALLOCATION,
         modelSupplier.address,
         INVESTOR_ALLOCATION,
-        investor.address,
         defaultInitialParams
       );
-
-      // Mint additional tokens
-      const additionalAmount = parseEther("1000");
-      await tokenManager.mintTokens(MODEL_ID, unauthorized.address, additionalAmount);
 
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
       const token = HokusaiToken.attach(tokenAddress);
 
-      expect(await token.balanceOf(unauthorized.address)).to.equal(additionalAmount);
-      expect(await token.totalSupply()).to.equal(TOTAL_SUPPLY + additionalAmount);
+      // Initially, model supplier should have no tokens
+      expect(await token.balanceOf(modelSupplier.address)).to.equal(0);
+      expect(await token.modelSupplierDistributed()).to.equal(false);
+
+      // Distribute model supplier allocation
+      await expect(tokenManager.distributeModelSupplierAllocation(MODEL_ID))
+        .to.emit(tokenManager, "ModelSupplierAllocationDistributed")
+        .withArgs(MODEL_ID, modelSupplier.address, MODEL_SUPPLIER_ALLOCATION);
+
+      // Now model supplier should have tokens
+      expect(await token.balanceOf(modelSupplier.address)).to.equal(MODEL_SUPPLIER_ALLOCATION);
+      expect(await token.modelSupplierDistributed()).to.equal(true);
+      expect(await token.totalSupply()).to.equal(MODEL_SUPPLIER_ALLOCATION);
     });
 
-    it("Should maintain correct total supply after additional minting", async function () {
+    it("Should not allow distributing model supplier allocation twice", async function () {
       await tokenManager.deployTokenWithAllocations(
         MODEL_ID,
         "Test Model Token",
@@ -341,7 +314,45 @@ describe("TokenManager - Allocation Split", function () {
         MODEL_SUPPLIER_ALLOCATION,
         modelSupplier.address,
         INVESTOR_ALLOCATION,
-        investor.address,
+        defaultInitialParams
+      );
+
+      // Distribute once
+      await tokenManager.distributeModelSupplierAllocation(MODEL_ID);
+
+      // Try to distribute again
+      await expect(
+        tokenManager.distributeModelSupplierAllocation(MODEL_ID)
+      ).to.be.revertedWith("Model supplier allocation already distributed");
+    });
+
+    it("Should only allow owner to distribute model supplier allocation", async function () {
+      await tokenManager.deployTokenWithAllocations(
+        MODEL_ID,
+        "Test Model Token",
+        "TMT",
+        MODEL_SUPPLIER_ALLOCATION,
+        modelSupplier.address,
+        INVESTOR_ALLOCATION,
+        defaultInitialParams
+      );
+
+      // Try to distribute as unauthorized user
+      await expect(
+        tokenManager.connect(unauthorized).distributeModelSupplierAllocation(MODEL_ID)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+  });
+
+  describe("Integration with Minting", function () {
+    it("Should allow minting tokens up to max supply cap", async function () {
+      await tokenManager.deployTokenWithAllocations(
+        MODEL_ID,
+        "Test Model Token",
+        "TMT",
+        MODEL_SUPPLIER_ALLOCATION,
+        modelSupplier.address,
+        INVESTOR_ALLOCATION,
         defaultInitialParams
       );
 
@@ -349,13 +360,55 @@ describe("TokenManager - Allocation Split", function () {
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
       const token = HokusaiToken.attach(tokenAddress);
 
-      const initialSupply = await token.totalSupply();
+      // Mint some tokens (simulating AMM purchases)
+      const mintAmount = parseEther("1000000");
+      await tokenManager.mintTokens(MODEL_ID, unauthorized.address, mintAmount);
 
-      // Mint to multiple addresses
-      await tokenManager.mintTokens(MODEL_ID, unauthorized.address, parseEther("100"));
-      await tokenManager.mintTokens(MODEL_ID, owner.address, parseEther("200"));
+      expect(await token.balanceOf(unauthorized.address)).to.equal(mintAmount);
+      expect(await token.totalSupply()).to.equal(mintAmount);
+    });
 
-      expect(await token.totalSupply()).to.equal(initialSupply + parseEther("300"));
+    it("Should enforce max supply cap when minting", async function () {
+      await tokenManager.deployTokenWithAllocations(
+        MODEL_ID,
+        "Test Model Token",
+        "TMT",
+        MODEL_SUPPLIER_ALLOCATION,
+        modelSupplier.address,
+        INVESTOR_ALLOCATION,
+        defaultInitialParams
+      );
+
+      // Try to mint more than max supply
+      await expect(
+        tokenManager.mintTokens(MODEL_ID, unauthorized.address, MAX_SUPPLY + parseEther("1"))
+      ).to.be.revertedWith("Minting would exceed max supply");
+    });
+
+    it("Should allow minting investor allocation after model supplier distribution", async function () {
+      await tokenManager.deployTokenWithAllocations(
+        MODEL_ID,
+        "Test Model Token",
+        "TMT",
+        MODEL_SUPPLIER_ALLOCATION,
+        modelSupplier.address,
+        INVESTOR_ALLOCATION,
+        defaultInitialParams
+      );
+
+      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+      const token = HokusaiToken.attach(tokenAddress);
+
+      // Distribute model supplier allocation
+      await tokenManager.distributeModelSupplierAllocation(MODEL_ID);
+
+      // Now mint investor tokens (simulating AMM)
+      await tokenManager.mintTokens(MODEL_ID, unauthorized.address, INVESTOR_ALLOCATION);
+
+      expect(await token.totalSupply()).to.equal(MAX_SUPPLY);
+      expect(await token.balanceOf(modelSupplier.address)).to.equal(MODEL_SUPPLIER_ALLOCATION);
+      expect(await token.balanceOf(unauthorized.address)).to.equal(INVESTOR_ALLOCATION);
     });
   });
 
@@ -374,7 +427,6 @@ describe("TokenManager - Allocation Split", function () {
           MODEL_SUPPLIER_ALLOCATION,
           modelSupplier.address,
           INVESTOR_ALLOCATION,
-          investor.address,
           defaultInitialParams,
           { value: parseEther("0.1") }
         )
@@ -390,7 +442,6 @@ describe("TokenManager - Allocation Split", function () {
           MODEL_SUPPLIER_ALLOCATION,
           modelSupplier.address,
           INVESTOR_ALLOCATION,
-          investor.address,
           defaultInitialParams,
           { value: parseEther("0.05") } // Insufficient
         )

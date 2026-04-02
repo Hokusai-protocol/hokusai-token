@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { parseEther } = require("ethers");
+const { parseEther, ZeroAddress } = require("ethers");
 
 describe("DeltaVerifier - DataContributionRegistry Integration", function () {
   let deltaVerifier;
@@ -57,7 +57,10 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       "HOKU",
       owner.address,
       hokusaiParams.target,
-      parseEther("10000")
+      parseEther("10000"),
+      0,
+      0,
+      ZeroAddress
     );
 
     const TokenManager = await ethers.getContractFactory("TokenManager");

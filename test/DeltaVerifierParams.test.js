@@ -131,8 +131,8 @@ describe("DeltaVerifier with Dynamic Params", function () {
         0
       );
 
-      // Expected: (500 * 1000 * 10000) / (100 * 10000) = 5000 tokens
-      expect(rewardAmount).to.equal(5000);
+      // Expected: (500 * 1000 * 10000) / (100 * 10000) * 1e18 = 5000 tokens in wei
+      expect(rewardAmount).to.equal(parseEther("5000"));
     });
 
     it("Should use updated tokensPerDeltaOne after governance change", async function () {
@@ -150,8 +150,8 @@ describe("DeltaVerifier with Dynamic Params", function () {
         0
       );
 
-      // Expected: (500 * 2000 * 10000) / (100 * 10000) = 10000 tokens
-      expect(rewardAmount).to.equal(10000);
+      // Expected: (500 * 2000 * 10000) / (100 * 10000) * 1e18 = 10000 tokens in wei
+      expect(rewardAmount).to.equal(parseEther("10000"));
     });
 
     it("Should reject calculation for non-existent model", async function () {
@@ -213,8 +213,8 @@ describe("DeltaVerifier with Dynamic Params", function () {
       expect(contributorBalance).to.be.gt(0);
 
       // The reward should be based on approximately 5% improvement across metrics
-      // with tokensPerDeltaOne = 1000. DeltaVerifier returns raw token amounts, not ethers.
-      expect(contributorBalance).to.be.gt(200); // At least some reward
+      // with tokensPerDeltaOne = 1000. DeltaVerifier returns amounts in wei.
+      expect(contributorBalance).to.be.gt(parseEther("200")); // At least some reward
     });
 
     it("Should reflect parameter changes in new evaluations", async function () {
@@ -337,7 +337,8 @@ describe("DeltaVerifier with Dynamic Params", function () {
 
       expect(oldReward).to.be.gt(0);
       // Should use baseRewardRate (1000) instead of dynamic params
-      expect(oldReward).to.equal(5000); // Same as dynamic with tokensPerDeltaOne=1000
+      // Note: baseRewardRate=1000 is raw (not wei), so calculateReward returns raw values
+      expect(oldReward).to.equal(5000);
     });
   });
 

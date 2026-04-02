@@ -164,8 +164,8 @@ describe("Full Integration: Params Module", function () {
       // Calculate expected reward manually
       // The actual deltaInBps calculated from the metrics above
       // Let me just verify it's a reasonable amount based on the improvement
-      expect(balance).to.be.gt(5000); // Should be at least some reward
-      expect(balance).to.be.lt(20000); // But not excessive
+      expect(balance).to.be.gt(parseEther("5000")); // Should be at least some reward
+      expect(balance).to.be.lt(parseEther("20000")); // But not excessive
     });
 
     it("Should reflect parameter changes in reward calculations", async function () {
@@ -355,8 +355,8 @@ describe("Full Integration: Params Module", function () {
 
         // Verify dynamic calculation uses new parameter
         const reward = await deltaVerifier.calculateRewardDynamic(MODEL_ID_STR, 500, 10000, 0);
-        // Formula: (deltaInBps * tokensPerDeltaOne * contributorWeight) / (100 * 10000)
-        const expectedReward = (500 * (1000 + i * 200) * 10000) / (100 * 10000);
+        // Formula: (deltaInBps * tokensPerDeltaOne * contributorWeight) / (100 * 10000) * 1e18
+        const expectedReward = BigInt((500 * (1000 + i * 200) * 10000) / (100 * 10000)) * BigInt(1e18);
         expect(reward).to.equal(expectedReward);
       }
     });
@@ -379,8 +379,10 @@ describe("Full Integration: Params Module", function () {
       expect(newReward).to.be.gt(0);
 
       // They might be different values, but both should work
+      // Note: calculateReward uses raw baseRewardRate=1000, so returns raw values
       expect(oldReward).to.equal(5000); // Based on baseRewardRate=1000
-      expect(newReward).to.equal(7500); // Based on tokensPerDeltaOne=1500
+      // calculateRewardDynamic converts to wei
+      expect(newReward).to.equal(parseEther("7500")); // Based on tokensPerDeltaOne=1500
     });
   });
 

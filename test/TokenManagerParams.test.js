@@ -436,7 +436,7 @@ describe("TokenManager with Params", function () {
     it("Should handle params deployment failure gracefully", async function () {
       const invalidParams = {
         ...defaultInitialParams,
-        infrastructureAccrualBps: 4999 // Below minimum of 5000
+        infrastructureAccrualBps: 999 // Below minimum of 1000
       };
 
       await expect(
@@ -447,7 +447,7 @@ describe("TokenManager with Params", function () {
           parseEther("10000"),
           invalidParams
         )
-      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
 
       // Verify no token was created
       expect(await tokenManager.hasToken(MODEL_ID_1)).to.be.false;

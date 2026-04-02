@@ -47,7 +47,7 @@ describe("Backward Compatibility", function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       const params = HokusaiParams.attach(paramsAddress);
 
-      expect(await params.tokensPerDeltaOne()).to.equal(1000); // Default
+      expect(await params.tokensPerDeltaOne()).to.equal(500000); // Default
       expect(await params.infrastructureAccrualBps()).to.equal(8000); // Default 80%
       expect(await params.licenseHash()).to.equal(keccak256(toUtf8Bytes("default-license")));
       expect(await params.licenseURI()).to.equal("https://hokusai.ai/licenses/default");
@@ -84,7 +84,7 @@ describe("Backward Compatibility", function () {
         const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
         const params = HokusaiParams.attach(paramsAddress);
 
-        expect(await params.tokensPerDeltaOne()).to.equal(1000);
+        expect(await params.tokensPerDeltaOne()).to.equal(500000);
         expect(await params.infrastructureAccrualBps()).to.equal(8000);
       }
     });
@@ -153,7 +153,7 @@ describe("Backward Compatibility", function () {
       const oldParams = HokusaiParams.attach(oldParamsAddr);
       const newParams = HokusaiParams.attach(newParamsAddr);
 
-      expect(await oldParams.tokensPerDeltaOne()).to.equal(1000); // Default
+      expect(await oldParams.tokensPerDeltaOne()).to.equal(500000); // Default
       expect(await newParams.tokensPerDeltaOne()).to.equal(2000); // Custom
 
       expect(await oldParams.infrastructureAccrualBps()).to.equal(8000); // Default 80%

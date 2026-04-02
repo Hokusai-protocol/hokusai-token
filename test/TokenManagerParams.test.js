@@ -287,7 +287,7 @@ describe("TokenManager with Params", function () {
           parseEther("10000"),
           invalidParams
         )
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 100000");
+      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
     });
   });
 

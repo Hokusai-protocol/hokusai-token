@@ -34,7 +34,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     // Deploy HokusaiToken
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, await hokusaiParams.getAddress(), parseEther("10000"), 0, 0, ZeroAddress);
     await hokusaiToken.waitForDeployment();
 
     // Deploy TokenManager with ModelRegistry reference

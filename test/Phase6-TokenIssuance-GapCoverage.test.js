@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { parseUnits, parseEther } = ethers;
+const { parseUnits, parseEther, ZeroAddress } = ethers;
 
 /**
  * Phase 6: Token Issuance Gap Coverage Tests
@@ -41,7 +41,8 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
       const hokusaiToken = await HokusaiToken.deploy(
         "Gap Test Token", "GTT", owner.address,
-        await hokusaiParams.getAddress(), parseEther("10000")
+        await hokusaiParams.getAddress(), parseEther("10000"),
+        0, 0, ZeroAddress
       );
       await hokusaiToken.waitForDeployment();
 

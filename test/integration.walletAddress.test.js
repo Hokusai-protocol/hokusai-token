@@ -139,7 +139,7 @@ describe("Integration: JSON Wallet Address Support", function () {
     await hokusaiParams.waitForDeployment();
 
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, await hokusaiParams.getAddress(), parseEther("10000"));
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, await hokusaiParams.getAddress(), parseEther("10000"), 0, 0, ZeroAddress);
     await hokusaiToken.waitForDeployment();
 
     const TokenManager = await ethers.getContractFactory("TokenManager");

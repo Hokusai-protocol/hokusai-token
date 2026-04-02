@@ -59,6 +59,18 @@ contract TokenManager is Ownable, AccessControlBase {
     event BatchMinted(string indexed modelId, address[] recipients, uint256[] amounts, uint256 totalAmount);
     event ContributorSkipped(address indexed contributor, uint256 index);
     event DeploymentFeeUpdated(uint256 newFee);
+    event AllocationDistributed(
+        string indexed modelId,
+        address indexed modelSupplierRecipient,
+        uint256 modelSupplierAllocation,
+        address indexed investorRecipient,
+        uint256 investorAllocation
+    );
+    event ModelSupplierAllocationDistributed(
+        string indexed modelId,
+        address indexed recipient,
+        uint256 amount
+    );
 
 
     constructor(address registryAddress)
@@ -152,8 +164,17 @@ contract TokenManager is Ownable, AccessControlBase {
         );
         address paramsAddress = address(newParams);
 
-        // Deploy HokusaiToken with params address
-        HokusaiToken newToken = new HokusaiToken(name, symbol, address(this), paramsAddress, totalSupply);
+        // Deploy HokusaiToken with params address (legacy mode: initialSupply > 0, maxSupply = 0)
+        HokusaiToken newToken = new HokusaiToken(
+            name,
+            symbol,
+            address(this),
+            paramsAddress,
+            totalSupply, // initialSupply
+            0,           // maxSupply (0 = legacy mode)
+            0,           // modelSupplierAllocation
+            address(0)   // modelSupplierRecipient
+        );
         tokenAddress = address(newToken);
 
         // Store token and params mappings
@@ -168,6 +189,121 @@ contract TokenManager is Ownable, AccessControlBase {
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
 
         return tokenAddress;
+    }
+
+    /**
+     * @dev Deploy a new token for a model with allocation split - USER PAYS GAS
+     * Uses cap-based model: investor allocation is a max cap enforced by the contract,
+     * model supplier allocation is distributed when model is verified
+     * @param modelId The model identifier (string)
+     * @param name Token name
+     * @param symbol Token symbol
+     * @param modelSupplierAllocation Tokens allocated to model supplier (minted when verified)
+     * @param modelSupplierRecipient Address to receive model supplier allocation
+     * @param investorAllocation Maximum tokens that can be minted for investors via AMM
+     * @param initialParams Initial parameter values for the token
+     * @return tokenAddress The deployed token address
+     */
+    function deployTokenWithAllocations(
+        string memory modelId,
+        string memory name,
+        string memory symbol,
+        uint256 modelSupplierAllocation,
+        address modelSupplierRecipient,
+        uint256 investorAllocation,
+        InitialParams memory initialParams
+    ) public payable returns (address tokenAddress) {
+        // Validate inputs
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonEmptyString(name, "token name");
+        ValidationLib.requireNonEmptyString(symbol, "token symbol");
+        ValidationLib.requirePositiveAmount(modelSupplierAllocation, "model supplier allocation");
+        ValidationLib.requireNonZeroAddress(modelSupplierRecipient, "model supplier recipient");
+        ValidationLib.requirePositiveAmount(investorAllocation, "investor allocation");
+        ValidationLib.requireNonZeroAddress(initialParams.governor, "governor");
+
+        // Check if model already has a token
+        require(modelTokens[modelId] == address(0), "Token already deployed for this model");
+
+        // Check deployment fee if configured
+        if (deploymentFee > 0) {
+            require(msg.value >= deploymentFee, "Insufficient deployment fee");
+            // Transfer fee to recipient
+            (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
+            require(sent, "Failed to send deployment fee");
+
+            // Refund excess payment
+            if (msg.value > deploymentFee) {
+                (bool refunded, ) = msg.sender.call{value: msg.value - deploymentFee}("");
+                require(refunded, "Failed to refund excess payment");
+            }
+        }
+
+        // Deploy HokusaiParams first
+        HokusaiParams newParams = new HokusaiParams(
+            initialParams.tokensPerDeltaOne,
+            initialParams.infrastructureAccrualBps,
+            initialParams.licenseHash,
+            initialParams.licenseURI,
+            initialParams.governor
+        );
+        address paramsAddress = address(newParams);
+
+        // Calculate max supply (model supplier + investor allocations)
+        uint256 maxSupply = modelSupplierAllocation + investorAllocation;
+
+        // Deploy HokusaiToken with cap-based model (no initial minting)
+        HokusaiToken newToken = new HokusaiToken(
+            name,
+            symbol,
+            address(this),
+            paramsAddress,
+            0,                          // initialSupply (0 for cap-based model)
+            maxSupply,                  // maxSupply cap
+            modelSupplierAllocation,    // model supplier allocation (not minted yet)
+            modelSupplierRecipient      // model supplier recipient
+        );
+        tokenAddress = address(newToken);
+
+        // Store token and params mappings
+        modelTokens[modelId] = tokenAddress;
+        tokenToModel[tokenAddress] = modelId;
+        modelParams[modelId] = paramsAddress;
+
+        emit ParamsDeployed(modelId, paramsAddress, msg.sender, initialParams.tokensPerDeltaOne, initialParams.infrastructureAccrualBps);
+        emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, maxSupply);
+        emit AllocationDistributed(
+            modelId,
+            modelSupplierRecipient,
+            modelSupplierAllocation,
+            address(0), // No immediate investor recipient (minted via AMM)
+            investorAllocation
+        );
+
+        return tokenAddress;
+    }
+
+    /**
+     * @dev Distributes model supplier allocation when model is verified
+     * This should be called after model registration is complete and verified
+     * @param modelId The model identifier
+     */
+    function distributeModelSupplierAllocation(string memory modelId) external onlyOwner {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+
+        HokusaiToken token = HokusaiToken(tokenAddress);
+
+        // Trigger the distribution on the token contract
+        token.distributeModelSupplierAllocation();
+
+        emit ModelSupplierAllocationDistributed(
+            modelId,
+            token.modelSupplierRecipient(),
+            token.modelSupplierAllocation()
+        );
     }
 
     /**

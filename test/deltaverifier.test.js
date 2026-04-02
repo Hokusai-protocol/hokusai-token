@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { parseEther } = require("ethers");
+const { parseEther, ZeroAddress } = require("ethers");
 
 describe("DeltaVerifier", function () {
   let deltaVerifier;
@@ -55,7 +55,7 @@ describe("DeltaVerifier", function () {
 
     // Deploy HokusaiToken
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, hokusaiParams.target, parseEther("10000"));
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, hokusaiParams.target, parseEther("10000"), 0, 0, ZeroAddress);
 
     // Deploy TokenManager
     const TokenManager = await ethers.getContractFactory("TokenManager");

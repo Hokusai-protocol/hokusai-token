@@ -584,13 +584,13 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       [owner, governor] = await ethers.getSigners();
     });
 
-    it("should accept minimum accrual value (5000 = 50%)", async function () {
+    it("should accept minimum accrual value (1000 = 10%)", async function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       hokusaiParams = await HokusaiParams.deploy(
-        1000, 5000, ethers.ZeroHash, "", owner.address
+        1000, 1000, ethers.ZeroHash, "", owner.address
       );
       await hokusaiParams.waitForDeployment();
-      expect(await hokusaiParams.infrastructureAccrualBps()).to.equal(5000);
+      expect(await hokusaiParams.infrastructureAccrualBps()).to.equal(1000);
     });
 
     it("should accept maximum accrual value (10000 = 100%)", async function () {
@@ -602,10 +602,10 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       expect(await hokusaiParams.infrastructureAccrualBps()).to.equal(10000);
     });
 
-    it("should reject below minimum accrual (4999)", async function () {
+    it("should reject below minimum accrual (999)", async function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       await expect(
-        HokusaiParams.deploy(1000, 4999, ethers.ZeroHash, "", owner.address)
+        HokusaiParams.deploy(1000, 999, ethers.ZeroHash, "", owner.address)
       ).to.be.reverted;
     });
 
@@ -628,8 +628,8 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       expect(await hokusaiParams.infrastructureAccrualBps()).to.equal(6000);
 
       // Update to boundary values
-      await hokusaiParams.setInfrastructureAccrualBps(5000);
-      expect(await hokusaiParams.infrastructureAccrualBps()).to.equal(5000);
+      await hokusaiParams.setInfrastructureAccrualBps(1000);
+      expect(await hokusaiParams.infrastructureAccrualBps()).to.equal(1000);
 
       await hokusaiParams.setInfrastructureAccrualBps(10000);
       expect(await hokusaiParams.infrastructureAccrualBps()).to.equal(10000);

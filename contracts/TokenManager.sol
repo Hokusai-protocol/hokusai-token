@@ -20,7 +20,7 @@ contract TokenManager is Ownable, AccessControlBase {
     /// @dev Structure for initial parameter values when deploying a token
     struct InitialParams {
         uint256 tokensPerDeltaOne;          // Tokens per deltaOne improvement (100-100000)
-        uint16 infrastructureAccrualBps;    // Infrastructure accrual in basis points (5000-10000, i.e., 50-100%)
+        uint16 infrastructureAccrualBps;    // Infrastructure accrual in basis points (1000-10000, i.e., 10-100%)
         bytes32 licenseHash;                // Hash of license reference
         string licenseURI;                  // URI for license reference
         address governor;                   // Address to grant GOV_ROLE

@@ -19,8 +19,8 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /// @dev Maximum allowed value for tokensPerDeltaOne
     uint256 public constant MAX_TOKENS_PER_DELTA_ONE = 100000;
 
-    /// @dev Minimum allowed value for infrastructureAccrualBps (50% in basis points)
-    uint16 public constant MIN_INFRASTRUCTURE_ACCRUAL_BPS = 5000;
+    /// @dev Minimum allowed value for infrastructureAccrualBps (10% in basis points)
+    uint16 public constant MIN_INFRASTRUCTURE_ACCRUAL_BPS = 1000;
 
     /// @dev Maximum allowed value for infrastructureAccrualBps (100% in basis points)
     uint16 public constant MAX_INFRASTRUCTURE_ACCRUAL_BPS = 10000;
@@ -28,7 +28,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /// @dev Number of tokens to mint per unit of deltaOne improvement
     uint256 private _tokensPerDeltaOne;
 
-    /// @dev Infrastructure cost accrual percentage in basis points (5000-10000 = 50-100%)
+    /// @dev Infrastructure cost accrual percentage in basis points (1000-10000 = 10-100%)
     uint16 private _infrastructureAccrualBps;
 
     /// @dev Hash of the license reference
@@ -40,7 +40,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /**
      * @dev Constructor to initialize the parameter contract
      * @param initialTokensPerDeltaOne Initial tokens per deltaOne value (100-100000)
-     * @param initialInfrastructureAccrualBps Initial infrastructure accrual in basis points (5000-10000)
+     * @param initialInfrastructureAccrualBps Initial infrastructure accrual in basis points (1000-10000)
      * @param initialLicenseHash Initial license reference hash
      * @param initialLicenseURI Initial license reference URI
      * @param governor Address to grant GOV_ROLE to
@@ -61,7 +61,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         require(
             initialInfrastructureAccrualBps >= MIN_INFRASTRUCTURE_ACCRUAL_BPS &&
             initialInfrastructureAccrualBps <= MAX_INFRASTRUCTURE_ACCRUAL_BPS,
-            "infrastructureAccrualBps must be between 5000 and 10000"
+            "infrastructureAccrualBps must be between 1000 and 10000"
         );
 
         // Set initial values
@@ -138,7 +138,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     function setInfrastructureAccrualBps(uint16 newBps) external override onlyRole(GOV_ROLE) {
         require(
             newBps >= MIN_INFRASTRUCTURE_ACCRUAL_BPS && newBps <= MAX_INFRASTRUCTURE_ACCRUAL_BPS,
-            "infrastructureAccrualBps must be between 5000 and 10000"
+            "infrastructureAccrualBps must be between 1000 and 10000"
         );
 
         uint16 oldBps = _infrastructureAccrualBps;

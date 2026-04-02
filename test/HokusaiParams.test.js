@@ -90,16 +90,16 @@ describe("HokusaiParams", function () {
       ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 100000");
     });
 
-    it("Should reject infrastructureAccrualBps below minimum (5000)", async function () {
+    it("Should reject infrastructureAccrualBps below minimum (1000)", async function () {
       await expect(
         HokusaiParams.deploy(
           DEFAULT_TOKENS_PER_DELTA_ONE,
-          4999, // Below minimum of 5000 (50%)
+          999, // Below minimum of 1000 (10%)
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
         )
-      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
     });
 
     it("Should reject infrastructureAccrualBps above maximum (10000)", async function () {
@@ -111,7 +111,7 @@ describe("HokusaiParams", function () {
           DEFAULT_LICENSE_URI,
           governor.address
         )
-      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
     });
   });
 
@@ -204,25 +204,25 @@ describe("HokusaiParams", function () {
       expect(await params.tokensPerDeltaOne()).to.equal(100000);
     });
 
-    it("Should reject infrastructureAccrualBps below minimum (5000)", async function () {
+    it("Should reject infrastructureAccrualBps below minimum (1000)", async function () {
       await expect(
-        params.connect(governor).setInfrastructureAccrualBps(4999)
-      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
+        params.connect(governor).setInfrastructureAccrualBps(999)
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
     });
 
     it("Should reject infrastructureAccrualBps above maximum (10000)", async function () {
       await expect(
         params.connect(governor).setInfrastructureAccrualBps(10001)
-      ).to.be.revertedWith("infrastructureAccrualBps must be between 5000 and 10000");
+      ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
     });
 
-    it("Should accept infrastructureAccrualBps at minimum boundary (50%)", async function () {
-      await expect(params.connect(governor).setInfrastructureAccrualBps(5000))
+    it("Should accept infrastructureAccrualBps at minimum boundary (10%)", async function () {
+      await expect(params.connect(governor).setInfrastructureAccrualBps(1000))
         .to.emit(params, "InfrastructureAccrualBpsSet")
-        .withArgs(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS, 5000, governor.address);
+        .withArgs(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS, 1000, governor.address);
 
-      expect(await params.infrastructureAccrualBps()).to.equal(5000);
-      expect(await params.getProfitShareBps()).to.equal(5000); // 50% profit
+      expect(await params.infrastructureAccrualBps()).to.equal(1000);
+      expect(await params.getProfitShareBps()).to.equal(9000); // 90% profit
     });
 
     it("Should accept infrastructureAccrualBps at maximum boundary (100%)", async function () {
@@ -236,9 +236,29 @@ describe("HokusaiParams", function () {
   });
 
   describe("Profit Share Calculation", function () {
-    it("Should correctly calculate profit share (80/20 split)", async function () {
-      await params.connect(governor).setInfrastructureAccrualBps(8000);
-      expect(await params.getProfitShareBps()).to.equal(2000); // 20%
+    it("Should correctly calculate profit share (10/90 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(1000);
+      expect(await params.getProfitShareBps()).to.equal(9000); // 90%
+    });
+
+    it("Should correctly calculate profit share (20/80 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(2000);
+      expect(await params.getProfitShareBps()).to.equal(8000); // 80%
+    });
+
+    it("Should correctly calculate profit share (30/70 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(3000);
+      expect(await params.getProfitShareBps()).to.equal(7000); // 70%
+    });
+
+    it("Should correctly calculate profit share (40/60 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(4000);
+      expect(await params.getProfitShareBps()).to.equal(6000); // 60%
+    });
+
+    it("Should correctly calculate profit share (50/50 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(5000);
+      expect(await params.getProfitShareBps()).to.equal(5000); // 50%
     });
 
     it("Should correctly calculate profit share (70/30 split)", async function () {
@@ -246,14 +266,14 @@ describe("HokusaiParams", function () {
       expect(await params.getProfitShareBps()).to.equal(3000); // 30%
     });
 
+    it("Should correctly calculate profit share (80/20 split)", async function () {
+      await params.connect(governor).setInfrastructureAccrualBps(8000);
+      expect(await params.getProfitShareBps()).to.equal(2000); // 20%
+    });
+
     it("Should correctly calculate profit share (90/10 split)", async function () {
       await params.connect(governor).setInfrastructureAccrualBps(9000);
       expect(await params.getProfitShareBps()).to.equal(1000); // 10%
-    });
-
-    it("Should correctly calculate profit share (50/50 split)", async function () {
-      await params.connect(governor).setInfrastructureAccrualBps(5000);
-      expect(await params.getProfitShareBps()).to.equal(5000); // 50%
     });
 
     it("Should correctly calculate profit share (100/0 split)", async function () {

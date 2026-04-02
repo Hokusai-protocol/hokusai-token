@@ -68,7 +68,7 @@ describe("Parameter Updates", function () {
       console.log(`         Signer has GOV_ROLE: ${hasGovRole}`);
 
       expect(tokensPerDeltaOne).to.be.gt(0, "TokensPerDeltaOne should be positive");
-      expect(infrastructureAccrualBps).to.be.gte(5000, "InfrastructureAccrualBps should be >= 5000");
+      expect(infrastructureAccrualBps).to.be.gte(1000, "InfrastructureAccrualBps should be >= 1000");
       expect(infrastructureAccrualBps).to.be.lte(10000, "InfrastructureAccrualBps should be <= 10000");
 
       console.log(`      ✅ All parameters readable`);

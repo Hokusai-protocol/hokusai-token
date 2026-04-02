@@ -37,3 +37,4 @@ deployments/*.backup.json
 
 # Misc
 .DS_Store
+.wavemill/

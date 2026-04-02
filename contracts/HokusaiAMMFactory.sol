@@ -100,7 +100,7 @@ contract HokusaiAMMFactory is Ownable {
         treasury = _treasury;
 
         // Set defaults (can be changed by owner)
-        defaultCrr = 100000; // 10%
+        defaultCrr = 200000; // 20%
         defaultTradeFee = 30; // 0.30%
         defaultIbrDuration = 7 days;
         defaultFlatCurveThreshold = 25000 * 1e6; // $25,000 USDC

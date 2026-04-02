@@ -92,7 +92,7 @@ contract TokenManager is Ownable, AccessControlBase {
     ) external payable returns (address tokenAddress) {
         // Use default parameters
         InitialParams memory defaultParams = InitialParams({
-            tokensPerDeltaOne: 1000,
+            tokensPerDeltaOne: 500000,
             infrastructureAccrualBps: 8000, // 80% infrastructure accrual (default)
             licenseHash: keccak256(abi.encodePacked("default-license")),
             licenseURI: "https://hokusai.ai/licenses/default",

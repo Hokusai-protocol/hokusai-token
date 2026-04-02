@@ -75,19 +75,19 @@ describe("HokusaiParams", function () {
           DEFAULT_LICENSE_URI,
           governor.address
         )
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 100000");
+      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
     });
 
     it("Should reject tokensPerDeltaOne above maximum", async function () {
       await expect(
         HokusaiParams.deploy(
-          100001, // Above maximum of 100000
+          1000001, // Above maximum of 1000000
           DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
         )
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 100000");
+      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
     });
 
     it("Should reject infrastructureAccrualBps below minimum (1000)", async function () {
@@ -179,13 +179,13 @@ describe("HokusaiParams", function () {
     it("Should reject tokensPerDeltaOne below minimum (100)", async function () {
       await expect(
         params.connect(governor).setTokensPerDeltaOne(99)
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 100000");
+      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
     });
 
-    it("Should reject tokensPerDeltaOne above maximum (100000)", async function () {
+    it("Should reject tokensPerDeltaOne above maximum (1000000)", async function () {
       await expect(
-        params.connect(governor).setTokensPerDeltaOne(100001)
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 100000");
+        params.connect(governor).setTokensPerDeltaOne(1000001)
+      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
     });
 
     it("Should accept tokensPerDeltaOne at minimum boundary", async function () {
@@ -197,11 +197,11 @@ describe("HokusaiParams", function () {
     });
 
     it("Should accept tokensPerDeltaOne at maximum boundary", async function () {
-      await expect(params.connect(governor).setTokensPerDeltaOne(100000))
+      await expect(params.connect(governor).setTokensPerDeltaOne(1000000))
         .to.emit(params, "TokensPerDeltaOneSet")
-        .withArgs(DEFAULT_TOKENS_PER_DELTA_ONE, 100000, governor.address);
+        .withArgs(DEFAULT_TOKENS_PER_DELTA_ONE, 1000000, governor.address);
 
-      expect(await params.tokensPerDeltaOne()).to.equal(100000);
+      expect(await params.tokensPerDeltaOne()).to.equal(1000000);
     });
 
     it("Should reject infrastructureAccrualBps below minimum (1000)", async function () {

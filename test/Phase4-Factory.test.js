@@ -53,7 +53,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
         });
 
         it("Should set correct default parameters", async function () {
-            expect(await factory.defaultCrr()).to.equal(100000); // 10%
+            expect(await factory.defaultCrr()).to.equal(200000); // 20%
             expect(await factory.defaultTradeFee()).to.equal(30); // 0.30%
             expect(await factory.defaultIbrDuration()).to.equal(7 * 24 * 60 * 60); // 7 days
             expect(await factory.defaultFlatCurveThreshold()).to.equal(parseUnits("25000", 6)); // $25k
@@ -305,7 +305,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
             // Original pools should have default parameters
             const defaultPool = await factory.getPool(MODEL_ID_1);
             const defaultPoolContract = HokusaiAMM.attach(defaultPool);
-            expect(await defaultPoolContract.crr()).to.equal(100000);
+            expect(await defaultPoolContract.crr()).to.equal(200000);
             expect(await defaultPoolContract.tradeFee()).to.equal(30);
         });
     });
@@ -413,7 +413,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
             expect(poolAddress).to.equal(pool1Address);
             expect(tokenAddress).to.equal(token1Address);
-            expect(crr).to.equal(100000);
+            expect(crr).to.equal(200000);
             expect(tradeFee).to.equal(30);
             expect(reserveBalance).to.equal(0); // No reserve yet
             expect(spotPrice).to.be.gt(0);

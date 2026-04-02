@@ -349,10 +349,10 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
         .withArgs(8000, 7500, owner.address);
     });
 
-    it("Should enforce governance bounds (50-100%)", async function () {
+    it("Should enforce governance bounds (10-100%)", async function () {
       // Below minimum
       await expect(
-        params1.connect(owner).setInfrastructureAccrualBps(4999)
+        params1.connect(owner).setInfrastructureAccrualBps(999)
       ).to.be.reverted;
 
       // Above maximum
@@ -361,7 +361,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
       ).to.be.reverted;
 
       // At boundaries should work
-      await params1.connect(owner).setInfrastructureAccrualBps(5000); // 50%
+      await params1.connect(owner).setInfrastructureAccrualBps(1000); // 10%
       await params1.connect(owner).setInfrastructureAccrualBps(10000); // 100%
     });
   });

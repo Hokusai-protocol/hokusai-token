@@ -17,7 +17,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     uint256 public constant MIN_TOKENS_PER_DELTA_ONE = 100;
 
     /// @dev Maximum allowed value for tokensPerDeltaOne
-    uint256 public constant MAX_TOKENS_PER_DELTA_ONE = 100000;
+    uint256 public constant MAX_TOKENS_PER_DELTA_ONE = 1000000;
 
     /// @dev Minimum allowed value for infrastructureAccrualBps (10% in basis points)
     uint16 public constant MIN_INFRASTRUCTURE_ACCRUAL_BPS = 1000;
@@ -39,7 +39,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
 
     /**
      * @dev Constructor to initialize the parameter contract
-     * @param initialTokensPerDeltaOne Initial tokens per deltaOne value (100-100000)
+     * @param initialTokensPerDeltaOne Initial tokens per deltaOne value (100-1000000)
      * @param initialInfrastructureAccrualBps Initial infrastructure accrual in basis points (1000-10000)
      * @param initialLicenseHash Initial license reference hash
      * @param initialLicenseURI Initial license reference URI
@@ -56,7 +56,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         require(
             initialTokensPerDeltaOne >= MIN_TOKENS_PER_DELTA_ONE &&
             initialTokensPerDeltaOne <= MAX_TOKENS_PER_DELTA_ONE,
-            "tokensPerDeltaOne must be between 100 and 100000"
+            "tokensPerDeltaOne must be between 100 and 1000000"
         );
         require(
             initialInfrastructureAccrualBps >= MIN_INFRASTRUCTURE_ACCRUAL_BPS &&
@@ -123,7 +123,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     function setTokensPerDeltaOne(uint256 newValue) external override onlyRole(GOV_ROLE) {
         require(
             newValue >= MIN_TOKENS_PER_DELTA_ONE && newValue <= MAX_TOKENS_PER_DELTA_ONE,
-            "tokensPerDeltaOne must be between 100 and 100000"
+            "tokensPerDeltaOne must be between 100 and 1000000"
         );
 
         uint256 oldValue = _tokensPerDeltaOne;

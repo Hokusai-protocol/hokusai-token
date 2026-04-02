@@ -218,11 +218,11 @@ All parameters have enforced bounds to ensure system stability and prevent misco
 
 **Contract**: HokusaiAMM, HokusaiAMMFactory
 **Units**: Parts per million (ppm)
-**Range**: 50,000 - 500,000 (5% - 50%)
+**Range**: 50,000 - 1,000,000 (5% - 100%)
 
 ```solidity
-uint256 public constant MIN_CRR = 50000;   // 5%
-uint256 public constant MAX_CRR = 500000;  // 50%
+uint256 public constant MIN_CRR = 50000;    // 5%
+uint256 public constant MAX_CRR = 1000000;  // 100%
 ```
 
 **Examples**:

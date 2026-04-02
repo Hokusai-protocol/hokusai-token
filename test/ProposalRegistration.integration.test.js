@@ -6,6 +6,8 @@ describe("Proposal Registration Integration", function () {
   let tokenManager;
   let modelRegistry;
   let fundingVault;
+  let ammFactory;
+  let usdc;
   let owner;
   let investor1;
   let investor2;
@@ -24,6 +26,11 @@ describe("Proposal Registration Integration", function () {
   beforeEach(async function () {
     [owner, investor1, investor2] = await ethers.getSigners();
 
+    // Deploy MockUSDC
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    usdc = await MockUSDC.deploy();
+    await usdc.waitForDeployment();
+
     // Deploy ModelRegistry
     const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
     modelRegistry = await ModelRegistry.deploy();
@@ -34,9 +41,24 @@ describe("Proposal Registration Integration", function () {
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
 
-    // Deploy FundingVault
+    // Deploy HokusaiAMMFactory
+    const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
+    ammFactory = await HokusaiAMMFactory.deploy(
+      await usdc.getAddress(),
+      await tokenManager.getAddress(),
+      await modelRegistry.getAddress(),
+      owner.address
+    );
+    await ammFactory.waitForDeployment();
+
+    // Deploy FundingVault with real constructor
     const FundingVault = await ethers.getContractFactory("FundingVault");
-    fundingVault = await FundingVault.deploy();
+    fundingVault = await FundingVault.deploy(
+      await usdc.getAddress(),
+      await ammFactory.getAddress(),
+      await tokenManager.getAddress(),
+      owner.address
+    );
     await fundingVault.waitForDeployment();
   });
 
@@ -81,7 +103,8 @@ describe("Proposal Registration Integration", function () {
       expect(await modelRegistry.getStringToken(MODEL_ID)).to.equal(tokenAddress);
 
       // Step 3: Register in FundingVault
-      const deadline = Math.floor(Date.now() / 1000) + DEADLINE_DAYS * 24 * 60 * 60;
+      const currentBlock = await ethers.provider.getBlock("latest");
+      const deadline = currentBlock.timestamp + DEADLINE_DAYS * 24 * 60 * 60;
 
       await expect(
         fundingVault.registerProposal(MODEL_ID, tokenAddress, deadline)
@@ -89,11 +112,11 @@ describe("Proposal Registration Integration", function () {
         .to.emit(fundingVault, "ProposalRegistered")
         .withArgs(MODEL_ID, tokenAddress, deadline);
 
-      const proposal = await fundingVault.getProposal(MODEL_ID);
+      const proposal = await fundingVault.proposals(MODEL_ID);
       expect(proposal.tokenAddress).to.equal(tokenAddress);
       expect(proposal.deadline).to.equal(deadline);
-      expect(proposal.registered).to.be.true;
       expect(proposal.graduated).to.be.false;
+      expect(proposal.totalCommitted).to.equal(0);
     });
 
     it("Should allow investors to deposit immediately after registration", async function () {
@@ -117,30 +140,40 @@ describe("Proposal Registration Integration", function () {
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       await modelRegistry.registerStringModel(MODEL_ID, tokenAddress, PERFORMANCE_METRIC);
 
-      const deadline = Math.floor(Date.now() / 1000) + DEADLINE_DAYS * 24 * 60 * 60;
+      const currentBlock = await ethers.provider.getBlock("latest");
+      const deadline = currentBlock.timestamp + DEADLINE_DAYS * 24 * 60 * 60;
       await fundingVault.registerProposal(MODEL_ID, tokenAddress, deadline);
 
-      // Verify funding is active
-      expect(await fundingVault.isFundingActive(MODEL_ID)).to.be.true;
-
-      // Make deposits
+      // Make deposits (need to mint USDC and approve first)
       const deposit1 = parseEther("10000");
       const deposit2 = parseEther("5000");
 
-      await expect(fundingVault.connect(investor1).deposit(MODEL_ID, deposit1))
-        .to.emit(fundingVault, "DepositMade")
-        .withArgs(MODEL_ID, investor1.address, deposit1);
+      // Mint USDC to investors (MockUSDC has 6 decimals, not 18)
+      const usdcDeposit1 = BigInt(10000e6); // 10,000 USDC
+      const usdcDeposit2 = BigInt(5000e6);  // 5,000 USDC
 
-      await expect(fundingVault.connect(investor2).deposit(MODEL_ID, deposit2))
-        .to.emit(fundingVault, "DepositMade")
-        .withArgs(MODEL_ID, investor2.address, deposit2);
+      await usdc.mint(investor1.address, usdcDeposit1);
+      await usdc.mint(investor2.address, usdcDeposit2);
 
-      // Verify deposits
-      expect(await fundingVault.getDeposit(MODEL_ID, investor1.address)).to.equal(deposit1);
-      expect(await fundingVault.getDeposit(MODEL_ID, investor2.address)).to.equal(deposit2);
+      // Approve FundingVault to spend USDC
+      await usdc.connect(investor1).approve(await fundingVault.getAddress(), usdcDeposit1);
+      await usdc.connect(investor2).approve(await fundingVault.getAddress(), usdcDeposit2);
 
-      const proposal = await fundingVault.getProposal(MODEL_ID);
-      expect(proposal.totalDeposits).to.equal(deposit1 + deposit2);
+      // Make deposits
+      await expect(fundingVault.connect(investor1).deposit(MODEL_ID, usdcDeposit1))
+        .to.emit(fundingVault, "Deposited")
+        .withArgs(MODEL_ID, investor1.address, usdcDeposit1, usdcDeposit1);
+
+      await expect(fundingVault.connect(investor2).deposit(MODEL_ID, usdcDeposit2))
+        .to.emit(fundingVault, "Deposited")
+        .withArgs(MODEL_ID, investor2.address, usdcDeposit2, usdcDeposit1 + usdcDeposit2);
+
+      // Verify commitments
+      expect(await fundingVault.commitments(MODEL_ID, investor1.address)).to.equal(usdcDeposit1);
+      expect(await fundingVault.commitments(MODEL_ID, investor2.address)).to.equal(usdcDeposit2);
+
+      const proposal = await fundingVault.proposals(MODEL_ID);
+      expect(proposal.totalCommitted).to.equal(usdcDeposit1 + usdcDeposit2);
     });
 
     it("Should maintain consistency across all three contracts", async function () {
@@ -164,7 +197,8 @@ describe("Proposal Registration Integration", function () {
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       await modelRegistry.registerStringModel(MODEL_ID, tokenAddress, PERFORMANCE_METRIC);
 
-      const deadline = Math.floor(Date.now() / 1000) + DEADLINE_DAYS * 24 * 60 * 60;
+      const currentBlock = await ethers.provider.getBlock("latest");
+      const deadline = currentBlock.timestamp + DEADLINE_DAYS * 24 * 60 * 60;
       await fundingVault.registerProposal(MODEL_ID, tokenAddress, deadline);
 
       // Verify consistency across all contracts
@@ -174,9 +208,9 @@ describe("Proposal Registration Integration", function () {
       expect(await modelRegistry.isStringRegistered(MODEL_ID)).to.be.true;
       expect(await modelRegistry.getStringToken(MODEL_ID)).to.equal(tokenAddress);
 
-      expect(await fundingVault.isRegistered(MODEL_ID)).to.be.true;
-      const proposal = await fundingVault.getProposal(MODEL_ID);
+      const proposal = await fundingVault.proposals(MODEL_ID);
       expect(proposal.tokenAddress).to.equal(tokenAddress);
+      expect(proposal.tokenAddress).to.not.equal(ethers.ZeroAddress); // Registered check
 
       // All three should agree on the token address
       const tmToken = await tokenManager.getTokenAddress(MODEL_ID);
@@ -277,18 +311,19 @@ describe("Proposal Registration Integration", function () {
       await modelRegistry.registerStringModel(model2, token2Address, PERFORMANCE_METRIC);
 
       // Register both in FundingVault with different deadlines
-      const deadline1 = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
-      const deadline2 = Math.floor(Date.now() / 1000) + 60 * 24 * 60 * 60;
+      const currentBlock = await ethers.provider.getBlock("latest");
+      const deadline1 = currentBlock.timestamp + 90 * 24 * 60 * 60;
+      const deadline2 = currentBlock.timestamp + 60 * 24 * 60 * 60;
 
       await fundingVault.registerProposal(model1, token1Address, deadline1);
       await fundingVault.registerProposal(model2, token2Address, deadline2);
 
       // Verify both are properly registered
-      expect(await fundingVault.isRegistered(model1)).to.be.true;
-      expect(await fundingVault.isRegistered(model2)).to.be.true;
+      const proposal1 = await fundingVault.proposals(model1);
+      const proposal2 = await fundingVault.proposals(model2);
 
-      const proposal1 = await fundingVault.getProposal(model1);
-      const proposal2 = await fundingVault.getProposal(model2);
+      expect(proposal1.tokenAddress).to.not.equal(ethers.ZeroAddress);
+      expect(proposal2.tokenAddress).to.not.equal(ethers.ZeroAddress);
 
       expect(proposal1.tokenAddress).to.equal(token1Address);
       expect(proposal2.tokenAddress).to.equal(token2Address);
@@ -361,15 +396,15 @@ describe("Proposal Registration Integration", function () {
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       await modelRegistry.registerStringModel(MODEL_ID, tokenAddress, PERFORMANCE_METRIC);
 
-      const deadline = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
+const currentBlock = await ethers.provider.getBlock("latest");
+      const deadline = currentBlock.timestamp + 90 * 24 * 60 * 60;
       await fundingVault.registerProposal(MODEL_ID, tokenAddress, deadline);
 
-      const proposal = await fundingVault.getProposal(MODEL_ID);
-      const expectedDeadlineRange = 90 * 24 * 60 * 60;
-      const actualDeadlineRange = Number(proposal.deadline) - Math.floor(Date.now() / 1000);
+      const proposal = await fundingVault.proposals(MODEL_ID);
+      const expectedDeadline = currentBlock.timestamp + 90 * 24 * 60 * 60;
 
-      // Allow 1 minute tolerance for test execution time
-      expect(actualDeadlineRange).to.be.closeTo(expectedDeadlineRange, 60);
+      // Verify deadline is correctly set
+      expect(proposal.deadline).to.equal(expectedDeadline);
     });
   });
 });

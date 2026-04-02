@@ -32,6 +32,8 @@ const DEFAULTS = {
 
 /**
  * Register a proposal: deploy token, register in ModelRegistry, register in FundingVault
+ *
+ * Note: The caller must have DEFAULT_ADMIN_ROLE on the FundingVault contract to register proposals.
  */
 async function registerProposal(
   config: ProposalConfig,
@@ -53,6 +55,13 @@ async function registerProposal(
   const tokenManager = await ethers.getContractAt("TokenManager", tokenManagerAddress);
   const modelRegistry = await ethers.getContractAt("ModelRegistry", modelRegistryAddress);
   const fundingVault = await ethers.getContractAt("FundingVault", fundingVaultAddress);
+
+  // Verify caller has DEFAULT_ADMIN_ROLE on FundingVault
+  const DEFAULT_ADMIN_ROLE = await fundingVault.DEFAULT_ADMIN_ROLE();
+  const hasRole = await fundingVault.hasRole(DEFAULT_ADMIN_ROLE, signer.address);
+  if (!hasRole) {
+    throw new Error(`Deployer ${signer.address} does not have DEFAULT_ADMIN_ROLE on FundingVault`);
+  }
 
   // Prepare parameters with defaults
   const tokensPerDeltaOne = config.tokensPerDeltaOne || DEFAULTS.tokensPerDeltaOne;

@@ -1,154 +1,408 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
+import "./HokusaiAMMFactory.sol";
+import "./TokenManager.sol";
 
 /**
  * @title FundingVault
- * @dev Manages proposal funding and token vesting for model proposals
- * This contract tracks proposals with deadlines and enables investors to commit funds
- * before the proposal graduates to an AMM pool.
+ * @dev Holds USDC commitments from investors backing proposals without live AMM pools
+ *
+ * This contract implements the "Token at Proposal + Gated Pool Launch" pattern:
+ * - HokusaiToken is deployed at proposal creation
+ * - AMM pool is only created once the model meets quality criteria
+ * - Investors can commit USDC before pool launch
+ * - After graduation, investors claim tokens proportionally
+ *
+ * Key Features:
+ * - Accepts USDC deposits for pre-launch proposals
+ * - Allows withdrawals before graduation
+ * - One-way graduation creates AMM pool
+ * - Batch claim pattern for gas efficiency
+ * - Access control via GRADUATOR_ROLE
  */
-contract FundingVault is Ownable {
+contract FundingVault is AccessControlBase, ReentrancyGuard {
+    // ============================================================
+    // STATE VARIABLES
+    // ============================================================
+
+    IERC20 public immutable usdc;
+    HokusaiAMMFactory public immutable ammFactory;
+    TokenManager public immutable tokenManager;
+
+    bytes32 public constant GRADUATOR_ROLE = keccak256("GRADUATOR_ROLE");
+
+    // Proposal state
     struct Proposal {
         address tokenAddress;
         uint256 deadline;
-        bool registered;
+        uint256 totalCommitted;
         bool graduated;
-        uint256 totalDeposits;
+        address poolAddress;
+        uint256 totalTokens; // Total tokens received from pool during graduation
     }
 
     // modelId => Proposal
     mapping(string => Proposal) public proposals;
 
-    // modelId => investor => amount deposited
-    mapping(string => mapping(address => uint256)) public deposits;
+    // modelId => user => commitment amount
+    mapping(string => mapping(address => uint256)) public commitments;
+
+    // modelId => user => claimed
+    mapping(string => mapping(address => bool)) public claimed;
+
+    // ============================================================
+    // EVENTS
+    // ============================================================
 
     event ProposalRegistered(
         string indexed modelId,
         address indexed tokenAddress,
         uint256 deadline
     );
-    event DepositMade(
+
+    event Deposited(
         string indexed modelId,
-        address indexed investor,
+        address indexed user,
+        uint256 amount,
+        uint256 newTotal
+    );
+
+    event Withdrawn(
+        string indexed modelId,
+        address indexed user,
         uint256 amount
     );
-    event ProposalGraduated(string indexed modelId);
 
-    constructor() Ownable() {}
+    event Graduated(
+        string indexed modelId,
+        address indexed poolAddress,
+        uint256 totalReserve
+    );
+
+    event Claimed(
+        string indexed modelId,
+        address indexed user,
+        uint256 tokenAmount
+    );
+
+    // ============================================================
+    // CONSTRUCTOR
+    // ============================================================
 
     /**
-     * @dev Registers a new proposal with its token and funding deadline
-     * @param modelId The unique identifier for the model
-     * @param tokenAddress The address of the deployed token
-     * @param deadline The Unix timestamp when funding period ends
+     * @dev Initialize FundingVault with core dependencies
+     * @param _usdc USDC token address
+     * @param _ammFactory HokusaiAMMFactory address
+     * @param _tokenManager TokenManager address
+     * @param _admin Admin address for access control
+     */
+    constructor(
+        address _usdc,
+        address _ammFactory,
+        address _tokenManager,
+        address _admin
+    ) AccessControlBase(_admin) {
+        ValidationLib.requireNonZeroAddress(_usdc, "USDC");
+        ValidationLib.requireNonZeroAddress(_ammFactory, "AMM factory");
+        ValidationLib.requireNonZeroAddress(_tokenManager, "token manager");
+
+        usdc = IERC20(_usdc);
+        ammFactory = HokusaiAMMFactory(_ammFactory);
+        tokenManager = TokenManager(_tokenManager);
+
+        // Grant GRADUATOR_ROLE to admin initially
+        _grantRole(GRADUATOR_ROLE, _admin);
+    }
+
+    // ============================================================
+    // PROPOSAL MANAGEMENT
+    // ============================================================
+
+    /**
+     * @dev Register a new proposal in the vault
+     * @param modelId String model identifier
+     * @param tokenAddr HokusaiToken address for this model
+     * @param deadline Timestamp after which proposal expires (refunds enabled)
+     *
+     * Requirements:
+     * - Caller must have DEFAULT_ADMIN_ROLE
+     * - Model must not already be registered
+     * - Token address must be valid
+     * - Deadline must be in the future
      */
     function registerProposal(
         string memory modelId,
-        address tokenAddress,
+        address tokenAddr,
         uint256 deadline
-    ) external onlyOwner {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
-        ValidationLib.requireNonZeroAddress(tokenAddress, "token address");
-        require(deadline > block.timestamp, "Deadline must be in the future");
-        require(!proposals[modelId].registered, "Proposal already registered");
+        ValidationLib.requireNonZeroAddress(tokenAddr, "token address");
+        require(deadline > block.timestamp, "Deadline must be in future");
+        require(proposals[modelId].tokenAddress == address(0), "Proposal already registered");
 
         proposals[modelId] = Proposal({
-            tokenAddress: tokenAddress,
+            tokenAddress: tokenAddr,
             deadline: deadline,
-            registered: true,
+            totalCommitted: 0,
             graduated: false,
-            totalDeposits: 0
+            poolAddress: address(0),
+            totalTokens: 0
         });
 
-        emit ProposalRegistered(modelId, tokenAddress, deadline);
+        emit ProposalRegistered(modelId, tokenAddr, deadline);
     }
 
+    // ============================================================
+    // INVESTOR OPERATIONS
+    // ============================================================
+
     /**
-     * @dev Allows investors to deposit funds for a proposal
-     * @param modelId The model identifier
-     * @param amount The amount to deposit (in USDC or other stablecoin)
+     * @dev Deposit USDC to commit to a proposal
+     * @param modelId String model identifier
+     * @param amount USDC amount to deposit (6 decimals)
+     *
+     * Requirements:
+     * - Proposal must be registered
+     * - Not graduated
+     * - Not past deadline
+     * - Amount must be positive
+     * - User must have approved USDC transfer
      */
-    function deposit(string memory modelId, uint256 amount) external {
+    function deposit(string memory modelId, uint256 amount)
+        external
+        nonReentrant
+    {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requirePositiveAmount(amount, "deposit amount");
 
         Proposal storage proposal = proposals[modelId];
-        require(proposal.registered, "Proposal not registered");
-        require(block.timestamp < proposal.deadline, "Funding period ended");
-        require(!proposal.graduated, "Proposal already graduated");
+        require(proposal.tokenAddress != address(0), "Proposal not registered");
+        require(!proposal.graduated, "Already graduated");
+        require(block.timestamp <= proposal.deadline, "Deadline passed");
 
-        // Note: In full implementation, this would transfer stablecoin from investor
-        // For now, just track the commitment
-        deposits[modelId][msg.sender] += amount;
-        proposal.totalDeposits += amount;
+        // Transfer USDC from caller to vault
+        require(
+            usdc.transferFrom(msg.sender, address(this), amount),
+            "USDC transfer failed"
+        );
 
-        emit DepositMade(modelId, msg.sender, amount);
+        // Update state
+        commitments[modelId][msg.sender] += amount;
+        proposal.totalCommitted += amount;
+
+        emit Deposited(modelId, msg.sender, amount, proposal.totalCommitted);
     }
 
     /**
-     * @dev Marks a proposal as graduated (AMM pool created)
-     * @param modelId The model identifier
+     * @dev Withdraw USDC commitment before graduation
+     * @param modelId String model identifier
+     *
+     * Requirements:
+     * - Proposal must be registered
+     * - Not graduated (or past deadline with no graduation)
+     * - User has non-zero commitment
      */
-    function markGraduated(string memory modelId) external onlyOwner {
+    function withdraw(string memory modelId) external nonReentrant {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
 
         Proposal storage proposal = proposals[modelId];
-        require(proposal.registered, "Proposal not registered");
+        require(proposal.tokenAddress != address(0), "Proposal not registered");
         require(!proposal.graduated, "Already graduated");
 
-        proposal.graduated = true;
-        emit ProposalGraduated(modelId);
+        uint256 userCommitment = commitments[modelId][msg.sender];
+        ValidationLib.requirePositiveAmount(userCommitment, "commitment");
+
+        // Zero out commitment before transfer (CEI pattern)
+        commitments[modelId][msg.sender] = 0;
+        proposal.totalCommitted -= userCommitment;
+
+        // Transfer USDC back to user
+        require(
+            usdc.transfer(msg.sender, userCommitment),
+            "USDC transfer failed"
+        );
+
+        emit Withdrawn(modelId, msg.sender, userCommitment);
     }
 
+    // ============================================================
+    // GRADUATION
+    // ============================================================
+
     /**
-     * @dev Gets proposal information
-     * @param modelId The model identifier
-     * @return Proposal struct with all details
+     * @dev Graduate a proposal to AMM pool
+     * @param modelId String model identifier
+     *
+     * This function:
+     * 1. Creates AMM pool via HokusaiAMMFactory
+     * 2. Transfers totalCommitted USDC to the pool (via initial buy)
+     * 3. Sets graduated = true (one-way flag)
+     * 4. Stores pool address
+     *
+     * Requirements:
+     * - Caller must have GRADUATOR_ROLE
+     * - Proposal must be registered
+     * - Not already graduated
+     * - Has committed funds
+     */
+    function graduate(string memory modelId)
+        external
+        onlyRole(GRADUATOR_ROLE)
+        nonReentrant
+    {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+
+        Proposal storage proposal = proposals[modelId];
+        require(proposal.tokenAddress != address(0), "Proposal not registered");
+        require(!proposal.graduated, "Already graduated");
+        ValidationLib.requirePositiveAmount(proposal.totalCommitted, "total committed");
+
+        // Create AMM pool via factory
+        address poolAddress = ammFactory.createPool(
+            modelId,
+            proposal.tokenAddress
+        );
+
+        // Authorize pool to mint tokens (grant MINTER_ROLE)
+        bytes32 MINTER_ROLE = tokenManager.MINTER_ROLE();
+        tokenManager.grantRole(MINTER_ROLE, poolAddress);
+
+        // Approve pool to spend USDC
+        require(
+            usdc.approve(poolAddress, proposal.totalCommitted),
+            "USDC approval failed"
+        );
+
+        // Check vault's token balance before buy
+        IERC20 token = IERC20(proposal.tokenAddress);
+        uint256 balanceBefore = token.balanceOf(address(this));
+
+        // Make initial buy to seed pool with committed funds
+        // The pool will handle the buy and mint tokens to this contract
+        // Those tokens will be distributed via claim()
+        HokusaiAMM pool = HokusaiAMM(poolAddress);
+        pool.buy(
+            proposal.totalCommitted,
+            1, // minTokensOut = 1 (we accept any price for seeding)
+            address(this), // tokens go to this vault
+            block.timestamp + 300 // 5 minute deadline
+        );
+
+        // Calculate tokens received
+        uint256 balanceAfter = token.balanceOf(address(this));
+        uint256 tokensReceived = balanceAfter - balanceBefore;
+
+        // Update state
+        proposal.graduated = true;
+        proposal.poolAddress = poolAddress;
+        proposal.totalTokens = tokensReceived;
+
+        emit Graduated(modelId, poolAddress, proposal.totalCommitted);
+    }
+
+    // ============================================================
+    // TOKEN CLAIMING
+    // ============================================================
+
+    /**
+     * @dev Claim tokens after graduation
+     * @param modelId String model identifier
+     *
+     * Batch claim pattern: Each depositor calls individually rather than
+     * distributing to all in the graduation tx (avoids gas limits).
+     *
+     * Token amount = (userCommitment / totalCommitted) * tokens held by vault
+     *
+     * Requirements:
+     * - Proposal must be graduated
+     * - User has non-zero commitment
+     * - User has not already claimed
+     */
+    function claim(string memory modelId) external nonReentrant {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+
+        Proposal storage proposal = proposals[modelId];
+        require(proposal.graduated, "Not graduated yet");
+        require(!claimed[modelId][msg.sender], "Already claimed");
+
+        uint256 userCommitment = commitments[modelId][msg.sender];
+        ValidationLib.requirePositiveAmount(userCommitment, "commitment");
+
+        // Mark as claimed before transfer (CEI pattern)
+        claimed[modelId][msg.sender] = true;
+
+        // Calculate proportional share of tokens
+        // The vault received tokens from the pool during graduation
+        // Users claim their proportional share based on their commitment
+        uint256 tokenAmount = (userCommitment * proposal.totalTokens) / proposal.totalCommitted;
+
+        IERC20 token = IERC20(proposal.tokenAddress);
+
+        // Transfer tokens to user
+        require(token.transfer(msg.sender, tokenAmount), "Token transfer failed");
+
+        emit Claimed(modelId, msg.sender, tokenAmount);
+    }
+
+    // ============================================================
+    // VIEW FUNCTIONS
+    // ============================================================
+
+    /**
+     * @dev Get proposal details
+     * @param modelId String model identifier
      */
     function getProposal(string memory modelId)
         external
         view
-        returns (Proposal memory)
+        returns (
+            address tokenAddress,
+            uint256 deadline,
+            uint256 totalCommitted,
+            bool graduated,
+            address poolAddress,
+            uint256 totalTokens
+        )
     {
-        return proposals[modelId];
+        Proposal memory proposal = proposals[modelId];
+        return (
+            proposal.tokenAddress,
+            proposal.deadline,
+            proposal.totalCommitted,
+            proposal.graduated,
+            proposal.poolAddress,
+            proposal.totalTokens
+        );
     }
 
     /**
-     * @dev Gets deposit amount for an investor
-     * @param modelId The model identifier
-     * @param investor The investor address
-     * @return The amount deposited
+     * @dev Get user commitment for a proposal
+     * @param modelId String model identifier
+     * @param user User address
      */
-    function getDeposit(string memory modelId, address investor)
+    function getCommitment(string memory modelId, address user)
         external
         view
         returns (uint256)
     {
-        return deposits[modelId][investor];
+        return commitments[modelId][user];
     }
 
     /**
-     * @dev Checks if a proposal is registered
-     * @param modelId The model identifier
-     * @return True if registered
+     * @dev Check if user has claimed tokens
+     * @param modelId String model identifier
+     * @param user User address
      */
-    function isRegistered(string memory modelId) external view returns (bool) {
-        return proposals[modelId].registered;
-    }
-
-    /**
-     * @dev Checks if funding period is active
-     * @param modelId The model identifier
-     * @return True if still accepting deposits
-     */
-    function isFundingActive(string memory modelId) external view returns (bool) {
-        Proposal memory proposal = proposals[modelId];
-        return proposal.registered &&
-               !proposal.graduated &&
-               block.timestamp < proposal.deadline;
+    function hasClaimed(string memory modelId, address user)
+        external
+        view
+        returns (bool)
+    {
+        return claimed[modelId][user];
     }
 }

@@ -59,6 +59,13 @@ contract TokenManager is Ownable, AccessControlBase {
     event BatchMinted(string indexed modelId, address[] recipients, uint256[] amounts, uint256 totalAmount);
     event ContributorSkipped(address indexed contributor, uint256 index);
     event DeploymentFeeUpdated(uint256 newFee);
+    event AllocationDistributed(
+        string indexed modelId,
+        address indexed modelSupplierRecipient,
+        uint256 modelSupplierAllocation,
+        address indexed investorRecipient,
+        uint256 investorAllocation
+    );
 
 
     constructor(address registryAddress)
@@ -166,6 +173,58 @@ contract TokenManager is Ownable, AccessControlBase {
 
         emit ParamsDeployed(modelId, paramsAddress, msg.sender, initialParams.tokensPerDeltaOne, initialParams.infrastructureAccrualBps);
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
+
+        return tokenAddress;
+    }
+
+    /**
+     * @dev Deploy a new token for a model with allocation split - USER PAYS GAS
+     * @param modelId The model identifier (string)
+     * @param name Token name
+     * @param symbol Token symbol
+     * @param modelSupplierAllocation Tokens allocated to model supplier
+     * @param modelSupplierRecipient Address to receive model supplier allocation
+     * @param investorAllocation Tokens allocated to investors
+     * @param investorRecipient Address to receive investor allocation
+     * @param initialParams Initial parameter values for the token
+     * @return tokenAddress The deployed token address
+     */
+    function deployTokenWithAllocations(
+        string memory modelId,
+        string memory name,
+        string memory symbol,
+        uint256 modelSupplierAllocation,
+        address modelSupplierRecipient,
+        uint256 investorAllocation,
+        address investorRecipient,
+        InitialParams memory initialParams
+    ) public payable returns (address tokenAddress) {
+        // Validate allocation inputs
+        ValidationLib.requirePositiveAmount(modelSupplierAllocation, "model supplier allocation");
+        ValidationLib.requireNonZeroAddress(modelSupplierRecipient, "model supplier recipient");
+        ValidationLib.requirePositiveAmount(investorAllocation, "investor allocation");
+        ValidationLib.requireNonZeroAddress(investorRecipient, "investor recipient");
+
+        // Calculate total supply from allocations
+        uint256 totalSupply = modelSupplierAllocation + investorAllocation;
+
+        // Deploy token using existing function (mints totalSupply to this contract)
+        tokenAddress = deployTokenWithParams(modelId, name, symbol, totalSupply, initialParams);
+
+        // Get the deployed token
+        HokusaiToken token = HokusaiToken(tokenAddress);
+
+        // Distribute allocations
+        token.transfer(modelSupplierRecipient, modelSupplierAllocation);
+        token.transfer(investorRecipient, investorAllocation);
+
+        emit AllocationDistributed(
+            modelId,
+            modelSupplierRecipient,
+            modelSupplierAllocation,
+            investorRecipient,
+            investorAllocation
+        );
 
         return tokenAddress;
     }

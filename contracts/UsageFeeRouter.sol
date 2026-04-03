@@ -10,6 +10,7 @@ import "./HokusaiAMMFactory.sol";
 import "./InfrastructureReserve.sol";
 import "./TokenManager.sol";
 import "./interfaces/IHokusaiParams.sol";
+import "./interfaces/IInfrastructureCostOracle.sol";
 
 /**
  * @title UsageFeeRouter
@@ -17,12 +18,15 @@ import "./interfaces/IHokusaiParams.sol";
  *
  * Responsibilities:
  * - Receive API usage fees from backend services
- * - Read per-model infrastructure accrual rates from HokusaiParams
- * - Split fees: infrastructure accrual → InfrastructureReserve, profit → AMM
+ * - Use cost-plus splitting: infrastructure gets estimated cost, profit is residual
+ * - Query InfrastructureCostOracle for per-model cost estimates
+ * - Fallback to percentage-based splitting when oracle has no cost configured
+ * - Split fees: infrastructure cost → InfrastructureReserve, profit → AMM
  * - Support batch deposits for gas efficiency
  * - Emit events for tracking and analytics
  *
- * Key Design: Infrastructure is an obligation (paid first), profit is residual
+ * Key Design: Infrastructure is an obligation (paid first based on actual costs),
+ *             profit is residual. True cost-plus pricing for token holders.
  */
 contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
     // ============================================================
@@ -34,10 +38,14 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
     HokusaiAMMFactory public immutable factory;
     IERC20 public immutable reserveToken; // USDC
     InfrastructureReserve public immutable infraReserve;
+    IInfrastructureCostOracle public immutable costOracle;
 
     // Statistics
     uint256 public totalFeesDeposited;
     mapping(string => uint256) public modelFees; // modelId => total fees deposited
+
+    // Cost basis enum for event tracking
+    enum CostBasis { ORACLE, PERCENTAGE_FALLBACK }
 
     // ============================================================
     // EVENTS
@@ -60,28 +68,41 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         address indexed depositor
     );
 
+    event FeeSplitCalculated(
+        string indexed modelId,
+        uint256 totalFee,
+        uint256 infraShare,
+        uint256 profitShare,
+        uint256 callCount,
+        CostBasis costBasis
+    );
+
     // ============================================================
     // CONSTRUCTOR
     // ============================================================
 
     /**
-     * @dev Initialize router with factory and infrastructure reserve
+     * @dev Initialize router with factory, infrastructure reserve, and cost oracle
      * @param _factory HokusaiAMMFactory address
      * @param _reserveToken Reserve token address (USDC)
      * @param _infraReserve InfrastructureReserve address
+     * @param _costOracle InfrastructureCostOracle address
      */
     constructor(
         address _factory,
         address _reserveToken,
-        address _infraReserve
+        address _infraReserve,
+        address _costOracle
     ) AccessControlBase(msg.sender) {
         ValidationLib.requireNonZeroAddress(_factory, "factory");
         ValidationLib.requireNonZeroAddress(_reserveToken, "reserve token");
         ValidationLib.requireNonZeroAddress(_infraReserve, "infrastructure reserve");
+        ValidationLib.requireNonZeroAddress(_costOracle, "cost oracle");
 
         factory = HokusaiAMMFactory(_factory);
         reserveToken = IERC20(_reserveToken);
         infraReserve = InfrastructureReserve(_infraReserve);
+        costOracle = IInfrastructureCostOracle(_costOracle);
 
         _grantRole(FEE_DEPOSITOR_ROLE, msg.sender);
     }
@@ -94,8 +115,9 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
      * @dev Deposit API usage fee for a single model
      * @param modelId String model identifier
      * @param amount Amount of USDC to deposit
+     * @param callCount Number of API calls made (for cost calculation)
      */
-    function depositFee(string memory modelId, uint256 amount)
+    function depositFee(string memory modelId, uint256 amount, uint256 callCount)
         external
         nonReentrant
         onlyRole(FEE_DEPOSITOR_ROLE)
@@ -107,21 +129,9 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         address poolAddress = factory.getPool(modelId);
         ValidationLib.requireNonZeroAddress(poolAddress, "pool address");
 
-        // Get HokusaiAMM and TokenManager
-        HokusaiAMM pool = HokusaiAMM(poolAddress);
-        TokenManager tokenManager = pool.tokenManager();
-
-        // Get HokusaiParams address for this model
-        address paramsAddress = tokenManager.getParamsAddress(modelId);
-        require(paramsAddress != address(0), "Params not found");
-
-        // Read infrastructure accrual rate from params
-        IHokusaiParams params = IHokusaiParams(paramsAddress);
-        uint16 infraBps = params.infrastructureAccrualBps();
-
-        // Calculate split: infrastructure first, profit is residual
-        uint256 infrastructureAmount = (amount * infraBps) / 10000;
-        uint256 profitAmount = amount - infrastructureAmount;
+        // Calculate infrastructure and profit split using cost-plus logic
+        (uint256 infrastructureAmount, uint256 profitAmount, CostBasis costBasis) =
+            _calculateFeeSplit(modelId, amount, callCount);
 
         // Transfer total USDC from depositor to this contract
         require(
@@ -137,6 +147,7 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
 
         // Route profit to AMM (increases reserve, benefits token holders)
         if (profitAmount > 0) {
+            HokusaiAMM pool = HokusaiAMM(poolAddress);
             reserveToken.approve(poolAddress, profitAmount);
             pool.depositFees(profitAmount);
         }
@@ -144,6 +155,15 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         // Update statistics
         totalFeesDeposited += amount;
         modelFees[modelId] += amount;
+
+        emit FeeSplitCalculated(
+            modelId,
+            amount,
+            infrastructureAmount,
+            profitAmount,
+            callCount,
+            costBasis
+        );
 
         emit FeeDeposited(
             modelId,
@@ -159,12 +179,15 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
      * @dev Deposit fees for multiple models in a single transaction
      * @param modelIds Array of model identifiers
      * @param amounts Array of amounts (must match modelIds length)
+     * @param callCounts Array of call counts (must match modelIds length)
      */
     function batchDepositFees(
         string[] memory modelIds,
-        uint256[] memory amounts
+        uint256[] memory amounts,
+        uint256[] memory callCounts
     ) external nonReentrant onlyRole(FEE_DEPOSITOR_ROLE) {
         ValidationLib.requireMatchingArrayLengths(modelIds.length, amounts.length);
+        ValidationLib.requireMatchingArrayLengths(modelIds.length, callCounts.length);
         ValidationLib.requireNonEmptyArray(modelIds.length);
 
         uint256 totalAmount = 0;
@@ -192,21 +215,13 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         for (uint256 i = 0; i < modelIds.length; i++) {
             string memory modelId = modelIds[i];
             uint256 amount = amounts[i];
+            uint256 callCount = callCounts[i];
 
             address poolAddress = factory.getPool(modelId);
-            HokusaiAMM pool = HokusaiAMM(poolAddress);
 
-            // Get infrastructure accrual rate from params
-            TokenManager tokenManager = pool.tokenManager();
-            address paramsAddress = tokenManager.getParamsAddress(modelId);
-            require(paramsAddress != address(0), "Params not found");
-
-            IHokusaiParams params = IHokusaiParams(paramsAddress);
-            uint16 infraBps = params.infrastructureAccrualBps();
-
-            // Calculate split
-            uint256 infrastructureAmount = (amount * infraBps) / 10000;
-            uint256 profitAmount = amount - infrastructureAmount;
+            // Calculate split using cost-plus logic
+            (uint256 infrastructureAmount, uint256 profitAmount, CostBasis costBasis) =
+                _calculateFeeSplit(modelId, amount, callCount);
 
             // Accumulate for batch operations
             infraModelIds[i] = modelId;
@@ -216,12 +231,22 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
 
             // Deposit profit to AMM immediately (can't batch this)
             if (profitAmount > 0) {
+                HokusaiAMM pool = HokusaiAMM(poolAddress);
                 reserveToken.approve(poolAddress, profitAmount);
                 pool.depositFees(profitAmount);
             }
 
             // Update statistics
             modelFees[modelId] += amount;
+
+            emit FeeSplitCalculated(
+                modelId,
+                amount,
+                infrastructureAmount,
+                profitAmount,
+                callCount,
+                costBasis
+            );
 
             emit FeeDeposited(
                 modelId,
@@ -251,34 +276,88 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
     }
 
     // ============================================================
+    // INTERNAL FUNCTIONS
+    // ============================================================
+
+    /**
+     * @dev Internal function to calculate fee split using cost-plus logic
+     * @param modelId String model identifier
+     * @param amount Total fee amount
+     * @param callCount Number of API calls
+     * @return infrastructureAmount Amount going to infrastructure reserve
+     * @return profitAmount Amount going to AMM profit
+     * @return costBasis Whether oracle or percentage fallback was used
+     */
+    function _calculateFeeSplit(
+        string memory modelId,
+        uint256 amount,
+        uint256 callCount
+    )
+        internal
+        view
+        returns (
+            uint256 infrastructureAmount,
+            uint256 profitAmount,
+            CostBasis costBasis
+        )
+    {
+        // Try to get oracle cost
+        uint256 costPer1000Calls = costOracle.getEstimatedCost(modelId);
+
+        if (costPer1000Calls > 0) {
+            // Oracle has cost configured - use cost-plus splitting
+            // estimatedCost = (costPer1000Calls * callCount) / 1000
+            uint256 estimatedCost = (costPer1000Calls * callCount) / 1000;
+
+            // Infrastructure gets estimated cost, capped at total fee
+            infrastructureAmount = estimatedCost > amount ? amount : estimatedCost;
+            profitAmount = amount - infrastructureAmount;
+            costBasis = CostBasis.ORACLE;
+        } else {
+            // No oracle cost - fallback to percentage-based splitting
+            address poolAddress = factory.getPool(modelId);
+            HokusaiAMM pool = HokusaiAMM(poolAddress);
+            TokenManager tokenManager = pool.tokenManager();
+            address paramsAddress = tokenManager.getParamsAddress(modelId);
+            require(paramsAddress != address(0), "Params not found");
+
+            IHokusaiParams params = IHokusaiParams(paramsAddress);
+            uint16 infraBps = params.infrastructureAccrualBps();
+
+            infrastructureAmount = (amount * infraBps) / 10000;
+            profitAmount = amount - infrastructureAmount;
+            costBasis = CostBasis.PERCENTAGE_FALLBACK;
+        }
+    }
+
+    // ============================================================
     // VIEW FUNCTIONS
     // ============================================================
 
     /**
-     * @dev Calculate fee split for a given model and amount
+     * @dev Calculate fee split for a given model, amount, and call count
      * @param modelId String model identifier
      * @param amount Total fee amount
+     * @param callCount Number of API calls
      * @return infrastructureAmount Amount going to infrastructure reserve
      * @return profitAmount Amount going to AMM profit
+     * @return costBasis Whether oracle or percentage fallback was used
      */
-    function calculateFeeSplit(string memory modelId, uint256 amount)
+    function calculateFeeSplit(
+        string memory modelId,
+        uint256 amount,
+        uint256 callCount
+    )
         external
         view
-        returns (uint256 infrastructureAmount, uint256 profitAmount)
+        returns (
+            uint256 infrastructureAmount,
+            uint256 profitAmount,
+            CostBasis costBasis
+        )
     {
-        address poolAddress = factory.getPool(modelId);
-        require(poolAddress != address(0), "Pool not found");
-
-        HokusaiAMM pool = HokusaiAMM(poolAddress);
-        TokenManager tokenManager = pool.tokenManager();
-        address paramsAddress = tokenManager.getParamsAddress(modelId);
-        require(paramsAddress != address(0), "Params not found");
-
-        IHokusaiParams params = IHokusaiParams(paramsAddress);
-        uint16 infraBps = params.infrastructureAccrualBps();
-
-        infrastructureAmount = (amount * infraBps) / 10000;
-        profitAmount = amount - infrastructureAmount;
+        require(factory.getPool(modelId) != address(0), "Pool not found");
+        return _calculateFeeSplit(modelId, amount, callCount);
     }
 
     /**

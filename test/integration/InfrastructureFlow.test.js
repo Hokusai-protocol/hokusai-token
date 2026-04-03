@@ -8,6 +8,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
   let factory;
   let infraReserve;
   let feeRouter;
+  let costOracle;
   let mockUSDC;
   let pool1, pool2;
   let token1, token2;
@@ -52,12 +53,18 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
     );
     await infraReserve.waitForDeployment();
 
+    // Deploy InfrastructureCostOracle
+    const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
+    costOracle = await InfrastructureCostOracle.deploy(owner.address);
+    await costOracle.waitForDeployment();
+
     // Deploy UsageFeeRouter
     const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
     feeRouter = await UsageFeeRouter.deploy(
       await factory.getAddress(),
       await mockUSDC.getAddress(),
-      await infraReserve.getAddress()
+      await infraReserve.getAddress(),
+      await costOracle.getAddress()
     );
     await feeRouter.waitForDeployment();
 
@@ -131,7 +138,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
       const poolReserveBefore = await pool1.reserveBalance();
 
       // Deposit API revenue
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, apiRevenue);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, apiRevenue, 1000);
 
       // Verify infrastructure reserve received 80%
       const infraBalanceAfter = await infraReserve.accrued(MODEL_ID_1);
@@ -151,12 +158,12 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
     it("Should increase token price after profit flows to AMM", async function () {
       // Get initial spot price (after crossing flat curve threshold)
       const largeRevenue = parseUnits("150000", 6); // $150k to cross threshold
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, largeRevenue);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, largeRevenue, 1000);
 
       const spotPriceBefore = await pool1.spotPrice();
 
       // Additional revenue should increase price
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("10000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("10000", 6), 1000);
 
       const spotPriceAfter = await pool1.spotPrice();
       expect(spotPriceAfter).to.be.gt(spotPriceBefore);
@@ -164,9 +171,9 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
     it("Should track cumulative revenue correctly", async function () {
       // Multiple API fee deposits
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("100", 6));
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("250", 6));
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("150", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("100", 6), 1000);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("250", 6), 1000);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("150", 6), 1000);
 
       // Total: $500
       const totalFees = await feeRouter.getModelFees(MODEL_ID_1);
@@ -183,7 +190,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
       const apiRevenue = parseUnits("1000", 6);
       const poolReserveBefore = await pool1.reserveBalance();
 
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, apiRevenue);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, apiRevenue, 1000);
 
       // All revenue to infrastructure
       expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(apiRevenue);
@@ -201,7 +208,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
   describe("Infrastructure Payment Flow", function () {
     it("Should complete full payment cycle with invoice tracking", async function () {
       // Step 1: Accrue $500 from API fees
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("625", 6)); // $500 infra
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("625", 6), 1000); // $500 infra
       expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("500", 6));
 
       // Step 2: Pay $300 to provider
@@ -228,7 +235,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
     it("Should handle multiple payments to same provider", async function () {
       // Accrue $1000
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1250", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1250", 6), 1000);
 
       // Pay $400 in first invoice
       await infraReserve.connect(payer).payInfrastructureCost(
@@ -260,7 +267,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
     it("Should prevent payment exceeding accrued balance", async function () {
       // Accrue only $100
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("125", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("125", 6), 1000);
 
       // Attempt to pay $200
       await expect(
@@ -276,8 +283,8 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
     it("Should track payments independently per model", async function () {
       // Accrue for both models
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1250", 6)); // $1000 infra
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("1250", 6)); // $1000 infra
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1250", 6), 1000); // $1000 infra
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("1250", 6), 1000); // $1000 infra
 
       // Pay different amounts to each provider
       await infraReserve.connect(payer).payInfrastructureCost(
@@ -312,14 +319,14 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
   describe("Governance Adjustment Flow", function () {
     it("Should apply split changes dynamically", async function () {
       // Initial deposit with default 80/20
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("100", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("100", 6), 1000);
       expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("80", 6));
 
       // Governance changes to 70/30
       await params1.connect(owner).setInfrastructureAccrualBps(7000);
 
       // New deposit uses 70/30 split
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("100", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("100", 6), 1000);
 
       // Total infrastructure: $80 + $70 = $150
       expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("150", 6));
@@ -331,8 +338,8 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
       await params2.connect(owner).setInfrastructureAccrualBps(9000);
 
       // Deposit same amount to both
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("1000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("1000", 6), 1000);
 
       // Model 1: $800 infrastructure (80%)
       expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("800", 6));
@@ -379,7 +386,8 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
       // Batch deposit
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
-        [parseUnits("1000", 6), parseUnits("1000", 6)]
+        [parseUnits("1000", 6), parseUnits("1000", 6)],
+        [1000, 1000]
       );
 
       // Verify each model got correct split
@@ -398,8 +406,8 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
     it("Should maintain independent balance tracking across models", async function () {
       // Different revenue patterns
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("5000", 6));
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("2000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("5000", 6), 1000);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("2000", 6), 1000);
 
       // Different payment patterns
       await infraReserve.connect(payer).payInfrastructureCost(
@@ -432,7 +440,8 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
       // Batch deposit to both models
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
-        [parseUnits("1000", 6), parseUnits("2000", 6)]
+        [parseUnits("1000", 6), parseUnits("2000", 6)],
+        [1000, 1000]
       );
 
       const reserve1After = await pool1.reserveBalance();
@@ -453,7 +462,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
   describe("Accrual Health Monitoring", function () {
     it("Should calculate runway correctly", async function () {
       // Accrue $1000
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1250", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1250", 6), 1000);
 
       // Pay $700
       await infraReserve.connect(payer).payInfrastructureCost(
@@ -475,7 +484,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
     });
 
     it("Should return max uint256 for zero burn rate", async function () {
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
 
       const runway = await infraReserve.getAccrualRunway(MODEL_ID_1, 0);
 
@@ -485,7 +494,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
     it("Should provide comprehensive model accounting", async function () {
       // Setup: $1000 accrued, $600 paid
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1250", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1250", 6), 1000);
       await infraReserve.connect(payer).payInfrastructureCost(
         MODEL_ID_1,
         provider1.address,
@@ -503,7 +512,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
     it("Should warn when runway is critically low", async function () {
       // Accrue $100
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("125", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("125", 6), 1000);
 
       // High burn rate: $50/day
       const runway = await infraReserve.getAccrualRunway(MODEL_ID_1, parseUnits("50", 6));
@@ -521,13 +530,13 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
   describe("AMM Price Impact from Profit", function () {
     it("Should increase spot price proportionally to profit deposits", async function () {
       // Cross flat curve threshold first
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("150000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("150000", 6), 1000);
 
       const spotPriceBefore = await pool1.spotPrice();
       const reserveBefore = await pool1.reserveBalance();
 
       // Deposit significant profit
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("50000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("50000", 6), 1000);
 
       const spotPriceAfter = await pool1.spotPrice();
       const reserveAfter = await pool1.reserveBalance();
@@ -546,13 +555,13 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
     it("Should demonstrate compound value accrual over time", async function () {
       // Cross threshold
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("150000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("150000", 6), 1000);
 
       const initialPrice = await pool1.spotPrice();
 
       // Simulate 6 months of API revenue: $10k/month * 6 = $60k total
       for (let i = 0; i < 6; i++) {
-        await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("10000", 6));
+        await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("10000", 6), 1000);
       }
 
       const finalPrice = await pool1.spotPrice();
@@ -569,7 +578,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
       // Don't cross threshold - stay in flat price phase
       const spotPriceBefore = await pool1.spotPrice();
 
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
 
       const spotPriceAfter = await pool1.spotPrice();
 
@@ -591,7 +600,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
       // Month 1: Operations
       console.log("\n=== MONTH 1 ===");
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("50000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("50000", 6), 1000);
 
       let infraAccrued = await infraReserve.accrued(MODEL_ID_1);
       console.log(`  Accrued: $${ethers.formatUnits(infraAccrued, 6)}`);
@@ -612,7 +621,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
       // Month 2: Operations
       console.log("\n=== MONTH 2 ===");
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("50000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("50000", 6), 1000);
 
       await infraReserve.connect(payer).payInfrastructureCost(
         MODEL_ID_1,
@@ -628,7 +637,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
       // Month 3: Spike in usage (higher costs)
       console.log("\n=== MONTH 3 (High Usage) ===");
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("50000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("50000", 6), 1000);
 
       // Higher than normal costs this month
       await infraReserve.connect(payer).payInfrastructureCost(

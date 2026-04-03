@@ -8,6 +8,7 @@ describe("UsageFeeRouter", function () {
   let factory;
   let infraReserve;
   let feeRouter;
+  let costOracle;
   let mockUSDC;
   let pool1, pool2;
   let owner, treasury, depositor, payer, user1;
@@ -50,12 +51,18 @@ describe("UsageFeeRouter", function () {
     );
     await infraReserve.waitForDeployment();
 
-    // Deploy UsageFeeRouter (updated - no protocol fee)
+    // Deploy InfrastructureCostOracle
+    const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
+    costOracle = await InfrastructureCostOracle.deploy(owner.address);
+    await costOracle.waitForDeployment();
+
+    // Deploy UsageFeeRouter with cost oracle
     const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
     feeRouter = await UsageFeeRouter.deploy(
       await factory.getAddress(),
       await mockUSDC.getAddress(),
-      await infraReserve.getAddress()
+      await infraReserve.getAddress(),
+      await costOracle.getAddress()
     );
     await feeRouter.waitForDeployment();
 
@@ -109,6 +116,7 @@ describe("UsageFeeRouter", function () {
       expect(await feeRouter.factory()).to.equal(await factory.getAddress());
       expect(await feeRouter.reserveToken()).to.equal(await mockUSDC.getAddress());
       expect(await feeRouter.infraReserve()).to.equal(await infraReserve.getAddress());
+      expect(await feeRouter.costOracle()).to.equal(await costOracle.getAddress());
     });
 
     it("Should grant admin role to deployer", async function () {
@@ -132,7 +140,8 @@ describe("UsageFeeRouter", function () {
         UsageFeeRouter.deploy(
           ZeroAddress,
           await mockUSDC.getAddress(),
-          await infraReserve.getAddress()
+          await infraReserve.getAddress(),
+          await costOracle.getAddress()
         )
       ).to.be.reverted;
     });
@@ -143,7 +152,8 @@ describe("UsageFeeRouter", function () {
         UsageFeeRouter.deploy(
           await factory.getAddress(),
           ZeroAddress,
-          await infraReserve.getAddress()
+          await infraReserve.getAddress(),
+          await costOracle.getAddress()
         )
       ).to.be.reverted;
     });
@@ -154,6 +164,19 @@ describe("UsageFeeRouter", function () {
         UsageFeeRouter.deploy(
           await factory.getAddress(),
           await mockUSDC.getAddress(),
+          ZeroAddress,
+          await costOracle.getAddress()
+        )
+      ).to.be.reverted;
+    });
+
+    it("Should reject zero address for cost oracle", async function () {
+      const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
+      await expect(
+        UsageFeeRouter.deploy(
+          await factory.getAddress(),
+          await mockUSDC.getAddress(),
+          await infraReserve.getAddress(),
           ZeroAddress
         )
       ).to.be.reverted;
@@ -171,7 +194,7 @@ describe("UsageFeeRouter", function () {
       const infraBalanceBefore = await infraReserve.accrued(MODEL_ID_1);
       const poolReserveBefore = await pool1.reserveBalance();
 
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
 
       const infraBalanceAfter = await infraReserve.accrued(MODEL_ID_1);
       const poolReserveAfter = await pool1.reserveBalance();
@@ -187,7 +210,7 @@ describe("UsageFeeRouter", function () {
     it("Should route correct amount to infrastructure reserve", async function () {
       const feeAmount = parseUnits("5000", 6); // $5000
 
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
 
       // 80% to infrastructure
       const expectedInfra = parseUnits("4000", 6);
@@ -198,7 +221,7 @@ describe("UsageFeeRouter", function () {
       const feeAmount = parseUnits("5000", 6); // $5000
 
       const reserveBefore = await pool1.reserveBalance();
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
       const reserveAfter = await pool1.reserveBalance();
 
       // 20% to AMM profit
@@ -209,7 +232,7 @@ describe("UsageFeeRouter", function () {
     it("Should update total statistics correctly", async function () {
       const feeAmount = parseUnits("1000", 6);
 
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
 
       expect(await feeRouter.totalFeesDeposited()).to.equal(feeAmount);
       expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(feeAmount);
@@ -221,7 +244,7 @@ describe("UsageFeeRouter", function () {
       const expectedProfit = feeAmount - expectedInfra; // $200
 
       await expect(
-        feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount)
+        feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000)
       )
         .to.emit(feeRouter, "FeeDeposited")
         .withArgs(
@@ -237,29 +260,29 @@ describe("UsageFeeRouter", function () {
     it("Should increase AMM spot price after profit deposit", async function () {
       // First, cross the flat curve threshold (default $25k)
       // With 80/20 split, need to deposit $125k to get $25k profit to AMM
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("125000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("125000", 6), 1000);
 
       const spotPriceBefore = await pool1.spotPrice();
 
       // Now in bonding curve phase, additional deposits should increase price
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("10000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("10000", 6), 1000);
 
       const spotPriceAfter = await pool1.spotPrice();
       expect(spotPriceAfter).to.be.gt(spotPriceBefore);
     });
 
     it("Should accumulate fees from multiple deposits", async function () {
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("2000", 6));
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("3000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("2000", 6), 1000);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("3000", 6), 1000);
 
       expect(await feeRouter.totalFeesDeposited()).to.equal(parseUnits("6000", 6));
       expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(parseUnits("6000", 6));
     });
 
     it("Should track deposits for different models independently", async function () {
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("2000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("2000", 6), 1000);
 
       expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(parseUnits("1000", 6));
       expect(await feeRouter.getModelFees(MODEL_ID_2)).to.equal(parseUnits("2000", 6));
@@ -268,25 +291,25 @@ describe("UsageFeeRouter", function () {
 
     it("Should revert if pool does not exist", async function () {
       await expect(
-        feeRouter.connect(depositor).depositFee("non-existent-model", parseUnits("1000", 6))
+        feeRouter.connect(depositor).depositFee("non-existent-model", parseUnits("1000", 6), 1000)
       ).to.be.revertedWith("Pool does not exist");
     });
 
     it("Should revert if amount is zero", async function () {
       await expect(
-        feeRouter.connect(depositor).depositFee(MODEL_ID_1, 0)
+        feeRouter.connect(depositor).depositFee(MODEL_ID_1, 0, 1000)
       ).to.be.reverted;
     });
 
     it("Should revert if model ID is empty", async function () {
       await expect(
-        feeRouter.connect(depositor).depositFee("", parseUnits("1000", 6))
+        feeRouter.connect(depositor).depositFee("", parseUnits("1000", 6), 1000)
       ).to.be.reverted;
     });
 
     it("Should revert if caller is not depositor", async function () {
       await expect(
-        feeRouter.connect(user1).depositFee(MODEL_ID_1, parseUnits("1000", 6))
+        feeRouter.connect(user1).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000)
       ).to.be.reverted;
     });
   });
@@ -306,7 +329,7 @@ describe("UsageFeeRouter", function () {
       await params.connect(owner).setInfrastructureAccrualBps(7000);
 
       const feeAmount = parseUnits("1000", 6);
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
 
       const expectedInfra = parseUnits("700", 6); // 70%
       const expectedProfit = parseUnits("300", 6); // 30%
@@ -322,7 +345,7 @@ describe("UsageFeeRouter", function () {
       const feeAmount = parseUnits("1000", 6);
 
       const reserveBefore = await pool1.reserveBalance();
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
       const reserveAfter = await pool1.reserveBalance();
 
       const expectedProfit = parseUnits("100", 6); // 10%
@@ -335,7 +358,7 @@ describe("UsageFeeRouter", function () {
       await params.connect(owner).setInfrastructureAccrualBps(5000);
 
       const feeAmount = parseUnits("1000", 6);
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
 
       const expectedInfra = parseUnits("500", 6); // 50%
       const expectedProfit = parseUnits("500", 6); // 50%
@@ -351,7 +374,7 @@ describe("UsageFeeRouter", function () {
       const feeAmount = parseUnits("1000", 6);
 
       const reserveBefore = await pool1.reserveBalance();
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
       const reserveAfter = await pool1.reserveBalance();
 
       // All to infrastructure, nothing to AMM
@@ -361,7 +384,7 @@ describe("UsageFeeRouter", function () {
 
     it("Should apply correct split after governance update", async function () {
       // Initial deposit with 80/20
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
       expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("800", 6));
 
       // Update to 70/30
@@ -370,10 +393,172 @@ describe("UsageFeeRouter", function () {
       await params.connect(owner).setInfrastructureAccrualBps(7000);
 
       // Second deposit should use new 70/30 split
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
 
       // Total infrastructure: $800 (first) + $700 (second) = $1500
       expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("1500", 6));
+    });
+  });
+
+  // ============================================================
+  // COST-PLUS SPLITTING TESTS
+  // ============================================================
+
+  describe("Cost-Plus Splitting with Oracle", function () {
+    it("Should use oracle cost when available", async function () {
+      // Set oracle cost for MODEL_ID_1: $500 per 1000 calls
+      await costOracle.setCost(MODEL_ID_1, parseUnits("500", 6));
+
+      const feeAmount = parseUnits("1000", 6); // $1000 fee
+      const callCount = 1000; // 1000 calls
+
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, callCount);
+
+      // Expected: infra gets $500 (oracle cost), profit gets $500
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("500", 6));
+
+      const poolReserve = await pool1.reserveBalance();
+      expect(poolReserve).to.equal(parseUnits("500", 6));
+    });
+
+    it("Should emit FeeSplitCalculated with ORACLE cost basis", async function () {
+      await costOracle.setCost(MODEL_ID_1, parseUnits("300", 6));
+
+      const feeAmount = parseUnits("1000", 6);
+      const callCount = 1000;
+
+      await expect(
+        feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, callCount)
+      )
+        .to.emit(feeRouter, "FeeSplitCalculated")
+        .withArgs(
+          MODEL_ID_1,
+          feeAmount,
+          parseUnits("300", 6), // infraShare
+          parseUnits("700", 6), // profitShare
+          callCount,
+          0 // CostBasis.ORACLE
+        );
+    });
+
+    it("Should scale cost with call count", async function () {
+      await costOracle.setCost(MODEL_ID_1, parseUnits("500", 6)); // $500 per 1000 calls
+
+      // Test with 2000 calls -> $1000 cost
+      const feeAmount = parseUnits("2000", 6);
+      const callCount = 2000;
+
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, callCount);
+
+      // Expected: infra gets $1000, profit gets $1000
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("1000", 6));
+    });
+
+    it("Should cap infrastructure at total fee", async function () {
+      await costOracle.setCost(MODEL_ID_1, parseUnits("1000", 6)); // $1000 per 1000 calls
+
+      // Fee is only $500 but cost would be $1000
+      const feeAmount = parseUnits("500", 6);
+      const callCount = 1000;
+
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, callCount);
+
+      // Expected: infra gets all $500, profit gets $0
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("500", 6));
+      expect(await pool1.reserveBalance()).to.equal(0);
+    });
+
+    it("Should fallback to percentage when oracle cost is zero", async function () {
+      // Don't set any oracle cost for MODEL_ID_1 (defaults to 0)
+
+      const feeAmount = parseUnits("1000", 6);
+      const callCount = 1000;
+
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, callCount);
+
+      // Expected: uses 80/20 percentage split
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("800", 6));
+      expect(await pool1.reserveBalance()).to.equal(parseUnits("200", 6));
+    });
+
+    it("Should emit FeeSplitCalculated with PERCENTAGE_FALLBACK when oracle cost is zero", async function () {
+      const feeAmount = parseUnits("1000", 6);
+      const callCount = 1000;
+
+      await expect(
+        feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, callCount)
+      )
+        .to.emit(feeRouter, "FeeSplitCalculated")
+        .withArgs(
+          MODEL_ID_1,
+          feeAmount,
+          parseUnits("800", 6), // infraShare (80%)
+          parseUnits("200", 6), // profitShare (20%)
+          callCount,
+          1 // CostBasis.PERCENTAGE_FALLBACK
+        );
+    });
+
+    it("Should use oracle in batch deposits", async function () {
+      // Set costs
+      await costOracle.setCost(MODEL_ID_1, parseUnits("400", 6)); // $400 per 1000
+      await costOracle.setCost(MODEL_ID_2, parseUnits("600", 6)); // $600 per 1000
+
+      await feeRouter.connect(depositor).batchDepositFees(
+        [MODEL_ID_1, MODEL_ID_2],
+        [parseUnits("1000", 6), parseUnits("2000", 6)],
+        [1000, 1000]
+      );
+
+      // MODEL_ID_1: $400 infra, $600 profit
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("400", 6));
+
+      // MODEL_ID_2: $600 infra, $1400 profit
+      expect(await infraReserve.accrued(MODEL_ID_2)).to.equal(parseUnits("600", 6));
+    });
+
+    it("Should handle mixed oracle/fallback in batch", async function () {
+      // Only set cost for MODEL_ID_1
+      await costOracle.setCost(MODEL_ID_1, parseUnits("300", 6));
+
+      await feeRouter.connect(depositor).batchDepositFees(
+        [MODEL_ID_1, MODEL_ID_2],
+        [parseUnits("1000", 6), parseUnits("1000", 6)],
+        [1000, 1000]
+      );
+
+      // MODEL_ID_1: oracle -> $300 infra
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("300", 6));
+
+      // MODEL_ID_2: fallback -> $800 infra (80%)
+      expect(await infraReserve.accrued(MODEL_ID_2)).to.equal(parseUnits("800", 6));
+    });
+
+    it("Should calculate fee split with oracle cost", async function () {
+      await costOracle.setCost(MODEL_ID_1, parseUnits("400", 6));
+
+      const [infra, profit, costBasis] = await feeRouter.calculateFeeSplit(
+        MODEL_ID_1,
+        parseUnits("1000", 6),
+        1000
+      );
+
+      expect(infra).to.equal(parseUnits("400", 6));
+      expect(profit).to.equal(parseUnits("600", 6));
+      expect(costBasis).to.equal(0); // CostBasis.ORACLE
+    });
+
+    it("Should handle fractional call counts", async function () {
+      await costOracle.setCost(MODEL_ID_1, parseUnits("1000", 6)); // $1000 per 1000 calls
+
+      // 500 calls -> $500 cost
+      const feeAmount = parseUnits("1000", 6);
+      const callCount = 500;
+
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, callCount);
+
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("500", 6));
+      expect(await pool1.reserveBalance()).to.equal(parseUnits("500", 6));
     });
   });
 
@@ -387,7 +572,8 @@ describe("UsageFeeRouter", function () {
 
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
-        amounts
+        amounts,
+        [1000, 1000]
       );
 
       // Model 1: $800 infra, $200 profit
@@ -402,7 +588,8 @@ describe("UsageFeeRouter", function () {
 
       const tx = await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
-        amounts
+        amounts,
+        [1000, 1000]
       );
 
       // Should emit 2 individual events
@@ -418,7 +605,8 @@ describe("UsageFeeRouter", function () {
       await expect(
         feeRouter.connect(depositor).batchDepositFees(
           [MODEL_ID_1, MODEL_ID_2],
-          amounts
+          amounts,
+          [1000, 1000]
         )
       )
         .to.emit(feeRouter, "BatchDeposited")
@@ -441,7 +629,8 @@ describe("UsageFeeRouter", function () {
 
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
-        amounts
+        amounts,
+        [1000, 1000]
       );
 
       // Model 1: 80/20 = $800 infra
@@ -454,7 +643,8 @@ describe("UsageFeeRouter", function () {
     it("Should update total statistics correctly", async function () {
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
-        [parseUnits("1000", 6), parseUnits("2000", 6)]
+        [parseUnits("1000", 6), parseUnits("2000", 6)],
+        [1000, 1000]
       );
 
       expect(await feeRouter.totalFeesDeposited()).to.equal(parseUnits("3000", 6));
@@ -466,14 +656,15 @@ describe("UsageFeeRouter", function () {
       await expect(
         feeRouter.connect(depositor).batchDepositFees(
           [MODEL_ID_1, MODEL_ID_2],
-          [parseUnits("1000", 6)] // Only 1 amount
+          [parseUnits("1000", 6)], // Only 1 amount
+          [1000, 1000]
         )
       ).to.be.reverted;
     });
 
     it("Should revert if arrays are empty", async function () {
       await expect(
-        feeRouter.connect(depositor).batchDepositFees([], [])
+        feeRouter.connect(depositor).batchDepositFees([], [], [])
       ).to.be.reverted;
     });
 
@@ -481,7 +672,8 @@ describe("UsageFeeRouter", function () {
       await expect(
         feeRouter.connect(depositor).batchDepositFees(
           [MODEL_ID_1, MODEL_ID_2],
-          [parseUnits("1000", 6), 0]
+          [parseUnits("1000", 6), 0],
+          [1000, 1000]
         )
       ).to.be.reverted;
     });
@@ -490,7 +682,8 @@ describe("UsageFeeRouter", function () {
       await expect(
         feeRouter.connect(depositor).batchDepositFees(
           [MODEL_ID_1, "non-existent"],
-          [parseUnits("1000", 6), parseUnits("1000", 6)]
+          [parseUnits("1000", 6), parseUnits("1000", 6)],
+          [1000, 1000]
         )
       ).to.be.revertedWith("Pool does not exist");
     });
@@ -500,7 +693,8 @@ describe("UsageFeeRouter", function () {
 
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
-        [parseUnits("1000", 6), parseUnits("2000", 6)]
+        [parseUnits("1000", 6), parseUnits("2000", 6)],
+        [1000, 1000]
       );
 
       const depositorBalanceAfter = await mockUSDC.balanceOf(depositor.address);
@@ -515,14 +709,16 @@ describe("UsageFeeRouter", function () {
   // ============================================================
 
   describe("View Functions", function () {
-    it("Should calculate fee split correctly", async function () {
-      const [infra, profit] = await feeRouter.calculateFeeSplit(
+    it("Should calculate fee split correctly (percentage fallback)", async function () {
+      const [infra, profit, costBasis] = await feeRouter.calculateFeeSplit(
         MODEL_ID_1,
-        parseUnits("1000", 6)
+        parseUnits("1000", 6),
+        1000
       );
 
       expect(infra).to.equal(parseUnits("800", 6)); // 80%
       expect(profit).to.equal(parseUnits("200", 6)); // 20%
+      expect(costBasis).to.equal(1); // PERCENTAGE_FALLBACK
     });
 
     it("Should return updated split after governance change", async function () {
@@ -530,17 +726,19 @@ describe("UsageFeeRouter", function () {
       const params = await ethers.getContractAt("HokusaiParams", paramsAddress);
       await params.connect(owner).setInfrastructureAccrualBps(7000);
 
-      const [infra, profit] = await feeRouter.calculateFeeSplit(
+      const [infra, profit, costBasis] = await feeRouter.calculateFeeSplit(
         MODEL_ID_1,
-        parseUnits("1000", 6)
+        parseUnits("1000", 6),
+        1000
       );
 
       expect(infra).to.equal(parseUnits("700", 6)); // 70%
       expect(profit).to.equal(parseUnits("300", 6)); // 30%
+      expect(costBasis).to.equal(1); // PERCENTAGE_FALLBACK
     });
 
     it("Should return model stats correctly", async function () {
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("5000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("5000", 6), 1000);
 
       const [totalFees, infraBps, profitBps] = await feeRouter.getModelStats(MODEL_ID_1);
 
@@ -558,7 +756,7 @@ describe("UsageFeeRouter", function () {
 
     it("Should revert calculateFeeSplit for non-existent pool", async function () {
       await expect(
-        feeRouter.calculateFeeSplit("non-existent", parseUnits("1000", 6))
+        feeRouter.calculateFeeSplit("non-existent", parseUnits("1000", 6), 1000)
       ).to.be.revertedWith("Pool not found");
     });
 
@@ -567,7 +765,7 @@ describe("UsageFeeRouter", function () {
       expect(await feeRouter.getBalance()).to.equal(0);
 
       // Even after deposits (funds routed immediately)
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
       expect(await feeRouter.getBalance()).to.equal(0);
     });
 
@@ -621,7 +819,7 @@ describe("UsageFeeRouter", function () {
       // depositFee has nonReentrant modifier
       // This is a design verification - actual reentrancy attack would require malicious ERC20
       const feeAmount = parseUnits("1000", 6);
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
 
       // If reentrancy protection works, transaction succeeds
       expect(await feeRouter.totalFeesDeposited()).to.equal(feeAmount);
@@ -631,7 +829,8 @@ describe("UsageFeeRouter", function () {
       // batchDepositFees has nonReentrant modifier
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1],
-        [parseUnits("1000", 6)]
+        [parseUnits("1000", 6)],
+        [1000]
       );
 
       expect(await feeRouter.totalFeesDeposited()).to.equal(parseUnits("1000", 6));
@@ -646,7 +845,7 @@ describe("UsageFeeRouter", function () {
     it("Should handle very small amounts (1 USDC cent)", async function () {
       const tinyAmount = 1; // 1e-6 USDC
 
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, tinyAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, tinyAmount, 1);
 
       // Should work but amounts might round to zero due to integer division
       expect(await feeRouter.totalFeesDeposited()).to.equal(tinyAmount);
@@ -655,7 +854,7 @@ describe("UsageFeeRouter", function () {
     it("Should handle very large amounts", async function () {
       const largeAmount = parseUnits("1000000", 6); // $1M
 
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, largeAmount);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, largeAmount, 1000);
 
       const expectedInfra = parseUnits("800000", 6); // $800k
       expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(expectedInfra);
@@ -667,7 +866,7 @@ describe("UsageFeeRouter", function () {
       await params.connect(owner).setInfrastructureAccrualBps(10000);
 
       const reserveBefore = await pool1.reserveBalance();
-      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
       const reserveAfter = await pool1.reserveBalance();
 
       // No change in AMM reserve when profit is 0
@@ -677,12 +876,14 @@ describe("UsageFeeRouter", function () {
     it("Should handle sequential batch deposits", async function () {
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
-        [parseUnits("1000", 6), parseUnits("2000", 6)]
+        [parseUnits("1000", 6), parseUnits("2000", 6)],
+        [1000, 1000]
       );
 
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
-        [parseUnits("500", 6), parseUnits("500", 6)]
+        [parseUnits("500", 6), parseUnits("500", 6)],
+        [1000, 1000]
       );
 
       expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(parseUnits("1500", 6));

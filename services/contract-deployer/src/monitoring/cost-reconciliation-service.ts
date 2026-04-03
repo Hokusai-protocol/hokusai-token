@@ -404,8 +404,14 @@ export class CostReconciliationService {
         return null;
       }
 
+      // Calculate actual days covered by the cost data
+      const dates = recentCosts.map(c => c.period.end.getTime());
+      const oldestDate = Math.min(...dates);
+      const newestDate = Math.max(...dates);
+      const actualDays = Math.max(1, (newestDate - oldestDate) / (1000 * 60 * 60 * 24));
+
       const totalCost = recentCosts.reduce((sum, c) => sum + c.amount, 0);
-      const dailyBurnRate = totalCost / 30; // Average over 30 days
+      const dailyBurnRate = totalCost / actualDays; // Average over actual days
 
       if (dailyBurnRate === 0) {
         return null;

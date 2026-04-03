@@ -248,14 +248,55 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         return;
       }
 
+      // Validate amount
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount < 0) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_AMOUNT',
+            message: 'Amount must be a valid positive number',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      // Validate dates
+      const startDate = new Date(period.start);
+      const endDate = new Date(period.end);
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_DATES',
+            message: 'Period start and end must be valid dates',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      if (endDate < startDate) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_PERIOD',
+            message: 'Period end must be after period start',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       // Ingest costs
       await reconciliationService.ingestActualCosts({
         modelId,
         provider,
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         period: {
-          start: new Date(period.start),
-          end: new Date(period.end)
+          start: startDate,
+          end: endDate
         },
         invoiceId,
         metadata

@@ -88,8 +88,14 @@ async function ingestCosts(csvPath: string, config: IngestConfig): Promise<void>
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`API error: ${JSON.stringify(error)}`);
+        let errorMessage: string;
+        try {
+          const error = await response.json();
+          errorMessage = `API error: ${JSON.stringify(error)}`;
+        } catch {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();

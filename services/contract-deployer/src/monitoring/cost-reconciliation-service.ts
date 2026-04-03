@@ -339,12 +339,17 @@ export class CostReconciliationService {
 
     const actual = recentCosts.reduce((sum, c) => sum + c.amount, 0);
 
+    // Handle zero-cost case
+    if (actual === 0) {
+      return null;
+    }
+
     // TODO: Get estimated cost from InfrastructureCostOracle when available
     // For now, use a placeholder estimation based on historical data
     const estimated = actual * 0.95; // Placeholder: assume 5% underestimate
 
     const variance = actual - estimated;
-    const variancePercent = (variance / estimated) * 100;
+    const variancePercent = estimated === 0 ? 0 : (variance / estimated) * 100;
 
     const period = {
       start: recentCosts[0].period.start,

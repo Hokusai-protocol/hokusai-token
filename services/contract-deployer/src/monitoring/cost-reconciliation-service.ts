@@ -164,7 +164,12 @@ export class CostReconciliationService {
     logger.info('Starting CostReconciliationService...');
 
     // Run initial reconciliation
-    await this.runReconciliation();
+    try {
+      await this.runReconciliation();
+    } catch (error) {
+      logger.error('Error during initial reconciliation:', error);
+      logger.warn('Continuing with service startup despite initial reconciliation failure');
+    }
 
     // Schedule periodic reconciliation
     this.reconciliationInterval = setInterval(async () => {
@@ -404,14 +409,18 @@ export class CostReconciliationService {
         return null;
       }
 
-      // Calculate actual days covered by the cost data
-      const dates = recentCosts.map(c => c.period.end.getTime());
-      const oldestDate = Math.min(...dates);
-      const newestDate = Math.max(...dates);
-      const actualDays = Math.max(1, (newestDate - oldestDate) / (1000 * 60 * 60 * 24));
-
+      // Calculate total days by summing individual period durations
       const totalCost = recentCosts.reduce((sum, c) => sum + c.amount, 0);
-      const dailyBurnRate = totalCost / actualDays; // Average over actual days
+      const totalDays = recentCosts.reduce((sum, c) => {
+        const periodDays = (c.period.end.getTime() - c.period.start.getTime()) / (1000 * 60 * 60 * 24);
+        return sum + periodDays;
+      }, 0);
+
+      if (totalDays === 0) {
+        return null;
+      }
+
+      const dailyBurnRate = totalCost / totalDays; // Average over actual period durations
 
       if (dailyBurnRate === 0) {
         return null;

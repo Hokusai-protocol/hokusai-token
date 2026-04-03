@@ -79,8 +79,13 @@ async function main(): Promise<void> {
 
     // Start reconciliation service if infrastructure reserve address is configured
     if (process.env.INFRASTRUCTURE_RESERVE_ADDRESS) {
-      logger.info('[MONITORING-SERVER] Starting Cost Reconciliation Service...');
-      await reconciliationService.start();
+      try {
+        logger.info('[MONITORING-SERVER] Starting Cost Reconciliation Service...');
+        await reconciliationService.start();
+      } catch (error) {
+        logger.error('[MONITORING-SERVER] Failed to start Cost Reconciliation Service:', error);
+        logger.warn('[MONITORING-SERVER] Continuing without reconciliation service');
+      }
     } else {
       logger.warn('[MONITORING-SERVER] INFRASTRUCTURE_RESERVE_ADDRESS not set, reconciliation service disabled');
     }

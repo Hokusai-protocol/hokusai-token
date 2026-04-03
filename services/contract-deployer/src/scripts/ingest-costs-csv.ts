@@ -34,7 +34,19 @@ async function ingestCosts(csvPath: string, config: IngestConfig): Promise<void>
   console.log(`Reading CSV from: ${csvPath}`);
 
   // Read and parse CSV
-  const csvContent = readFileSync(csvPath, 'utf-8');
+  let csvContent: string;
+  try {
+    csvContent = readFileSync(csvPath, 'utf-8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`File not found: ${csvPath}`);
+    } else if ((error as NodeJS.ErrnoException).code === 'EACCES') {
+      throw new Error(`Permission denied: ${csvPath}`);
+    } else {
+      throw new Error(`Failed to read file: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+
   const records = parse(csvContent, {
     columns: true,
     skip_empty_lines: true,

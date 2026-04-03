@@ -77,12 +77,18 @@ describe("Phase 5: Fee Collection System", function () {
         );
         await infraReserve.waitForDeployment();
 
-        // Deploy UsageFeeRouter (new 3-param constructor)
+        // Deploy InfrastructureCostOracle
+        const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
+        const costOracle = await InfrastructureCostOracle.deploy(owner.address);
+        await costOracle.waitForDeployment();
+
+        // Deploy UsageFeeRouter
         const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
         feeRouter = await UsageFeeRouter.deploy(
             await factory.getAddress(),
             await mockUSDC.getAddress(),
-            await infraReserve.getAddress()
+            await infraReserve.getAddress(),
+            await costOracle.getAddress()
         );
         await feeRouter.waitForDeployment();
 
@@ -135,7 +141,7 @@ describe("Phase 5: Fee Collection System", function () {
             const feeAmount = parseUnits("1000", 6); // $1k
 
             const reserveBefore = await pool1.reserveBalance();
-            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
             const reserveAfter = await pool1.reserveBalance();
 
             // Pool should receive profit portion (100% - 80% infra = 20%)
@@ -146,7 +152,7 @@ describe("Phase 5: Fee Collection System", function () {
         it("Should send infrastructure portion to reserve", async function () {
             const feeAmount = parseUnits("1000", 6); // $1k
 
-            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
 
             // Infrastructure reserve should receive 80%
             const expectedInfra = (feeAmount * DEFAULT_INFRA_BPS) / 10000n;
@@ -157,7 +163,7 @@ describe("Phase 5: Fee Collection System", function () {
         it("Should update statistics correctly", async function () {
             const feeAmount = parseUnits("1000", 6);
 
-            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount);
+            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
 
             expect(await feeRouter.totalFeesDeposited()).to.equal(feeAmount);
             expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(feeAmount);
@@ -169,7 +175,7 @@ describe("Phase 5: Fee Collection System", function () {
             const profitAmount = feeAmount - infraAmount;
 
             await expect(
-                feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount)
+                feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000)
             ).to.emit(feeRouter, "FeeDeposited")
              .withArgs(
                  MODEL_ID_1,
@@ -182,9 +188,9 @@ describe("Phase 5: Fee Collection System", function () {
         });
 
         it("Should accumulate fees from multiple deposits", async function () {
-            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
-            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("2000", 6));
-            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("3000", 6));
+            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
+            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("2000", 6), 1000);
+            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("3000", 6), 1000);
 
             expect(await feeRouter.totalFeesDeposited()).to.equal(parseUnits("6000", 6));
             expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(parseUnits("6000", 6));
@@ -192,13 +198,13 @@ describe("Phase 5: Fee Collection System", function () {
 
         it("Should revert if pool does not exist", async function () {
             await expect(
-                feeRouter.connect(depositor).depositFee("non-existent-model", parseUnits("1000", 6))
+                feeRouter.connect(depositor).depositFee("non-existent-model", parseUnits("1000", 6), 1000)
             ).to.be.revertedWith("Pool does not exist");
         });
 
         it("Should revert if caller lacks depositor role", async function () {
             await expect(
-                feeRouter.connect(user1).depositFee(MODEL_ID_1, parseUnits("1000", 6))
+                feeRouter.connect(user1).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000)
             ).to.be.reverted; // AccessControl revert
         });
 
@@ -207,7 +213,7 @@ describe("Phase 5: Fee Collection System", function () {
             await mockUSDC.connect(depositor).approve(await feeRouter.getAddress(), 0);
 
             await expect(
-                feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6))
+                feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000)
             ).to.be.reverted; // ERC20 transfer failure
         });
     });
@@ -224,7 +230,7 @@ describe("Phase 5: Fee Collection System", function () {
             const reserve1Before = await pool1.reserveBalance();
             const reserve2Before = await pool2.reserveBalance();
 
-            await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts);
+            await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts, [1000, 1000]);
 
             const reserve1After = await pool1.reserveBalance();
             const reserve2After = await pool2.reserveBalance();
@@ -239,7 +245,7 @@ describe("Phase 5: Fee Collection System", function () {
             const amounts = [parseUnits("1000", 6), parseUnits("2000", 6)];
             const modelIds = [MODEL_ID_1, MODEL_ID_2];
 
-            await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts);
+            await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts, [1000, 1000]);
 
             const expectedInfra1 = (amounts[0] * DEFAULT_INFRA_BPS) / 10000n;
             const expectedInfra2 = (amounts[1] * DEFAULT_INFRA_BPS) / 10000n;
@@ -253,7 +259,7 @@ describe("Phase 5: Fee Collection System", function () {
             const modelIds = [MODEL_ID_1, MODEL_ID_2];
             const totalAmount = amounts[0] + amounts[1];
 
-            await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts);
+            await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts, [1000, 1000]);
 
             expect(await feeRouter.totalFeesDeposited()).to.equal(totalAmount);
             expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(amounts[0]);
@@ -268,7 +274,7 @@ describe("Phase 5: Fee Collection System", function () {
             const totalProfit = totalAmount - totalInfra;
 
             await expect(
-                feeRouter.connect(depositor).batchDepositFees(modelIds, amounts)
+                feeRouter.connect(depositor).batchDepositFees(modelIds, amounts, [1000, 1000])
             ).to.emit(feeRouter, "BatchDeposited")
              .withArgs(totalAmount, totalInfra, totalProfit, 2, depositor.address);
         });
@@ -277,7 +283,7 @@ describe("Phase 5: Fee Collection System", function () {
             const amounts = [parseUnits("1000", 6), parseUnits("2000", 6)];
             const modelIds = [MODEL_ID_1, MODEL_ID_2];
 
-            const tx = await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts);
+            const tx = await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts, [1000, 1000]);
             const receipt = await tx.wait();
 
             // Should have 2 FeeDeposited events + 1 BatchDeposited event
@@ -292,6 +298,7 @@ describe("Phase 5: Fee Collection System", function () {
             const modelIds = [];
             const amounts = [];
 
+            const callCounts = [];
             for (let i = 0; i < 5; i++) {
                 const modelId = `model-${i}`;
                 const tokenAddress = await tokenManager.deployToken.staticCall(
@@ -305,9 +312,10 @@ describe("Phase 5: Fee Collection System", function () {
 
                 modelIds.push(modelId);
                 amounts.push(parseUnits("1000", 6));
+                callCounts.push(1000);
             }
 
-            await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts);
+            await feeRouter.connect(depositor).batchDepositFees(modelIds, amounts, callCounts);
 
             expect(await feeRouter.totalFeesDeposited()).to.equal(parseUnits("5000", 6));
         });
@@ -316,7 +324,8 @@ describe("Phase 5: Fee Collection System", function () {
             await expect(
                 feeRouter.connect(depositor).batchDepositFees(
                     [MODEL_ID_1, "non-existent"],
-                    [parseUnits("1000", 6), parseUnits("1000", 6)]
+                    [parseUnits("1000", 6), parseUnits("1000", 6)],
+                    [1000, 1000]
                 )
             ).to.be.revertedWith("Pool does not exist");
         });
@@ -329,7 +338,7 @@ describe("Phase 5: Fee Collection System", function () {
     describe("Fee Split Calculation", function () {
         it("Should calculate fee split correctly per model", async function () {
             const amount = parseUnits("1000", 6);
-            const [infraAmount, profitAmount] = await feeRouter.calculateFeeSplit(MODEL_ID_1, amount);
+            const [infraAmount, profitAmount] = await feeRouter.calculateFeeSplit(MODEL_ID_1, amount, 1000);
 
             const expectedInfra = (amount * DEFAULT_INFRA_BPS) / 10000n;
             expect(infraAmount).to.equal(expectedInfra);
@@ -338,7 +347,7 @@ describe("Phase 5: Fee Collection System", function () {
         });
 
         it("Should return model stats", async function () {
-            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
+            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
 
             const [totalFees, currentInfraBps, currentProfitBps] = await feeRouter.getModelStats(MODEL_ID_1);
             expect(totalFees).to.equal(parseUnits("1000", 6));
@@ -366,7 +375,7 @@ describe("Phase 5: Fee Collection System", function () {
             expect(await feeRouter.isDepositor(depositor.address)).to.be.false;
 
             await expect(
-                feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6))
+                feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000)
             ).to.be.reverted;
         });
 
@@ -391,8 +400,8 @@ describe("Phase 5: Fee Collection System", function () {
         });
 
         it("Should return model fees correctly", async function () {
-            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6));
-            await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("2000", 6));
+            await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
+            await feeRouter.connect(depositor).depositFee(MODEL_ID_2, parseUnits("2000", 6), 1000);
 
             expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(parseUnits("1000", 6));
             expect(await feeRouter.getModelFees(MODEL_ID_2)).to.equal(parseUnits("2000", 6));

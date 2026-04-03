@@ -47,6 +47,25 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
     mapping(string => address) public provider;
 
     // ============================================================
+    // RECONCILIATION STATE
+    // ============================================================
+
+    /// @dev Estimated costs snapshot per model per period
+    mapping(string => mapping(uint256 => uint256)) public estimatedCosts;
+
+    /// @dev Actual costs paid per model per period
+    mapping(string => mapping(uint256 => uint256)) public actualCosts;
+
+    /// @dev Current active period index per model
+    mapping(string => uint256) public currentPeriod;
+
+    /// @dev Reconciliation period length in seconds (aligned with price epoch)
+    uint256 public reconciliationPeriod;
+
+    /// @dev Period start timestamps per model
+    mapping(string => mapping(uint256 => uint256)) public periodStartTime;
+
+    // ============================================================
     // GLOBAL STATISTICS
     // ============================================================
 
@@ -77,6 +96,15 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
         uint256 amount;
         bytes32 invoiceHash;
         string memo;
+    }
+
+    /// @dev Variance record for historical tracking
+    struct VarianceRecord {
+        uint256 period;
+        uint256 estimated;
+        uint256 actual;
+        int256 varianceBps;
+        uint256 timestamp;
     }
 
     // ============================================================
@@ -123,6 +151,41 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
         uint256 amount
     );
 
+    event EstimatedCostsSnapshot(
+        string indexed modelId,
+        uint256 indexed period,
+        uint256 estimatedCost,
+        uint256 timestamp
+    );
+
+    event ActualCostsRecorded(
+        string indexed modelId,
+        uint256 indexed period,
+        uint256 amount,
+        bytes32 indexed invoiceHash,
+        uint256 newTotal
+    );
+
+    event CostReconciled(
+        string indexed modelId,
+        uint256 indexed period,
+        uint256 estimated,
+        uint256 actual,
+        int256 varianceBps
+    );
+
+    event AdjustmentSuggested(
+        string indexed modelId,
+        uint256 currentEstimate,
+        uint256 suggestedEstimate,
+        int256 varianceBps
+    );
+
+    event ReconciliationPeriodUpdated(
+        uint256 oldPeriod,
+        uint256 newPeriod
+    );
+
     // ============================================================
     // CONSTRUCTOR
     // ============================================================
@@ -145,6 +208,9 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
         reserveToken = IERC20(_reserveToken);
         factory = HokusaiAMMFactory(_factory);
         treasury = _treasury;
+
+        // Set default reconciliation period to 30 days
+        reconciliationPeriod = 30 days;
 
         // Grant DEFAULT_ADMIN_ROLE to deployer
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -250,6 +316,9 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
         paid[modelId] += amount;
         totalPaid += amount;
 
+        // Record actual costs for reconciliation
+        _recordActualCostsInternal(modelId, amount, invoiceHash);
+
         // Transfer USDC to provider
         require(
             reserveToken.transfer(payee, amount),
@@ -292,6 +361,9 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
             accrued[p.modelId] -= p.amount;
             paid[p.modelId] += p.amount;
             totalPaidAmount += p.amount;
+
+            // Record actual costs for reconciliation
+            _recordActualCostsInternal(p.modelId, p.amount, p.invoiceHash);
 
             // Transfer USDC to provider
             require(
@@ -458,5 +530,281 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
         );
 
         emit EmergencyWithdrawal(treasury, amount);
+    }
+
+    /**
+     * @dev Update reconciliation period length
+     * @param newPeriod New period length in seconds
+     */
+    function setReconciliationPeriod(uint256 newPeriod)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        require(newPeriod > 0, "Period must be positive");
+        uint256 oldPeriod = reconciliationPeriod;
+        reconciliationPeriod = newPeriod;
+        emit ReconciliationPeriodUpdated(oldPeriod, newPeriod);
+    }
+
+    // ============================================================
+    // RECONCILIATION FUNCTIONS
+    // ============================================================
+
+    /**
+     * @dev Snapshot estimated costs for current period from oracle
+     * @param modelId String model identifier
+     * @param estimatedCost Estimated cost from oracle for this period
+     */
+    function snapshotEstimatedCosts(string memory modelId, uint256 estimatedCost)
+        external
+        onlyRole(PAYER_ROLE)
+    {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requirePositiveAmount(estimatedCost, "estimated cost");
+
+        uint256 period = currentPeriod[modelId];
+
+        // Initialize period start time if not set
+        if (periodStartTime[modelId][period] == 0) {
+            periodStartTime[modelId][period] = block.timestamp;
+        }
+
+        estimatedCosts[modelId][period] = estimatedCost;
+
+        emit EstimatedCostsSnapshot(modelId, period, estimatedCost, block.timestamp);
+    }
+
+    /**
+     * @dev Record actual infrastructure costs for current period
+     * @param modelId String model identifier
+     * @param period Period index to record costs for
+     * @param actualCost Actual cost paid
+     * @param invoiceHash Hash of invoice for audit trail
+     */
+    function recordActualCosts(
+        string memory modelId,
+        uint256 period,
+        uint256 actualCost,
+        bytes32 invoiceHash
+    ) external onlyRole(PAYER_ROLE) {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requirePositiveAmount(actualCost, "actual cost");
+
+        actualCosts[modelId][period] += actualCost;
+
+        emit ActualCostsRecorded(
+            modelId,
+            period,
+            actualCost,
+            invoiceHash,
+            actualCosts[modelId][period]
+        );
+    }
+
+    /**
+     * @dev Advance to next reconciliation period for a model
+     * @param modelId String model identifier
+     */
+    function advancePeriod(string memory modelId)
+        external
+        onlyRole(PAYER_ROLE)
+    {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+
+        uint256 period = currentPeriod[modelId];
+        uint256 startTime = periodStartTime[modelId][period];
+
+        require(startTime > 0, "Period not initialized");
+        require(
+            block.timestamp >= startTime + reconciliationPeriod,
+            "Period not elapsed"
+        );
+
+        // Reconcile current period before advancing
+        uint256 estimated = estimatedCosts[modelId][period];
+        uint256 actual = actualCosts[modelId][period];
+
+        if (estimated > 0 && actual > 0) {
+            int256 varianceBps = _calculateVarianceBps(estimated, actual);
+            emit CostReconciled(modelId, period, estimated, actual, varianceBps);
+        }
+
+        // Advance to next period
+        currentPeriod[modelId] = period + 1;
+        periodStartTime[modelId][period + 1] = block.timestamp;
+    }
+
+    /**
+     * @dev Get variance for a specific period
+     * @param modelId String model identifier
+     * @param period Period index
+     * @return estimated Estimated cost for period
+     * @return actual Actual cost for period
+     * @return varianceBps Variance in basis points (positive = underestimated)
+     */
+    function getVariance(string memory modelId, uint256 period)
+        external
+        view
+        returns (
+            uint256 estimated,
+            uint256 actual,
+            int256 varianceBps
+        )
+    {
+        estimated = estimatedCosts[modelId][period];
+        actual = actualCosts[modelId][period];
+
+        if (estimated > 0 && actual > 0) {
+            varianceBps = _calculateVarianceBps(estimated, actual);
+        } else {
+            varianceBps = 0;
+        }
+    }
+
+    /**
+     * @dev Get variance history for multiple periods
+     * @param modelId String model identifier
+     * @param periods Number of recent periods to retrieve
+     * @return records Array of variance records
+     */
+    function getVarianceHistory(string memory modelId, uint256 periods)
+        external
+        view
+        returns (VarianceRecord[] memory records)
+    {
+        uint256 currentPeriodIndex = currentPeriod[modelId];
+        // Available periods are [0, currentPeriodIndex], so currentPeriodIndex + 1 total periods
+        uint256 availablePeriods = currentPeriodIndex + 1;
+        uint256 recordCount = periods > availablePeriods ? availablePeriods : periods;
+
+        records = new VarianceRecord[](recordCount);
+
+        // Start from the oldest period we want to include
+        uint256 startPeriod = currentPeriodIndex + 1 >= recordCount
+            ? currentPeriodIndex + 1 - recordCount
+            : 0;
+
+        for (uint256 i = 0; i < recordCount; i++) {
+            uint256 periodIndex = startPeriod + i;
+            uint256 estimated = estimatedCosts[modelId][periodIndex];
+            uint256 actual = actualCosts[modelId][periodIndex];
+
+            records[i] = VarianceRecord({
+                period: periodIndex,
+                estimated: estimated,
+                actual: actual,
+                varianceBps: (estimated > 0 && actual > 0) ? _calculateVarianceBps(estimated, actual) : int256(0),
+                timestamp: periodStartTime[modelId][periodIndex]
+            });
+        }
+    }
+
+    /**
+     * @dev Suggest cost adjustment based on recent variance
+     * @param modelId String model identifier
+     * @return adjustmentBps Adjustment in basis points
+     * @return suggestedCost Suggested cost for next period
+     */
+    function suggestCostAdjustment(string memory modelId)
+        external
+        returns (int256 adjustmentBps, uint256 suggestedCost)
+    {
+        uint256 currentPeriodIndex = currentPeriod[modelId];
+        require(currentPeriodIndex >= 3, "Need at least 3 periods");
+
+        // Get last 3 periods variance
+        int256 totalWeightedVariance = 0;
+        uint256 totalWeight = 0;
+
+        // Weighted average: most recent period has highest weight
+        uint256[3] memory weights = [uint256(1), 2, 3]; // oldest to newest
+
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 periodIndex = currentPeriodIndex - 3 + i;
+            uint256 estimated = estimatedCosts[modelId][periodIndex];
+            uint256 actual = actualCosts[modelId][periodIndex];
+
+            if (estimated > 0 && actual > 0) {
+                int256 varianceBps = _calculateVarianceBps(estimated, actual);
+                totalWeightedVariance += varianceBps * int256(weights[i]);
+                totalWeight += weights[i];
+            }
+        }
+
+        require(totalWeight > 0, "No valid variance data");
+
+        // Calculate weighted average variance
+        int256 avgVarianceBps = totalWeightedVariance / int256(totalWeight);
+
+        // Get current estimate (most recent period's estimate)
+        uint256 currentEstimate = estimatedCosts[modelId][currentPeriodIndex - 1];
+        require(currentEstimate > 0, "No current estimate");
+
+        // Check if variance exceeds tolerance (5% = 500 bps)
+        int256 absVariance = avgVarianceBps >= 0 ? avgVarianceBps : -avgVarianceBps;
+
+        if (absVariance > 500) {
+            // Apply adjustment
+            adjustmentBps = avgVarianceBps;
+            // suggestedCost = currentEstimate * (10000 + avgVarianceBps) / 10000
+            int256 adjustedCost = int256(currentEstimate) * (10000 + avgVarianceBps) / 10000;
+            suggestedCost = uint256(adjustedCost);
+        } else {
+            // Within tolerance, no adjustment
+            adjustmentBps = 0;
+            suggestedCost = currentEstimate;
+        }
+
+        emit AdjustmentSuggested(modelId, currentEstimate, suggestedCost, avgVarianceBps);
+    }
+
+    // ============================================================
+    // INTERNAL FUNCTIONS
+    // ============================================================
+
+    /**
+     * @dev Internal function to record actual costs
+     * @param modelId String model identifier
+     * @param amount Amount paid
+     * @param invoiceHash Invoice hash for audit trail
+     */
+    function _recordActualCostsInternal(
+        string memory modelId,
+        uint256 amount,
+        bytes32 invoiceHash
+    ) internal {
+        uint256 period = currentPeriod[modelId];
+
+        // Initialize period start time if not set
+        if (periodStartTime[modelId][period] == 0) {
+            periodStartTime[modelId][period] = block.timestamp;
+        }
+
+        actualCosts[modelId][period] += amount;
+
+        emit ActualCostsRecorded(
+            modelId,
+            period,
+            amount,
+            invoiceHash,
+            actualCosts[modelId][period]
+        );
+    }
+
+    /**
+     * @dev Calculate variance in basis points
+     * @param estimated Estimated cost
+     * @param actual Actual cost
+     * @return Variance in bps (positive = underestimated, negative = overestimated)
+     */
+    function _calculateVarianceBps(uint256 estimated, uint256 actual)
+        internal
+        pure
+        returns (int256)
+    {
+        // variance = ((actual - estimated) / estimated) * 10000
+        int256 difference = int256(actual) - int256(estimated);
+        int256 varianceBps = (difference * 10000) / int256(estimated);
+        return varianceBps;
     }
 }

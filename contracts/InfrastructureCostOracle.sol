@@ -7,81 +7,172 @@ import "./interfaces/IInfrastructureCostOracle.sol";
 
 /**
  * @title InfrastructureCostOracle
- * @dev Stores and provides infrastructure cost estimates for ML models
+ * @dev Stores and provides infrastructure cost estimates with epoch-based pricing stability
  *
- * Responsibilities:
+ * Purpose:
  * - Store per-model infrastructure cost per 1000 API calls
- * - Allow authorized updaters to modify costs
- * - Provide view functions for cost queries
+ * - Implement epoch-based update constraints for pricing stability
+ * - Calculate end-user prices with gross margin markup
+ *
+ * Architecture:
+ * - Uses pending updates pattern similar to HokusaiParams
+ * - GOV_ROLE can queue cost updates
+ * - ADMIN_ROLE can adjust epoch duration
+ * - Updates only apply after epoch boundary (permissionless trigger)
  *
  * Cost Basis:
  * - Costs are denominated in USDC (6 decimals)
  * - Costs represent estimated infrastructure cost per 1000 API calls
- * - Zero cost means no estimate is configured (triggers fallback in UsageFeeRouter)
+ * - End-user price = cost * (1 + grossMarginBps / 10000)
  */
 contract InfrastructureCostOracle is AccessControlBase, IInfrastructureCostOracle {
     // ============================================================
     // STATE VARIABLES
     // ============================================================
 
-    bytes32 public constant COST_UPDATER_ROLE = keccak256("COST_UPDATER_ROLE");
+    bytes32 public constant GOV_ROLE = keccak256("GOV_ROLE");
 
-    // modelId => cost per 1000 calls (USDC, 6 decimals)
-    mapping(string => uint256) private modelCosts;
+    /// @dev Default epoch duration (30 days)
+    uint256 public constant DEFAULT_EPOCH_DURATION = 30 days;
+
+    /// @dev Minimum epoch duration (1 day)
+    uint256 public constant MIN_EPOCH_DURATION = 1 days;
+
+    /// @dev Maximum epoch duration (365 days)
+    uint256 public constant MAX_EPOCH_DURATION = 365 days;
+
+    /// @dev Maximum gross margin percentage (100% = 10000 basis points)
+    uint16 public constant MAX_GROSS_MARGIN_BPS = 10000;
+
+    /// @dev Current active cost per 1000 calls for each model (USDC, 6 decimals)
+    mapping(string => uint256) private _costPerThousandCalls;
+
+    /// @dev Last update timestamp for each model
+    mapping(string => uint256) private _lastUpdated;
+
+    /// @dev Pending cost updates for each model
+    mapping(string => PendingCostUpdate) private _pendingUpdates;
+
+    /// @dev Epoch duration in seconds
+    uint256 private _epochDuration;
+
+    /// @dev Gross margin markup in basis points (e.g., 2000 = 20%)
+    uint16 private _grossMarginBps;
 
     // ============================================================
     // CONSTRUCTOR
     // ============================================================
 
     /**
-     * @dev Initialize oracle with admin
-     * @param admin Address to receive admin and updater roles
+     * @dev Initialize oracle with admin and default parameters
+     * @param admin Address to receive admin and governance roles
+     * @param initialGrossMarginBps Initial gross margin in basis points
      */
-    constructor(address admin) AccessControlBase(admin) {
-        _grantRole(COST_UPDATER_ROLE, admin);
+    constructor(address admin, uint16 initialGrossMarginBps) AccessControlBase(admin) {
+        require(
+            initialGrossMarginBps <= MAX_GROSS_MARGIN_BPS,
+            "Gross margin cannot exceed 100%"
+        );
+
+        _epochDuration = DEFAULT_EPOCH_DURATION;
+        _grossMarginBps = initialGrossMarginBps;
+        _grantRole(GOV_ROLE, admin);
     }
 
     // ============================================================
-    // ADMIN FUNCTIONS
+    // GOVERNANCE FUNCTIONS
     // ============================================================
 
     /**
-     * @dev Set infrastructure cost for a model
-     * @param modelId String model identifier
-     * @param costPer1000Calls Cost in USDC (6 decimals) per 1000 API calls
+     * @inheritdoc IInfrastructureCostOracle
      */
-    function setCost(string memory modelId, uint256 costPer1000Calls)
-        external
-        onlyRole(COST_UPDATER_ROLE)
-    {
+    function setEstimatedCost(
+        string memory modelId,
+        uint256 costPerThousandCalls,
+        uint256 effectiveEpoch
+    ) external override onlyRole(GOV_ROLE) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
 
-        uint256 oldCost = modelCosts[modelId];
-        modelCosts[modelId] = costPer1000Calls;
+        uint256 currentCost = _costPerThousandCalls[modelId];
+        uint256 lastUpdate = _lastUpdated[modelId];
 
-        emit CostUpdated(modelId, oldCost, costPer1000Calls, msg.sender);
+        // Calculate effective after timestamp
+        uint256 effectiveAfter;
+        if (lastUpdate == 0) {
+            // First update: can be effective immediately or at specified epoch
+            effectiveAfter = effectiveEpoch > 0 ? effectiveEpoch : block.timestamp;
+        } else {
+            // Subsequent updates: must respect epoch boundary
+            uint256 nextEpochBoundary = lastUpdate + _epochDuration;
+            effectiveAfter = effectiveEpoch > nextEpochBoundary ? effectiveEpoch : nextEpochBoundary;
+        }
+
+        // Queue the update
+        _pendingUpdates[modelId] = PendingCostUpdate({
+            costPerThousandCalls: costPerThousandCalls,
+            queuedAt: block.timestamp,
+            exists: true
+        });
+
+        emit CostUpdateQueued(modelId, currentCost, costPerThousandCalls, effectiveAfter, msg.sender);
     }
 
     /**
-     * @dev Set costs for multiple models in batch
-     * @param modelIds Array of model identifiers
-     * @param costs Array of costs per 1000 calls (must match modelIds length)
+     * @inheritdoc IInfrastructureCostOracle
      */
-    function batchSetCosts(
-        string[] memory modelIds,
-        uint256[] memory costs
-    ) external onlyRole(COST_UPDATER_ROLE) {
-        ValidationLib.requireMatchingArrayLengths(modelIds.length, costs.length);
-        ValidationLib.requireNonEmptyArray(modelIds.length);
+    function applyPendingUpdate(string memory modelId) external override {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
 
-        for (uint256 i = 0; i < modelIds.length; i++) {
-            ValidationLib.requireNonEmptyString(modelIds[i], "model ID");
+        PendingCostUpdate storage pending = _pendingUpdates[modelId];
+        require(pending.exists, "No pending update for this model");
 
-            uint256 oldCost = modelCosts[modelIds[i]];
-            modelCosts[modelIds[i]] = costs[i];
+        uint256 lastUpdate = _lastUpdated[modelId];
 
-            emit CostUpdated(modelIds[i], oldCost, costs[i], msg.sender);
+        // Check if epoch boundary has passed
+        if (lastUpdate > 0) {
+            uint256 epochBoundary = lastUpdate + _epochDuration;
+            require(block.timestamp >= epochBoundary, "Epoch boundary not reached");
         }
+
+        // Apply the update
+        uint256 oldCost = _costPerThousandCalls[modelId];
+        uint256 newCost = pending.costPerThousandCalls;
+
+        _costPerThousandCalls[modelId] = newCost;
+        _lastUpdated[modelId] = block.timestamp;
+        delete _pendingUpdates[modelId];
+
+        emit CostUpdateApplied(modelId, oldCost, newCost, msg.sender);
+    }
+
+    /**
+     * @inheritdoc IInfrastructureCostOracle
+     */
+    function setEpochDuration(uint256 newDuration) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(
+            newDuration >= MIN_EPOCH_DURATION && newDuration <= MAX_EPOCH_DURATION,
+            "Epoch duration must be between 1 and 365 days"
+        );
+
+        uint256 oldDuration = _epochDuration;
+        _epochDuration = newDuration;
+
+        emit EpochDurationSet(oldDuration, newDuration, msg.sender);
+    }
+
+    /**
+     * @inheritdoc IInfrastructureCostOracle
+     */
+    function setGrossMarginBps(uint16 newGrossMarginBps) external override onlyRole(GOV_ROLE) {
+        require(
+            newGrossMarginBps <= MAX_GROSS_MARGIN_BPS,
+            "Gross margin cannot exceed 100%"
+        );
+
+        uint16 oldMarginBps = _grossMarginBps;
+        _grossMarginBps = newGrossMarginBps;
+
+        emit GrossMarginBpsSet(oldMarginBps, newGrossMarginBps, msg.sender);
     }
 
     // ============================================================
@@ -89,9 +180,7 @@ contract InfrastructureCostOracle is AccessControlBase, IInfrastructureCostOracl
     // ============================================================
 
     /**
-     * @dev Get estimated infrastructure cost per 1000 calls for a model
-     * @param modelId String model identifier
-     * @return Estimated cost in USDC (6 decimals) per 1000 API calls
+     * @inheritdoc IInfrastructureCostOracle
      */
     function getEstimatedCost(string memory modelId)
         external
@@ -99,13 +188,31 @@ contract InfrastructureCostOracle is AccessControlBase, IInfrastructureCostOracl
         override
         returns (uint256)
     {
-        return modelCosts[modelId];
+        return _costPerThousandCalls[modelId];
     }
 
     /**
-     * @dev Check if a model has a cost configured
-     * @param modelId String model identifier
-     * @return True if cost > 0, false otherwise
+     * @inheritdoc IInfrastructureCostOracle
+     */
+    function getEndUserPrice(string memory modelId)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        uint256 cost = _costPerThousandCalls[modelId];
+        if (cost == 0) {
+            return 0;
+        }
+
+        // Calculate: cost * (1 + grossMarginBps / 10000)
+        // = cost + (cost * grossMarginBps / 10000)
+        uint256 markup = (cost * _grossMarginBps) / 10000;
+        return cost + markup;
+    }
+
+    /**
+     * @inheritdoc IInfrastructureCostOracle
      */
     function hasCost(string memory modelId)
         external
@@ -113,15 +220,45 @@ contract InfrastructureCostOracle is AccessControlBase, IInfrastructureCostOracl
         override
         returns (bool)
     {
-        return modelCosts[modelId] > 0;
+        return _costPerThousandCalls[modelId] > 0;
     }
 
     /**
-     * @dev Check if an address has cost updater role
-     * @param account Address to check
-     * @return True if account has updater role
+     * @inheritdoc IInfrastructureCostOracle
      */
-    function isUpdater(address account) external view returns (bool) {
-        return hasRole(COST_UPDATER_ROLE, account);
+    function getPendingUpdate(string memory modelId)
+        external
+        view
+        override
+        returns (bool exists, uint256 costPerThousandCalls, uint256 queuedAt)
+    {
+        PendingCostUpdate storage pending = _pendingUpdates[modelId];
+        return (pending.exists, pending.costPerThousandCalls, pending.queuedAt);
+    }
+
+    /**
+     * @inheritdoc IInfrastructureCostOracle
+     */
+    function getLastUpdated(string memory modelId)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        return _lastUpdated[modelId];
+    }
+
+    /**
+     * @inheritdoc IInfrastructureCostOracle
+     */
+    function epochDuration() external view override returns (uint256) {
+        return _epochDuration;
+    }
+
+    /**
+     * @inheritdoc IInfrastructureCostOracle
+     */
+    function grossMarginBps() external view override returns (uint16) {
+        return _grossMarginBps;
     }
 }

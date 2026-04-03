@@ -96,4 +96,135 @@ interface IHokusaiParams {
      * @param updatedBy The address that made the update
      */
     event LicenseRefSet(bytes32 indexed oldHash, bytes32 indexed newHash, string newUri, address indexed updatedBy);
+
+    /**
+     * @dev Emitted when a parameter update is queued for a model
+     * @param modelId The model identifier
+     * @param paramName The parameter name being updated
+     * @param currentValue The current parameter value
+     * @param newValue The new parameter value
+     * @param effectiveAfter Timestamp when the update can be applied
+     */
+    event ParamUpdateQueued(
+        string indexed modelId,
+        string paramName,
+        uint256 currentValue,
+        uint256 newValue,
+        uint256 effectiveAfter
+    );
+
+    /**
+     * @dev Emitted when a queued parameter update is applied
+     * @param modelId The model identifier
+     * @param paramName The parameter name being updated
+     * @param oldValue The previous parameter value
+     * @param newValue The new parameter value
+     */
+    event ParamUpdateApplied(
+        string indexed modelId,
+        string paramName,
+        uint256 oldValue,
+        uint256 newValue
+    );
+
+    /**
+     * @dev Emitted when an emergency parameter override is performed
+     * @param modelId The model identifier
+     * @param paramName The parameter name being overridden
+     * @param value The new parameter value
+     * @param reason The reason for emergency override
+     */
+    event EmergencyParamOverride(
+        string indexed modelId,
+        string paramName,
+        uint256 value,
+        string reason
+    );
+
+    /**
+     * @dev Queues a parameter update for a model
+     * @param modelId The model identifier
+     * @param paramName The parameter name ("tokensPerDeltaOne" or "infrastructureAccrualBps")
+     * @param newValue The new parameter value
+     * Requirements:
+     * - Only addresses with GOV_ROLE can call this function
+     * - paramName must be valid
+     * - newValue must be within valid bounds
+     */
+    function queueParamUpdate(string memory modelId, string memory paramName, uint256 newValue) external;
+
+    /**
+     * @dev Applies all pending parameter updates for a model if epoch boundary has passed
+     * @param modelId The model identifier
+     * Requirements:
+     * - Permissionless function (anyone can call)
+     * - Can only apply updates after epoch boundary
+     */
+    function applyPendingUpdates(string memory modelId) external;
+
+    /**
+     * @dev Gets the price epoch information for a model
+     * @param modelId The model identifier
+     * @return epochStart Timestamp when current epoch started
+     * @return epochEnd Timestamp when current epoch ends
+     * @return hasPendingUpdates Whether there are pending parameter updates
+     */
+    function getPriceEpochInfo(string memory modelId) external view returns (
+        uint256 epochStart,
+        uint256 epochEnd,
+        bool hasPendingUpdates
+    );
+
+    /**
+     * @dev Cancels a pending parameter update for a model
+     * @param modelId The model identifier
+     * @param paramName The parameter name to cancel
+     * Requirements:
+     * - Only addresses with GOV_ROLE can call this function
+     */
+    function cancelPendingUpdate(string memory modelId, string memory paramName) external;
+
+    /**
+     * @dev Emergency override to force-apply a parameter change bypassing epoch
+     * @param modelId The model identifier
+     * @param paramName The parameter name
+     * @param newValue The new parameter value
+     * @param reason The reason for emergency override
+     * Requirements:
+     * - Only addresses with DEFAULT_ADMIN_ROLE can call this function
+     * - Should only be used in emergencies
+     */
+    function emergencySetParam(
+        string memory modelId,
+        string memory paramName,
+        uint256 newValue,
+        string memory reason
+    ) external;
+
+    /**
+     * @dev Gets the price epoch duration
+     * @return The epoch duration in seconds
+     */
+    function priceEpochDuration() external view returns (uint256);
+
+    /**
+     * @dev Gets the epoch start time for a model
+     * @param modelId The model identifier
+     * @return The epoch start timestamp
+     */
+    function getEpochStart(string memory modelId) external view returns (uint256);
+
+    /**
+     * @dev Gets model-specific tokensPerDeltaOne parameter
+     * @param modelId The model identifier
+     * @return The tokens per deltaOne value for the model
+     */
+    function getModelTokensPerDeltaOne(string memory modelId) external view returns (uint256);
+
+    /**
+     * @dev Gets model-specific infrastructureAccrualBps parameter
+     * @param modelId The model identifier
+     * @return The infrastructure accrual in basis points for the model
+     */
+    function getModelInfrastructureAccrualBps(string memory modelId) external view returns (uint16);
 }

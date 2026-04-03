@@ -423,4 +423,358 @@ describe("HokusaiParams", function () {
       ).to.be.reverted;
     });
   });
+
+  describe("Epoch-Based Price Locking", function () {
+    const TEST_MODEL_ID = "model-test-123";
+    const EPOCH_DURATION_DAYS = 30;
+    const EPOCH_DURATION = EPOCH_DURATION_DAYS * 24 * 60 * 60;
+
+    describe("Epoch Configuration", function () {
+      it("Should have correct default epoch duration", async function () {
+        expect(await params.priceEpochDuration()).to.equal(EPOCH_DURATION);
+      });
+
+      it("Should initialize model epoch on first queue", async function () {
+        const epochInfoBefore = await params.getPriceEpochInfo(TEST_MODEL_ID);
+        expect(epochInfoBefore.epochStart).to.equal(0);
+        expect(epochInfoBefore.epochEnd).to.equal(0);
+        expect(epochInfoBefore.hasPendingUpdates).to.be.false;
+
+        await params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "tokensPerDeltaOne", 2000);
+
+        const epochInfoAfter = await params.getPriceEpochInfo(TEST_MODEL_ID);
+        expect(epochInfoAfter.epochStart).to.be.gt(0);
+        expect(epochInfoAfter.epochEnd).to.equal(epochInfoAfter.epochStart + BigInt(EPOCH_DURATION));
+        expect(epochInfoAfter.hasPendingUpdates).to.be.true;
+      });
+
+      it("Should return global defaults for uninitialized models", async function () {
+        const tokensPerDeltaOne = await params.getModelTokensPerDeltaOne("uninitialized-model");
+        const infraBps = await params.getModelInfrastructureAccrualBps("uninitialized-model");
+
+        expect(tokensPerDeltaOne).to.equal(DEFAULT_TOKENS_PER_DELTA_ONE);
+        expect(infraBps).to.equal(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS);
+      });
+    });
+
+    describe("Queue Parameter Updates", function () {
+      it("Should queue tokensPerDeltaOne update", async function () {
+        const newValue = 2000;
+
+        await expect(
+          params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "tokensPerDeltaOne", newValue)
+        ).to.emit(params, "ParamUpdateQueued")
+          .withArgs(TEST_MODEL_ID, "tokensPerDeltaOne", DEFAULT_TOKENS_PER_DELTA_ONE, newValue, await ethers.provider.getBlock("latest").then(b => b.timestamp + 1 + EPOCH_DURATION));
+
+        const epochInfo = await params.getPriceEpochInfo(TEST_MODEL_ID);
+        expect(epochInfo.hasPendingUpdates).to.be.true;
+      });
+
+      it("Should queue infrastructureAccrualBps update", async function () {
+        const newBps = 7000;
+
+        await expect(
+          params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "infrastructureAccrualBps", newBps)
+        ).to.emit(params, "ParamUpdateQueued");
+
+        const epochInfo = await params.getPriceEpochInfo(TEST_MODEL_ID);
+        expect(epochInfo.hasPendingUpdates).to.be.true;
+      });
+
+      it("Should allow queuing multiple parameter updates in same epoch", async function () {
+        await params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "tokensPerDeltaOne", 3000);
+        await params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "infrastructureAccrualBps", 9000);
+
+        const epochInfo = await params.getPriceEpochInfo(TEST_MODEL_ID);
+        expect(epochInfo.hasPendingUpdates).to.be.true;
+      });
+
+      it("Should reject queue with invalid parameter name", async function () {
+        await expect(
+          params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "invalidParam", 1000)
+        ).to.be.revertedWith("Invalid parameter name");
+      });
+
+      it("Should reject queue with empty model ID", async function () {
+        await expect(
+          params.connect(governor).queueParamUpdate("", "tokensPerDeltaOne", 2000)
+        ).to.be.revertedWith("Model ID cannot be empty");
+      });
+
+      it("Should reject queue with out-of-bounds value", async function () {
+        await expect(
+          params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "tokensPerDeltaOne", 50)
+        ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
+
+        await expect(
+          params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "infrastructureAccrualBps", 500)
+        ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
+      });
+
+      it("Should prevent non-governor from queuing updates", async function () {
+        await expect(
+          params.connect(user1).queueParamUpdate(TEST_MODEL_ID, "tokensPerDeltaOne", 2000)
+        ).to.be.reverted;
+      });
+    });
+
+    describe("Apply Pending Updates", function () {
+      it("Should fail to apply updates before epoch ends", async function () {
+        await params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "tokensPerDeltaOne", 5000);
+
+        await expect(
+          params.applyPendingUpdates(TEST_MODEL_ID)
+        ).to.be.revertedWith("Epoch has not ended yet");
+      });
+
+      it("Should successfully apply updates after epoch boundary", async function () {
+        const MODEL_ID = "model-apply-test";
+        const newValue = 5000;
+
+        // Queue update
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", newValue);
+
+        // Fast forward past epoch boundary
+        await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
+        await ethers.provider.send("evm_mine");
+
+        // Apply updates
+        await expect(params.applyPendingUpdates(MODEL_ID))
+          .to.emit(params, "ParamUpdateApplied")
+          .withArgs(MODEL_ID, "tokensPerDeltaOne", DEFAULT_TOKENS_PER_DELTA_ONE, newValue);
+
+        // Verify new value
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(newValue);
+      });
+
+      it("Should apply multiple parameter updates", async function () {
+        const MODEL_ID = "model-multi-apply";
+        const newTokens = 8000;
+        const newInfra = 9500;
+
+        // Queue both updates
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", newTokens);
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "infrastructureAccrualBps", newInfra);
+
+        // Fast forward
+        await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
+        await ethers.provider.send("evm_mine");
+
+        // Apply updates
+        const tx = await params.applyPendingUpdates(MODEL_ID);
+        const receipt = await tx.wait();
+
+        // Verify both events were emitted
+        const events = receipt.logs.filter(log => {
+          try {
+            return params.interface.parseLog(log).name === "ParamUpdateApplied";
+          } catch {
+            return false;
+          }
+        });
+        expect(events.length).to.equal(2);
+
+        // Verify new values
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(newTokens);
+        expect(await params.getModelInfrastructureAccrualBps(MODEL_ID)).to.equal(newInfra);
+      });
+
+      it("Should start new epoch after applying updates", async function () {
+        const MODEL_ID = "model-new-epoch";
+
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 7000);
+
+        const epochBefore = await params.getPriceEpochInfo(MODEL_ID);
+
+        // Fast forward and apply
+        await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
+        await ethers.provider.send("evm_mine");
+        await params.applyPendingUpdates(MODEL_ID);
+
+        const epochAfter = await params.getPriceEpochInfo(MODEL_ID);
+
+        expect(epochAfter.epochStart).to.be.gt(epochBefore.epochStart);
+        expect(epochAfter.hasPendingUpdates).to.be.false;
+      });
+
+      it("Should be permissionless (anyone can call)", async function () {
+        const MODEL_ID = "model-permissionless";
+
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 4000);
+
+        await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
+        await ethers.provider.send("evm_mine");
+
+        // Non-governor user can apply updates
+        await expect(params.connect(user1).applyPendingUpdates(MODEL_ID))
+          .to.emit(params, "ParamUpdateApplied");
+      });
+
+      it("Should reject apply for uninitialized model", async function () {
+        await expect(
+          params.applyPendingUpdates("never-initialized")
+        ).to.be.revertedWith("Model not initialized");
+      });
+    });
+
+    describe("Cancel Pending Updates", function () {
+      it("Should allow governor to cancel pending update", async function () {
+        const MODEL_ID = "model-cancel-test";
+
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 6000);
+
+        let epochInfo = await params.getPriceEpochInfo(MODEL_ID);
+        expect(epochInfo.hasPendingUpdates).to.be.true;
+
+        await params.connect(governor).cancelPendingUpdate(MODEL_ID, "tokensPerDeltaOne");
+
+        epochInfo = await params.getPriceEpochInfo(MODEL_ID);
+        expect(epochInfo.hasPendingUpdates).to.be.false;
+      });
+
+      it("Should reject cancel if no pending update exists", async function () {
+        const MODEL_ID = "model-no-pending";
+
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 6000);
+
+        await expect(
+          params.connect(governor).cancelPendingUpdate(MODEL_ID, "infrastructureAccrualBps")
+        ).to.be.revertedWith("No pending update for this parameter");
+      });
+
+      it("Should prevent non-governor from canceling updates", async function () {
+        const MODEL_ID = "model-cancel-auth";
+
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 6000);
+
+        await expect(
+          params.connect(user1).cancelPendingUpdate(MODEL_ID, "tokensPerDeltaOne")
+        ).to.be.reverted;
+      });
+    });
+
+    describe("Emergency Override", function () {
+      it("Should allow admin to force-apply parameter change", async function () {
+        const MODEL_ID = "model-emergency";
+        const newValue = 15000;
+        const reason = "Critical bug fix required";
+
+        await expect(
+          params.connect(owner).emergencySetParam(MODEL_ID, "tokensPerDeltaOne", newValue, reason)
+        ).to.emit(params, "EmergencyParamOverride")
+          .withArgs(MODEL_ID, "tokensPerDeltaOne", newValue, reason);
+
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(newValue);
+      });
+
+      it("Should bypass epoch boundary", async function () {
+        const MODEL_ID = "model-bypass-epoch";
+        const newValue = 25000;
+
+        // Emergency set should work immediately
+        await params.connect(owner).emergencySetParam(
+          MODEL_ID,
+          "tokensPerDeltaOne",
+          newValue,
+          "Urgent pricing adjustment"
+        );
+
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(newValue);
+      });
+
+      it("Should clear pending update if exists", async function () {
+        const MODEL_ID = "model-clear-pending";
+
+        // Queue an update
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 5000);
+
+        let epochInfo = await params.getPriceEpochInfo(MODEL_ID);
+        expect(epochInfo.hasPendingUpdates).to.be.true;
+
+        // Emergency override
+        await params.connect(owner).emergencySetParam(
+          MODEL_ID,
+          "tokensPerDeltaOne",
+          10000,
+          "Override pending update"
+        );
+
+        epochInfo = await params.getPriceEpochInfo(MODEL_ID);
+        expect(epochInfo.hasPendingUpdates).to.be.false;
+      });
+
+      it("Should require DEFAULT_ADMIN_ROLE", async function () {
+        await expect(
+          params.connect(governor).emergencySetParam("model", "tokensPerDeltaOne", 5000, "reason")
+        ).to.be.reverted;
+
+        await expect(
+          params.connect(user1).emergencySetParam("model", "tokensPerDeltaOne", 5000, "reason")
+        ).to.be.reverted;
+      });
+
+      it("Should reject empty reason", async function () {
+        await expect(
+          params.connect(owner).emergencySetParam("model", "tokensPerDeltaOne", 5000, "")
+        ).to.be.revertedWith("Reason cannot be empty");
+      });
+
+      it("Should validate parameter bounds", async function () {
+        await expect(
+          params.connect(owner).emergencySetParam("model", "tokensPerDeltaOne", 50, "Invalid value")
+        ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
+      });
+    });
+
+    describe("Edge Cases and Integration", function () {
+      it("Should handle multiple epochs correctly", async function () {
+        const MODEL_ID = "model-multi-epoch";
+
+        // Epoch 1: Queue and apply
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 2000);
+        await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
+        await ethers.provider.send("evm_mine");
+        await params.applyPendingUpdates(MODEL_ID);
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(2000);
+
+        // Epoch 2: Queue and apply
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 3000);
+        await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
+        await ethers.provider.send("evm_mine");
+        await params.applyPendingUpdates(MODEL_ID);
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(3000);
+      });
+
+      it("Should handle overwriting queued updates", async function () {
+        const MODEL_ID = "model-overwrite";
+
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 4000);
+        await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 6000);
+
+        await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
+        await ethers.provider.send("evm_mine");
+        await params.applyPendingUpdates(MODEL_ID);
+
+        // Should apply the latest queued value
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(6000);
+      });
+
+      it("Should handle different models independently", async function () {
+        const MODEL_A = "model-a";
+        const MODEL_B = "model-b";
+
+        await params.connect(governor).queueParamUpdate(MODEL_A, "tokensPerDeltaOne", 5000);
+        await params.connect(governor).queueParamUpdate(MODEL_B, "tokensPerDeltaOne", 7000);
+
+        await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
+        await ethers.provider.send("evm_mine");
+
+        await params.applyPendingUpdates(MODEL_A);
+        await params.applyPendingUpdates(MODEL_B);
+
+        expect(await params.getModelTokensPerDeltaOne(MODEL_A)).to.equal(5000);
+        expect(await params.getModelTokensPerDeltaOne(MODEL_B)).to.equal(7000);
+      });
+    });
+  });
 });

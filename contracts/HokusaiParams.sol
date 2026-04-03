@@ -25,10 +25,13 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /// @dev Maximum allowed value for infrastructureAccrualBps (100% in basis points)
     uint16 public constant MAX_INFRASTRUCTURE_ACCRUAL_BPS = 10000;
 
-    /// @dev Number of tokens to mint per unit of deltaOne improvement
+    /// @dev Default price epoch duration (30 days in seconds)
+    uint256 public constant DEFAULT_PRICE_EPOCH_DURATION = 30 days;
+
+    /// @dev Number of tokens to mint per unit of deltaOne improvement (global default)
     uint256 private _tokensPerDeltaOne;
 
-    /// @dev Infrastructure cost accrual percentage in basis points (1000-10000 = 10-100%)
+    /// @dev Infrastructure cost accrual percentage in basis points (global default)
     uint16 private _infrastructureAccrualBps;
 
     /// @dev Hash of the license reference
@@ -36,6 +39,31 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
 
     /// @dev URI string for the license reference
     string private _licenseURI;
+
+    /// @dev Price epoch duration in seconds
+    uint256 private _priceEpochDuration;
+
+    /// @dev Struct to track pending parameter updates
+    struct PendingUpdate {
+        uint256 value;
+        uint256 queuedAt;
+        bool exists;
+    }
+
+    /// @dev Mapping of model ID to epoch start timestamp
+    mapping(string => uint256) private _priceEpochStart;
+
+    /// @dev Mapping of model ID to parameter name to pending update
+    mapping(string => mapping(string => PendingUpdate)) private _pendingParamUpdates;
+
+    /// @dev Mapping of model ID to model-specific tokensPerDeltaOne
+    mapping(string => uint256) private _modelTokensPerDeltaOne;
+
+    /// @dev Mapping of model ID to model-specific infrastructureAccrualBps
+    mapping(string => uint16) private _modelInfrastructureAccrualBps;
+
+    /// @dev Mapping to track if a model has been initialized
+    mapping(string => bool) private _modelInitialized;
 
     /**
      * @dev Constructor to initialize the parameter contract
@@ -69,6 +97,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         _infrastructureAccrualBps = initialInfrastructureAccrualBps;
         _licenseHash = initialLicenseHash;
         _licenseURI = initialLicenseURI;
+        _priceEpochDuration = DEFAULT_PRICE_EPOCH_DURATION;
 
         // Setup access control
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -156,5 +185,230 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         _licenseURI = uri;
 
         emit LicenseRefSet(oldHash, hash, uri, msg.sender);
+    }
+
+    // ============================================================
+    // EPOCH-BASED PRICE LOCKING FUNCTIONS
+    // ============================================================
+
+    /**
+     * @dev Initializes a model with current global defaults if not already initialized
+     * @param modelId The model identifier
+     */
+    function _initializeModelIfNeeded(string memory modelId) private {
+        if (!_modelInitialized[modelId]) {
+            _modelTokensPerDeltaOne[modelId] = _tokensPerDeltaOne;
+            _modelInfrastructureAccrualBps[modelId] = _infrastructureAccrualBps;
+            _priceEpochStart[modelId] = block.timestamp;
+            _modelInitialized[modelId] = true;
+        }
+    }
+
+    /**
+     * @dev Validates parameter name and value
+     * @param paramName The parameter name
+     * @param newValue The new value to validate
+     */
+    function _validateParam(string memory paramName, uint256 newValue) private pure {
+        bytes32 paramHash = keccak256(bytes(paramName));
+
+        if (paramHash == keccak256(bytes("tokensPerDeltaOne"))) {
+            require(
+                newValue >= MIN_TOKENS_PER_DELTA_ONE && newValue <= MAX_TOKENS_PER_DELTA_ONE,
+                "tokensPerDeltaOne must be between 100 and 1000000"
+            );
+        } else if (paramHash == keccak256(bytes("infrastructureAccrualBps"))) {
+            require(
+                newValue >= MIN_INFRASTRUCTURE_ACCRUAL_BPS && newValue <= MAX_INFRASTRUCTURE_ACCRUAL_BPS,
+                "infrastructureAccrualBps must be between 1000 and 10000"
+            );
+        } else {
+            revert("Invalid parameter name");
+        }
+    }
+
+    /**
+     * @dev Gets the current value of a parameter for a model
+     * @param modelId The model identifier
+     * @param paramName The parameter name
+     * @return The current parameter value
+     */
+    function _getCurrentParamValue(string memory modelId, string memory paramName) private view returns (uint256) {
+        bytes32 paramHash = keccak256(bytes(paramName));
+
+        if (paramHash == keccak256(bytes("tokensPerDeltaOne"))) {
+            return _modelInitialized[modelId] ? _modelTokensPerDeltaOne[modelId] : _tokensPerDeltaOne;
+        } else if (paramHash == keccak256(bytes("infrastructureAccrualBps"))) {
+            return _modelInitialized[modelId] ? _modelInfrastructureAccrualBps[modelId] : _infrastructureAccrualBps;
+        }
+        revert("Invalid parameter name");
+    }
+
+    /**
+     * @dev Sets a parameter value for a model
+     * @param modelId The model identifier
+     * @param paramName The parameter name
+     * @param newValue The new value
+     */
+    function _setParamValue(string memory modelId, string memory paramName, uint256 newValue) private {
+        bytes32 paramHash = keccak256(bytes(paramName));
+
+        if (paramHash == keccak256(bytes("tokensPerDeltaOne"))) {
+            _modelTokensPerDeltaOne[modelId] = newValue;
+        } else if (paramHash == keccak256(bytes("infrastructureAccrualBps"))) {
+            _modelInfrastructureAccrualBps[modelId] = uint16(newValue);
+        }
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function queueParamUpdate(
+        string memory modelId,
+        string memory paramName,
+        uint256 newValue
+    ) external override onlyRole(GOV_ROLE) {
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
+
+        _initializeModelIfNeeded(modelId);
+        _validateParam(paramName, newValue);
+
+        uint256 currentValue = _getCurrentParamValue(modelId, paramName);
+        uint256 effectiveAfter = _priceEpochStart[modelId] + _priceEpochDuration;
+
+        _pendingParamUpdates[modelId][paramName] = PendingUpdate({
+            value: newValue,
+            queuedAt: block.timestamp,
+            exists: true
+        });
+
+        emit ParamUpdateQueued(modelId, paramName, currentValue, newValue, effectiveAfter);
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function applyPendingUpdates(string memory modelId) external override {
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
+        require(_modelInitialized[modelId], "Model not initialized");
+
+        uint256 epochEnd = _priceEpochStart[modelId] + _priceEpochDuration;
+        require(block.timestamp >= epochEnd, "Epoch has not ended yet");
+
+        // Apply tokensPerDeltaOne if pending
+        string memory tokensParam = "tokensPerDeltaOne";
+        if (_pendingParamUpdates[modelId][tokensParam].exists) {
+            uint256 oldValue = _modelTokensPerDeltaOne[modelId];
+            uint256 newValue = _pendingParamUpdates[modelId][tokensParam].value;
+            _modelTokensPerDeltaOne[modelId] = newValue;
+            delete _pendingParamUpdates[modelId][tokensParam];
+            emit ParamUpdateApplied(modelId, tokensParam, oldValue, newValue);
+        }
+
+        // Apply infrastructureAccrualBps if pending
+        string memory infraParam = "infrastructureAccrualBps";
+        if (_pendingParamUpdates[modelId][infraParam].exists) {
+            uint256 oldValue = _modelInfrastructureAccrualBps[modelId];
+            uint256 newValue = _pendingParamUpdates[modelId][infraParam].value;
+            _modelInfrastructureAccrualBps[modelId] = uint16(newValue);
+            delete _pendingParamUpdates[modelId][infraParam];
+            emit ParamUpdateApplied(modelId, infraParam, oldValue, newValue);
+        }
+
+        // Start new epoch
+        _priceEpochStart[modelId] = block.timestamp;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function getPriceEpochInfo(string memory modelId) external view override returns (
+        uint256 epochStart,
+        uint256 epochEnd,
+        bool hasPendingUpdates
+    ) {
+        if (!_modelInitialized[modelId]) {
+            return (0, 0, false);
+        }
+
+        epochStart = _priceEpochStart[modelId];
+        epochEnd = epochStart + _priceEpochDuration;
+
+        hasPendingUpdates =
+            _pendingParamUpdates[modelId]["tokensPerDeltaOne"].exists ||
+            _pendingParamUpdates[modelId]["infrastructureAccrualBps"].exists;
+
+        return (epochStart, epochEnd, hasPendingUpdates);
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function cancelPendingUpdate(
+        string memory modelId,
+        string memory paramName
+    ) external override onlyRole(GOV_ROLE) {
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
+        require(_pendingParamUpdates[modelId][paramName].exists, "No pending update for this parameter");
+
+        delete _pendingParamUpdates[modelId][paramName];
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function emergencySetParam(
+        string memory modelId,
+        string memory paramName,
+        uint256 newValue,
+        string memory reason
+    ) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
+        require(bytes(reason).length > 0, "Reason cannot be empty");
+
+        _initializeModelIfNeeded(modelId);
+        _validateParam(paramName, newValue);
+        _setParamValue(modelId, paramName, newValue);
+
+        // Clear any pending update for this parameter
+        if (_pendingParamUpdates[modelId][paramName].exists) {
+            delete _pendingParamUpdates[modelId][paramName];
+        }
+
+        emit EmergencyParamOverride(modelId, paramName, newValue, reason);
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function priceEpochDuration() external view override returns (uint256) {
+        return _priceEpochDuration;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function getEpochStart(string memory modelId) external view override returns (uint256) {
+        return _priceEpochStart[modelId];
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function getModelTokensPerDeltaOne(string memory modelId) external view override returns (uint256) {
+        if (!_modelInitialized[modelId]) {
+            return _tokensPerDeltaOne;
+        }
+        return _modelTokensPerDeltaOne[modelId];
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function getModelInfrastructureAccrualBps(string memory modelId) external view override returns (uint16) {
+        if (!_modelInitialized[modelId]) {
+            return _infrastructureAccrualBps;
+        }
+        return _modelInfrastructureAccrualBps[modelId];
     }
 }

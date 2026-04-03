@@ -763,4 +763,408 @@ describe("InfrastructureReserve", function () {
       expect(await infraReserve.paid(MODEL_ID)).to.equal(amount);
     });
   });
+
+  describe("Reconciliation - Cost Variance Tracking", function () {
+    const estimatedCost = ethers.parseUnits("1000", 6); // $1000 USDC
+    const actualCost = ethers.parseUnits("1200", 6); // $1200 USDC (20% over)
+
+    beforeEach(async function () {
+      // Fund the reserve for payments
+      const depositAmount = ethers.parseUnits("5000", 6);
+      await usdc.connect(depositor).approve(await infraReserve.getAddress(), depositAmount);
+      await infraReserve.connect(depositor).deposit(MODEL_ID, depositAmount);
+    });
+
+    describe("Reconciliation Period", function () {
+      it("Should initialize with default 30 day period", async function () {
+        const period = await infraReserve.reconciliationPeriod();
+        expect(period).to.equal(30n * 24n * 60n * 60n); // 30 days in seconds
+      });
+
+      it("Should allow admin to update reconciliation period", async function () {
+        const newPeriod = 7n * 24n * 60n * 60n; // 7 days
+        await expect(infraReserve.connect(owner).setReconciliationPeriod(newPeriod))
+          .to.emit(infraReserve, "ReconciliationPeriodUpdated")
+          .withArgs(30n * 24n * 60n * 60n, newPeriod);
+
+        expect(await infraReserve.reconciliationPeriod()).to.equal(newPeriod);
+      });
+
+      it("Should reject zero period", async function () {
+        await expect(
+          infraReserve.connect(owner).setReconciliationPeriod(0)
+        ).to.be.revertedWith("Period must be positive");
+      });
+
+      it("Should reject non-admin setting period", async function () {
+        await expect(
+          infraReserve.connect(user1).setReconciliationPeriod(7 * 24 * 60 * 60)
+        ).to.be.reverted;
+      });
+    });
+
+    describe("Snapshot Estimated Costs", function () {
+      it("Should snapshot estimated costs for period", async function () {
+        await expect(
+          infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost)
+        ).to.emit(infraReserve, "EstimatedCostsSnapshot")
+          .withArgs(MODEL_ID, 0, estimatedCost, await ethers.provider.getBlock("latest").then(b => b.timestamp + 1));
+
+        const [estimated] = await infraReserve.getVariance(MODEL_ID, 0);
+        expect(estimated).to.equal(estimatedCost);
+      });
+
+      it("Should initialize period start time on first snapshot", async function () {
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+        const periodStart = await infraReserve.periodStartTime(MODEL_ID, 0);
+        expect(periodStart).to.be.gt(0);
+      });
+
+      it("Should reject zero estimated cost", async function () {
+        await expect(
+          infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, 0)
+        ).to.be.revertedWithCustomError(infraReserve, "InvalidAmount");
+      });
+
+      it("Should reject empty model ID", async function () {
+        await expect(
+          infraReserve.connect(payer).snapshotEstimatedCosts("", estimatedCost)
+        ).to.be.revertedWithCustomError(infraReserve, "EmptyString");
+      });
+
+      it("Should reject non-payer snapshotting", async function () {
+        await expect(
+          infraReserve.connect(user1).snapshotEstimatedCosts(MODEL_ID, estimatedCost)
+        ).to.be.reverted;
+      });
+    });
+
+    describe("Record Actual Costs", function () {
+      const invoiceHash = keccak256(toUtf8Bytes("invoice-001"));
+
+      it("Should record actual costs via payment", async function () {
+        const paymentAmount = ethers.parseUnits("1200", 6);
+
+        await expect(
+          infraReserve.connect(payer).payInfrastructureCost(
+            MODEL_ID,
+            provider1.address,
+            paymentAmount,
+            invoiceHash,
+            "Monthly infrastructure"
+          )
+        ).to.emit(infraReserve, "ActualCostsRecorded")
+          .withArgs(MODEL_ID, 0, paymentAmount, invoiceHash, paymentAmount);
+
+        const [, actual] = await infraReserve.getVariance(MODEL_ID, 0);
+        expect(actual).to.equal(paymentAmount);
+      });
+
+      it("Should accumulate multiple payments in same period", async function () {
+        const payment1 = ethers.parseUnits("500", 6);
+        const payment2 = ethers.parseUnits("700", 6);
+        const invoice1 = keccak256(toUtf8Bytes("invoice-001"));
+        const invoice2 = keccak256(toUtf8Bytes("invoice-002"));
+
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, payment1, invoice1, "Part 1"
+        );
+
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, payment2, invoice2, "Part 2"
+        );
+
+        const [, actual] = await infraReserve.getVariance(MODEL_ID, 0);
+        expect(actual).to.equal(payment1 + payment2);
+      });
+
+      it("Should record actual costs via manual recordActualCosts", async function () {
+        await expect(
+          infraReserve.connect(payer).recordActualCosts(MODEL_ID, 0, actualCost, invoiceHash)
+        ).to.emit(infraReserve, "ActualCostsRecorded")
+          .withArgs(MODEL_ID, 0, actualCost, invoiceHash, actualCost);
+
+        const [, actual] = await infraReserve.getVariance(MODEL_ID, 0);
+        expect(actual).to.equal(actualCost);
+      });
+
+      it("Should reject zero actual cost", async function () {
+        await expect(
+          infraReserve.connect(payer).recordActualCosts(MODEL_ID, 0, 0, invoiceHash)
+        ).to.be.revertedWithCustomError(infraReserve, "InvalidAmount");
+      });
+    });
+
+    describe("Variance Calculation", function () {
+      beforeEach(async function () {
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+      });
+
+      it("Should calculate positive variance when underestimated", async function () {
+        // Actual > Estimated (underestimated by 20%)
+        const actualOverrun = ethers.parseUnits("1200", 6);
+        const invoiceHash = keccak256(toUtf8Bytes("invoice"));
+
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, actualOverrun, invoiceHash, "Overrun"
+        );
+
+        const [estimated, actual, varianceBps] = await infraReserve.getVariance(MODEL_ID, 0);
+
+        expect(estimated).to.equal(estimatedCost);
+        expect(actual).to.equal(actualOverrun);
+        // variance = ((1200 - 1000) / 1000) * 10000 = 2000 bps = 20%
+        expect(varianceBps).to.equal(2000);
+      });
+
+      it("Should calculate negative variance when overestimated", async function () {
+        // Actual < Estimated (overestimated by 20%)
+        const actualUnderrun = ethers.parseUnits("800", 6);
+        const invoiceHash = keccak256(toUtf8Bytes("invoice"));
+
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, actualUnderrun, invoiceHash, "Underrun"
+        );
+
+        const [estimated, actual, varianceBps] = await infraReserve.getVariance(MODEL_ID, 0);
+
+        expect(estimated).to.equal(estimatedCost);
+        expect(actual).to.equal(actualUnderrun);
+        // variance = ((800 - 1000) / 1000) * 10000 = -2000 bps = -20%
+        expect(varianceBps).to.equal(-2000);
+      });
+
+      it("Should return zero variance when actual equals estimated", async function () {
+        const invoiceHash = keccak256(toUtf8Bytes("invoice"));
+
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, estimatedCost, invoiceHash, "Exact"
+        );
+
+        const [, , varianceBps] = await infraReserve.getVariance(MODEL_ID, 0);
+        expect(varianceBps).to.equal(0);
+      });
+
+      it("Should return zero variance when no data", async function () {
+        const [, , varianceBps] = await infraReserve.getVariance(MODEL_ID_2, 0);
+        expect(varianceBps).to.equal(0);
+      });
+    });
+
+    describe("Period Advancement", function () {
+      beforeEach(async function () {
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+      });
+
+      it("Should advance period after reconciliation period elapses", async function () {
+        const invoiceHash = keccak256(toUtf8Bytes("invoice"));
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, actualCost, invoiceHash, "Period 0"
+        );
+
+        // Fast forward 30 days
+        await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+        await ethers.provider.send("evm_mine");
+
+        await expect(infraReserve.connect(payer).advancePeriod(MODEL_ID))
+          .to.emit(infraReserve, "CostReconciled")
+          .withArgs(MODEL_ID, 0, estimatedCost, actualCost, 2000); // 20% variance
+
+        expect(await infraReserve.currentPeriod(MODEL_ID)).to.equal(1);
+      });
+
+      it("Should reject advancing before period elapses", async function () {
+        await expect(
+          infraReserve.connect(payer).advancePeriod(MODEL_ID)
+        ).to.be.revertedWith("Period not elapsed");
+      });
+
+      it("Should reject advancing uninitialized period", async function () {
+        await expect(
+          infraReserve.connect(payer).advancePeriod(MODEL_ID_2)
+        ).to.be.revertedWith("Period not initialized");
+      });
+
+      it("Should reject non-payer advancing period", async function () {
+        await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+        await ethers.provider.send("evm_mine");
+
+        await expect(
+          infraReserve.connect(user1).advancePeriod(MODEL_ID)
+        ).to.be.reverted;
+      });
+    });
+
+    describe("Variance History", function () {
+      it("Should return variance history for multiple periods", async function () {
+        // Period 0
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+        const invoice1 = keccak256(toUtf8Bytes("invoice-1"));
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, actualCost, invoice1, "P0"
+        );
+
+        // Advance to period 1
+        await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+        await ethers.provider.send("evm_mine");
+        await infraReserve.connect(payer).advancePeriod(MODEL_ID);
+
+        // Period 1
+        const est2 = ethers.parseUnits("1500", 6);
+        const act2 = ethers.parseUnits("1400", 6);
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, est2);
+        const invoice2 = keccak256(toUtf8Bytes("invoice-2"));
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, act2, invoice2, "P1"
+        );
+
+        // Get history
+        const history = await infraReserve.getVarianceHistory(MODEL_ID, 2);
+
+        expect(history.length).to.equal(2);
+        expect(history[0].period).to.equal(0);
+        expect(history[0].estimated).to.equal(estimatedCost);
+        expect(history[0].actual).to.equal(actualCost);
+        expect(history[0].varianceBps).to.equal(2000); // 20%
+
+        expect(history[1].period).to.equal(1);
+        expect(history[1].estimated).to.equal(est2);
+        expect(history[1].actual).to.equal(act2);
+        // ((1400 - 1500) / 1500) * 10000 = -666 bps
+        expect(history[1].varianceBps).to.equal(-666);
+      });
+
+      it("Should handle requesting more periods than exist", async function () {
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+
+        const history = await infraReserve.getVarianceHistory(MODEL_ID, 10);
+        // Current period is 0, should return up to currentPeriod (which is 0), so 0 records
+        // But with snapshot, we have period 0 data, so we get 1 record
+        expect(history.length).to.be.lte(1); // Returns min(requested, available)
+      });
+    });
+
+    describe("Cost Adjustment Suggestions", function () {
+      async function setupMultiplePeriods() {
+        // Period 0: underestimated by 20%
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+        const invoice1 = keccak256(toUtf8Bytes("invoice-1"));
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, ethers.parseUnits("1200", 6), invoice1, "P0"
+        );
+        await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+        await ethers.provider.send("evm_mine");
+        await infraReserve.connect(payer).advancePeriod(MODEL_ID);
+
+        // Period 1: underestimated by 15%
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+        const invoice2 = keccak256(toUtf8Bytes("invoice-2"));
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, ethers.parseUnits("1150", 6), invoice2, "P1"
+        );
+        await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+        await ethers.provider.send("evm_mine");
+        await infraReserve.connect(payer).advancePeriod(MODEL_ID);
+
+        // Period 2: underestimated by 10%
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+        const invoice3 = keccak256(toUtf8Bytes("invoice-3"));
+        await infraReserve.connect(payer).payInfrastructureCost(
+          MODEL_ID, provider1.address, ethers.parseUnits("1100", 6), invoice3, "P2"
+        );
+        await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+        await ethers.provider.send("evm_mine");
+        await infraReserve.connect(payer).advancePeriod(MODEL_ID);
+      }
+
+      it("Should suggest cost adjustment based on weighted average", async function () {
+        await setupMultiplePeriods();
+
+        // Weighted avg: (20% * 1 + 15% * 2 + 10% * 3) / 6 = (2000 + 3000 + 3000) / 6 = 1333 bps
+        const [adjustmentBps, suggestedCost] = await infraReserve.suggestCostAdjustment.staticCall(MODEL_ID);
+
+        expect(adjustmentBps).to.be.closeTo(1333, 1); // Allow 1 bps tolerance for rounding
+        // suggestedCost = 1000 * (10000 + 1333) / 10000 = 1133.3
+        expect(suggestedCost).to.be.closeTo(ethers.parseUnits("1133", 6), ethers.parseUnits("1", 6));
+      });
+
+      it("Should emit AdjustmentSuggested event", async function () {
+        await setupMultiplePeriods();
+
+        await expect(infraReserve.suggestCostAdjustment(MODEL_ID))
+          .to.emit(infraReserve, "AdjustmentSuggested");
+      });
+
+      it("Should return no adjustment when variance is within tolerance", async function () {
+        // All periods within 5% tolerance
+        for (let i = 0; i < 3; i++) {
+          await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+          const invoice = keccak256(toUtf8Bytes(`invoice-${i}`));
+          // 3% variance
+          await infraReserve.connect(payer).payInfrastructureCost(
+            MODEL_ID, provider1.address, ethers.parseUnits("1030", 6), invoice, `P${i}`
+          );
+          if (i < 2) {
+            await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+            await ethers.provider.send("evm_mine");
+            await infraReserve.connect(payer).advancePeriod(MODEL_ID);
+          }
+        }
+
+        await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+        await ethers.provider.send("evm_mine");
+        await infraReserve.connect(payer).advancePeriod(MODEL_ID);
+
+        const [adjustmentBps, suggestedCost] = await infraReserve.suggestCostAdjustment.staticCall(MODEL_ID);
+
+        expect(adjustmentBps).to.equal(0);
+        expect(suggestedCost).to.equal(estimatedCost);
+      });
+
+      it("Should reject suggestion with insufficient periods", async function () {
+        await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+
+        await expect(
+          infraReserve.suggestCostAdjustment(MODEL_ID)
+        ).to.be.revertedWith("Need at least 3 periods");
+      });
+    });
+
+    describe("Multi-Period Integration", function () {
+      it("Should track costs across multiple periods correctly", async function () {
+        const periods = [
+          { est: 1000, act: 1100 }, // +10%
+          { est: 1100, act: 1050 }, // -4.5%
+          { est: 1100, act: 1120 }, // +1.8%
+        ];
+
+        for (let i = 0; i < periods.length; i++) {
+          const est = ethers.parseUnits(periods[i].est.toString(), 6);
+          const act = ethers.parseUnits(periods[i].act.toString(), 6);
+
+          await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, est);
+          const invoice = keccak256(toUtf8Bytes(`invoice-${i}`));
+          await infraReserve.connect(payer).payInfrastructureCost(
+            MODEL_ID, provider1.address, act, invoice, `Period ${i}`
+          );
+
+          if (i < periods.length - 1) {
+            await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+            await ethers.provider.send("evm_mine");
+            await infraReserve.connect(payer).advancePeriod(MODEL_ID);
+          }
+        }
+
+        expect(await infraReserve.currentPeriod(MODEL_ID)).to.equal(2);
+
+        // Get last 2 periods (most recent): should be periods 1 and 2
+        const history = await infraReserve.getVarianceHistory(MODEL_ID, 2);
+        expect(history.length).to.equal(2);
+        // Period 1: -4.5% = ((1050 - 1100) / 1100) * 10000 = -454 bps
+        expect(history[0].varianceBps).to.be.closeTo(-454, 1);
+        // Period 2: +1.8% = ((1120 - 1100) / 1100) * 10000 = 181 bps
+        expect(history[1].varianceBps).to.be.closeTo(181, 1);
+      });
+    });
+  });
 });

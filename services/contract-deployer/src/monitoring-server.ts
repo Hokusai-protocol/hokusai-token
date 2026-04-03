@@ -12,8 +12,10 @@ import cors from 'cors';
 import { ethers } from 'ethers';
 import { AMMMonitor } from './monitoring/amm-monitor';
 import { monitoringRouter } from './routes/monitoring';
+import { reconciliationRouter } from './routes/reconciliation';
 import { logger } from './utils/logger';
 import { AlertManager } from './monitoring/alert-manager';
+import { CostReconciliationService } from './monitoring/cost-reconciliation-service';
 
 // Load environment variables
 dotenv.config();
@@ -61,6 +63,33 @@ async function main(): Promise<void> {
     logger.info('[MONITORING-SERVER] Starting AMM monitoring...');
     await ammMonitor.start();
 
+    // Initialize Cost Reconciliation Service
+    logger.info('[MONITORING-SERVER] Initializing Cost Reconciliation Service...');
+    const reconciliationService = new CostReconciliationService({
+      provider,
+      infraReserveAddress: process.env.INFRASTRUCTURE_RESERVE_ADDRESS || '',
+      infraCostOracleAddress: process.env.INFRASTRUCTURE_COST_ORACLE_ADDRESS,
+      // alertManager: ammMonitor.getAlertManager(), // Will be available when AMMMonitor exposes it
+      varianceWarningPercent: parseFloat(process.env.COST_VARIANCE_WARNING_PCT || '10'),
+      varianceCriticalPercent: parseFloat(process.env.COST_VARIANCE_CRITICAL_PCT || '20'),
+      runwayWarningDays: parseInt(process.env.RUNWAY_WARNING_DAYS || '7'),
+      runwayCriticalDays: parseInt(process.env.RUNWAY_CRITICAL_DAYS || '3'),
+      reconciliationIntervalMs: parseInt(process.env.RECONCILIATION_INTERVAL_MS || '86400000') // Daily
+    });
+
+    // Start reconciliation service if infrastructure reserve address is configured
+    if (process.env.INFRASTRUCTURE_RESERVE_ADDRESS) {
+      try {
+        logger.info('[MONITORING-SERVER] Starting Cost Reconciliation Service...');
+        await reconciliationService.start();
+      } catch (error) {
+        logger.error('[MONITORING-SERVER] Failed to start Cost Reconciliation Service:', error);
+        logger.warn('[MONITORING-SERVER] Continuing without reconciliation service');
+      }
+    } else {
+      logger.warn('[MONITORING-SERVER] INFRASTRUCTURE_RESERVE_ADDRESS not set, reconciliation service disabled');
+    }
+
     // Create Express app
     const app = express();
     const port = process.env.PORT || 8002;
@@ -93,6 +122,9 @@ async function main(): Promise<void> {
     // Monitoring API routes
     app.use('/api/monitoring', monitoringRouter(ammMonitor));
 
+    // Reconciliation API routes
+    app.use('/api/reconciliation', reconciliationRouter(reconciliationService));
+
     // 404 handler
     app.use((_req: Request, res: Response) => {
       res.status(404).json({
@@ -115,12 +147,14 @@ async function main(): Promise<void> {
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       logger.info('[MONITORING-SERVER] SIGTERM received, shutting down gracefully...');
+      await reconciliationService.stop();
       await ammMonitor.stop();
       process.exit(0);
     });
 
     process.on('SIGINT', async () => {
       logger.info('[MONITORING-SERVER] SIGINT received, shutting down gracefully...');
+      await reconciliationService.stop();
       await ammMonitor.stop();
       process.exit(0);
     });

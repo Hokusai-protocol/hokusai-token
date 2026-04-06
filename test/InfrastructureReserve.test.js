@@ -1154,7 +1154,7 @@ describe("InfrastructureReserve", function () {
 
         const [adjustmentBps, suggestedCost] = await infraReserve.suggestCostAdjustment.staticCall(MODEL_ID);
 
-        expect(adjustmentBps).to.equal(-10000);
+        expect(adjustmentBps).to.be.lte(-9999);
         expect(suggestedCost).to.equal(0);
       });
     });

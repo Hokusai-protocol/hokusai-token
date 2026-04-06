@@ -111,6 +111,7 @@ contract InfrastructureCostOracle is AccessControlBase, IInfrastructureCostOracl
         _pendingUpdates[modelId] = PendingCostUpdate({
             costPerThousandCalls: costPerThousandCalls,
             queuedAt: block.timestamp,
+            effectiveAfter: effectiveAfter,
             exists: true
         });
 
@@ -126,13 +127,7 @@ contract InfrastructureCostOracle is AccessControlBase, IInfrastructureCostOracl
         PendingCostUpdate storage pending = _pendingUpdates[modelId];
         require(pending.exists, "No pending update for this model");
 
-        uint256 lastUpdate = _lastUpdated[modelId];
-
-        // Check if epoch boundary has passed
-        if (lastUpdate > 0) {
-            uint256 epochBoundary = lastUpdate + _epochDuration;
-            require(block.timestamp >= epochBoundary, "Epoch boundary not reached");
-        }
+        require(block.timestamp >= pending.effectiveAfter, "Epoch boundary not reached");
 
         // Apply the update
         uint256 oldCost = _costPerThousandCalls[modelId];
@@ -230,10 +225,15 @@ contract InfrastructureCostOracle is AccessControlBase, IInfrastructureCostOracl
         external
         view
         override
-        returns (bool exists, uint256 costPerThousandCalls, uint256 queuedAt)
+        returns (bool exists, uint256 costPerThousandCalls, uint256 queuedAt, uint256 effectiveAfter)
     {
         PendingCostUpdate storage pending = _pendingUpdates[modelId];
-        return (pending.exists, pending.costPerThousandCalls, pending.queuedAt);
+        return (
+            pending.exists,
+            pending.costPerThousandCalls,
+            pending.queuedAt,
+            pending.effectiveAfter
+        );
     }
 
     /**

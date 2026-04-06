@@ -18,6 +18,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
   const MODEL_ID_1 = "gpt-4-turbo";
   const MODEL_ID_2 = "claude-3-sonnet";
   const INITIAL_SUPPLY = parseEther("1000000");
+  const INITIAL_GROSS_MARGIN_BPS = 2000;
 
   beforeEach(async function () {
     [owner, treasury, depositor, payer, provider1, provider2] = await ethers.getSigners();
@@ -55,7 +56,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
 
     // Deploy InfrastructureCostOracle
     const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
-    costOracle = await InfrastructureCostOracle.deploy(owner.address);
+    costOracle = await InfrastructureCostOracle.deploy(owner.address, INITIAL_GROSS_MARGIN_BPS);
     await costOracle.waitForDeployment();
 
     // Deploy UsageFeeRouter

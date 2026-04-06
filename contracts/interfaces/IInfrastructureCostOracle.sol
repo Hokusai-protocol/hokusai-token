@@ -15,6 +15,7 @@ interface IInfrastructureCostOracle {
     struct PendingCostUpdate {
         uint256 costPerThousandCalls;
         uint256 queuedAt;
+        uint256 effectiveAfter;
         bool exists;
     }
 
@@ -87,11 +88,13 @@ interface IInfrastructureCostOracle {
      * @return exists Whether a pending update exists
      * @return costPerThousandCalls The pending cost value
      * @return queuedAt When the update was queued
+     * @return effectiveAfter When the update becomes eligible for application
      */
     function getPendingUpdate(string memory modelId) external view returns (
         bool exists,
         uint256 costPerThousandCalls,
-        uint256 queuedAt
+        uint256 queuedAt,
+        uint256 effectiveAfter
     );
 
     /**

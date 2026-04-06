@@ -16,6 +16,7 @@ describe("Phase 5: Fee Collection System", function () {
     const MODEL_ID_2 = "model-beta";
     // Default infrastructureAccrualBps from TokenManager.deployToken() is 8000 (80%)
     const DEFAULT_INFRA_BPS = 8000n;
+    const INITIAL_GROSS_MARGIN_BPS = 2000;
 
     beforeEach(async function () {
         [owner, treasury, depositor, user1] = await ethers.getSigners();
@@ -79,7 +80,7 @@ describe("Phase 5: Fee Collection System", function () {
 
         // Deploy InfrastructureCostOracle
         const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
-        const costOracle = await InfrastructureCostOracle.deploy(owner.address);
+        const costOracle = await InfrastructureCostOracle.deploy(owner.address, INITIAL_GROSS_MARGIN_BPS);
         await costOracle.waitForDeployment();
 
         // Deploy UsageFeeRouter

@@ -26,7 +26,16 @@ describe("HokusaiToken", function () {
     await params.waitForDeployment();
 
     const Token = await ethers.getContractFactory("HokusaiToken");
-    token = await Token.deploy("Hokusai Token", "HOKU", controller.address, await params.getAddress(), parseEther("10000"));
+    token = await Token.deploy(
+      "Hokusai Token",
+      "HOKU",
+      controller.address,
+      await params.getAddress(),
+      parseEther("10000"),
+      0,
+      0,
+      ZeroAddress
+    );
     await token.waitForDeployment();
   });
 

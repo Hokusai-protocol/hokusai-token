@@ -745,10 +745,15 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
 
         if (absVariance > 500) {
             // Apply adjustment
-            adjustmentBps = avgVarianceBps;
-            // suggestedCost = currentEstimate * (10000 + avgVarianceBps) / 10000
-            int256 adjustedCost = int256(currentEstimate) * (10000 + avgVarianceBps) / 10000;
-            suggestedCost = uint256(adjustedCost);
+            if (avgVarianceBps <= -10000) {
+                adjustmentBps = -10000;
+                suggestedCost = 0;
+            } else {
+                adjustmentBps = avgVarianceBps;
+                // suggestedCost = currentEstimate * (10000 + avgVarianceBps) / 10000
+                int256 adjustedCost = int256(currentEstimate) * (10000 + avgVarianceBps) / 10000;
+                suggestedCost = uint256(adjustedCost);
+            }
         } else {
             // Within tolerance, no adjustment
             adjustmentBps = 0;

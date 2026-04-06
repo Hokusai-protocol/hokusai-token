@@ -347,6 +347,9 @@ export class CostReconciliationService {
     // TODO: Get estimated cost from InfrastructureCostOracle when available
     // For now, use a placeholder estimation based on historical data
     const estimated: number = actual * 0.95; // Placeholder: assume 5% underestimate
+    if (estimated === 0) {
+      return null;
+    }
 
     const varianceAmount: number = actual - estimated;
     const variancePercent: number = estimated === 0 ? 0 : (varianceAmount / estimated) * 100;

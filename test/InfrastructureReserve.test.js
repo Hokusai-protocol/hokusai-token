@@ -1128,6 +1128,35 @@ describe("InfrastructureReserve", function () {
           infraReserve.suggestCostAdjustment(MODEL_ID)
         ).to.be.revertedWith("Need at least 3 periods");
       });
+
+      it("Should cap extreme negative adjustments at zero cost", async function () {
+        for (let i = 0; i < 3; i++) {
+          await infraReserve.connect(payer).snapshotEstimatedCosts(MODEL_ID, estimatedCost);
+          const invoice = keccak256(toUtf8Bytes(`extreme-overestimate-${i}`));
+          await infraReserve.connect(payer).payInfrastructureCost(
+            MODEL_ID,
+            provider1.address,
+            1,
+            invoice,
+            `Extreme ${i}`
+          );
+
+          if (i < 2) {
+            await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+            await ethers.provider.send("evm_mine");
+            await infraReserve.connect(payer).advancePeriod(MODEL_ID);
+          }
+        }
+
+        await ethers.provider.send("evm_increaseTime", [30 * 24 * 60 * 60]);
+        await ethers.provider.send("evm_mine");
+        await infraReserve.connect(payer).advancePeriod(MODEL_ID);
+
+        const [adjustmentBps, suggestedCost] = await infraReserve.suggestCostAdjustment.staticCall(MODEL_ID);
+
+        expect(adjustmentBps).to.equal(-10000);
+        expect(suggestedCost).to.equal(0);
+      });
     });
 
     describe("Multi-Period Integration", function () {

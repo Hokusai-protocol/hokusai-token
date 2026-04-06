@@ -83,6 +83,9 @@ describe("InfrastructureCostOracle", function () {
       await expect(oracle.connect(governor).setEstimatedCost(MODEL_ID_1, cost, futureTime))
         .to.emit(oracle, "CostUpdateQueued")
         .withArgs(MODEL_ID_1, 0, cost, futureTime, governor.address);
+
+      const [, , , effectiveAfter] = await oracle.getPendingUpdate(MODEL_ID_1);
+      expect(effectiveAfter).to.equal(futureTime);
     });
 
     it("Should emit CostUpdateQueued event with correct parameters", async function () {
@@ -209,6 +212,23 @@ describe("InfrastructureCostOracle", function () {
       await expect(
         oracle.connect(user1).applyPendingUpdate("")
       ).to.be.reverted;
+    });
+
+    it("Should enforce custom effective epoch for first update", async function () {
+      const cost = parseUnits("500", 6);
+      const futureTime = (await time.latest()) + 7 * 24 * 60 * 60;
+
+      await oracle.connect(governor).setEstimatedCost(MODEL_ID_1, cost, futureTime);
+
+      await expect(
+        oracle.connect(user1).applyPendingUpdate(MODEL_ID_1)
+      ).to.be.revertedWith("Epoch boundary not reached");
+
+      await time.increaseTo(futureTime);
+
+      await expect(oracle.connect(user1).applyPendingUpdate(MODEL_ID_1))
+        .to.emit(oracle, "CostUpdateApplied")
+        .withArgs(MODEL_ID_1, 0, cost, user1.address);
     });
   });
 

@@ -330,8 +330,8 @@ describe("TokenManager with Params", function () {
       );
 
       const receipt = await tx.wait();
-      // Gas usage should be reasonable for deploying two contracts
-      expect(receipt.gasUsed).to.be.lt(2200000); // Less than 2.2M gas (adjusted for two contract deployments)
+      // Dual deployment now includes the epoch-aware params contract path.
+      expect(receipt.gasUsed).to.be.lt(3300000);
     });
   });
 

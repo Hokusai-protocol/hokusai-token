@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { parseEther } = require("ethers");
+const { parseEther, ZeroAddress } = require("ethers");
 
 describe("Integration: JSON Wallet Address Support", function () {
   let deltaVerifier;

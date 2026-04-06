@@ -16,6 +16,12 @@ describe("UsageFeeRouter", function () {
   const MODEL_ID_1 = "model-alpha";
   const MODEL_ID_2 = "model-beta";
   const INITIAL_SUPPLY = parseEther("1000000");
+  const INITIAL_GROSS_MARGIN_BPS = 2000;
+
+  async function setOracleCost(modelId, costPerThousandCalls) {
+    await costOracle.setEstimatedCost(modelId, costPerThousandCalls, 0);
+    await costOracle.applyPendingUpdate(modelId);
+  }
 
   beforeEach(async function () {
     [owner, treasury, depositor, payer, user1] = await ethers.getSigners();
@@ -53,7 +59,7 @@ describe("UsageFeeRouter", function () {
 
     // Deploy InfrastructureCostOracle
     const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
-    costOracle = await InfrastructureCostOracle.deploy(owner.address);
+    costOracle = await InfrastructureCostOracle.deploy(owner.address, INITIAL_GROSS_MARGIN_BPS);
     await costOracle.waitForDeployment();
 
     // Deploy UsageFeeRouter with cost oracle
@@ -407,7 +413,7 @@ describe("UsageFeeRouter", function () {
   describe("Cost-Plus Splitting with Oracle", function () {
     it("Should use oracle cost when available", async function () {
       // Set oracle cost for MODEL_ID_1: $500 per 1000 calls
-      await costOracle.setCost(MODEL_ID_1, parseUnits("500", 6));
+      await setOracleCost(MODEL_ID_1, parseUnits("500", 6));
 
       const feeAmount = parseUnits("1000", 6); // $1000 fee
       const callCount = 1000; // 1000 calls
@@ -422,7 +428,7 @@ describe("UsageFeeRouter", function () {
     });
 
     it("Should emit FeeSplitCalculated with ORACLE cost basis", async function () {
-      await costOracle.setCost(MODEL_ID_1, parseUnits("300", 6));
+      await setOracleCost(MODEL_ID_1, parseUnits("300", 6));
 
       const feeAmount = parseUnits("1000", 6);
       const callCount = 1000;
@@ -442,7 +448,7 @@ describe("UsageFeeRouter", function () {
     });
 
     it("Should scale cost with call count", async function () {
-      await costOracle.setCost(MODEL_ID_1, parseUnits("500", 6)); // $500 per 1000 calls
+      await setOracleCost(MODEL_ID_1, parseUnits("500", 6)); // $500 per 1000 calls
 
       // Test with 2000 calls -> $1000 cost
       const feeAmount = parseUnits("2000", 6);
@@ -455,7 +461,7 @@ describe("UsageFeeRouter", function () {
     });
 
     it("Should cap infrastructure at total fee", async function () {
-      await costOracle.setCost(MODEL_ID_1, parseUnits("1000", 6)); // $1000 per 1000 calls
+      await setOracleCost(MODEL_ID_1, parseUnits("1000", 6)); // $1000 per 1000 calls
 
       // Fee is only $500 but cost would be $1000
       const feeAmount = parseUnits("500", 6);
@@ -501,8 +507,8 @@ describe("UsageFeeRouter", function () {
 
     it("Should use oracle in batch deposits", async function () {
       // Set costs
-      await costOracle.setCost(MODEL_ID_1, parseUnits("400", 6)); // $400 per 1000
-      await costOracle.setCost(MODEL_ID_2, parseUnits("600", 6)); // $600 per 1000
+      await setOracleCost(MODEL_ID_1, parseUnits("400", 6)); // $400 per 1000
+      await setOracleCost(MODEL_ID_2, parseUnits("600", 6)); // $600 per 1000
 
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
@@ -519,7 +525,7 @@ describe("UsageFeeRouter", function () {
 
     it("Should handle mixed oracle/fallback in batch", async function () {
       // Only set cost for MODEL_ID_1
-      await costOracle.setCost(MODEL_ID_1, parseUnits("300", 6));
+      await setOracleCost(MODEL_ID_1, parseUnits("300", 6));
 
       await feeRouter.connect(depositor).batchDepositFees(
         [MODEL_ID_1, MODEL_ID_2],
@@ -535,7 +541,7 @@ describe("UsageFeeRouter", function () {
     });
 
     it("Should calculate fee split with oracle cost", async function () {
-      await costOracle.setCost(MODEL_ID_1, parseUnits("400", 6));
+      await setOracleCost(MODEL_ID_1, parseUnits("400", 6));
 
       const [infra, profit, costBasis] = await feeRouter.calculateFeeSplit(
         MODEL_ID_1,
@@ -549,7 +555,7 @@ describe("UsageFeeRouter", function () {
     });
 
     it("Should handle fractional call counts", async function () {
-      await costOracle.setCost(MODEL_ID_1, parseUnits("1000", 6)); // $1000 per 1000 calls
+      await setOracleCost(MODEL_ID_1, parseUnits("1000", 6)); // $1000 per 1000 calls
 
       // 500 calls -> $500 cost
       const feeAmount = parseUnits("1000", 6);

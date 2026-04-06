@@ -211,7 +211,7 @@ export class CostReconciliationService {
 
     try {
       // Get all models being tracked
-      const modelIds = Array.from(this.costHistory.keys());
+      const modelIds: string[] = Array.from(this.costHistory.keys());
 
       if (modelIds.length === 0) {
         logger.info('No models to reconcile');
@@ -337,7 +337,7 @@ export class CostReconciliationService {
       return null;
     }
 
-    const actual = recentCosts.reduce((sum, c) => sum + c.amount, 0);
+    const actual: number = recentCosts.reduce((sum, c) => sum + c.amount, 0);
 
     // Handle zero-cost case
     if (actual === 0) {
@@ -346,10 +346,10 @@ export class CostReconciliationService {
 
     // TODO: Get estimated cost from InfrastructureCostOracle when available
     // For now, use a placeholder estimation based on historical data
-    const estimated = actual * 0.95; // Placeholder: assume 5% underestimate
+    const estimated: number = actual * 0.95; // Placeholder: assume 5% underestimate
 
-    const variance = actual - estimated;
-    const variancePercent = estimated === 0 ? 0 : (variance / estimated) * 100;
+    const varianceAmount: number = actual - estimated;
+    const variancePercent: number = estimated === 0 ? 0 : (varianceAmount / estimated) * 100;
 
     const period = {
       start: recentCosts[0].period.start,
@@ -361,7 +361,7 @@ export class CostReconciliationService {
       period,
       actual,
       estimated,
-      variance,
+      variance: varianceAmount,
       variancePercent
     };
   }
@@ -376,9 +376,9 @@ export class CostReconciliationService {
     // TODO: Use InfrastructureCostOracle.suggestCostAdjustment() when available
 
     // Placeholder logic: adjust estimate proportionally to variance
-    const currentEstimate = variance.estimated;
-    const recommendedEstimate = variance.actual; // Use actual as new estimate
-    const adjustmentPercent = variance.variancePercent;
+    const currentEstimate: number = variance.estimated;
+    const recommendedEstimate: number = variance.actual; // Use actual as new estimate
+    const adjustmentPercent: number = variance.variancePercent;
 
     const rationale = variance.variancePercent > 0
       ? `Actual costs ${variance.variancePercent.toFixed(1)}% above estimate. Recommend increasing estimate from $${currentEstimate.toFixed(2)} to $${recommendedEstimate.toFixed(2)} per period.`
@@ -462,7 +462,7 @@ export class CostReconciliationService {
    * Check and send variance alerts
    */
   private async checkVarianceAlerts(modelId: string, variance: CostVariance): Promise<void> {
-    const absVariance = Math.abs(variance.variancePercent);
+    const absVariance: number = Math.abs(variance.variancePercent);
 
     if (absVariance >= this.config.varianceCriticalPercent) {
       await this.sendAlert({

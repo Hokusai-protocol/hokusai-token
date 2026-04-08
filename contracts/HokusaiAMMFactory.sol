@@ -167,6 +167,10 @@ contract HokusaiAMMFactory is Ownable {
             modelRegistry.isStringRegistered(modelId),
             "Model not registered in ModelRegistry"
         );
+        require(
+            modelRegistry.isStringActive(modelId),
+            "Model is deactivated"
+        );
 
         // Verify token is registered with TokenManager
         require(

@@ -118,6 +118,24 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       expect(contribution.status).to.equal(0); // Pending
       expect(contribution.tokensEarned).to.be.gt(0);
     });
+
+    it("should reject evaluations for deactivated models", async function () {
+      const evalData = {
+        pipelineRunId: "run_test_deactivated",
+        baselineMetrics: sampleBaselineMetrics,
+        newMetrics: sampleNewMetrics,
+        contributor: contributor1.address,
+        contributorWeight: 10000,
+        contributedSamples: 5000,
+        totalSamples: 5000
+      };
+
+      await modelRegistry.deactivateModel(MODEL_ID);
+
+      await expect(
+        deltaVerifier.submitEvaluation(MODEL_ID, evalData)
+      ).to.be.revertedWith("Model is deactivated");
+    });
   });
 
   describe("Multiple Contributors Flow", function () {

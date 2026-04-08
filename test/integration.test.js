@@ -147,10 +147,34 @@ describe("TokenManager-ModelRegistry Integration", function () {
     it("Should deactivate model successfully", async function () {
       await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
-      await modelRegistry.deactivateModel(modelId);
+      await expect(modelRegistry.deactivateModel(modelId))
+        .to.emit(modelRegistry, "ModelDeactivated")
+        .withArgs(modelId);
       
       const modelInfo = await modelRegistry.getModel(modelId);
       expect(modelInfo.active).to.be.false;
+      expect(await modelRegistry.isActive(modelId)).to.be.false;
+    });
+
+    it("Should reactivate model successfully", async function () {
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      await modelRegistry.deactivateModel(modelId);
+
+      await expect(modelRegistry.reactivateModel(modelId))
+        .to.emit(modelRegistry, "ModelReactivated")
+        .withArgs(modelId);
+
+      const modelInfo = await modelRegistry.getModel(modelId);
+      expect(modelInfo.active).to.be.true;
+      expect(await modelRegistry.isActive(modelId)).to.be.true;
+    });
+
+    it("Should reject double deactivation", async function () {
+      await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      await modelRegistry.deactivateModel(modelId);
+
+      await expect(modelRegistry.deactivateModel(modelId))
+        .to.be.revertedWith("Model already deactivated");
     });
 
     it("Should get complete model information", async function () {

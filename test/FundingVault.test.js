@@ -411,6 +411,22 @@ describe("FundingVault", function () {
       await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_2, []))
         .to.be.revertedWithCustomError(fundingVault, "InvalidAmount");
     });
+
+    it("Should reject announcement with incomplete investor list", async function () {
+      // Only include user1 and user2, missing user3
+      const incompleteInvestors = [user1.address, user2.address];
+
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, incompleteInvestors))
+        .to.be.revertedWith("Snapshot total mismatch - missing investors");
+    });
+
+    it("Should reject announcement with duplicate investors", async function () {
+      // Include user1 twice - this causes snapshotSum to double-count user1
+      const duplicateInvestors = [user1.address, user1.address, user2.address, user3.address];
+
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, duplicateInvestors))
+        .to.be.revertedWith("Snapshot total mismatch - missing investors");
+    });
   });
 
   describe("graduate", function () {

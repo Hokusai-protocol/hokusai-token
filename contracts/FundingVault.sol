@@ -282,14 +282,22 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         proposal.snapshotTimestamp = block.timestamp;
         proposal.snapshotTotalCommitted = proposal.totalCommitted;
 
-        // Snapshot each investor's commitment
+        // Snapshot each investor's commitment and validate total
+        uint256 snapshotSum = 0;
         for (uint256 i = 0; i < investors.length; i++) {
             address investor = investors[i];
             uint256 commitment = commitments[modelId][investor];
             if (commitment > 0) {
                 snapshotCommitments[modelId][investor] = commitment;
+                snapshotSum += commitment;
             }
         }
+
+        // Validate that all investors were included
+        require(
+            snapshotSum == proposal.totalCommitted,
+            "Snapshot total mismatch - missing investors"
+        );
 
         emit GraduationAnnounced(modelId, block.timestamp, proposal.totalCommitted);
     }

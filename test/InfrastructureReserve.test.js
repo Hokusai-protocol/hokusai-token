@@ -77,6 +77,10 @@ describe("InfrastructureReserve", function () {
     );
     await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", ethers.parseEther("1000000"));
 
+    // Register models in ModelRegistry
+    await modelRegistry.registerStringModel(MODEL_ID, token1Address, "Test metric");
+    await modelRegistry.registerStringModel(MODEL_ID_2, token2Address, "Test metric");
+
     // Create pools
     await factory.createPool(MODEL_ID, token1Address);
     await factory.createPool(MODEL_ID_2, token2Address);

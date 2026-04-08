@@ -86,6 +86,10 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
     );
     await tokenManager.deployToken(MODEL_ID_2, "Claude 3 Sonnet Token", "C3S", INITIAL_SUPPLY);
 
+    // Register models in ModelRegistry
+    await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");
+    await modelRegistry.registerStringModel(MODEL_ID_2, token2Address, "Test metric");
+
     // Create pools
     const pool1Address = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
     await factory.createPool(MODEL_ID_1, token1Address);

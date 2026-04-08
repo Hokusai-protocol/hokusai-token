@@ -83,6 +83,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 parseEther("1")
             );
             await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"));
+            // Register model in ModelRegistry
+            await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");
         });
 
         it("Should create pool with default parameters", async function () {
@@ -140,8 +142,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
             const poolAddress = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
             await factory.createPool(MODEL_ID_1, token1Address);
 
-            // Register model and pool manually (in production, factory owner would do this)
-            await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "test-metric");
+            // Register pool manually (model already registered in beforeEach)
             await modelRegistry.registerPool(MODEL_ID_1, poolAddress);
 
             expect(await modelRegistry.hasPool(MODEL_ID_1)).to.be.true;
@@ -171,10 +172,10 @@ describe("Phase 4: Factory & Registry Integration", function () {
         // Validation tests removed - covered by ValidationLib.test.js
         // Keeping only integration/business logic tests
 
-        it("Should revert if token not registered with TokenManager", async function () {
+        it("Should revert if model not registered in ModelRegistry", async function () {
             await expect(
                 factory.createPool("non-existent-model", token1Address)
-            ).to.be.revertedWith("Token not registered with TokenManager");
+            ).to.be.revertedWith("Model not registered in ModelRegistry");
         });
 
         // Removed: CRR, trade fee, and IBR duration validation tests
@@ -213,6 +214,11 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 parseEther("1")
             );
             await tokenManager.deployToken(MODEL_ID_3, "Gamma Token", "GAMMA", parseEther("1"));
+
+            // Register models in ModelRegistry
+            await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");
+            await modelRegistry.registerStringModel(MODEL_ID_2, token2Address, "Test metric");
+            await modelRegistry.registerStringModel(MODEL_ID_3, token3Address, "Test metric");
 
             // Create pools
             await factory.createPool(MODEL_ID_1, token1Address);
@@ -275,6 +281,9 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 parseEther("1")
             );
             await tokenManager.deployToken("model-delta", "Delta Token", "DELTA", parseEther("1"));
+
+            // Register model in ModelRegistry
+            await modelRegistry.registerStringModel("model-delta", token4Address, "Test metric");
 
             const customPool = await factory.createPoolWithParams.staticCall(
                 "model-delta",
@@ -372,6 +381,9 @@ describe("Phase 4: Factory & Registry Integration", function () {
             );
             await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"));
 
+            // Register model in ModelRegistry
+            await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
+
             const poolAddress = await factory.createPool.staticCall(MODEL_ID_1, tokenAddress);
             await factory.createPool(MODEL_ID_1, tokenAddress);
 
@@ -402,6 +414,9 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 parseEther("1")
             );
             await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"));
+
+            // Register model in ModelRegistry
+            await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");
 
             pool1Address = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
             await factory.createPool(MODEL_ID_1, token1Address);

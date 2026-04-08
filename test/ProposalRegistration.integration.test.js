@@ -48,9 +48,9 @@ describe("Proposal Registration Integration", function () {
     // Deploy HokusaiAMMFactory
     const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
     ammFactory = await HokusaiAMMFactory.deploy(
-      await usdc.getAddress(),
-      await tokenManager.getAddress(),
       await modelRegistry.getAddress(),
+      await tokenManager.getAddress(),
+      await usdc.getAddress(),
       owner.address
     );
     await ammFactory.waitForDeployment();
@@ -61,6 +61,7 @@ describe("Proposal Registration Integration", function () {
       await usdc.getAddress(),
       await ammFactory.getAddress(),
       await tokenManager.getAddress(),
+      await modelRegistry.getAddress(),
       owner.address
     );
     await fundingVault.waitForDeployment();

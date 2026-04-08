@@ -56,6 +56,7 @@ describe("FundingVault", function () {
       await usdc.getAddress(),
       await ammFactory.getAddress(),
       await tokenManager.getAddress(),
+      await modelRegistry.getAddress(),
       owner.address
     );
     await fundingVault.waitForDeployment();
@@ -110,6 +111,7 @@ describe("FundingVault", function () {
           ZeroAddress,
           await ammFactory.getAddress(),
           await tokenManager.getAddress(),
+          await modelRegistry.getAddress(),
           owner.address
         )
       ).to.be.revertedWithCustomError(FundingVault, "ZeroAddress");
@@ -122,6 +124,7 @@ describe("FundingVault", function () {
           await usdc.getAddress(),
           ZeroAddress,
           await tokenManager.getAddress(),
+          await modelRegistry.getAddress(),
           owner.address
         )
       ).to.be.revertedWithCustomError(FundingVault, "ZeroAddress");
@@ -133,6 +136,20 @@ describe("FundingVault", function () {
         FundingVault.deploy(
           await usdc.getAddress(),
           await ammFactory.getAddress(),
+          ZeroAddress,
+          await modelRegistry.getAddress(),
+          owner.address
+        )
+      ).to.be.revertedWithCustomError(FundingVault, "ZeroAddress");
+    });
+
+    it("Should reject zero address for ModelRegistry", async function () {
+      const FundingVault = await ethers.getContractFactory("FundingVault");
+      await expect(
+        FundingVault.deploy(
+          await usdc.getAddress(),
+          await ammFactory.getAddress(),
+          await tokenManager.getAddress(),
           ZeroAddress,
           owner.address
         )
@@ -147,6 +164,8 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
       deadline = await getDeadline();
     });
 
@@ -194,6 +213,9 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      deadline = await getDeadline();
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
       deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
     });
@@ -267,6 +289,9 @@ describe("FundingVault", function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       deadline = await getDeadline();
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
+      deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000));
     });
@@ -321,6 +346,8 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
       deadline = await getDeadline();
 
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
@@ -361,6 +388,8 @@ describe("FundingVault", function () {
     it("Should reject announcement with zero commitments", async function () {
       await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
       await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
 
       await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_2))
@@ -401,6 +430,8 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
       deadline = await getDeadline();
 
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
@@ -439,6 +470,8 @@ describe("FundingVault", function () {
     it("Should require announcement before graduation", async function () {
       await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
       await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_2, usd(1000));
 
@@ -455,6 +488,8 @@ describe("FundingVault", function () {
     it("Should reject graduation without an announced snapshot", async function () {
       await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
       await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
 
       await expect(fundingVault.connect(graduator).graduate(MODEL_ID_2))
@@ -481,6 +516,9 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      deadline = await getDeadline();
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
       deadline = await getDeadline();
 
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
@@ -525,6 +563,8 @@ describe("FundingVault", function () {
     it("Should reject claim before graduation", async function () {
       await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
       await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_2, usd(1000));
       await fundingVault.connect(graduator).announceGraduation(MODEL_ID_2);
@@ -561,6 +601,9 @@ describe("FundingVault", function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       deadline = await getDeadline();
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
+      deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
     });
 
@@ -591,6 +634,9 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      deadline = await getDeadline();
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
       deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
     });
@@ -626,6 +672,8 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
       deadline = await getDeadline();
     });
 
@@ -665,6 +713,8 @@ describe("FundingVault", function () {
       const amount = usd(1000);
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      // Register model in ModelRegistry
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
       const deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
 

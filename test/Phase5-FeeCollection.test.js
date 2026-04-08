@@ -60,6 +60,10 @@ describe("Phase 5: Fee Collection System", function () {
         );
         await tokenManager.deployToken(MODEL_ID_2, "Beta Token", "BETA", parseEther("1"));
 
+        // Register models in ModelRegistry
+        await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");
+        await modelRegistry.registerStringModel(MODEL_ID_2, token2Address, "Test metric");
+
         const pool1Address = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
         await factory.createPool(MODEL_ID_1, token1Address);
         const pool2Address = await factory.createPool.staticCall(MODEL_ID_2, token2Address);
@@ -309,6 +313,8 @@ describe("Phase 5: Fee Collection System", function () {
                     parseEther("1")
                 );
                 await tokenManager.deployToken(modelId, `Token ${i}`, `TKN${i}`, parseEther("1"));
+                // Register model in ModelRegistry
+                await modelRegistry.registerStringModel(modelId, tokenAddress, "Test metric");
                 await factory.createPool(modelId, tokenAddress);
 
                 modelIds.push(modelId);

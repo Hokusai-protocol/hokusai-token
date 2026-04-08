@@ -7,6 +7,7 @@ import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
 import "./HokusaiAMMFactory.sol";
 import "./TokenManager.sol";
+import "./ModelRegistry.sol";
 
 /**
  * @title FundingVault
@@ -33,6 +34,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     IERC20 public immutable usdc;
     HokusaiAMMFactory public immutable ammFactory;
     TokenManager public immutable tokenManager;
+    ModelRegistry public immutable modelRegistry;
 
     bytes32 public constant GRADUATOR_ROLE = keccak256("GRADUATOR_ROLE");
 
@@ -115,21 +117,25 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
      * @param _usdc USDC token address
      * @param _ammFactory HokusaiAMMFactory address
      * @param _tokenManager TokenManager address
+     * @param _modelRegistry ModelRegistry address
      * @param _admin Admin address for access control
      */
     constructor(
         address _usdc,
         address _ammFactory,
         address _tokenManager,
+        address _modelRegistry,
         address _admin
     ) AccessControlBase(_admin) {
         ValidationLib.requireNonZeroAddress(_usdc, "USDC");
         ValidationLib.requireNonZeroAddress(_ammFactory, "AMM factory");
         ValidationLib.requireNonZeroAddress(_tokenManager, "token manager");
+        ValidationLib.requireNonZeroAddress(_modelRegistry, "model registry");
 
         usdc = IERC20(_usdc);
         ammFactory = HokusaiAMMFactory(_ammFactory);
         tokenManager = TokenManager(_tokenManager);
+        modelRegistry = ModelRegistry(_modelRegistry);
 
         // Grant GRADUATOR_ROLE to admin initially
         _grantRole(GRADUATOR_ROLE, _admin);
@@ -147,7 +153,9 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
      *
      * Requirements:
      * - Caller must have DEFAULT_ADMIN_ROLE
-     * - Model must not already be registered
+     * - Model must be registered in ModelRegistry
+     * - Token address must match TokenManager's registered address
+     * - Model must not already be registered in vault
      * - Token address must be valid
      */
     function registerProposal(
@@ -158,6 +166,12 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonZeroAddress(tokenAddr, "token address");
         require(proposals[modelId].tokenAddress == address(0), "Proposal already registered");
+
+        // Verify model is registered in ModelRegistry
+        require(modelRegistry.isStringRegistered(modelId), "Model not registered");
+
+        // Verify token address matches what TokenManager has for this modelId
+        require(tokenManager.getTokenAddress(modelId) == tokenAddr, "Token address mismatch");
 
         proposals[modelId] = Proposal({
             tokenAddress: tokenAddr,

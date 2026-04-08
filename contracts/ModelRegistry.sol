@@ -29,6 +29,7 @@ contract ModelRegistry is Ownable {
     mapping(string => bool) public isStringModelRegistered;
     mapping(address => string) public tokenToStringModel;
     mapping(string => address) public modelPools;
+    mapping(address => string) public poolToStringModel; // Reverse mapping: pool -> model
     address public stringModelTokenManager;
     mapping(address => bool) public poolRegistrars;
 
@@ -311,8 +312,10 @@ contract ModelRegistry is Ownable {
         require(pool != address(0), "Pool address cannot be zero");
         require(isStringModelRegistered[modelId], "Model not registered");
         require(modelPools[modelId] == address(0), "Pool already exists");
+        require(bytes(poolToStringModel[pool]).length == 0, "Pool already registered to another model");
 
         modelPools[modelId] = pool;
+        poolToStringModel[pool] = modelId;
         emit PoolRegistered(modelId, pool);
     }
 
@@ -332,5 +335,14 @@ contract ModelRegistry is Ownable {
      */
     function hasPool(string memory modelId) external view returns (bool) {
         return modelPools[modelId] != address(0);
+    }
+
+    /**
+     * @dev Gets the model ID for a given pool address (reverse lookup)
+     * @param pool The pool address
+     * @return The model ID for the pool, or empty string if no model exists
+     */
+    function getModelIdFromPool(address pool) external view returns (string memory) {
+        return poolToStringModel[pool];
     }
 }

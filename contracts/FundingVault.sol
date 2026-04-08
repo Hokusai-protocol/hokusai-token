@@ -44,6 +44,8 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         bool graduated;
         address poolAddress;
         uint256 totalTokens; // Total tokens received from pool during graduation
+        uint256 snapshotTimestamp; // When snapshot was taken (0 = not taken)
+        uint256 snapshotTotalCommitted; // Total committed at snapshot time
     }
 
     // modelId => Proposal
@@ -51,6 +53,9 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
 
     // modelId => user => commitment amount
     mapping(string => mapping(address => uint256)) public commitments;
+
+    // modelId => user => commitment amount at snapshot time
+    mapping(string => mapping(address => uint256)) public snapshotCommitments;
 
     // modelId => user => claimed
     mapping(string => mapping(address => bool)) public claimed;
@@ -76,6 +81,12 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         string indexed modelId,
         address indexed user,
         uint256 amount
+    );
+
+    event GraduationAnnounced(
+        string indexed modelId,
+        uint256 snapshotTimestamp,
+        uint256 snapshotTotalCommitted
     );
 
     event Graduated(
@@ -151,7 +162,9 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
             totalCommitted: 0,
             graduated: false,
             poolAddress: address(0),
-            totalTokens: 0
+            totalTokens: 0,
+            snapshotTimestamp: 0,
+            snapshotTotalCommitted: 0
         });
 
         emit ProposalRegistered(modelId, tokenAddr, deadline);
@@ -183,6 +196,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         Proposal storage proposal = proposals[modelId];
         require(proposal.tokenAddress != address(0), "Proposal not registered");
         require(!proposal.graduated, "Already graduated");
+        require(proposal.snapshotTimestamp == 0, "Graduation announced, deposits locked");
         require(block.timestamp <= proposal.deadline, "Deadline passed");
 
         // Transfer USDC from caller to vault
@@ -199,12 +213,12 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     }
 
     /**
-     * @dev Withdraw USDC commitment before graduation
+     * @dev Withdraw USDC commitment before graduation announcement
      * @param modelId String model identifier
      *
      * Requirements:
      * - Proposal must be registered
-     * - Not graduated (or past deadline with no graduation)
+     * - Not graduated and snapshot not taken
      * - User has non-zero commitment
      */
     function withdraw(string memory modelId) external nonReentrant {
@@ -213,6 +227,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         Proposal storage proposal = proposals[modelId];
         require(proposal.tokenAddress != address(0), "Proposal not registered");
         require(!proposal.graduated, "Already graduated");
+        require(proposal.snapshotTimestamp == 0, "Graduation announced, withdrawals locked");
 
         uint256 userCommitment = commitments[modelId][msg.sender];
         ValidationLib.requirePositiveAmount(userCommitment, "commitment");
@@ -235,12 +250,57 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     // ============================================================
 
     /**
+     * @dev Announce graduation and take snapshot of commitments
+     * @param modelId String model identifier
+     * @param investors Array of investor addresses to snapshot
+     *
+     * This function prevents front-running by:
+     * 1. Taking a snapshot of all current commitments
+     * 2. Locking further deposits and withdrawals
+     * 3. Creating a time window before actual graduation
+     *
+     * Requirements:
+     * - Caller must have GRADUATOR_ROLE
+     * - Proposal must be registered
+     * - Not already announced or graduated
+     * - Has committed funds
+     */
+    function announceGraduation(string memory modelId, address[] calldata investors)
+        external
+        onlyRole(GRADUATOR_ROLE)
+        nonReentrant
+    {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+
+        Proposal storage proposal = proposals[modelId];
+        require(proposal.tokenAddress != address(0), "Proposal not registered");
+        require(!proposal.graduated, "Already graduated");
+        require(proposal.snapshotTimestamp == 0, "Graduation already announced");
+        ValidationLib.requirePositiveAmount(proposal.totalCommitted, "total committed");
+
+        // Take snapshot of current state
+        proposal.snapshotTimestamp = block.timestamp;
+        proposal.snapshotTotalCommitted = proposal.totalCommitted;
+
+        // Snapshot each investor's commitment
+        for (uint256 i = 0; i < investors.length; i++) {
+            address investor = investors[i];
+            uint256 commitment = commitments[modelId][investor];
+            if (commitment > 0) {
+                snapshotCommitments[modelId][investor] = commitment;
+            }
+        }
+
+        emit GraduationAnnounced(modelId, block.timestamp, proposal.totalCommitted);
+    }
+
+    /**
      * @dev Graduate a proposal to AMM pool
      * @param modelId String model identifier
      *
      * This function:
      * 1. Creates AMM pool via HokusaiAMMFactory
-     * 2. Transfers totalCommitted USDC to the pool (via initial buy)
+     * 2. Transfers snapshotTotalCommitted USDC to the pool (via initial buy)
      * 3. Sets graduated = true (one-way flag)
      * 4. Stores pool address
      *
@@ -248,7 +308,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
      * - Caller must have GRADUATOR_ROLE
      * - Proposal must be registered
      * - Not already graduated
-     * - Has committed funds
+     * - Graduation must be announced (snapshot taken)
      */
     function graduate(string memory modelId)
         external
@@ -260,7 +320,8 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         Proposal storage proposal = proposals[modelId];
         require(proposal.tokenAddress != address(0), "Proposal not registered");
         require(!proposal.graduated, "Already graduated");
-        ValidationLib.requirePositiveAmount(proposal.totalCommitted, "total committed");
+        require(proposal.snapshotTimestamp > 0, "Graduation not announced yet");
+        ValidationLib.requirePositiveAmount(proposal.snapshotTotalCommitted, "snapshot total committed");
 
         // Create AMM pool via factory
         address poolAddress = ammFactory.createPool(
@@ -272,9 +333,9 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         bytes32 MINTER_ROLE = tokenManager.MINTER_ROLE();
         tokenManager.grantRole(MINTER_ROLE, poolAddress);
 
-        // Approve pool to spend USDC
+        // Approve pool to spend USDC (use snapshot amount)
         require(
-            usdc.approve(poolAddress, proposal.totalCommitted),
+            usdc.approve(poolAddress, proposal.snapshotTotalCommitted),
             "USDC approval failed"
         );
 
@@ -282,12 +343,12 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         IERC20 token = IERC20(proposal.tokenAddress);
         uint256 balanceBefore = token.balanceOf(address(this));
 
-        // Make initial buy to seed pool with committed funds
+        // Make initial buy to seed pool with snapshot committed funds
         // The pool will handle the buy and mint tokens to this contract
-        // Those tokens will be distributed via claim()
+        // Those tokens will be distributed via claim() based on snapshot commitments
         HokusaiAMM pool = HokusaiAMM(poolAddress);
         pool.buy(
-            proposal.totalCommitted,
+            proposal.snapshotTotalCommitted,
             1, // minTokensOut = 1 (we accept any price for seeding)
             address(this), // tokens go to this vault
             block.timestamp + 300 // 5 minute deadline
@@ -302,7 +363,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         proposal.poolAddress = poolAddress;
         proposal.totalTokens = tokensReceived;
 
-        emit Graduated(modelId, poolAddress, proposal.totalCommitted);
+        emit Graduated(modelId, poolAddress, proposal.snapshotTotalCommitted);
     }
 
     // ============================================================
@@ -316,11 +377,11 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
      * Batch claim pattern: Each depositor calls individually rather than
      * distributing to all in the graduation tx (avoids gas limits).
      *
-     * Token amount = (userCommitment / totalCommitted) * tokens held by vault
+     * Token amount = (snapshotCommitment / snapshotTotalCommitted) * tokens held by vault
      *
      * Requirements:
      * - Proposal must be graduated
-     * - User has non-zero commitment
+     * - User has non-zero snapshot commitment
      * - User has not already claimed
      */
     function claim(string memory modelId) external nonReentrant {
@@ -330,16 +391,16 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         require(proposal.graduated, "Not graduated yet");
         require(!claimed[modelId][msg.sender], "Already claimed");
 
-        uint256 userCommitment = commitments[modelId][msg.sender];
-        ValidationLib.requirePositiveAmount(userCommitment, "commitment");
+        uint256 userSnapshotCommitment = snapshotCommitments[modelId][msg.sender];
+        ValidationLib.requirePositiveAmount(userSnapshotCommitment, "snapshot commitment");
 
         // Mark as claimed before transfer (CEI pattern)
         claimed[modelId][msg.sender] = true;
 
-        // Calculate proportional share of tokens
+        // Calculate proportional share of tokens based on snapshot values
         // The vault received tokens from the pool during graduation
-        // Users claim their proportional share based on their commitment
-        uint256 tokenAmount = (userCommitment * proposal.totalTokens) / proposal.totalCommitted;
+        // Users claim their proportional share based on their snapshot commitment
+        uint256 tokenAmount = (userSnapshotCommitment * proposal.totalTokens) / proposal.snapshotTotalCommitted;
 
         IERC20 token = IERC20(proposal.tokenAddress);
 
@@ -366,7 +427,9 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
             uint256 totalCommitted,
             bool graduated,
             address poolAddress,
-            uint256 totalTokens
+            uint256 totalTokens,
+            uint256 snapshotTimestamp,
+            uint256 snapshotTotalCommitted
         )
     {
         Proposal memory proposal = proposals[modelId];
@@ -376,7 +439,9 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
             proposal.totalCommitted,
             proposal.graduated,
             proposal.poolAddress,
-            proposal.totalTokens
+            proposal.totalTokens,
+            proposal.snapshotTimestamp,
+            proposal.snapshotTotalCommitted
         );
     }
 
@@ -391,6 +456,19 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         returns (uint256)
     {
         return commitments[modelId][user];
+    }
+
+    /**
+     * @dev Get user snapshot commitment for a proposal
+     * @param modelId String model identifier
+     * @param user User address
+     */
+    function getSnapshotCommitment(string memory modelId, address user)
+        external
+        view
+        returns (uint256)
+    {
+        return snapshotCommitments[modelId][user];
     }
 
     /**

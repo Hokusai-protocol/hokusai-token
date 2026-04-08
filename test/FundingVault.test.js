@@ -336,6 +336,83 @@ describe("FundingVault", function () {
     });
   });
 
+  describe("announceGraduation", function () {
+    let tokenAddress;
+    let deadline;
+
+    beforeEach(async function () {
+      // Deploy token
+      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      const latestBlock = await ethers.provider.getBlock("latest");
+      deadline = latestBlock.timestamp + 86400 * 30;
+
+      // Register proposal
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
+
+      // Multiple users deposit
+      await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
+      await fundingVault.connect(user2).deposit(MODEL_ID_1, usd(15000));
+      await fundingVault.connect(user3).deposit(MODEL_ID_1, usd(5000));
+    });
+
+    it("Should announce graduation and take snapshot", async function () {
+      const investors = [user1.address, user2.address, user3.address];
+
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors))
+        .to.emit(fundingVault, "GraduationAnnounced")
+        .withArgs(MODEL_ID_1, await ethers.provider.getBlock("latest").then(b => b.timestamp + 1), usd(30000));
+
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.snapshotTimestamp).to.be.gt(0);
+      expect(proposal.snapshotTotalCommitted).to.equal(usd(30000));
+
+      // Verify snapshot commitments
+      expect(await fundingVault.getSnapshotCommitment(MODEL_ID_1, user1.address)).to.equal(usd(10000));
+      expect(await fundingVault.getSnapshotCommitment(MODEL_ID_1, user2.address)).to.equal(usd(15000));
+      expect(await fundingVault.getSnapshotCommitment(MODEL_ID_1, user3.address)).to.equal(usd(5000));
+    });
+
+    it("Should prevent deposits after announcement", async function () {
+      const investors = [user1.address, user2.address, user3.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
+
+      await expect(fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000)))
+        .to.be.revertedWith("Graduation announced, deposits locked");
+    });
+
+    it("Should prevent withdrawals after announcement", async function () {
+      const investors = [user1.address, user2.address, user3.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
+
+      await expect(fundingVault.connect(user1).withdraw(MODEL_ID_1))
+        .to.be.revertedWith("Graduation announced, withdrawals locked");
+    });
+
+    it("Should reject announcement from non-graduator", async function () {
+      const investors = [user1.address];
+      await expect(fundingVault.connect(user1).announceGraduation(MODEL_ID_1, investors))
+        .to.be.reverted;
+    });
+
+    it("Should reject double announcement", async function () {
+      const investors = [user1.address, user2.address, user3.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
+
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors))
+        .to.be.revertedWith("Graduation already announced");
+    });
+
+    it("Should reject announcement with zero commitments", async function () {
+      await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
+      const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
+      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
+
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_2, []))
+        .to.be.revertedWithCustomError(fundingVault, "InvalidAmount");
+    });
+  });
+
   describe("graduate", function () {
     let tokenAddress;
     let deadline;
@@ -360,8 +437,9 @@ describe("FundingVault", function () {
       await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
     });
 
-    it("Should graduate proposal and create AMM pool", async function () {
-      const totalCommitted = usd(30000);
+    it("Should graduate proposal and create AMM pool after announcement", async function () {
+      const investors = [user1.address, user2.address, user3.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
 
       await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
         .to.emit(fundingVault, "Graduated");
@@ -375,7 +453,15 @@ describe("FundingVault", function () {
       expect(poolAddress).to.equal(proposal.poolAddress);
     });
 
+    it("Should reject graduation without announcement", async function () {
+      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
+        .to.be.revertedWith("Graduation not announced yet");
+    });
+
     it("Should reject graduation from non-graduator", async function () {
+      const investors = [user1.address, user2.address, user3.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
+
       await expect(fundingVault.connect(user1).graduate(MODEL_ID_1))
         .to.be.reverted;
     });
@@ -386,29 +472,28 @@ describe("FundingVault", function () {
     });
 
     it("Should reject double graduation", async function () {
+      const investors = [user1.address, user2.address, user3.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
       await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+
       await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
         .to.be.revertedWith("Already graduated");
     });
 
-    it("Should reject graduation with zero commitments", async function () {
-      // Deploy new token and register proposal with no deposits
-      await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
-      const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
-      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
-
-      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_2))
-        .to.be.revertedWithCustomError(fundingVault, "InvalidAmount");
-    });
-
     it("Should prevent deposits after graduation", async function () {
+      const investors = [user1.address, user2.address, user3.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
       await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+
       await expect(fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000)))
         .to.be.revertedWith("Already graduated");
     });
 
     it("Should prevent withdrawals after graduation", async function () {
+      const investors = [user1.address, user2.address, user3.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
       await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+
       await expect(fundingVault.connect(user1).withdraw(MODEL_ID_1))
         .to.be.revertedWith("Already graduated");
     });
@@ -436,7 +521,9 @@ describe("FundingVault", function () {
       const MINTER_ROLE = await tokenManager.MINTER_ROLE();
       await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
 
-      // Graduate
+      // Announce and Graduate
+      const investors = [user1.address, user2.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
       await fundingVault.connect(graduator).graduate(MODEL_ID_1);
     });
 
@@ -476,9 +563,11 @@ describe("FundingVault", function () {
 
     it("Should reject claim before graduation", async function () {
       // Deploy new proposal
+      const latestBlock = await ethers.provider.getBlock("latest");
+      const newDeadline = latestBlock.timestamp + 86400 * 30;
       await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
-      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
+      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, newDeadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_2, usd(1000));
 
       await expect(fundingVault.connect(user1).claim(MODEL_ID_2))
@@ -581,12 +670,16 @@ describe("FundingVault", function () {
         .to.not.be.reverted;
     });
 
-    it("Should allow graduator to graduate", async function () {
+    it("Should allow graduator to announce and graduate", async function () {
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
 
       const MINTER_ROLE = await tokenManager.MINTER_ROLE();
       await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
+
+      const investors = [user1.address];
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors))
+        .to.not.be.reverted;
 
       await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
         .to.not.be.reverted;
@@ -619,6 +712,94 @@ describe("FundingVault", function () {
 
       await expect(fundingVault.connect(user1).deposit(MODEL_ID_1, amount))
         .to.not.be.reverted;
+    });
+  });
+
+  describe("Front-Running Protection (HOK-1164)", function () {
+    let tokenAddress;
+    let deadline;
+
+    beforeEach(async function () {
+      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      const latestBlock = await ethers.provider.getBlock("latest");
+      deadline = latestBlock.timestamp + 86400 * 30;
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
+    });
+
+    it("FIXED: Attacker cannot dilute investors by depositing after announcement", async function () {
+      // Early investors deposit
+      await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
+      await fundingVault.connect(user2).deposit(MODEL_ID_1, usd(5000));
+
+      const totalBefore = usd(15000);
+
+      // Graduation is announced, taking snapshot
+      const investors = [user1.address, user2.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
+
+      // Attacker attempts to front-run by depositing large amount
+      // This should FAIL because deposits are locked after announcement
+      await expect(fundingVault.connect(user3).deposit(MODEL_ID_1, usd(90000)))
+        .to.be.revertedWith("Graduation announced, deposits locked");
+
+      // Verify snapshot values remain unchanged
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.snapshotTotalCommitted).to.equal(totalBefore);
+
+      // Verify early investors' snapshot commitments
+      expect(await fundingVault.getSnapshotCommitment(MODEL_ID_1, user1.address)).to.equal(usd(10000));
+      expect(await fundingVault.getSnapshotCommitment(MODEL_ID_1, user2.address)).to.equal(usd(5000));
+      expect(await fundingVault.getSnapshotCommitment(MODEL_ID_1, user3.address)).to.equal(0);
+    });
+
+    it("Token distribution uses snapshot values, not current commitments", async function () {
+      // Users deposit
+      await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(6000));
+      await fundingVault.connect(user2).deposit(MODEL_ID_1, usd(4000));
+
+      // Take snapshot
+      const investors = [user1.address, user2.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
+
+      // Grant AMM minting permission and graduate
+      const MINTER_ROLE = await tokenManager.MINTER_ROLE();
+      await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
+      await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+
+      // Users claim tokens
+      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+      const token = HokusaiToken.attach(tokenAddress);
+
+      await fundingVault.connect(user1).claim(MODEL_ID_1);
+      await fundingVault.connect(user2).claim(MODEL_ID_1);
+
+      const balance1 = await token.balanceOf(user1.address);
+      const balance2 = await token.balanceOf(user2.address);
+
+      // User1 should get 60% (6000/10000) of tokens
+      // User2 should get 40% (4000/10000) of tokens
+      // Approximate ratio check (accounting for AMM fees)
+      const ratio = (balance1 * 1000n) / balance2;
+      expect(ratio).to.be.closeTo(1500, 100); // 1500 = 1.5 ratio, within 10% tolerance
+    });
+
+    it("Users not in snapshot cannot claim tokens", async function () {
+      // Early investors deposit
+      await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
+
+      // Take snapshot (only user1)
+      const investors = [user1.address];
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1, investors);
+
+      // Graduate
+      const MINTER_ROLE = await tokenManager.MINTER_ROLE();
+      await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
+      await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+
+      // User2 (not in snapshot) cannot claim
+      await expect(fundingVault.connect(user2).claim(MODEL_ID_1))
+        .to.be.revertedWithCustomError(fundingVault, "InvalidAmount");
     });
   });
 });

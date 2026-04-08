@@ -123,6 +123,33 @@ describe("TokenManager", function () {
       expect(await tokenManager.hasToken(MODEL_ID_2)).to.be.true;
       expect(await tokenManager.hasToken(UNREGISTERED_MODEL_ID)).to.be.false;
     });
+
+    it("Should block minting for deactivated registered string models", async function () {
+      await modelRegistry.registerStringModel(
+        MODEL_ID_1,
+        await hokusaiToken1.getAddress(),
+        "accuracy"
+      );
+      await modelRegistry.deactivateStringModel(MODEL_ID_1);
+
+      await expect(
+        tokenManager.mintTokens(MODEL_ID_1, user1.address, parseEther("100"))
+      ).to.be.revertedWith("Model is deactivated");
+    });
+
+    it("Should allow minting again after string model reactivation", async function () {
+      await modelRegistry.registerStringModel(
+        MODEL_ID_1,
+        await hokusaiToken1.getAddress(),
+        "accuracy"
+      );
+      await modelRegistry.deactivateStringModel(MODEL_ID_1);
+      await modelRegistry.reactivateStringModel(MODEL_ID_1);
+
+      await expect(
+        tokenManager.mintTokens(MODEL_ID_1, user1.address, parseEther("100"))
+      ).to.not.be.reverted;
+    });
   });
 
   describe("Access Control", function () {

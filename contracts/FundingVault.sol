@@ -68,6 +68,11 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     // modelId => user => commitment amount frozen at graduation announcement
     mapping(string => mapping(address => uint256)) public snapshottedCommitments;
 
+    function _requireActiveModel(string memory modelId) internal view {
+        require(modelRegistry.isStringRegistered(modelId), "Model not registered");
+        require(modelRegistry.isStringActive(modelId), "Model is deactivated");
+    }
+
     // ============================================================
     // EVENTS
     // ============================================================
@@ -167,8 +172,8 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         ValidationLib.requireNonZeroAddress(tokenAddr, "token address");
         require(proposals[modelId].tokenAddress == address(0), "Proposal already registered");
 
-        // Verify model is registered in ModelRegistry
-        require(modelRegistry.isStringRegistered(modelId), "Model not registered");
+        // Verify model is registered and active in ModelRegistry
+        _requireActiveModel(modelId);
 
         // Verify token address matches what TokenManager has for this modelId
         require(tokenManager.getTokenAddress(modelId) == tokenAddr, "Token address mismatch");
@@ -214,6 +219,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         require(!proposal.graduated, "Already graduated");
         require(!proposal.graduationAnnounced, "Graduation announced");
         require(block.timestamp <= proposal.deadline, "Deadline passed");
+        require(modelRegistry.isStringActive(modelId), "Model is deactivated");
 
         // Transfer USDC from caller to vault
         require(
@@ -295,6 +301,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         require(!proposal.graduated, "Already graduated");
         require(!proposal.graduationAnnounced, "Graduation already announced");
         ValidationLib.requirePositiveAmount(proposal.totalCommitted, "total committed");
+        require(modelRegistry.isStringActive(modelId), "Model is deactivated");
 
         address[] storage proposalDepositors = depositors[modelId];
         uint256 depositorCount = proposalDepositors.length;
@@ -338,6 +345,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         require(!proposal.graduated, "Already graduated");
         require(proposal.graduationAnnounced, "Graduation not announced");
         ValidationLib.requirePositiveAmount(proposal.snapshotTotalCommitted, "total committed");
+        require(modelRegistry.isStringActive(modelId), "Model is deactivated");
 
         // Create AMM pool via factory
         address poolAddress = ammFactory.createPool(

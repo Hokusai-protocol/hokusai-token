@@ -206,6 +206,15 @@ describe("FundingVault", function () {
       await expect(fundingVault.connect(user1).registerProposal(MODEL_ID_1, tokenAddress, deadline))
         .to.be.reverted;
     });
+
+    it("Should reject registration for deactivated models", async function () {
+      await expect(modelRegistry.deactivateStringModel(MODEL_ID_1))
+        .to.emit(modelRegistry, "StringModelDeactivated")
+        .withArgs(MODEL_ID_1);
+
+      await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline))
+        .to.be.revertedWith("Model is deactivated");
+    });
   });
 
   describe("deposit", function () {
@@ -280,6 +289,13 @@ describe("FundingVault", function () {
 
       await expect(fundingVault.connect(newUser).deposit(MODEL_ID_1, usd(1000)))
         .to.be.revertedWith("ERC20: insufficient allowance");
+    });
+
+    it("Should reject deposit for deactivated models", async function () {
+      await modelRegistry.deactivateStringModel(MODEL_ID_1);
+
+      await expect(fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000)))
+        .to.be.revertedWith("Model is deactivated");
     });
   });
 

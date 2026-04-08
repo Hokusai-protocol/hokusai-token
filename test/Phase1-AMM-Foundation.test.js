@@ -213,6 +213,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
       expect(await modelRegistry.getPool(modelId)).to.equal(amm.address);
       expect(await modelRegistry.hasPool(modelId)).to.be.true;
+      expect(await modelRegistry.poolToStringModel(amm.address)).to.equal(modelId);
     });
 
     it("Should emit PoolRegistered event", async function () {
@@ -227,6 +228,19 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
       await expect(
         modelRegistry.registerPool(modelId, user.address)
       ).to.be.revertedWith("Pool already exists");
+    });
+
+    it("Should prevent registering the same pool for another model", async function () {
+      const modelId2 = "model-v2";
+      await tokenManager.deployToken(modelId2, "Test Token 2", "TEST2", parseEther("1000000"));
+      const tokenAddress2 = await tokenManager.getTokenAddress(modelId2);
+      await modelRegistry.registerStringModel(modelId2, tokenAddress2, performanceMetric);
+
+      await modelRegistry.registerPool(modelId, amm.address);
+
+      await expect(
+        modelRegistry.registerPool(modelId2, amm.address)
+      ).to.be.revertedWith("Pool already registered to another model");
     });
 
     it("Should revert if model not registered", async function () {

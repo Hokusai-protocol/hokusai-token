@@ -370,6 +370,10 @@ contract TokenManager is Ownable, AccessControlBase {
 
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
+        require(
+            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            "Model is deactivated"
+        );
 
         HokusaiToken(tokenAddress).mint(recipient, amount);
 
@@ -400,6 +404,10 @@ contract TokenManager is Ownable, AccessControlBase {
 
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
+        require(
+            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            "Model is deactivated"
+        );
 
         HokusaiToken token = HokusaiToken(tokenAddress);
         uint256 totalAmount = 0;

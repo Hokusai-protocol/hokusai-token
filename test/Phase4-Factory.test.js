@@ -179,6 +179,14 @@ describe("Phase 4: Factory & Registry Integration", function () {
             ).to.be.revertedWith("Model not registered in ModelRegistry");
         });
 
+        it("Should revert if model is deactivated", async function () {
+            await modelRegistry.deactivateStringModel(MODEL_ID_1);
+
+            await expect(
+                factory.createPool(MODEL_ID_1, token1Address)
+            ).to.be.revertedWith("Model is deactivated");
+        });
+
         // Removed: CRR, trade fee, and IBR duration validation tests
         // These are covered by ValidationLib.test.js and FeeLib.test.js
     });

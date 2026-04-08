@@ -36,6 +36,9 @@ contract ModelRegistry is Ownable {
     event ModelUpdated(uint256 indexed modelId, address indexed newTokenAddress);
     event MetricUpdated(uint256 indexed modelId, string newMetric);
     event StringModelRegistered(string indexed modelId, address indexed tokenAddress, string performanceMetric);
+    event StringModelUpdated(string indexed modelId, address indexed newTokenAddress);
+    event StringMetricUpdated(string indexed modelId, string newMetric);
+    event StringModelDeactivated(string indexed modelId);
     event PoolRegistered(string indexed modelId, address indexed poolAddress);
     event StringModelTokenManagerUpdated(address indexed tokenManager);
     event PoolRegistrarUpdated(address indexed registrar, bool authorized);
@@ -254,6 +257,50 @@ contract ModelRegistry is Ownable {
         tokenToStringModel[token] = modelId;
 
         emit StringModelRegistered(modelId, token, performanceMetric);
+    }
+
+    /**
+     * @dev Updates the token address for an existing string-based model
+     * @param modelId The model identifier to update
+     * @param newToken The new token address
+     */
+    function updateStringModel(string memory modelId, address newToken) external onlyOwner {
+        require(newToken != address(0), "Token address cannot be zero");
+        require(isStringModelRegistered[modelId], "Model not registered");
+        require(bytes(tokenToStringModel[newToken]).length == 0, "Token already registered");
+
+        address oldToken = modelsByString[modelId].tokenAddress;
+        delete tokenToStringModel[oldToken];
+        modelsByString[modelId].tokenAddress = newToken;
+        tokenToStringModel[newToken] = modelId;
+
+        emit StringModelUpdated(modelId, newToken);
+    }
+
+    /**
+     * @dev Updates the performance metric for an existing string-based model
+     * @param modelId The model identifier to update
+     * @param newMetric The new performance metric
+     */
+    function updateStringMetric(string memory modelId, string memory newMetric) external onlyOwner {
+        require(isStringModelRegistered[modelId], "Model not registered");
+        require(bytes(newMetric).length > 0, "Performance metric cannot be empty");
+
+        modelsByString[modelId].performanceMetric = newMetric;
+
+        emit StringMetricUpdated(modelId, newMetric);
+    }
+
+    /**
+     * @dev Deactivates a string-based model
+     * @param modelId The model identifier to deactivate
+     */
+    function deactivateStringModel(string memory modelId) external onlyOwner {
+        require(isStringModelRegistered[modelId], "Model not registered");
+
+        modelsByString[modelId].active = false;
+
+        emit StringModelDeactivated(modelId);
     }
 
     /**

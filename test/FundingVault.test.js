@@ -18,43 +18,39 @@ describe("FundingVault", function () {
   const MODEL_ID_2 = "model-2";
   const USDC_DECIMALS = 6;
 
-  // Helper to parse USDC amounts (6 decimals)
   function usd(amount) {
     return parseUnits(amount.toString(), USDC_DECIMALS);
+  }
+
+  async function getDeadline(offsetDays = 30) {
+    const latestBlock = await ethers.provider.getBlock("latest");
+    return latestBlock.timestamp + 86400 * offsetDays;
   }
 
   beforeEach(async function () {
     [owner, graduator, user1, user2, user3] = await ethers.getSigners();
 
-    // Deploy MockUSDC
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     usdc = await MockUSDC.deploy();
     await usdc.waitForDeployment();
 
-    // Deploy ModelRegistry
     const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
     modelRegistry = await ModelRegistry.deploy();
     await modelRegistry.waitForDeployment();
 
-    // Deploy TokenManager
     const TokenManager = await ethers.getContractFactory("TokenManager");
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
 
-    // Deploy HokusaiAMMFactory
     const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
     ammFactory = await HokusaiAMMFactory.deploy(
       await modelRegistry.getAddress(),
       await tokenManager.getAddress(),
       await usdc.getAddress(),
-      owner.address // treasury
+      owner.address
     );
     await ammFactory.waitForDeployment();
 
-    // Grant TokenManager the MINTER_ROLE on AMM factory pools
-    // This is done by authorizing the factory owner to create pools
-
-    // Deploy FundingVault
     const FundingVault = await ethers.getContractFactory("FundingVault");
     fundingVault = await FundingVault.deploy(
       await usdc.getAddress(),
@@ -64,27 +60,21 @@ describe("FundingVault", function () {
     );
     await fundingVault.waitForDeployment();
 
-    // Grant GRADUATOR_ROLE to graduator address
     const GRADUATOR_ROLE = await fundingVault.GRADUATOR_ROLE();
     await fundingVault.grantRole(GRADUATOR_ROLE, graduator.address);
 
-    // Grant FundingVault MINTER_ROLE in TokenManager
     const MINTER_ROLE = await tokenManager.MINTER_ROLE();
     await tokenManager.grantRole(MINTER_ROLE, await fundingVault.getAddress());
 
-    // Grant FundingVault DEFAULT_ADMIN_ROLE in TokenManager (so it can authorize pools)
     const DEFAULT_ADMIN_ROLE = await tokenManager.DEFAULT_ADMIN_ROLE();
     await tokenManager.grantRole(DEFAULT_ADMIN_ROLE, await fundingVault.getAddress());
 
-    // Transfer ownership of AMMFactory to FundingVault (so it can create pools)
     await ammFactory.transferOwnership(await fundingVault.getAddress());
 
-    // Mint USDC to test users
     await usdc.mint(user1.address, usd(100000));
     await usdc.mint(user2.address, usd(100000));
     await usdc.mint(user3.address, usd(100000));
 
-    // Approve FundingVault to spend USDC
     await usdc.connect(user1).approve(await fundingVault.getAddress(), usd(100000));
     await usdc.connect(user2).approve(await fundingVault.getAddress(), usd(100000));
     await usdc.connect(user3).approve(await fundingVault.getAddress(), usd(100000));
@@ -152,54 +142,60 @@ describe("FundingVault", function () {
 
   describe("registerProposal", function () {
     let tokenAddress;
+    let deadline;
 
     beforeEach(async function () {
-      // Deploy a token for testing
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      deadline = await getDeadline();
     });
 
     it("Should register a new proposal", async function () {
-      await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress))
+      await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline))
         .to.emit(fundingVault, "ProposalRegistered")
         .withArgs(MODEL_ID_1, tokenAddress);
 
       const proposal = await fundingVault.getProposal(MODEL_ID_1);
       expect(proposal.tokenAddress).to.equal(tokenAddress);
+      expect(proposal.deadline).to.equal(deadline);
       expect(proposal.totalCommitted).to.equal(0);
+      expect(proposal.snapshotTotalCommitted).to.equal(0);
       expect(proposal.graduated).to.be.false;
+      expect(proposal.graduationAnnounced).to.be.false;
       expect(proposal.poolAddress).to.equal(ZeroAddress);
     });
 
     it("Should reject registration with empty model ID", async function () {
-      await expect(fundingVault.registerProposal("", tokenAddress))
+      await expect(fundingVault.registerProposal("", tokenAddress, deadline))
         .to.be.revertedWithCustomError(fundingVault, "EmptyString");
     });
 
     it("Should reject registration with zero token address", async function () {
-      await expect(fundingVault.registerProposal(MODEL_ID_1, ZeroAddress))
+      await expect(fundingVault.registerProposal(MODEL_ID_1, ZeroAddress, deadline))
         .to.be.revertedWithCustomError(fundingVault, "ZeroAddress");
     });
 
     it("Should reject duplicate registration", async function () {
-      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress);
-      await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress))
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
+      await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline))
         .to.be.revertedWith("Proposal already registered");
     });
 
     it("Should reject registration from non-admin", async function () {
-      await expect(fundingVault.connect(user1).registerProposal(MODEL_ID_1, tokenAddress))
+      await expect(fundingVault.connect(user1).registerProposal(MODEL_ID_1, tokenAddress, deadline))
         .to.be.reverted;
     });
   });
 
   describe("deposit", function () {
     let tokenAddress;
+    let deadline;
 
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress);
+      deadline = await getDeadline();
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
     });
 
     it("Should accept USDC deposit", async function () {
@@ -255,11 +251,9 @@ describe("FundingVault", function () {
     });
 
     it("Should reject deposit without USDC approval", async function () {
-      // Create new user without approval
       const [, , , , , newUser] = await ethers.getSigners();
       await usdc.mint(newUser.address, usd(1000));
 
-      // Should revert with ERC20: insufficient allowance
       await expect(fundingVault.connect(newUser).deposit(MODEL_ID_1, usd(1000)))
         .to.be.revertedWith("ERC20: insufficient allowance");
     });
@@ -267,13 +261,13 @@ describe("FundingVault", function () {
 
   describe("withdraw", function () {
     let tokenAddress;
+    let deadline;
 
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress);
-
-      // User1 deposits
+      deadline = await getDeadline();
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000));
     });
 
@@ -320,30 +314,107 @@ describe("FundingVault", function () {
     });
   });
 
-  describe("graduate", function () {
+  describe("announceGraduation", function () {
     let tokenAddress;
+    let deadline;
 
     beforeEach(async function () {
-      // Deploy token
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      deadline = await getDeadline();
 
-      // Register proposal
-      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress);
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
+      await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
+      await fundingVault.connect(user2).deposit(MODEL_ID_1, usd(15000));
+      await fundingVault.connect(user3).deposit(MODEL_ID_1, usd(5000));
+    });
 
-      // Multiple users deposit
+    it("Should snapshot commitments and freeze the proposal", async function () {
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_1))
+        .to.emit(fundingVault, "GraduationAnnounced")
+        .withArgs(MODEL_ID_1, usd(30000), 3);
+
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.graduationAnnounced).to.be.true;
+      expect(proposal.snapshotTotalCommitted).to.equal(usd(30000));
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user1.address)).to.equal(usd(10000));
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user2.address)).to.equal(usd(15000));
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user3.address)).to.equal(usd(5000));
+    });
+
+    it("Should reject announcement from non-graduator", async function () {
+      await expect(fundingVault.connect(user1).announceGraduation(MODEL_ID_1))
+        .to.be.reverted;
+    });
+
+    it("Should reject announcement of unregistered proposal", async function () {
+      await expect(fundingVault.connect(graduator).announceGraduation("unregistered"))
+        .to.be.revertedWith("Proposal not registered");
+    });
+
+    it("Should reject double announcement", async function () {
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_1))
+        .to.be.revertedWith("Graduation already announced");
+    });
+
+    it("Should reject announcement with zero commitments", async function () {
+      await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
+      const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
+      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
+
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_2))
+        .to.be.revertedWithCustomError(fundingVault, "InvalidAmount");
+    });
+
+    it("Should prevent deposits after announcement", async function () {
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
+      await expect(fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000)))
+        .to.be.revertedWith("Graduation announced");
+    });
+
+    it("Should prevent withdrawals after announcement", async function () {
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
+      await expect(fundingVault.connect(user1).withdraw(MODEL_ID_1))
+        .to.be.revertedWith("Graduation announced");
+    });
+
+    it("Should protect early investors from last-second dilution", async function () {
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
+
+      await expect(fundingVault.connect(user3).deposit(MODEL_ID_1, usd(90000)))
+        .to.be.revertedWith("Graduation announced");
+
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.totalCommitted).to.equal(usd(30000));
+      expect(proposal.snapshotTotalCommitted).to.equal(usd(30000));
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user1.address)).to.equal(usd(10000));
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user2.address)).to.equal(usd(15000));
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user3.address)).to.equal(usd(5000));
+    });
+  });
+
+  describe("graduate", function () {
+    let tokenAddress;
+    let deadline;
+
+    beforeEach(async function () {
+      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      deadline = await getDeadline();
+
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
       await fundingVault.connect(user2).deposit(MODEL_ID_1, usd(15000));
       await fundingVault.connect(user3).deposit(MODEL_ID_1, usd(5000));
 
-      // Grant AMM minting permission
       const MINTER_ROLE = await tokenManager.MINTER_ROLE();
       await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
+
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
     });
 
     it("Should graduate proposal and create AMM pool", async function () {
-      const totalCommitted = usd(30000);
-
       await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
         .to.emit(fundingVault, "Graduated");
 
@@ -351,7 +422,6 @@ describe("FundingVault", function () {
       expect(proposal.graduated).to.be.true;
       expect(proposal.poolAddress).to.not.equal(ZeroAddress);
 
-      // Verify pool was created
       const poolAddress = await ammFactory.getPool(MODEL_ID_1);
       expect(poolAddress).to.equal(proposal.poolAddress);
     });
@@ -366,20 +436,29 @@ describe("FundingVault", function () {
         .to.be.revertedWith("Proposal not registered");
     });
 
+    it("Should require announcement before graduation", async function () {
+      await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
+      const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
+      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
+      await fundingVault.connect(user1).deposit(MODEL_ID_2, usd(1000));
+
+      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_2))
+        .to.be.revertedWith("Graduation not announced");
+    });
+
     it("Should reject double graduation", async function () {
       await fundingVault.connect(graduator).graduate(MODEL_ID_1);
       await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
         .to.be.revertedWith("Already graduated");
     });
 
-    it("Should reject graduation with zero commitments", async function () {
-      // Deploy new token and register proposal with no deposits
+    it("Should reject graduation without an announced snapshot", async function () {
       await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
-      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2);
+      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
 
       await expect(fundingVault.connect(graduator).graduate(MODEL_ID_2))
-        .to.be.revertedWithCustomError(fundingVault, "InvalidAmount");
+        .to.be.revertedWith("Graduation not announced");
     });
 
     it("Should prevent deposits after graduation", async function () {
@@ -397,24 +476,21 @@ describe("FundingVault", function () {
 
   describe("claim", function () {
     let tokenAddress;
+    let deadline;
 
     beforeEach(async function () {
-      // Deploy token
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      deadline = await getDeadline();
 
-      // Register proposal
-      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress);
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
+      await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000));
+      await fundingVault.connect(user2).deposit(MODEL_ID_1, usd(2000));
 
-      // Users deposit
-      await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000)); // $1000
-      await fundingVault.connect(user2).deposit(MODEL_ID_1, usd(2000)); // $2000
-
-      // Grant AMM minting permission
       const MINTER_ROLE = await tokenManager.MINTER_ROLE();
       await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
 
-      // Graduate
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
       await fundingVault.connect(graduator).graduate(MODEL_ID_1);
     });
 
@@ -430,12 +506,8 @@ describe("FundingVault", function () {
       const balanceAfter = await token.balanceOf(user1.address);
       const tokensReceived = balanceAfter - balanceBefore;
 
-      // User deposited 1000 USDC out of 3000 total = 1/3 of tokens
-      // After AMM fees (~0.3%), expect approximately 99,700 tokens
-      // Allow small tolerance for fees
       const expectedTokens = parseEther("99700");
       expect(tokensReceived).to.be.closeTo(expectedTokens, parseEther("1000"));
-
       expect(await fundingVault.hasClaimed(MODEL_ID_1, user1.address)).to.be.true;
     });
 
@@ -446,18 +518,16 @@ describe("FundingVault", function () {
       await fundingVault.connect(user1).claim(MODEL_ID_1);
       await fundingVault.connect(user2).claim(MODEL_ID_1);
 
-      // User1: 1000 USDC / 3000 total = 1/3 of tokens ≈ 99,700 tokens
-      // User2: 2000 USDC / 3000 total = 2/3 of tokens ≈ 199,400 tokens
       expect(await token.balanceOf(user1.address)).to.be.closeTo(parseEther("99700"), parseEther("1000"));
       expect(await token.balanceOf(user2.address)).to.be.closeTo(parseEther("199400"), parseEther("2000"));
     });
 
     it("Should reject claim before graduation", async function () {
-      // Deploy new proposal
       await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
-      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2);
+      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_2, usd(1000));
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_2);
 
       await expect(fundingVault.connect(user1).claim(MODEL_ID_2))
         .to.be.revertedWith("Not graduated yet");
@@ -473,22 +543,35 @@ describe("FundingVault", function () {
       await expect(fundingVault.connect(user3).claim(MODEL_ID_1))
         .to.be.revertedWithCustomError(fundingVault, "InvalidAmount");
     });
+
+    it("Should use snapshotted commitments for claims", async function () {
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.totalCommitted).to.equal(usd(3000));
+      expect(proposal.snapshotTotalCommitted).to.equal(usd(3000));
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user1.address)).to.equal(usd(1000));
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user2.address)).to.equal(usd(2000));
+    });
   });
 
   describe("View Functions", function () {
     let tokenAddress;
+    let deadline;
 
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress);
+      deadline = await getDeadline();
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
     });
 
     it("Should return correct proposal details", async function () {
       const proposal = await fundingVault.getProposal(MODEL_ID_1);
       expect(proposal.tokenAddress).to.equal(tokenAddress);
+      expect(proposal.deadline).to.equal(deadline);
       expect(proposal.totalCommitted).to.equal(0);
+      expect(proposal.snapshotTotalCommitted).to.equal(0);
       expect(proposal.graduated).to.be.false;
+      expect(proposal.graduationAnnounced).to.be.false;
     });
 
     it("Should return correct commitment amount", async function () {
@@ -503,21 +586,31 @@ describe("FundingVault", function () {
 
   describe("Edge Cases", function () {
     let tokenAddress;
+    let deadline;
 
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress);
+      deadline = await getDeadline();
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
+    });
+
+    it("Should handle deposit after deadline before graduation", async function () {
+      await ethers.provider.send("evm_increaseTime", [86400 * 31]);
+      await ethers.provider.send("evm_mine");
+
+      await expect(fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000)))
+        .to.be.revertedWith("Deadline passed");
     });
 
     it("Should handle very small deposits", async function () {
-      const tinyAmount = 1; // 1 unit of USDC (0.000001 USDC)
+      const tinyAmount = 1;
       await fundingVault.connect(user1).deposit(MODEL_ID_1, tinyAmount);
       expect(await fundingVault.getCommitment(MODEL_ID_1, user1.address)).to.equal(tinyAmount);
     });
 
     it("Should handle large deposits", async function () {
-      const largeAmount = usd(1000000); // 1 million USDC
+      const largeAmount = usd(1000000);
       await usdc.mint(user1.address, largeAmount);
       await usdc.connect(user1).approve(await fundingVault.getAddress(), largeAmount);
 
@@ -528,24 +621,28 @@ describe("FundingVault", function () {
 
   describe("Access Control", function () {
     let tokenAddress;
+    let deadline;
 
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      deadline = await getDeadline();
     });
 
     it("Should allow admin to register proposal", async function () {
-      await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress))
+      await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline))
         .to.not.be.reverted;
     });
 
-    it("Should allow graduator to graduate", async function () {
-      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress);
+    it("Should allow graduator to announce and graduate", async function () {
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
 
       const MINTER_ROLE = await tokenManager.MINTER_ROLE();
       await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
 
+      await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_1))
+        .to.not.be.reverted;
       await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
         .to.not.be.reverted;
     });
@@ -565,13 +662,11 @@ describe("FundingVault", function () {
 
   describe("Reentrancy Protection", function () {
     it("Should protect deposit from reentrancy", async function () {
-      // This is implicitly tested by the nonReentrant modifier
-      // In practice, we'd need a malicious contract to test this properly
-      // For now, we verify the modifier is in place
       const amount = usd(1000);
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress);
+      const deadline = await getDeadline();
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
 
       await expect(fundingVault.connect(user1).deposit(MODEL_ID_1, amount))
         .to.not.be.reverted;

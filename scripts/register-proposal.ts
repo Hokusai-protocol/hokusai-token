@@ -9,6 +9,7 @@ interface ProposalConfig {
   tokenName: string;
   tokenSymbol: string;
   initialSupply: bigint;
+  proposalDeadline?: bigint;
   tokensPerDeltaOne?: bigint;
   infrastructureAccrualBps?: number;
   licenseHash?: string;
@@ -21,6 +22,7 @@ interface ProposalConfig {
  * Default configuration values
  */
 const DEFAULTS = {
+  proposalDeadlineOffsetSeconds: BigInt(86400 * 30),
   tokensPerDeltaOne: BigInt(1000),
   infrastructureAccrualBps: 5000, // 50%
   performanceMetric: "accuracy",
@@ -62,6 +64,9 @@ async function registerProposal(
   }
 
   // Prepare parameters with defaults
+  const latestBlock = await ethers.provider.getBlock("latest");
+  const proposalDeadline =
+    config.proposalDeadline ?? BigInt(latestBlock!.timestamp) + DEFAULTS.proposalDeadlineOffsetSeconds;
   const tokensPerDeltaOne = config.tokensPerDeltaOne || DEFAULTS.tokensPerDeltaOne;
   const infrastructureAccrualBps = config.infrastructureAccrualBps || DEFAULTS.infrastructureAccrualBps;
   const licenseHash = config.licenseHash || DEFAULTS.licenseHash;
@@ -109,7 +114,8 @@ async function registerProposal(
     console.log("\nStep 3: Registering proposal in FundingVault...");
     const vaultTx = await fundingVault.registerProposal(
       config.modelId,
-      tokenAddress
+      tokenAddress,
+      proposalDeadline
     );
 
     console.log(`Transaction hash: ${vaultTx.hash}`);
@@ -119,6 +125,7 @@ async function registerProposal(
     console.log("\n=== Registration Complete ===");
     console.log(`Model ID: ${config.modelId}`);
     console.log(`Token Address: ${tokenAddress}`);
+    console.log(`Proposal Deadline: ${proposalDeadline}`);
 
     return {
       modelId: config.modelId,

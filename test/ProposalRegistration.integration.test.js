@@ -22,6 +22,11 @@ describe("Proposal Registration Integration", function () {
   const LICENSE_URI = "https://hokusai.ai/licenses/mit";
   const PERFORMANCE_METRIC = "accuracy";
 
+  async function getDeadline(offsetDays = 30) {
+    const latestBlock = await ethers.provider.getBlock("latest");
+    return latestBlock.timestamp + 86400 * offsetDays;
+  }
+
   beforeEach(async function () {
     [owner, investor1, investor2] = await ethers.getSigners();
 
@@ -102,14 +107,16 @@ describe("Proposal Registration Integration", function () {
       expect(await modelRegistry.getStringToken(MODEL_ID)).to.equal(tokenAddress);
 
       // Step 3: Register in FundingVault
+      const deadline = await getDeadline();
       await expect(
-        fundingVault.registerProposal(MODEL_ID, tokenAddress)
+        fundingVault.registerProposal(MODEL_ID, tokenAddress, deadline)
       )
         .to.emit(fundingVault, "ProposalRegistered")
         .withArgs(MODEL_ID, tokenAddress);
 
       const proposal = await fundingVault.proposals(MODEL_ID);
       expect(proposal.tokenAddress).to.equal(tokenAddress);
+      expect(proposal.deadline).to.equal(deadline);
       expect(proposal.graduated).to.be.false;
       expect(proposal.totalCommitted).to.equal(0);
     });
@@ -135,7 +142,7 @@ describe("Proposal Registration Integration", function () {
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       await modelRegistry.registerStringModel(MODEL_ID, tokenAddress, PERFORMANCE_METRIC);
 
-      await fundingVault.registerProposal(MODEL_ID, tokenAddress);
+      await fundingVault.registerProposal(MODEL_ID, tokenAddress, await getDeadline());
 
       // Make deposits (need to mint USDC and approve first)
       const deposit1 = parseEther("10000");
@@ -190,7 +197,7 @@ describe("Proposal Registration Integration", function () {
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       await modelRegistry.registerStringModel(MODEL_ID, tokenAddress, PERFORMANCE_METRIC);
 
-      await fundingVault.registerProposal(MODEL_ID, tokenAddress);
+      await fundingVault.registerProposal(MODEL_ID, tokenAddress, await getDeadline());
 
       // Verify consistency across all contracts
       expect(await tokenManager.hasToken(MODEL_ID)).to.be.true;
@@ -302,8 +309,8 @@ describe("Proposal Registration Integration", function () {
       await modelRegistry.registerStringModel(model2, token2Address, PERFORMANCE_METRIC);
 
       // Register both in FundingVault
-      await fundingVault.registerProposal(model1, token1Address);
-      await fundingVault.registerProposal(model2, token2Address);
+      await fundingVault.registerProposal(model1, token1Address, await getDeadline());
+      await fundingVault.registerProposal(model2, token2Address, await getDeadline());
 
       // Verify both are properly registered
       const proposal1 = await fundingVault.proposals(model1);

@@ -22,6 +22,11 @@ describe("FundingVault", function () {
     return parseUnits(amount.toString(), USDC_DECIMALS);
   }
 
+  async function getDeadline(offsetDays = 30) {
+    const latestBlock = await ethers.provider.getBlock("latest");
+    return latestBlock.timestamp + 86400 * offsetDays;
+  }
+
   beforeEach(async function () {
     [owner, graduator, user1, user2, user3] = await ethers.getSigners();
 
@@ -142,14 +147,13 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      deadline = latestBlock.timestamp + 86400 * 30;
+      deadline = await getDeadline();
     });
 
     it("Should register a new proposal", async function () {
       await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline))
         .to.emit(fundingVault, "ProposalRegistered")
-        .withArgs(MODEL_ID_1, tokenAddress, deadline);
+        .withArgs(MODEL_ID_1, tokenAddress);
 
       const proposal = await fundingVault.getProposal(MODEL_ID_1);
       expect(proposal.tokenAddress).to.equal(tokenAddress);
@@ -171,12 +175,6 @@ describe("FundingVault", function () {
         .to.be.revertedWithCustomError(fundingVault, "ZeroAddress");
     });
 
-    it("Should reject registration with past deadline", async function () {
-      const pastDeadline = Math.floor(Date.now() / 1000) - 1;
-      await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress, pastDeadline))
-        .to.be.revertedWith("Deadline must be in future");
-    });
-
     it("Should reject duplicate registration", async function () {
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await expect(fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline))
@@ -196,8 +194,7 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      deadline = latestBlock.timestamp + 86400 * 30;
+      deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
     });
 
@@ -269,8 +266,7 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      deadline = latestBlock.timestamp + 86400 * 30;
+      deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000));
     });
@@ -325,8 +321,7 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      deadline = latestBlock.timestamp + 86400 * 30;
+      deadline = await getDeadline();
 
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
@@ -406,8 +401,7 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      deadline = latestBlock.timestamp + 86400 * 30;
+      deadline = await getDeadline();
 
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
@@ -487,8 +481,7 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      deadline = latestBlock.timestamp + 86400 * 30;
+      deadline = await getDeadline();
 
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000));
@@ -567,8 +560,7 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      deadline = latestBlock.timestamp + 86400 * 30;
+      deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
     });
 
@@ -599,8 +591,7 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      deadline = latestBlock.timestamp + 86400 * 30;
+      deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
     });
 
@@ -635,8 +626,7 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      deadline = latestBlock.timestamp + 86400 * 30;
+      deadline = await getDeadline();
     });
 
     it("Should allow admin to register proposal", async function () {
@@ -675,8 +665,7 @@ describe("FundingVault", function () {
       const amount = usd(1000);
       await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
-      const latestBlock = await ethers.provider.getBlock("latest");
-      const deadline = latestBlock.timestamp + 86400 * 30;
+      const deadline = await getDeadline();
       await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
 
       await expect(fundingVault.connect(user1).deposit(MODEL_ID_1, amount))

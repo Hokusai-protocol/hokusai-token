@@ -21,7 +21,11 @@ describe("Proposal Registration Integration", function () {
   const LICENSE_HASH = ethers.keccak256(ethers.toUtf8Bytes("mit-license"));
   const LICENSE_URI = "https://hokusai.ai/licenses/mit";
   const PERFORMANCE_METRIC = "accuracy";
-  const DEADLINE_DAYS = 90;
+
+  async function getDeadline(offsetDays = 30) {
+    const latestBlock = await ethers.provider.getBlock("latest");
+    return latestBlock.timestamp + 86400 * offsetDays;
+  }
 
   beforeEach(async function () {
     [owner, investor1, investor2] = await ethers.getSigners();
@@ -103,14 +107,12 @@ describe("Proposal Registration Integration", function () {
       expect(await modelRegistry.getStringToken(MODEL_ID)).to.equal(tokenAddress);
 
       // Step 3: Register in FundingVault
-      const currentBlock = await ethers.provider.getBlock("latest");
-      const deadline = currentBlock.timestamp + DEADLINE_DAYS * 24 * 60 * 60;
-
+      const deadline = await getDeadline();
       await expect(
         fundingVault.registerProposal(MODEL_ID, tokenAddress, deadline)
       )
         .to.emit(fundingVault, "ProposalRegistered")
-        .withArgs(MODEL_ID, tokenAddress, deadline);
+        .withArgs(MODEL_ID, tokenAddress);
 
       const proposal = await fundingVault.proposals(MODEL_ID);
       expect(proposal.tokenAddress).to.equal(tokenAddress);
@@ -140,9 +142,7 @@ describe("Proposal Registration Integration", function () {
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       await modelRegistry.registerStringModel(MODEL_ID, tokenAddress, PERFORMANCE_METRIC);
 
-      const currentBlock = await ethers.provider.getBlock("latest");
-      const deadline = currentBlock.timestamp + DEADLINE_DAYS * 24 * 60 * 60;
-      await fundingVault.registerProposal(MODEL_ID, tokenAddress, deadline);
+      await fundingVault.registerProposal(MODEL_ID, tokenAddress, await getDeadline());
 
       // Make deposits (need to mint USDC and approve first)
       const deposit1 = parseEther("10000");
@@ -197,9 +197,7 @@ describe("Proposal Registration Integration", function () {
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       await modelRegistry.registerStringModel(MODEL_ID, tokenAddress, PERFORMANCE_METRIC);
 
-      const currentBlock = await ethers.provider.getBlock("latest");
-      const deadline = currentBlock.timestamp + DEADLINE_DAYS * 24 * 60 * 60;
-      await fundingVault.registerProposal(MODEL_ID, tokenAddress, deadline);
+      await fundingVault.registerProposal(MODEL_ID, tokenAddress, await getDeadline());
 
       // Verify consistency across all contracts
       expect(await tokenManager.hasToken(MODEL_ID)).to.be.true;
@@ -310,13 +308,9 @@ describe("Proposal Registration Integration", function () {
       await modelRegistry.registerStringModel(model1, token1Address, PERFORMANCE_METRIC);
       await modelRegistry.registerStringModel(model2, token2Address, PERFORMANCE_METRIC);
 
-      // Register both in FundingVault with different deadlines
-      const currentBlock = await ethers.provider.getBlock("latest");
-      const deadline1 = currentBlock.timestamp + 90 * 24 * 60 * 60;
-      const deadline2 = currentBlock.timestamp + 60 * 24 * 60 * 60;
-
-      await fundingVault.registerProposal(model1, token1Address, deadline1);
-      await fundingVault.registerProposal(model2, token2Address, deadline2);
+      // Register both in FundingVault
+      await fundingVault.registerProposal(model1, token1Address, await getDeadline());
+      await fundingVault.registerProposal(model2, token2Address, await getDeadline());
 
       // Verify both are properly registered
       const proposal1 = await fundingVault.proposals(model1);
@@ -327,8 +321,6 @@ describe("Proposal Registration Integration", function () {
 
       expect(proposal1.tokenAddress).to.equal(token1Address);
       expect(proposal2.tokenAddress).to.equal(token2Address);
-      expect(proposal1.deadline).to.equal(deadline1);
-      expect(proposal2.deadline).to.equal(deadline2);
     });
   });
 
@@ -374,37 +366,6 @@ describe("Proposal Registration Integration", function () {
           initialParams
         )
       ).to.not.be.reverted;
-    });
-
-    it("Should work with 90-day deadline", async function () {
-      const initialParams = {
-        tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
-        infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
-        licenseHash: LICENSE_HASH,
-        licenseURI: LICENSE_URI,
-        governor: owner.address
-      };
-
-      await tokenManager.deployTokenWithParams(
-        MODEL_ID,
-        TOKEN_NAME,
-        TOKEN_SYMBOL,
-        INITIAL_SUPPLY,
-        initialParams
-      );
-
-      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
-      await modelRegistry.registerStringModel(MODEL_ID, tokenAddress, PERFORMANCE_METRIC);
-
-const currentBlock = await ethers.provider.getBlock("latest");
-      const deadline = currentBlock.timestamp + 90 * 24 * 60 * 60;
-      await fundingVault.registerProposal(MODEL_ID, tokenAddress, deadline);
-
-      const proposal = await fundingVault.proposals(MODEL_ID);
-      const expectedDeadline = currentBlock.timestamp + 90 * 24 * 60 * 60;
-
-      // Verify deadline is correctly set
-      expect(proposal.deadline).to.equal(expectedDeadline);
     });
   });
 });

@@ -71,6 +71,7 @@ describe("FundingVault", function () {
     await tokenManager.grantRole(DEFAULT_ADMIN_ROLE, await fundingVault.getAddress());
 
     await ammFactory.transferOwnership(await fundingVault.getAddress());
+    await modelRegistry.setPoolRegistrar(await fundingVault.getAddress(), true);
 
     await usdc.mint(user1.address, usd(100000));
     await usdc.mint(user2.address, usd(100000));
@@ -455,6 +456,8 @@ describe("FundingVault", function () {
 
       const poolAddress = await ammFactory.getPool(MODEL_ID_1);
       expect(poolAddress).to.equal(proposal.poolAddress);
+      expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
+      expect(await modelRegistry.hasPool(MODEL_ID_1)).to.be.true;
     });
 
     it("Should reject graduation from non-graduator", async function () {

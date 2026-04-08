@@ -24,14 +24,24 @@ contract ModelRegistry is Ownable {
     mapping(string => bool) public isStringModelRegistered;
     mapping(address => string) public tokenToStringModel;
     mapping(string => address) public modelPools;
+    mapping(address => bool) public poolRegistrars;
 
     event ModelRegistered(uint256 indexed modelId, address indexed tokenAddress, string performanceMetric);
     event ModelUpdated(uint256 indexed modelId, address indexed newTokenAddress);
     event MetricUpdated(uint256 indexed modelId, string newMetric);
     event StringModelRegistered(string indexed modelId, address indexed tokenAddress, string performanceMetric);
     event PoolRegistered(string indexed modelId, address indexed poolAddress);
+    event PoolRegistrarUpdated(address indexed registrar, bool authorized);
 
     constructor() Ownable() {}
+
+    modifier onlyPoolRegistrarOrOwner() {
+        require(
+            owner() == msg.sender || poolRegistrars[msg.sender],
+            "Caller is not authorized to register pools"
+        );
+        _;
+    }
 
     /**
      * @dev Registers a new model with its corresponding token address and performance metric
@@ -254,11 +264,23 @@ contract ModelRegistry is Ownable {
     // ============================================================
 
     /**
+     * @dev Grants or revokes permission to register pools
+     * @param registrar The account allowed to register pools
+     * @param authorized Whether the account is authorized
+     */
+    function setPoolRegistrar(address registrar, bool authorized) external onlyOwner {
+        require(registrar != address(0), "Registrar cannot be zero");
+
+        poolRegistrars[registrar] = authorized;
+        emit PoolRegistrarUpdated(registrar, authorized);
+    }
+
+    /**
      * @dev Registers an AMM pool for a model
      * @param modelId The string model identifier
      * @param pool The AMM pool address
      */
-    function registerPool(string memory modelId, address pool) external onlyOwner {
+    function registerPool(string memory modelId, address pool) external onlyPoolRegistrarOrOwner {
         require(bytes(modelId).length > 0, "Model ID cannot be empty");
         require(pool != address(0), "Pool address cannot be zero");
         require(isStringModelRegistered[modelId], "Model not registered");

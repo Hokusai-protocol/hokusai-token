@@ -68,6 +68,12 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     // modelId => user => commitment amount frozen at graduation announcement
     mapping(string => mapping(address => uint256)) public snapshottedCommitments;
 
+    // modelId => total number of accounts with non-zero snapshotted commitments
+    mapping(string => uint256) public claimableAccounts;
+
+    // modelId => number of successful claims
+    mapping(string => uint256) public claimedAccounts;
+
     function _requireActiveModel(string memory modelId) internal view {
         require(modelRegistry.isStringRegistered(modelId), "Model not registered");
         require(modelRegistry.isStringActive(modelId), "Model is deactivated");
@@ -111,6 +117,12 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         string indexed modelId,
         address indexed user,
         uint256 tokenAmount
+    );
+
+    event DustSwept(
+        string indexed modelId,
+        address indexed recipient,
+        uint256 amount
     );
 
     // ============================================================
@@ -305,14 +317,21 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
 
         address[] storage proposalDepositors = depositors[modelId];
         uint256 depositorCount = proposalDepositors.length;
+        uint256 claimableCount = 0;
 
         for (uint256 i = 0; i < depositorCount; i++) {
             address depositor = proposalDepositors[i];
-            snapshottedCommitments[modelId][depositor] = commitments[modelId][depositor];
+            uint256 commitment = commitments[modelId][depositor];
+            snapshottedCommitments[modelId][depositor] = commitment;
+
+            if (commitment > 0) {
+                claimableCount += 1;
+            }
         }
 
         proposal.graduationAnnounced = true;
         proposal.snapshotTotalCommitted = proposal.totalCommitted;
+        claimableAccounts[modelId] = claimableCount;
 
         emit GraduationAnnounced(modelId, proposal.snapshotTotalCommitted, depositorCount);
     }
@@ -422,6 +441,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
 
         // Mark as claimed before transfer (CEI pattern)
         claimed[modelId][msg.sender] = true;
+        claimedAccounts[modelId] += 1;
 
         // Calculate proportional share of tokens
         // The vault received tokens from the pool during graduation
@@ -435,6 +455,42 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         require(token.transfer(msg.sender, tokenAmount), "Token transfer failed");
 
         emit Claimed(modelId, msg.sender, tokenAmount);
+    }
+
+    /**
+     * @dev Sweep post-claim rounding dust to a recipient once all claimants are done
+     * @param modelId String model identifier
+     * @param recipient Recipient of the remaining token dust
+     *
+     * Requirements:
+     * - Caller must have DEFAULT_ADMIN_ROLE
+     * - Proposal must be registered and graduated
+     * - All claimable accounts must have already claimed
+     * - Recipient must be non-zero
+     */
+    function sweepDust(string memory modelId, address recipient)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(recipient, "recipient");
+
+        Proposal storage proposal = proposals[modelId];
+        require(proposal.tokenAddress != address(0), "Proposal not registered");
+        require(proposal.graduated, "Not graduated yet");
+        require(claimedAccounts[modelId] == claimableAccounts[modelId], "Claims still pending");
+
+        IERC20 token = IERC20(proposal.tokenAddress);
+        uint256 dust = token.balanceOf(address(this));
+
+        if (dust == 0) {
+            return;
+        }
+
+        require(token.transfer(recipient, dust), "Token transfer failed");
+
+        emit DustSwept(modelId, recipient, dust);
     }
 
     // ============================================================

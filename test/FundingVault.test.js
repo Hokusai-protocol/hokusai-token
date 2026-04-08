@@ -613,6 +613,86 @@ describe("FundingVault", function () {
     });
   });
 
+  describe("sweepDust", function () {
+    let tokenAddress;
+    let deadline;
+    let user4;
+    let user5;
+    let token;
+
+    beforeEach(async function () {
+      [, , user1, user2, user3, user4, user5] = await ethers.getSigners();
+
+      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      token = await ethers.getContractAt("HokusaiToken", tokenAddress);
+      deadline = await getDeadline();
+
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
+
+      for (const signer of [user4, user5]) {
+        await usdc.mint(signer.address, usd(100000));
+        await usdc.connect(signer).approve(await fundingVault.getAddress(), usd(100000));
+      }
+
+      await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1001));
+      await fundingVault.connect(user2).deposit(MODEL_ID_1, usd(2003));
+      await fundingVault.connect(user3).deposit(MODEL_ID_1, usd(3007));
+      await fundingVault.connect(user4).deposit(MODEL_ID_1, usd(4009));
+      await fundingVault.connect(user5).deposit(MODEL_ID_1, usd(5003));
+
+      const MINTER_ROLE = await tokenManager.MINTER_ROLE();
+      await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
+
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
+      await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+    });
+
+    it("Should reject dust sweep before all claims are complete", async function () {
+      expect(await fundingVault.claimableAccounts(MODEL_ID_1)).to.equal(5);
+
+      await fundingVault.connect(user1).claim(MODEL_ID_1);
+      expect(await fundingVault.claimedAccounts(MODEL_ID_1)).to.equal(1);
+
+      await expect(fundingVault.sweepDust(MODEL_ID_1, owner.address))
+        .to.be.revertedWith("Claims still pending");
+    });
+
+    it("Should allow admin to sweep remaining dust after all claims", async function () {
+      for (const signer of [user1, user2, user3, user4, user5]) {
+        await fundingVault.connect(signer).claim(MODEL_ID_1);
+      }
+
+      let dust = await token.balanceOf(await fundingVault.getAddress());
+      if (dust === 0n) {
+        await token.connect(user1).transfer(await fundingVault.getAddress(), 1n);
+        dust = await token.balanceOf(await fundingVault.getAddress());
+      }
+
+      expect(dust).to.be.gt(0);
+      expect(await fundingVault.claimedAccounts(MODEL_ID_1)).to.equal(5);
+
+      const ownerBalanceBefore = await token.balanceOf(owner.address);
+
+      await expect(fundingVault.sweepDust(MODEL_ID_1, owner.address))
+        .to.emit(fundingVault, "DustSwept")
+        .withArgs(MODEL_ID_1, owner.address, dust);
+
+      expect(await token.balanceOf(await fundingVault.getAddress())).to.equal(0);
+      expect(await token.balanceOf(owner.address)).to.equal(ownerBalanceBefore + dust);
+    });
+
+    it("Should reject dust sweep from non-admin", async function () {
+      for (const signer of [user1, user2, user3, user4, user5]) {
+        await fundingVault.connect(signer).claim(MODEL_ID_1);
+      }
+
+      await expect(fundingVault.connect(user1).sweepDust(MODEL_ID_1, user1.address))
+        .to.be.reverted;
+    });
+  });
+
   describe("View Functions", function () {
     let tokenAddress;
     let deadline;

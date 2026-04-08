@@ -140,6 +140,11 @@ async function main() {
     console.log("   ✅ TokenManager:", managerAddress);
     console.log("   📊 Gas used:", (await ethers.provider.getTransactionReceipt(tokenManager.deploymentTransaction().hash)).gasUsed.toString());
 
+    console.log("   🔗 Linking ModelRegistry to TokenManager for string model validation...");
+    const setStringModelTokenManagerTx = await modelRegistry.setStringModelTokenManager(managerAddress);
+    await setStringModelTokenManagerTx.wait();
+    console.log("   ✅ ModelRegistry string validation enabled");
+
     // Get HokusaiParams address from TokenManager
     const paramsAddress = await tokenManager.hokusaiParams();
     deployment.contracts.HokusaiParams = paramsAddress;

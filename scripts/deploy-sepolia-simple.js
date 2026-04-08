@@ -37,6 +37,10 @@ async function main() {
     const managerAddress = await tokenManager.getAddress();
     console.log("   ✅ TokenManager:", managerAddress);
 
+    console.log("   🔗 Linking ModelRegistry to TokenManager for string model validation...");
+    await modelRegistry.setStringModelTokenManager(managerAddress);
+    console.log("   ✅ ModelRegistry string validation enabled");
+
     // 3. Deploy Token with Params
     console.log("\n3️⃣ Deploying Token with Params...");
     console.log("   This may take a minute...");

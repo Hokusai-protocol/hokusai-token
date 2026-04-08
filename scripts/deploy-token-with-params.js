@@ -36,6 +36,9 @@ async function main() {
   await tokenManager.waitForDeployment();
   console.log("TokenManager deployed to:", await tokenManager.getAddress());
 
+  await modelRegistry.setStringModelTokenManager(await tokenManager.getAddress());
+  console.log("ModelRegistry string validation enabled");
+
   // Deploy Token with Params using TokenManager
   console.log("\n3. Deploying HokusaiToken with HokusaiParams...");
 

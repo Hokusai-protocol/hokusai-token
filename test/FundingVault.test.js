@@ -41,6 +41,7 @@ describe("FundingVault", function () {
     const TokenManager = await ethers.getContractFactory("TokenManager");
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
+    await modelRegistry.setStringModelTokenManager(await tokenManager.getAddress());
 
     const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
     ammFactory = await HokusaiAMMFactory.deploy(

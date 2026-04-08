@@ -3,6 +3,11 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+interface IStringModelTokenManager {
+    function getTokenAddress(string memory modelId) external view returns (address);
+    function hasToken(string memory modelId) external view returns (bool);
+}
+
 /**
  * @title ModelRegistry
  * @dev Registry contract to map model IDs to their corresponding token addresses and performance metrics
@@ -24,6 +29,7 @@ contract ModelRegistry is Ownable {
     mapping(string => bool) public isStringModelRegistered;
     mapping(address => string) public tokenToStringModel;
     mapping(string => address) public modelPools;
+    address public stringModelTokenManager;
     mapping(address => bool) public poolRegistrars;
 
     event ModelRegistered(uint256 indexed modelId, address indexed tokenAddress, string performanceMetric);
@@ -31,6 +37,7 @@ contract ModelRegistry is Ownable {
     event MetricUpdated(uint256 indexed modelId, string newMetric);
     event StringModelRegistered(string indexed modelId, address indexed tokenAddress, string performanceMetric);
     event PoolRegistered(string indexed modelId, address indexed poolAddress);
+    event StringModelTokenManagerUpdated(address indexed tokenManager);
     event PoolRegistrarUpdated(address indexed registrar, bool authorized);
 
     constructor() Ownable() {}
@@ -41,6 +48,16 @@ contract ModelRegistry is Ownable {
             "Caller is not authorized to register pools"
         );
         _;
+    }
+
+    /**
+     * @dev Sets the TokenManager used to validate string-based model registrations
+     * @param tokenManager Address of the TokenManager contract
+     */
+    function setStringModelTokenManager(address tokenManager) external onlyOwner {
+        require(tokenManager != address(0), "TokenManager cannot be zero");
+        stringModelTokenManager = tokenManager;
+        emit StringModelTokenManagerUpdated(tokenManager);
     }
 
     /**
@@ -218,6 +235,15 @@ contract ModelRegistry is Ownable {
         require(bytes(modelId).length > 0, "Model ID cannot be empty");
         require(!isStringModelRegistered[modelId], "Model already registered");
         require(bytes(tokenToStringModel[token]).length == 0, "Token already registered");
+
+        if (stringModelTokenManager != address(0)) {
+            IStringModelTokenManager tokenManager = IStringModelTokenManager(stringModelTokenManager);
+            require(tokenManager.hasToken(modelId), "Token not registered in TokenManager");
+            require(
+                tokenManager.getTokenAddress(modelId) == token,
+                "Token address mismatch with TokenManager"
+            );
+        }
 
         modelsByString[modelId] = ModelInfo({
             tokenAddress: token,

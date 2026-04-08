@@ -44,6 +44,7 @@ describe("Proposal Registration Integration", function () {
     const TokenManager = await ethers.getContractFactory("TokenManager");
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
+    await modelRegistry.setStringModelTokenManager(await tokenManager.getAddress());
 
     // Deploy HokusaiAMMFactory
     const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
@@ -279,11 +280,9 @@ describe("Proposal Registration Integration", function () {
 
       await expect(
         modelRegistry.registerStringModel(MODEL_ID, fakeAddress, PERFORMANCE_METRIC)
-      ).to.not.be.reverted; // This would succeed but creates inconsistency
+      ).to.be.revertedWith("Token address mismatch with TokenManager");
 
-      // The registry would have the wrong address
-      expect(await modelRegistry.getStringToken(MODEL_ID)).to.equal(fakeAddress);
-      expect(await modelRegistry.getStringToken(MODEL_ID)).to.not.equal(correctTokenAddress);
+      expect(correctTokenAddress).to.not.equal(fakeAddress);
     });
 
     it("Should handle multiple proposals in parallel", async function () {

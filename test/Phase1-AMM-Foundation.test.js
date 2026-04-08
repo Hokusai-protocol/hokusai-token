@@ -20,6 +20,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     const TokenManager = await ethers.getContractFactory("TokenManager");
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
+    await modelRegistry.setStringModelTokenManager(await tokenManager.getAddress());
 
     // Deploy MockUSDC
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
@@ -90,6 +91,20 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
       await expect(
         modelRegistry.connect(nonOwner).registerStringModel(modelId, tokenAddress, performanceMetric)
       ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+    it("Should reject models missing from TokenManager when validation is enabled", async function () {
+      await expect(
+        modelRegistry.registerStringModel("untracked-model", tokenAddress, performanceMetric)
+      ).to.be.revertedWith("Token not registered in TokenManager");
+    });
+
+    it("Should reject token address mismatches against TokenManager", async function () {
+      await tokenManager.deployToken("other-model", "Other Token", "OTHR", parseEther("1000000"));
+
+      await expect(
+        modelRegistry.registerStringModel("other-model", tokenAddress, performanceMetric)
+      ).to.be.revertedWith("Token address mismatch with TokenManager");
     });
   });
 

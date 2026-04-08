@@ -472,6 +472,20 @@ describe("TokenManager-ModelRegistry Integration", function () {
         .to.be.revertedWith("Token already registered");
     });
 
+    it("Should support reverse lookup for numeric model ID 0", async function () {
+      await modelRegistry.registerModel(0, await hokusaiToken.getAddress(), "accuracy");
+
+      expect(await modelRegistry.getModelId(await hokusaiToken.getAddress())).to.equal(0);
+      expect(await modelRegistry.isNumericTokenRegistered(await hokusaiToken.getAddress())).to.be.true;
+    });
+
+    it("Should prevent duplicate token registration when numeric model ID 0 is already registered", async function () {
+      await modelRegistry.registerModel(0, await hokusaiToken.getAddress(), "accuracy");
+
+      await expect(modelRegistry.registerModel(1, await hokusaiToken.getAddress(), "f1-score"))
+        .to.be.revertedWith("Token already registered");
+    });
+
     it("Should prevent duplicate token registration with auto-increment", async function () {
       await modelRegistry.registerModel(modelId, await hokusaiToken.getAddress(), "accuracy");
       
@@ -505,6 +519,31 @@ describe("TokenManager-ModelRegistry Integration", function () {
       expect(await modelRegistry.getModelId(await hokusaiToken2.getAddress())).to.equal(modelId);
       
       // Old token should no longer be mapped
+      await expect(modelRegistry.getModelId(await hokusaiToken.getAddress()))
+        .to.be.revertedWith("Token not registered");
+    });
+
+    it("Should update numeric token registration flags when moving model ID 0 to a new token", async function () {
+      const HokusaiToken2 = await ethers.getContractFactory("HokusaiToken");
+      const hokusaiToken2 = await HokusaiToken2.deploy(
+        "Hokusai Token 2",
+        "HOKU2",
+        owner.address,
+        await hokusaiParams.getAddress(),
+        parseEther("10000"),
+        0,
+        0,
+        ZeroAddress
+      );
+      await hokusaiToken2.waitForDeployment();
+
+      await modelRegistry.registerModel(0, await hokusaiToken.getAddress(), "accuracy");
+      await modelRegistry.updateModel(0, await hokusaiToken2.getAddress());
+
+      expect(await modelRegistry.getModelId(await hokusaiToken2.getAddress())).to.equal(0);
+      expect(await modelRegistry.isNumericTokenRegistered(await hokusaiToken.getAddress())).to.be.false;
+      expect(await modelRegistry.isNumericTokenRegistered(await hokusaiToken2.getAddress())).to.be.true;
+
       await expect(modelRegistry.getModelId(await hokusaiToken.getAddress()))
         .to.be.revertedWith("Token not registered");
     });

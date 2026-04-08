@@ -147,7 +147,24 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     it("Should only allow owner to register pool", async function () {
       await expect(
         modelRegistry.connect(nonOwner).registerPool(modelId, amm.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.revertedWith("Caller is not authorized to register pools");
+    });
+
+    it("Should allow an authorized registrar to register pool", async function () {
+      await modelRegistry.setPoolRegistrar(amm.address, true);
+
+      await modelRegistry.connect(amm).registerPool(modelId, user.address);
+
+      expect(await modelRegistry.getPool(modelId)).to.equal(user.address);
+    });
+
+    it("Should let owner revoke registrar access", async function () {
+      await modelRegistry.setPoolRegistrar(amm.address, true);
+      await modelRegistry.setPoolRegistrar(amm.address, false);
+
+      await expect(
+        modelRegistry.connect(amm).registerPool(modelId, user.address)
+      ).to.be.revertedWith("Caller is not authorized to register pools");
     });
 
     it("Should return address(0) for model without pool", async function () {

@@ -14,7 +14,6 @@ interface ProposalConfig {
   licenseHash?: string;
   licenseURI?: string;
   governor?: string;
-  deadlineDays?: number;
   performanceMetric?: string;
 }
 
@@ -24,7 +23,6 @@ interface ProposalConfig {
 const DEFAULTS = {
   tokensPerDeltaOne: BigInt(1000),
   infrastructureAccrualBps: 5000, // 50%
-  deadlineDays: 90,
   performanceMetric: "accuracy",
   licenseHash: ethers.keccak256(ethers.toUtf8Bytes("default-license")),
   licenseURI: "https://hokusai.ai/licenses/default"
@@ -71,10 +69,6 @@ async function registerProposal(
   const governor = config.governor || signer.address;
   const performanceMetric = config.performanceMetric || DEFAULTS.performanceMetric;
 
-  // Calculate deadline
-  const deadlineDays = config.deadlineDays || DEFAULTS.deadlineDays;
-  const deadline = Math.floor(Date.now() / 1000) + (deadlineDays * 24 * 60 * 60);
-
   console.log("\nStep 1: Deploying token via TokenManager...");
   const initialParams = {
     tokensPerDeltaOne,
@@ -115,8 +109,7 @@ async function registerProposal(
     console.log("\nStep 3: Registering proposal in FundingVault...");
     const vaultTx = await fundingVault.registerProposal(
       config.modelId,
-      tokenAddress,
-      deadline
+      tokenAddress
     );
 
     console.log(`Transaction hash: ${vaultTx.hash}`);
@@ -126,13 +119,10 @@ async function registerProposal(
     console.log("\n=== Registration Complete ===");
     console.log(`Model ID: ${config.modelId}`);
     console.log(`Token Address: ${tokenAddress}`);
-    console.log(`Deadline: ${new Date(deadline * 1000).toISOString()}`);
-    console.log(`Days until deadline: ${deadlineDays}`);
 
     return {
       modelId: config.modelId,
       tokenAddress,
-      deadline,
       success: true
     };
   } catch (error: any) {
@@ -166,8 +156,7 @@ async function main() {
     tokenSymbol: "TMT",
     initialSupply: ethers.parseEther("1000000"), // 1M tokens
     tokensPerDeltaOne: BigInt(1000),
-    infrastructureAccrualBps: 5000,
-    deadlineDays: 90
+    infrastructureAccrualBps: 5000
   };
 
   // These would typically be loaded from deployment addresses

@@ -39,7 +39,6 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     // Proposal state
     struct Proposal {
         address tokenAddress;
-        uint256 deadline;
         uint256 totalCommitted;
         bool graduated;
         address poolAddress;
@@ -61,8 +60,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
 
     event ProposalRegistered(
         string indexed modelId,
-        address indexed tokenAddress,
-        uint256 deadline
+        address indexed tokenAddress
     );
 
     event Deposited(
@@ -127,34 +125,29 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
      * @dev Register a new proposal in the vault
      * @param modelId String model identifier
      * @param tokenAddr HokusaiToken address for this model
-     * @param deadline Timestamp after which proposal expires (refunds enabled)
      *
      * Requirements:
      * - Caller must have DEFAULT_ADMIN_ROLE
      * - Model must not already be registered
      * - Token address must be valid
-     * - Deadline must be in the future
      */
     function registerProposal(
         string memory modelId,
-        address tokenAddr,
-        uint256 deadline
+        address tokenAddr
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonZeroAddress(tokenAddr, "token address");
-        require(deadline > block.timestamp, "Deadline must be in future");
         require(proposals[modelId].tokenAddress == address(0), "Proposal already registered");
 
         proposals[modelId] = Proposal({
             tokenAddress: tokenAddr,
-            deadline: deadline,
             totalCommitted: 0,
             graduated: false,
             poolAddress: address(0),
             totalTokens: 0
         });
 
-        emit ProposalRegistered(modelId, tokenAddr, deadline);
+        emit ProposalRegistered(modelId, tokenAddr);
     }
 
     // ============================================================
@@ -169,7 +162,6 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
      * Requirements:
      * - Proposal must be registered
      * - Not graduated
-     * - Not past deadline
      * - Amount must be positive
      * - User must have approved USDC transfer
      */
@@ -183,7 +175,6 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         Proposal storage proposal = proposals[modelId];
         require(proposal.tokenAddress != address(0), "Proposal not registered");
         require(!proposal.graduated, "Already graduated");
-        require(block.timestamp <= proposal.deadline, "Deadline passed");
 
         // Transfer USDC from caller to vault
         require(
@@ -204,7 +195,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
      *
      * Requirements:
      * - Proposal must be registered
-     * - Not graduated (or past deadline with no graduation)
+     * - Not graduated
      * - User has non-zero commitment
      */
     function withdraw(string memory modelId) external nonReentrant {
@@ -362,7 +353,6 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         view
         returns (
             address tokenAddress,
-            uint256 deadline,
             uint256 totalCommitted,
             bool graduated,
             address poolAddress,
@@ -372,7 +362,6 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         Proposal memory proposal = proposals[modelId];
         return (
             proposal.tokenAddress,
-            proposal.deadline,
             proposal.totalCommitted,
             proposal.graduated,
             proposal.poolAddress,

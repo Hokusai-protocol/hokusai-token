@@ -29,6 +29,7 @@ contract ModelRegistry is Ownable {
     mapping(string => bool) public isStringModelRegistered;
     mapping(address => string) public tokenToStringModel;
     mapping(string => address) public modelPools;
+    mapping(address => string) public poolToStringModel;
     address public stringModelTokenManager;
     mapping(address => bool) public poolRegistrars;
 
@@ -311,8 +312,10 @@ contract ModelRegistry is Ownable {
         require(pool != address(0), "Pool address cannot be zero");
         require(isStringModelRegistered[modelId], "Model not registered");
         require(modelPools[modelId] == address(0), "Pool already exists");
+        require(bytes(poolToStringModel[pool]).length == 0, "Pool already registered to another model");
 
         modelPools[modelId] = pool;
+        poolToStringModel[pool] = modelId;
         emit PoolRegistered(modelId, pool);
     }
 

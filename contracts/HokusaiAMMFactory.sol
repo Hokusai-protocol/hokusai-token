@@ -162,10 +162,14 @@ contract HokusaiAMMFactory is Ownable {
         ValidationLib.requirePositiveAmount(flatCurveThreshold, "flat curve threshold");
         ValidationLib.requirePositiveAmount(flatCurvePrice, "flat curve price");
 
-        // Verify model is registered in ModelRegistry
+        // Verify model is registered and active in ModelRegistry
         require(
             modelRegistry.isStringRegistered(modelId),
             "Model not registered in ModelRegistry"
+        );
+        require(
+            modelRegistry.isStringActive(modelId),
+            "Model is deactivated"
         );
 
         // Verify token is registered with TokenManager

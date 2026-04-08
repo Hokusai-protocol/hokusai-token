@@ -35,7 +35,11 @@ contract ModelRegistry is Ownable {
     event ModelRegistered(uint256 indexed modelId, address indexed tokenAddress, string performanceMetric);
     event ModelUpdated(uint256 indexed modelId, address indexed newTokenAddress);
     event MetricUpdated(uint256 indexed modelId, string newMetric);
+    event ModelDeactivated(uint256 indexed modelId);
+    event ModelReactivated(uint256 indexed modelId);
     event StringModelRegistered(string indexed modelId, address indexed tokenAddress, string performanceMetric);
+    event StringModelDeactivated(string indexed modelId);
+    event StringModelReactivated(string indexed modelId);
     event PoolRegistered(string indexed modelId, address indexed poolAddress);
     event StringModelTokenManagerUpdated(address indexed tokenManager);
     event PoolRegistrarUpdated(address indexed registrar, bool authorized);
@@ -147,8 +151,22 @@ contract ModelRegistry is Ownable {
      */
     function deactivateModel(uint256 modelId) external onlyOwner {
         require(isModelRegistered[modelId], "Model not registered");
-        
+        require(models[modelId].active, "Model already deactivated");
+
         models[modelId].active = false;
+        emit ModelDeactivated(modelId);
+    }
+
+    /**
+     * @dev Reactivates a model
+     * @param modelId The model identifier to reactivate
+     */
+    function reactivateModel(uint256 modelId) external onlyOwner {
+        require(isModelRegistered[modelId], "Model not registered");
+        require(!models[modelId].active, "Model already active");
+
+        models[modelId].active = true;
+        emit ModelReactivated(modelId);
     }
 
     /**
@@ -219,6 +237,15 @@ contract ModelRegistry is Ownable {
         return isModelRegistered[modelId];
     }
 
+    /**
+     * @dev Checks if a model is active
+     * @param modelId The model identifier to check
+     * @return True if the model is registered and active, false otherwise
+     */
+    function isActive(uint256 modelId) external view returns (bool) {
+        return isModelRegistered[modelId] && models[modelId].active;
+    }
+
     // ============================================================
     // STRING-BASED MODEL REGISTRY (for TokenManager integration)
     // ============================================================
@@ -283,6 +310,39 @@ contract ModelRegistry is Ownable {
      */
     function isStringRegistered(string memory modelId) external view returns (bool) {
         return isStringModelRegistered[modelId];
+    }
+
+    /**
+     * @dev Checks if a string model is active
+     * @param modelId The model identifier to check
+     * @return True if the model is registered and active, false otherwise
+     */
+    function isStringActive(string memory modelId) external view returns (bool) {
+        return isStringModelRegistered[modelId] && modelsByString[modelId].active;
+    }
+
+    /**
+     * @dev Deactivates a string model
+     * @param modelId The model identifier to deactivate
+     */
+    function deactivateStringModel(string memory modelId) external onlyOwner {
+        require(isStringModelRegistered[modelId], "Model not registered");
+        require(modelsByString[modelId].active, "Model already deactivated");
+
+        modelsByString[modelId].active = false;
+        emit StringModelDeactivated(modelId);
+    }
+
+    /**
+     * @dev Reactivates a string model
+     * @param modelId The model identifier to reactivate
+     */
+    function reactivateStringModel(string memory modelId) external onlyOwner {
+        require(isStringModelRegistered[modelId], "Model not registered");
+        require(!modelsByString[modelId].active, "Model already active");
+
+        modelsByString[modelId].active = true;
+        emit StringModelReactivated(modelId);
     }
 
     // ============================================================

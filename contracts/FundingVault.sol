@@ -167,8 +167,9 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         ValidationLib.requireNonZeroAddress(tokenAddr, "token address");
         require(proposals[modelId].tokenAddress == address(0), "Proposal already registered");
 
-        // Verify model is registered in ModelRegistry
+        // Verify model is registered and active in ModelRegistry
         require(modelRegistry.isStringRegistered(modelId), "Model not registered");
+        require(modelRegistry.isStringActive(modelId), "Model is deactivated");
 
         // Verify token address matches what TokenManager has for this modelId
         require(tokenManager.getTokenAddress(modelId) == tokenAddr, "Token address mismatch");

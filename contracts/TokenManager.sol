@@ -371,6 +371,11 @@ contract TokenManager is Ownable, AccessControlBase {
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
 
+        // Check if model is active in the registry (only if registered)
+        if (registry.isStringRegistered(modelId)) {
+            require(registry.isStringActive(modelId), "Model is deactivated");
+        }
+
         HokusaiToken(tokenAddress).mint(recipient, amount);
 
         emit TokensMinted(modelId, recipient, amount);
@@ -400,6 +405,11 @@ contract TokenManager is Ownable, AccessControlBase {
 
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
+
+        // Check if model is active in the registry (only if registered)
+        if (registry.isStringRegistered(modelId)) {
+            require(registry.isStringActive(modelId), "Model is deactivated");
+        }
 
         HokusaiToken token = HokusaiToken(tokenAddress);
         uint256 totalAmount = 0;
@@ -441,6 +451,11 @@ contract TokenManager is Ownable, AccessControlBase {
 
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
+
+        // Check if model is active in the registry (only if registered)
+        if (registry.isStringRegistered(modelId)) {
+            require(registry.isStringActive(modelId), "Model is deactivated");
+        }
 
         HokusaiToken(tokenAddress).burnFrom(account, amount);
 

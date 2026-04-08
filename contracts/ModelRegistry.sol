@@ -22,6 +22,7 @@ contract ModelRegistry is Ownable {
     mapping(uint256 => ModelInfo) public models;
     mapping(uint256 => bool) public isModelRegistered;
     mapping(address => uint256) public tokenToModel;
+    mapping(address => bool) public isTokenRegistered;
     uint256 public nextModelId = 1;
 
     // New: String-based model registry for AMM integration
@@ -77,8 +78,8 @@ contract ModelRegistry is Ownable {
         require(token != address(0), "Token address cannot be zero");
         require(bytes(performanceMetric).length > 0, "Performance metric cannot be empty");
         require(!isModelRegistered[modelId], "Model already registered");
-        require(tokenToModel[token] == 0, "Token already registered");
-        
+        require(!isTokenRegistered[token], "Token already registered");
+
         models[modelId] = ModelInfo({
             tokenAddress: token,
             performanceMetric: performanceMetric,
@@ -86,7 +87,8 @@ contract ModelRegistry is Ownable {
         });
         isModelRegistered[modelId] = true;
         tokenToModel[token] = modelId;
-        
+        isTokenRegistered[token] = true;
+
         emit ModelRegistered(modelId, token, performanceMetric);
     }
 
@@ -99,11 +101,11 @@ contract ModelRegistry is Ownable {
     function registerModelAutoId(address token, string memory performanceMetric) external onlyOwner returns (uint256) {
         uint256 modelId = nextModelId;
         nextModelId++;
-        
+
         require(token != address(0), "Token address cannot be zero");
         require(bytes(performanceMetric).length > 0, "Performance metric cannot be empty");
-        require(tokenToModel[token] == 0, "Token already registered");
-        
+        require(!isTokenRegistered[token], "Token already registered");
+
         models[modelId] = ModelInfo({
             tokenAddress: token,
             performanceMetric: performanceMetric,
@@ -111,7 +113,8 @@ contract ModelRegistry is Ownable {
         });
         isModelRegistered[modelId] = true;
         tokenToModel[token] = modelId;
-        
+        isTokenRegistered[token] = true;
+
         emit ModelRegistered(modelId, token, performanceMetric);
         return modelId;
     }
@@ -124,13 +127,15 @@ contract ModelRegistry is Ownable {
     function updateModel(uint256 modelId, address newToken) external onlyOwner {
         require(newToken != address(0), "Token address cannot be zero");
         require(isModelRegistered[modelId], "Model not registered");
-        require(tokenToModel[newToken] == 0, "Token already registered");
-        
+        require(!isTokenRegistered[newToken], "Token already registered");
+
         address oldToken = models[modelId].tokenAddress;
         models[modelId].tokenAddress = newToken;
         tokenToModel[oldToken] = 0; // Clear old reverse mapping
+        isTokenRegistered[oldToken] = false; // Clear old token registration
         tokenToModel[newToken] = modelId; // Set new reverse mapping
-        
+        isTokenRegistered[newToken] = true; // Mark new token as registered
+
         emit ModelUpdated(modelId, newToken);
     }
 
@@ -220,7 +225,7 @@ contract ModelRegistry is Ownable {
      * @return The model ID for the token
      */
     function getModelId(address tokenAddress) external view returns (uint256) {
-        require(tokenToModel[tokenAddress] != 0, "Token not registered");
+        require(isTokenRegistered[tokenAddress], "Token not registered");
         return tokenToModel[tokenAddress];
     }
 

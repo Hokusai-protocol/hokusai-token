@@ -106,6 +106,94 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
         modelRegistry.registerStringModel("other-model", tokenAddress, performanceMetric)
       ).to.be.revertedWith("Token address mismatch with TokenManager");
     });
+
+    it("Should update a string model token and clear old reverse mapping", async function () {
+      const newModelId = "model-v1-migrated";
+      await tokenManager.deployToken(newModelId, "Migrated Token", "MIG", parseEther("1000000"));
+      const newTokenAddress = await tokenManager.getTokenAddress(newModelId);
+
+      await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
+
+      await expect(modelRegistry.updateStringModel(modelId, newTokenAddress))
+        .to.emit(modelRegistry, "StringModelUpdated")
+        .withArgs(modelId, newTokenAddress);
+
+      expect(await modelRegistry.getStringToken(modelId)).to.equal(newTokenAddress);
+      expect(await modelRegistry.getStringModelId(newTokenAddress)).to.equal(modelId);
+      await expect(modelRegistry.getStringModelId(tokenAddress)).to.be.revertedWith("Token not registered");
+    });
+
+    it("Should reject updating a string model to zero address", async function () {
+      await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
+
+      await expect(
+        modelRegistry.updateStringModel(modelId, ZeroAddress)
+      ).to.be.revertedWith("Token address cannot be zero");
+    });
+
+    it("Should reject updating a string model to an already-registered token", async function () {
+      const otherModelId = "other-model";
+      await tokenManager.deployToken(otherModelId, "Other Token", "OTHR", parseEther("1000000"));
+      const otherTokenAddress = await tokenManager.getTokenAddress(otherModelId);
+
+      await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
+      await modelRegistry.registerStringModel(otherModelId, otherTokenAddress, performanceMetric);
+
+      await expect(
+        modelRegistry.updateStringModel(modelId, otherTokenAddress)
+      ).to.be.revertedWith("Token already registered");
+    });
+
+    it("Should update a string model metric", async function () {
+      const newMetric = "sharpe-ratio";
+      await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
+
+      await expect(modelRegistry.updateStringMetric(modelId, newMetric))
+        .to.emit(modelRegistry, "StringMetricUpdated")
+        .withArgs(modelId, newMetric);
+
+      const updatedModel = await modelRegistry.modelsByString(modelId);
+      expect(updatedModel.performanceMetric).to.equal(newMetric);
+    });
+
+    it("Should reject updating a string model metric to empty", async function () {
+      await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
+
+      await expect(
+        modelRegistry.updateStringMetric(modelId, "")
+      ).to.be.revertedWith("Performance metric cannot be empty");
+    });
+
+    it("Should deactivate a string model", async function () {
+      await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
+
+      await expect(modelRegistry.deactivateStringModel(modelId))
+        .to.emit(modelRegistry, "StringModelDeactivated")
+        .withArgs(modelId);
+
+      const updatedModel = await modelRegistry.modelsByString(modelId);
+      expect(updatedModel.active).to.be.false;
+    });
+
+    it("Should only allow owner to manage registered string models", async function () {
+      const newModelId = "model-owner-check";
+      await tokenManager.deployToken(newModelId, "Owner Check", "OWN", parseEther("1000000"));
+      const newTokenAddress = await tokenManager.getTokenAddress(newModelId);
+
+      await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
+
+      await expect(
+        modelRegistry.connect(nonOwner).updateStringModel(modelId, newTokenAddress)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+
+      await expect(
+        modelRegistry.connect(nonOwner).updateStringMetric(modelId, "precision")
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+
+      await expect(
+        modelRegistry.connect(nonOwner).deactivateStringModel(modelId)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
   });
 
   describe("ModelRegistry - AMM Pool Registration", function () {

@@ -99,7 +99,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         contributor: contributor1.address,
         contributorWeight: 10000, // 100%
         contributedSamples: 5000,
-        totalSamples: 5000
+        totalSamples: 5000,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       // Submit evaluation
@@ -127,7 +129,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         contributor: contributor1.address,
         contributorWeight: 10000,
         contributedSamples: 5000,
-        totalSamples: 5000
+        totalSamples: 5000,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await modelRegistry.deactivateModel(MODEL_ID);
@@ -148,7 +152,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       const evalData = {
         pipelineRunId: "run_test_multi_001",
         baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       // Submit evaluation with multiple contributors
@@ -197,7 +203,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       const evalData = {
         pipelineRunId: "run_test_batch_101",
         baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       // Should revert with batch size > 100 (now using custom error)
@@ -221,7 +229,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       const evalData1 = {
         pipelineRunId: "run_001",
         baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -243,7 +253,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
           recall: 9300,
           f1: 9100,
           auroc: 9500
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -280,7 +292,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       const evalData1 = {
         pipelineRunId: "run_model1",
         baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -295,7 +309,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       const evalData2 = {
         pipelineRunId: "run_model2",
         baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -325,7 +341,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       const evalData1 = {
         pipelineRunId: "run_001",
         baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -346,7 +364,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
           recall: 9300,
           f1: 9100,
           auroc: 9500
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -408,7 +428,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         contributor: contributor1.address,
         contributorWeight: 10000,
         contributedSamples: 5000,
-        totalSamples: 5000
+        totalSamples: 5000,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       const tx = await deltaVerifier.submitEvaluation(MODEL_ID, evalData);
@@ -427,7 +449,9 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       const evalData = {
         pipelineRunId: "run_batch_gas",
         baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(

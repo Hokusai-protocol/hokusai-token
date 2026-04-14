@@ -45,7 +45,9 @@ describe("Full Integration: Params Module", function () {
     contributor: null, // Will be set in tests
     contributorWeight: 10000, // 100%
     contributedSamples: 2000,
-    totalSamples: 2000
+    totalSamples: 2000,
+    maxCostUsd: 0,
+    actualCostUsd: 0
   };
 
   beforeEach(async function () {
@@ -204,7 +206,9 @@ describe("Full Integration: Params Module", function () {
       const evaluationBase = {
         pipelineRunId: "integration-multi-001",
         baselineMetrics: evaluationData.baselineMetrics,
-        newMetrics: evaluationData.newMetrics
+        newMetrics: evaluationData.newMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(

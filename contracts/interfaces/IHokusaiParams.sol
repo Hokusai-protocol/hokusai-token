@@ -15,9 +15,9 @@ interface IHokusaiParams {
 
     /**
      * @dev Returns the metric evaluation mode for the model's token
-     * @return The metric type for the model's token
+     * @return The metric type enum value (0 = multi-metric, 1 = single-metric)
      */
-    function metricType() external view returns (MetricType);
+    function metricType() external view returns (uint8);
 
     /**
      * @dev Returns the number of tokens to mint per unit of deltaOne improvement
@@ -67,12 +67,12 @@ interface IHokusaiParams {
 
     /**
      * @dev Sets the metric evaluation mode
-     * @param newMetricType The metric type to use for evaluation
+     * @param newMetricType The metric type enum value (0 = multi-metric, 1 = single-metric)
      * Requirements:
      * - Only addresses with GOV_ROLE can call this function
      * - newMetricType must be a supported mode
      */
-    function setMetricType(MetricType newMetricType) external;
+    function setMetricType(uint8 newMetricType) external;
 
     /**
      * @dev Sets the infrastructure cost accrual percentage
@@ -106,7 +106,7 @@ interface IHokusaiParams {
      * @param newMetricType The new metric type
      * @param updatedBy The address that made the update
      */
-    event MetricTypeSet(MetricType indexed oldMetricType, MetricType indexed newMetricType, address indexed updatedBy);
+    event MetricTypeSet(uint8 indexed oldMetricType, uint8 indexed newMetricType, address indexed updatedBy);
 
     /**
      * @dev Emitted when infrastructureAccrualBps is updated

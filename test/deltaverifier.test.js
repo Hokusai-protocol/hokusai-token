@@ -273,6 +273,28 @@ describe("DeltaVerifier", function () {
       expect(finalBalance).to.equal(initialBalance);
     });
 
+    it("Should not consume the contributor rate limit for budget-violating submissions", async function () {
+      await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), deltaVerifier.target);
+
+      const rejectedEvaluation = makeEvaluationData({
+        pipelineRunId: "budget_fail_002",
+        maxCostUsd: 100,
+        actualCostUsd: 125
+      });
+
+      const acceptedEvaluation = makeEvaluationData({
+        pipelineRunId: "budget_pass_002",
+        maxCostUsd: 100,
+        actualCostUsd: 95
+      });
+
+      await deltaVerifier.submitEvaluation(MODEL_ID, rejectedEvaluation);
+
+      await expect(
+        deltaVerifier.submitEvaluation(MODEL_ID, acceptedEvaluation)
+      ).to.not.be.reverted;
+    });
+
     it("Should process budget-compliant evaluations normally", async function () {
       await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), deltaVerifier.target);
 

@@ -201,7 +201,6 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
                 data.maxCostUsd,
                 data.actualCostUsd
             );
-            emit EvaluationSubmitted(data.pipelineRunId, modelId);
             return 0;
         }
 
@@ -265,7 +264,6 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
             block.timestamp >= lastSubmissionTime[data.contributor] + RATE_LIMIT_DURATION,
             "Rate limit exceeded"
         );
-        lastSubmissionTime[data.contributor] = block.timestamp;
 
         if (_isBudgetConstraintViolated(data.maxCostUsd, data.actualCostUsd)) {
             emit BudgetConstraintViolated(
@@ -274,9 +272,9 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
                 data.maxCostUsd,
                 data.actualCostUsd
             );
-            emit EvaluationSubmitted(data.pipelineRunId, modelId);
             return 0;
         }
+        lastSubmissionTime[data.contributor] = block.timestamp;
         
         // Calculate delta one score
         uint256 deltaInBps = calculateDeltaOne(data.baselineMetrics, data.newMetrics);

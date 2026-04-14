@@ -12,6 +12,9 @@ import "./interfaces/IHokusaiParams.sol";
 import "./interfaces/IDataContributionRegistry.sol";
 
 contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
+    uint8 private constant METRIC_TYPE_MULTI = 0;
+    uint8 private constant METRIC_TYPE_SINGLE = 1;
+
     struct Metrics {
         uint256 accuracy;
         uint256 precision;
@@ -180,7 +183,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         require(totalWeight == 10000, "Weights must sum to 100%");
         
         // Calculate delta one score
-        uint256 deltaInBps = calculateDeltaOne(data.baselineMetrics, data.newMetrics);
+        uint256 deltaInBps = _calculateDeltaOneForModel(modelId, data.baselineMetrics, data.newMetrics);
 
         // Calculate total reward based on full improvement using dynamic parameters
         string memory modelIdStr = _uintToString(modelId);
@@ -242,7 +245,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         lastSubmissionTime[data.contributor] = block.timestamp;
         
         // Calculate delta one score
-        uint256 deltaInBps = calculateDeltaOne(data.baselineMetrics, data.newMetrics);
+        uint256 deltaInBps = _calculateDeltaOneForModel(modelId, data.baselineMetrics, data.newMetrics);
         
         // Calculate reward using dynamic parameters
         string memory modelIdStr = _uintToString(modelId);
@@ -295,11 +298,19 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         if (metricCount == 0) return 0;
         return totalDelta / metricCount;
     }
+
+    function calculateDeltaOneForModel(
+        uint256 modelId,
+        Metrics memory baseline,
+        Metrics memory newMetrics
+    ) public view returns (uint256) {
+        return _calculateDeltaOneForModel(modelId, baseline, newMetrics);
+    }
     
     function calculateReward(
         uint256 deltaInBps,
         uint256 contributorWeight,
-        uint256 contributedSamples
+        uint256
     ) public view returns (uint256) {
         // Check minimum improvement threshold
         if (deltaInBps < minImprovementBps) {
@@ -323,14 +334,13 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
      * @param modelId The model identifier to get token and parameters for
      * @param deltaInBps The improvement delta in basis points
      * @param contributorWeight The contributor's weight in basis points
-     * @param contributedSamples The number of samples contributed (currently unused)
      * @return The calculated reward amount
      */
     function calculateRewardDynamic(
         string memory modelId,
         uint256 deltaInBps,
         uint256 contributorWeight,
-        uint256 contributedSamples
+        uint256
     ) public view returns (uint256) {
         // Get token address from TokenManager
         address tokenAddress = tokenManager.getTokenAddress(modelId);
@@ -380,6 +390,42 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         // Calculate percentage improvement in basis points
         uint256 delta = ((newValue - baseline) * 10000) / baseline;
         return delta;
+    }
+
+    function _calculateDeltaOneForModel(
+        uint256 modelId,
+        Metrics memory baseline,
+        Metrics memory newMetrics
+    ) private view returns (uint256) {
+        uint8 metricType = _getMetricType(modelId);
+
+        if (metricType == METRIC_TYPE_SINGLE) {
+            return _calculateSingleMetricDelta(baseline.accuracy, newMetrics.accuracy);
+        }
+
+        require(metricType == METRIC_TYPE_MULTI, "Unsupported metric type");
+        return calculateDeltaOne(baseline, newMetrics);
+    }
+
+    function _calculateSingleMetricDelta(
+        uint256 baseline,
+        uint256 newValue
+    ) private pure returns (uint256) {
+        if (newValue <= baseline) {
+            return 0;
+        }
+
+        return newValue - baseline;
+    }
+
+    function _getMetricType(uint256 modelId) private view returns (uint8) {
+        string memory modelIdStr = _uintToString(modelId);
+        address tokenAddress = tokenManager.getTokenAddress(modelIdStr);
+        require(tokenAddress != address(0), "Token not found for model");
+
+        HokusaiToken token = HokusaiToken(tokenAddress);
+        IHokusaiParams params = token.params();
+        return params.metricType();
     }
     
     function _validateEvaluationData(EvaluationData calldata data) private pure {

@@ -119,6 +119,20 @@ describe("DeltaVerifier with Dynamic Params", function () {
   });
 
   describe("Dynamic Parameter Reading", function () {
+    it("Should default to multi-metric evaluation for model-aware delta calculation", async function () {
+      const deltaFromLegacyPath = await deltaVerifier.calculateDeltaOne(
+        defaultEvaluationData.baselineMetrics,
+        defaultEvaluationData.newMetrics
+      );
+      const deltaFromModelPath = await deltaVerifier.calculateDeltaOneForModel(
+        MODEL_ID,
+        defaultEvaluationData.baselineMetrics,
+        defaultEvaluationData.newMetrics
+      );
+
+      expect(deltaFromModelPath).to.equal(deltaFromLegacyPath);
+    });
+
     it("Should read tokensPerDeltaOne from params contract", async function () {
       const modelIdStr = MODEL_ID_STR;
       const deltaInBps = 500; // 5% improvement
@@ -197,6 +211,33 @@ describe("DeltaVerifier with Dynamic Params", function () {
       // Should be capped at maxReward
       const maxReward = await deltaVerifier.maxReward();
       expect(rewardAmount).to.equal(maxReward);
+    });
+
+    it("Should calculate single-metric delta as a direct basis-point difference", async function () {
+      await hokusaiParams.connect(governor).setMetricType(1);
+
+      const singleMetricBaseline = {
+        accuracy: 7200,
+        precision: 1000,
+        recall: 1000,
+        f1: 1000,
+        auroc: 1000
+      };
+      const singleMetricNew = {
+        accuracy: 7350,
+        precision: 9000,
+        recall: 9000,
+        f1: 9000,
+        auroc: 9000
+      };
+
+      const deltaInBps = await deltaVerifier.calculateDeltaOneForModel(
+        MODEL_ID,
+        singleMetricBaseline,
+        singleMetricNew
+      );
+
+      expect(deltaInBps).to.equal(150);
     });
   });
 
@@ -278,6 +319,71 @@ describe("DeltaVerifier with Dynamic Params", function () {
 
       // user1 should have more than user2 (30% vs 20%)
       expect(user1Balance).to.be.gt(user2Balance);
+    });
+
+    it("Should use single-metric mode for submitEvaluation", async function () {
+      await hokusaiParams.connect(governor).setMetricType(1);
+
+      const evaluationData = {
+        ...defaultEvaluationData,
+        pipelineRunId: "single-metric-submit",
+        baselineMetrics: {
+          accuracy: 7200,
+          precision: 1000,
+          recall: 1000,
+          f1: 1000,
+          auroc: 1000
+        },
+        newMetrics: {
+          accuracy: 7350,
+          precision: 9000,
+          recall: 9000,
+          f1: 9000,
+          auroc: 9000
+        }
+      };
+
+      const balanceBefore = await hokusaiToken.balanceOf(contributor.address);
+      await deltaVerifier.submitEvaluation(MODEL_ID, evaluationData);
+      const balanceAfter = await hokusaiToken.balanceOf(contributor.address);
+
+      expect(balanceAfter - balanceBefore).to.equal(parseEther("1500"));
+    });
+
+    it("Should use single-metric mode for submitEvaluationWithMultipleContributors", async function () {
+      await hokusaiParams.connect(governor).setMetricType(1);
+
+      const contributors = [
+        { walletAddress: contributor.address, weight: 6000 },
+        { walletAddress: user1.address, weight: 4000 }
+      ];
+
+      const evaluationDataBase = {
+        pipelineRunId: "single-metric-multi",
+        baselineMetrics: {
+          accuracy: 7200,
+          precision: 1000,
+          recall: 1000,
+          f1: 1000,
+          auroc: 1000
+        },
+        newMetrics: {
+          accuracy: 7350,
+          precision: 9000,
+          recall: 9000,
+          f1: 9000,
+          auroc: 9000
+        }
+      };
+
+      await deltaVerifier.submitEvaluationWithMultipleContributors(
+        MODEL_ID,
+        evaluationDataBase,
+        contributors
+      );
+
+      expect(await hokusaiToken.balanceOf(contributor.address)).to.equal(parseEther("900"));
+      expect(await hokusaiToken.balanceOf(user1.address)).to.equal(parseEther("600"));
     });
   });
 

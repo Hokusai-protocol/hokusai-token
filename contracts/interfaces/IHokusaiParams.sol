@@ -9,6 +9,12 @@ pragma solidity ^0.8.0;
  */
 interface IHokusaiParams {
     /**
+     * @dev Returns the metric evaluation mode for the model's token
+     * @return The metric type enum value (0 = multi-metric, 1 = single-metric)
+     */
+    function metricType() external view returns (uint8);
+
+    /**
      * @dev Returns the number of tokens to mint per unit of deltaOne improvement
      * @return The tokens per deltaOne value (replaces hardcoded baseRewardRate)
      */
@@ -55,6 +61,15 @@ interface IHokusaiParams {
     function setTokensPerDeltaOne(uint256 newValue) external;
 
     /**
+     * @dev Sets the metric evaluation mode
+     * @param newMetricType The metric type enum value (0 = multi-metric, 1 = single-metric)
+     * Requirements:
+     * - Only addresses with GOV_ROLE can call this function
+     * - newMetricType must be a supported mode
+     */
+    function setMetricType(uint8 newMetricType) external;
+
+    /**
      * @dev Sets the infrastructure cost accrual percentage
      * @param newBps The new accrual in basis points (must be 5000-10000, i.e., 50-100%)
      * Requirements:
@@ -79,6 +94,14 @@ interface IHokusaiParams {
      * @param updatedBy The address that made the update
      */
     event TokensPerDeltaOneSet(uint256 indexed oldValue, uint256 indexed newValue, address indexed updatedBy);
+
+    /**
+     * @dev Emitted when metricType is updated
+     * @param oldMetricType The previous metric type
+     * @param newMetricType The new metric type
+     * @param updatedBy The address that made the update
+     */
+    event MetricTypeSet(uint8 indexed oldMetricType, uint8 indexed newMetricType, address indexed updatedBy);
 
     /**
      * @dev Emitted when infrastructureAccrualBps is updated

@@ -326,6 +326,8 @@ struct EvaluationData {
     uint256 contributorWeight;  // In basis points (10000 = 100%)
     uint256 contributedSamples;
     uint256 totalSamples;
+    uint256 maxCostUsd;         // Optional; 0 disables budget enforcement
+    uint256 actualCostUsd;      // Optional; 0 disables budget enforcement
 }
 ```
 
@@ -352,7 +354,9 @@ const evaluationData = {
   contributor: "0x...",
   contributorWeight: 9100,  // 91%
   contributedSamples: 5000,
-  totalSamples: 55000
+  totalSamples: 55000,
+  maxCostUsd: 0,
+  actualCostUsd: 0
 };
 
 // Submit evaluation

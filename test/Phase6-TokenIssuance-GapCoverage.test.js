@@ -79,6 +79,8 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
         pipelineRunId,
         baselineMetrics: { accuracy: 8500, precision: 8200, recall: 8800, f1: 8400, auroc: 9000 },
         newMetrics: { accuracy: 8800, precision: 8500, recall: 9100, f1: 8900, auroc: 9300 },
+        maxCostUsd: 0,
+        actualCostUsd: 0,
       };
     }
 

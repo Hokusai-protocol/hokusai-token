@@ -111,7 +111,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           contributorWeight: 10000, // 100%
           contributedSamples: 5000,
           totalSamples: 55000
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       const tx = await deltaVerifier.submitEvaluationWithContributorInfo(
@@ -152,7 +154,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           contributorWeight: 10000,
           contributedSamples: 5000,
           totalSamples: 55000
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await expect(
@@ -193,7 +197,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           recall: 9100,
           f1: 8900,
           auroc: 9300
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -250,7 +256,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           recall: 9100,
           f1: 8900,
           auroc: 9300
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -282,7 +290,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           recall: 9100,
           f1: 8900,
           auroc: 9300
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await expect(
@@ -322,7 +332,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           recall: 9100,
           f1: 8900,
           auroc: 9300
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await expect(
@@ -361,7 +373,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           recall: 9100,
           f1: 8900,
           auroc: 9300
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await expect(
@@ -402,7 +416,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           recall: 9100,
           f1: 8900,
           auroc: 9300
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -444,7 +460,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
         contributor: contributor1.address,
         contributorWeight: 10000,
         contributedSamples: 5000,
-        totalSamples: 55000
+        totalSamples: 55000,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       const tx = await deltaVerifier.submitEvaluation(MODEL_ID, evaluationData);
@@ -473,7 +491,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           recall: 9100,
           f1: 8900,
           auroc: 9300
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       // Test single contributor
@@ -484,7 +504,9 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           contributorWeight: 10000,
           contributedSamples: 5000,
           totalSamples: 55000
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       const tx1 = await deltaVerifier.submitEvaluationWithContributorInfo(

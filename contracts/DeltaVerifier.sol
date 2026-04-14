@@ -12,6 +12,8 @@ import "./interfaces/IHokusaiParams.sol";
 import "./interfaces/IDataContributionRegistry.sol";
 
 contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
+    enum MetricType { MultiMetric, SingleMetric }
+
     struct Metrics {
         uint256 accuracy;
         uint256 precision;
@@ -62,7 +64,9 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     uint256 public baseRewardRate; // tokens per 1% improvement
     uint256 public minImprovementBps; // minimum improvement in basis points
     uint256 public maxReward; // maximum reward cap
-    
+
+    mapping(uint256 => MetricType) public modelMetricType;
+
     uint256 private constant RATE_LIMIT_DURATION = 1 hours;
     mapping(address => uint256) private lastSubmissionTime;
     
@@ -88,6 +92,11 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         address[] contributors,
         uint256[] amounts,
         uint256 totalAmount
+    );
+
+    event ModelMetricTypeSet(
+        uint256 indexed modelId,
+        MetricType metricType
     );
 
     constructor(
@@ -178,9 +187,9 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         }
         
         require(totalWeight == 10000, "Weights must sum to 100%");
-        
-        // Calculate delta one score
-        uint256 deltaInBps = calculateDeltaOne(data.baselineMetrics, data.newMetrics);
+
+        // Calculate delta one score using model-specific metric type
+        uint256 deltaInBps = _calculateDeltaOneForModel(modelId, data.baselineMetrics, data.newMetrics);
 
         // Calculate total reward based on full improvement using dynamic parameters
         string memory modelIdStr = _uintToString(modelId);
@@ -233,16 +242,16 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     ) private returns (uint256) {
         // Validate evaluation data
         _validateEvaluationDataMemory(data);
-        
+
         // Check rate limit
         require(
             block.timestamp >= lastSubmissionTime[data.contributor] + RATE_LIMIT_DURATION,
             "Rate limit exceeded"
         );
         lastSubmissionTime[data.contributor] = block.timestamp;
-        
-        // Calculate delta one score
-        uint256 deltaInBps = calculateDeltaOne(data.baselineMetrics, data.newMetrics);
+
+        // Calculate delta one score using model-specific metric type
+        uint256 deltaInBps = _calculateDeltaOneForModel(modelId, data.baselineMetrics, data.newMetrics);
         
         // Calculate reward using dynamic parameters
         string memory modelIdStr = _uintToString(modelId);
@@ -296,6 +305,24 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         return totalDelta / metricCount;
     }
     
+    function calculateDeltaOneSingleMetric(
+        uint256 baseline,
+        uint256 newValue
+    ) public pure returns (uint256) {
+        return _calculateMetricDelta(baseline, newValue);
+    }
+
+    function _calculateDeltaOneForModel(
+        uint256 modelId,
+        Metrics memory baseline,
+        Metrics memory newMetrics
+    ) private view returns (uint256) {
+        if (modelMetricType[modelId] == MetricType.SingleMetric) {
+            return calculateDeltaOneSingleMetric(baseline.accuracy, newMetrics.accuracy);
+        }
+        return calculateDeltaOne(baseline, newMetrics);
+    }
+
     function calculateReward(
         uint256 deltaInBps,
         uint256 contributorWeight,
@@ -423,6 +450,12 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     }
     
     // Admin functions
+    function setModelMetricType(uint256 modelId, MetricType metricType) external onlyOwner {
+        require(modelRegistry.isRegistered(modelId), "Model not registered");
+        modelMetricType[modelId] = metricType;
+        emit ModelMetricTypeSet(modelId, metricType);
+    }
+
     function setBaseRewardRate(uint256 _baseRewardRate) external onlyOwner {
         ValidationLib.requirePositiveAmount(_baseRewardRate, "reward rate");
         baseRewardRate = _baseRewardRate;

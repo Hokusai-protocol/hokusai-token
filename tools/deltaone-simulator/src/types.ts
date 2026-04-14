@@ -18,6 +18,8 @@ export interface EvaluationData {
   contributorWeight: number;  // In basis points (10000 = 100%)
   contributedSamples: number;
   totalSamples: number;
+  maxCostUsd?: number;
+  actualCostUsd?: number;
 }
 
 export interface MetricBreakdown {

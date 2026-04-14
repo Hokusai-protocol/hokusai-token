@@ -36,6 +36,21 @@ describe("DeltaVerifier", function () {
     auroc: 9350 // 93.5%
   };
 
+  function makeEvaluationData(overrides = {}) {
+    return {
+      pipelineRunId: "test_run_123",
+      baselineMetrics: sampleBaselineMetrics,
+      newMetrics: sampleNewMetrics,
+      contributor: contributor1.address,
+      contributorWeight: 9100,
+      contributedSamples: 5000,
+      totalSamples: 55000,
+      maxCostUsd: 0,
+      actualCostUsd: 0,
+      ...overrides
+    };
+  }
+
   beforeEach(async function () {
     [owner, contributor1, contributor2, admin] = await ethers.getSigners();
 
@@ -210,15 +225,7 @@ describe("DeltaVerifier", function () {
 
   describe("Evaluation Submission", function () {
     it("Should successfully submit valid evaluation", async function () {
-      const evaluationData = {
-        pipelineRunId: "test_run_123",
-        baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics,
-        contributor: contributor1.address,
-        contributorWeight: 9100, // 91%
-        contributedSamples: 5000,
-        totalSamples: 55000
-      };
+      const evaluationData = makeEvaluationData();
 
       await expect(
         deltaVerifier.connect(admin).submitEvaluation(MODEL_ID, evaluationData)
@@ -227,15 +234,7 @@ describe("DeltaVerifier", function () {
     });
 
     it("Should reject evaluation for unregistered model", async function () {
-      const evaluationData = {
-        pipelineRunId: "test_run_123",
-        baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics,
-        contributor: contributor1.address,
-        contributorWeight: 9100,
-        contributedSamples: 5000,
-        totalSamples: 55000
-      };
+      const evaluationData = makeEvaluationData();
 
       await expect(
         deltaVerifier.submitEvaluation("999", evaluationData)
@@ -245,19 +244,76 @@ describe("DeltaVerifier", function () {
     it("Should reject evaluation when paused", async function () {
       await deltaVerifier.pause();
 
-      const evaluationData = {
-        pipelineRunId: "test_run_123",
-        baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics,
-        contributor: contributor1.address,
-        contributorWeight: 9100,
-        contributedSamples: 5000,
-        totalSamples: 55000
-      };
+      const evaluationData = makeEvaluationData();
 
       await expect(
         deltaVerifier.submitEvaluation(MODEL_ID, evaluationData)
       ).to.be.revertedWith("Pausable: paused");
+    });
+
+    it("Should emit a budget violation event and mint no tokens when cost exceeds max", async function () {
+      await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), deltaVerifier.target);
+
+      const evaluationData = makeEvaluationData({
+        pipelineRunId: "budget_fail_001",
+        maxCostUsd: 100,
+        actualCostUsd: 125
+      });
+
+      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+      const deployedToken = HokusaiToken.attach(tokenAddress);
+      const initialBalance = await deployedToken.balanceOf(contributor1.address);
+
+      await expect(deltaVerifier.submitEvaluation(MODEL_ID, evaluationData))
+        .to.emit(deltaVerifier, "BudgetConstraintViolated")
+        .withArgs("budget_fail_001", MODEL_ID, 100, 125);
+
+      const finalBalance = await deployedToken.balanceOf(contributor1.address);
+      expect(finalBalance).to.equal(initialBalance);
+    });
+
+    it("Should not consume the contributor rate limit for budget-violating submissions", async function () {
+      await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), deltaVerifier.target);
+
+      const rejectedEvaluation = makeEvaluationData({
+        pipelineRunId: "budget_fail_002",
+        maxCostUsd: 100,
+        actualCostUsd: 125
+      });
+
+      const acceptedEvaluation = makeEvaluationData({
+        pipelineRunId: "budget_pass_002",
+        maxCostUsd: 100,
+        actualCostUsd: 95
+      });
+
+      await deltaVerifier.submitEvaluation(MODEL_ID, rejectedEvaluation);
+
+      await expect(
+        deltaVerifier.submitEvaluation(MODEL_ID, acceptedEvaluation)
+      ).to.not.be.reverted;
+    });
+
+    it("Should process budget-compliant evaluations normally", async function () {
+      await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), deltaVerifier.target);
+
+      const evaluationData = makeEvaluationData({
+        pipelineRunId: "budget_pass_001",
+        maxCostUsd: 100,
+        actualCostUsd: 95
+      });
+
+      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+      const deployedToken = HokusaiToken.attach(tokenAddress);
+      const initialBalance = await deployedToken.balanceOf(contributor1.address);
+
+      await expect(deltaVerifier.submitEvaluation(MODEL_ID, evaluationData))
+        .to.not.emit(deltaVerifier, "BudgetConstraintViolated");
+
+      const finalBalance = await deployedToken.balanceOf(contributor1.address);
+      expect(finalBalance).to.be.gt(initialBalance);
     });
   });
 
@@ -271,15 +327,10 @@ describe("DeltaVerifier", function () {
         auroc: 8000
       };
 
-      const evaluationData = {
-        pipelineRunId: "test_run_123",
-        baselineMetrics: sampleBaselineMetrics,
+      const evaluationData = makeEvaluationData({
         newMetrics: invalidMetrics,
-        contributor: contributor1.address,
-        contributorWeight: 10000,
-        contributedSamples: 5000,
-        totalSamples: 55000
-      };
+        contributorWeight: 10000
+      });
 
       await expect(
         deltaVerifier.submitEvaluation(MODEL_ID, evaluationData)
@@ -287,15 +338,9 @@ describe("DeltaVerifier", function () {
     });
 
     it("Should reject invalid contributor weight", async function () {
-      const evaluationData = {
-        pipelineRunId: "test_run_123",
-        baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics,
-        contributor: contributor1.address,
-        contributorWeight: 10001, // > 100%
-        contributedSamples: 5000,
-        totalSamples: 55000
-      };
+      const evaluationData = makeEvaluationData({
+        contributorWeight: 10001
+      });
 
       await expect(
         deltaVerifier.submitEvaluation(MODEL_ID, evaluationData)
@@ -303,15 +348,9 @@ describe("DeltaVerifier", function () {
     });
 
     it("Should reject zero contributor address", async function () {
-      const evaluationData = {
-        pipelineRunId: "test_run_123",
-        baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics,
-        contributor: ethers.ZeroAddress,
-        contributorWeight: 9100,
-        contributedSamples: 5000,
-        totalSamples: 55000
-      };
+      const evaluationData = makeEvaluationData({
+        contributor: ethers.ZeroAddress
+      });
 
       await expect(
         deltaVerifier.submitEvaluation(MODEL_ID, evaluationData)
@@ -344,15 +383,7 @@ describe("DeltaVerifier", function () {
 
   describe("Rate Limiting", function () {
     it("Should enforce rate limiting per contributor", async function () {
-      const evaluationData = {
-        pipelineRunId: "test_run_123",
-        baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics,
-        contributor: contributor1.address,
-        contributorWeight: 9100,
-        contributedSamples: 5000,
-        totalSamples: 55000
-      };
+      const evaluationData = makeEvaluationData();
 
       // First submission should succeed
       await deltaVerifier.submitEvaluation(MODEL_ID, evaluationData);
@@ -378,15 +409,7 @@ describe("DeltaVerifier", function () {
       // Give TokenManager permission to mint
       await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), deltaVerifier.target);
 
-      const evaluationData = {
-        pipelineRunId: "test_run_123",
-        baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics,
-        contributor: contributor1.address,
-        contributorWeight: 9100,
-        contributedSamples: 5000,
-        totalSamples: 55000
-      };
+      const evaluationData = makeEvaluationData();
 
       // Get the TokenManager-deployed token
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
@@ -404,15 +427,7 @@ describe("DeltaVerifier", function () {
 
   describe("Events", function () {
     it("Should emit correct events on evaluation submission", async function () {
-      const evaluationData = {
-        pipelineRunId: "test_run_123",
-        baselineMetrics: sampleBaselineMetrics,
-        newMetrics: sampleNewMetrics,
-        contributor: contributor1.address,
-        contributorWeight: 9100,
-        contributedSamples: 5000,
-        totalSamples: 55000
-      };
+      const evaluationData = makeEvaluationData();
 
       const tx = await deltaVerifier.submitEvaluation(MODEL_ID, evaluationData);
       const receipt = await tx.wait();

@@ -31,6 +31,8 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         uint256 contributorWeight; // in basis points (10000 = 100%)
         uint256 contributedSamples;
         uint256 totalSamples;
+        uint256 maxCostUsd;
+        uint256 actualCostUsd;
     }
 
     struct ContributorInfo {
@@ -50,12 +52,16 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         Metrics baselineMetrics;
         Metrics newMetrics;
         ContributorInfo contributorInfo;
+        uint256 maxCostUsd;
+        uint256 actualCostUsd;
     }
 
     struct EvaluationDataBase {
         string pipelineRunId;
         Metrics baselineMetrics;
         Metrics newMetrics;
+        uint256 maxCostUsd;
+        uint256 actualCostUsd;
     }
 
     ModelRegistry public immutable modelRegistry;
@@ -91,6 +97,13 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         address[] contributors,
         uint256[] amounts,
         uint256 totalAmount
+    );
+
+    event BudgetConstraintViolated(
+        string indexed pipelineRunId,
+        uint256 indexed modelId,
+        uint256 maxCostUsd,
+        uint256 actualCostUsd
     );
 
     constructor(
@@ -145,7 +158,9 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
             contributor: data.contributorInfo.walletAddress,
             contributorWeight: data.contributorInfo.contributorWeight,
             contributedSamples: data.contributorInfo.contributedSamples,
-            totalSamples: data.contributorInfo.totalSamples
+            totalSamples: data.contributorInfo.totalSamples,
+            maxCostUsd: data.maxCostUsd,
+            actualCostUsd: data.actualCostUsd
         });
         
         // Process using existing logic
@@ -181,7 +196,17 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         }
         
         require(totalWeight == 10000, "Weights must sum to 100%");
-        
+
+        if (_isBudgetConstraintViolated(data.maxCostUsd, data.actualCostUsd)) {
+            emit BudgetConstraintViolated(
+                data.pipelineRunId,
+                modelId,
+                data.maxCostUsd,
+                data.actualCostUsd
+            );
+            return 0;
+        }
+
         // Calculate delta one score
         uint256 deltaInBps = _calculateDeltaOneForModel(modelId, data.baselineMetrics, data.newMetrics);
 
@@ -242,6 +267,16 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
             block.timestamp >= lastSubmissionTime[data.contributor] + RATE_LIMIT_DURATION,
             "Rate limit exceeded"
         );
+
+        if (_isBudgetConstraintViolated(data.maxCostUsd, data.actualCostUsd)) {
+            emit BudgetConstraintViolated(
+                data.pipelineRunId,
+                modelId,
+                data.maxCostUsd,
+                data.actualCostUsd
+            );
+            return 0;
+        }
         lastSubmissionTime[data.contributor] = block.timestamp;
         
         // Calculate delta one score
@@ -310,7 +345,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     function calculateReward(
         uint256 deltaInBps,
         uint256 contributorWeight,
-        uint256
+        uint256 /* contributedSamples */
     ) public view returns (uint256) {
         // Check minimum improvement threshold
         if (deltaInBps < minImprovementBps) {
@@ -340,7 +375,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         string memory modelId,
         uint256 deltaInBps,
         uint256 contributorWeight,
-        uint256
+        uint256 /* contributedSamples */
     ) public view returns (uint256) {
         // Get token address from TokenManager
         address tokenAddress = tokenManager.getTokenAddress(modelId);
@@ -442,6 +477,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         // Validate sample counts
         ValidationLib.requirePositiveAmount(data.contributedSamples, "contributed samples");
         require(data.totalSamples >= data.contributedSamples, "Invalid total samples");
+        _validateBudgetData(data.maxCostUsd, data.actualCostUsd);
     }
     
     function _validateMetrics(Metrics memory metrics) private pure {
@@ -466,6 +502,24 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         // Validate sample counts
         ValidationLib.requirePositiveAmount(data.contributedSamples, "contributed samples");
         require(data.totalSamples >= data.contributedSamples, "Invalid total samples");
+        _validateBudgetData(data.maxCostUsd, data.actualCostUsd);
+    }
+
+    function _validateBudgetData(uint256 maxCostUsd, uint256 actualCostUsd) private pure {
+        if (maxCostUsd == 0 || actualCostUsd == 0) {
+            return;
+        }
+
+        ValidationLib.requirePositiveAmount(maxCostUsd, "max cost usd");
+        ValidationLib.requirePositiveAmount(actualCostUsd, "actual cost usd");
+    }
+
+    function _isBudgetConstraintViolated(uint256 maxCostUsd, uint256 actualCostUsd) private pure returns (bool) {
+        if (maxCostUsd == 0 || actualCostUsd == 0) {
+            return false;
+        }
+
+        return actualCostUsd > maxCostUsd;
     }
     
     // Admin functions

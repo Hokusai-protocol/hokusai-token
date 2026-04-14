@@ -38,7 +38,9 @@ describe("DeltaVerifier with Dynamic Params", function () {
     contributor: null, // Will be set in tests
     contributorWeight: 10000, // 100%
     contributedSamples: 1000,
-    totalSamples: 1000
+    totalSamples: 1000,
+    maxCostUsd: 0,
+    actualCostUsd: 0
   };
 
   // Default initial params for testing
@@ -295,7 +297,9 @@ describe("DeltaVerifier with Dynamic Params", function () {
       const evaluationDataBase = {
         pipelineRunId: "test-pipeline-multi",
         baselineMetrics: defaultEvaluationData.baselineMetrics,
-        newMetrics: defaultEvaluationData.newMetrics
+        newMetrics: defaultEvaluationData.newMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(

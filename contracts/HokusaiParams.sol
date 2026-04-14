@@ -10,11 +10,6 @@ import "./interfaces/IHokusaiParams.sol";
  * Allows governance to adjust key operational parameters without contract upgrades
  */
 contract HokusaiParams is IHokusaiParams, AccessControl {
-    enum MetricType {
-        MultiMetric,
-        SingleMetric
-    }
-
     /// @dev Role identifier for governance operations
     bytes32 public constant GOV_ROLE = keccak256("GOV_ROLE");
 
@@ -123,8 +118,8 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /**
      * @inheritdoc IHokusaiParams
      */
-    function metricType() external view override returns (uint8) {
-        return uint8(_metricType);
+    function metricType() external view override returns (MetricType) {
+        return _metricType;
     }
 
     /**
@@ -180,11 +175,11 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /**
      * @inheritdoc IHokusaiParams
      */
-    function setMetricType(uint8 newMetricType) external override onlyRole(GOV_ROLE) {
-        require(newMetricType <= uint8(MetricType.SingleMetric), "Invalid metric type");
+    function setMetricType(MetricType newMetricType) external override onlyRole(GOV_ROLE) {
+        require(uint8(newMetricType) <= uint8(MetricType.SingleMetric), "Invalid metric type");
 
-        uint8 oldMetricType = uint8(_metricType);
-        _metricType = MetricType(newMetricType);
+        MetricType oldMetricType = _metricType;
+        _metricType = newMetricType;
 
         emit MetricTypeSet(oldMetricType, newMetricType, msg.sender);
     }

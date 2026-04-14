@@ -194,7 +194,7 @@ describe("HokusaiParams", function () {
     it("Should reject unsupported metricType values", async function () {
       await expect(
         params.connect(governor).setMetricType(2)
-      ).to.be.revertedWith("Invalid metric type");
+      ).to.be.reverted;
     });
 
     it("Should reject tokensPerDeltaOne below minimum (100)", async function () {

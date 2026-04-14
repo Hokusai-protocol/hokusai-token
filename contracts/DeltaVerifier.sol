@@ -12,9 +12,6 @@ import "./interfaces/IHokusaiParams.sol";
 import "./interfaces/IDataContributionRegistry.sol";
 
 contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
-    uint8 private constant METRIC_TYPE_MULTI = 0;
-    uint8 private constant METRIC_TYPE_SINGLE = 1;
-
     struct Metrics {
         uint256 accuracy;
         uint256 precision;
@@ -397,13 +394,13 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         Metrics memory baseline,
         Metrics memory newMetrics
     ) private view returns (uint256) {
-        uint8 metricType = _getMetricType(modelId);
+        IHokusaiParams.MetricType metricType = _getMetricType(modelId);
 
-        if (metricType == METRIC_TYPE_SINGLE) {
+        if (metricType == IHokusaiParams.MetricType.SingleMetric) {
             return _calculateSingleMetricDelta(baseline.accuracy, newMetrics.accuracy);
         }
 
-        require(metricType == METRIC_TYPE_MULTI, "Unsupported metric type");
+        require(metricType == IHokusaiParams.MetricType.MultiMetric, "Unsupported metric type");
         return calculateDeltaOne(baseline, newMetrics);
     }
 
@@ -418,7 +415,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         return newValue - baseline;
     }
 
-    function _getMetricType(uint256 modelId) private view returns (uint8) {
+    function _getMetricType(uint256 modelId) private view returns (IHokusaiParams.MetricType) {
         string memory modelIdStr = _uintToString(modelId);
         address tokenAddress = tokenManager.getTokenAddress(modelIdStr);
         require(tokenAddress != address(0), "Token not found for model");

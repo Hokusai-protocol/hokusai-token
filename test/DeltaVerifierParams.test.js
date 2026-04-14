@@ -377,7 +377,9 @@ describe("DeltaVerifier with Dynamic Params", function () {
           recall: 9000,
           f1: 9000,
           auroc: 9000
-        }
+        },
+        maxCostUsd: 0,
+        actualCostUsd: 0
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(

@@ -8,6 +8,11 @@ pragma solidity ^0.8.0;
  * without requiring contract upgrades.
  */
 interface IHokusaiParams {
+    enum MetricType {
+        MultiMetric,
+        SingleMetric
+    }
+
     /**
      * @dev Returns the metric evaluation mode for the model's token
      * @return The metric type enum value (0 = multi-metric, 1 = single-metric)

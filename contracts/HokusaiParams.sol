@@ -10,11 +10,6 @@ import "./interfaces/IHokusaiParams.sol";
  * Allows governance to adjust key operational parameters without contract upgrades
  */
 contract HokusaiParams is IHokusaiParams, AccessControl {
-    enum MetricType {
-        MultiMetric,
-        SingleMetric
-    }
-
     /// @dev Role identifier for governance operations
     bytes32 public constant GOV_ROLE = keccak256("GOV_ROLE");
 
@@ -37,7 +32,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     uint256 private _tokensPerDeltaOne;
 
     /// @dev Metric evaluation mode for this model's token
-    MetricType private _metricType;
+    IHokusaiParams.MetricType private _metricType;
 
     /// @dev Infrastructure cost accrual percentage in basis points (global default)
     uint16 private _infrastructureAccrualBps;
@@ -102,7 +97,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
 
         // Set initial values
         _tokensPerDeltaOne = initialTokensPerDeltaOne;
-        _metricType = MetricType.MultiMetric;
+        _metricType = IHokusaiParams.MetricType.MultiMetric;
         _infrastructureAccrualBps = initialInfrastructureAccrualBps;
         _licenseHash = initialLicenseHash;
         _licenseURI = initialLicenseURI;
@@ -181,10 +176,10 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
      * @inheritdoc IHokusaiParams
      */
     function setMetricType(uint8 newMetricType) external override onlyRole(GOV_ROLE) {
-        require(newMetricType <= uint8(MetricType.SingleMetric), "Invalid metric type");
+        require(newMetricType <= uint8(IHokusaiParams.MetricType.SingleMetric), "Invalid metric type");
 
         uint8 oldMetricType = uint8(_metricType);
-        _metricType = MetricType(newMetricType);
+        _metricType = IHokusaiParams.MetricType(newMetricType);
 
         emit MetricTypeSet(oldMetricType, newMetricType, msg.sender);
     }

@@ -464,7 +464,7 @@ describe("FundingVault", function () {
     });
 
     it("Should graduate proposal and create AMM pool", async function () {
-      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
+      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1, 1))
         .to.emit(fundingVault, "Graduated");
 
       const proposal = await fundingVault.getProposal(MODEL_ID_1);
@@ -477,13 +477,25 @@ describe("FundingVault", function () {
       expect(await modelRegistry.hasPool(MODEL_ID_1)).to.be.true;
     });
 
+    it("Should forward minTokensOut to the AMM buy", async function () {
+      const impossibleMinTokensOut = parseEther("1000000000");
+
+      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1, impossibleMinTokensOut))
+        .to.be.revertedWith("Slippage exceeded");
+
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.graduated).to.be.false;
+      expect(proposal.poolAddress).to.equal(ZeroAddress);
+      expect(await ammFactory.getPool(MODEL_ID_1)).to.equal(ZeroAddress);
+    });
+
     it("Should reject graduation from non-graduator", async function () {
-      await expect(fundingVault.connect(user1).graduate(MODEL_ID_1))
+      await expect(fundingVault.connect(user1).graduate(MODEL_ID_1, 1))
         .to.be.reverted;
     });
 
     it("Should reject graduation of unregistered proposal", async function () {
-      await expect(fundingVault.connect(graduator).graduate("unregistered"))
+      await expect(fundingVault.connect(graduator).graduate("unregistered", 1))
         .to.be.revertedWith("Proposal not registered");
     });
 
@@ -495,13 +507,13 @@ describe("FundingVault", function () {
       await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
       await fundingVault.connect(user1).deposit(MODEL_ID_2, usd(1000));
 
-      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_2))
+      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_2, 1))
         .to.be.revertedWith("Graduation not announced");
     });
 
     it("Should reject double graduation", async function () {
-      await fundingVault.connect(graduator).graduate(MODEL_ID_1);
-      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
+      await fundingVault.connect(graduator).graduate(MODEL_ID_1, 1);
+      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1, 1))
         .to.be.revertedWith("Already graduated");
     });
 
@@ -512,18 +524,18 @@ describe("FundingVault", function () {
       await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
       await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
 
-      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_2))
+      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_2, 1))
         .to.be.revertedWith("Graduation not announced");
     });
 
     it("Should prevent deposits after graduation", async function () {
-      await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+      await fundingVault.connect(graduator).graduate(MODEL_ID_1, 1);
       await expect(fundingVault.connect(user1).deposit(MODEL_ID_1, usd(1000)))
         .to.be.revertedWith("Already graduated");
     });
 
     it("Should prevent withdrawals after graduation", async function () {
-      await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+      await fundingVault.connect(graduator).graduate(MODEL_ID_1, 1);
       await expect(fundingVault.connect(user1).withdraw(MODEL_ID_1))
         .to.be.revertedWith("Already graduated");
     });
@@ -549,7 +561,7 @@ describe("FundingVault", function () {
       await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
 
       await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
-      await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+      await fundingVault.connect(graduator).graduate(MODEL_ID_1, 1);
     });
 
     it("Should mint tokens proportionally on claim", async function () {
@@ -646,7 +658,7 @@ describe("FundingVault", function () {
       await tokenManager.grantRole(MINTER_ROLE, await ammFactory.getAddress());
 
       await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
-      await fundingVault.connect(graduator).graduate(MODEL_ID_1);
+      await fundingVault.connect(graduator).graduate(MODEL_ID_1, 1);
     });
 
     it("Should reject dust sweep before all claims are complete", async function () {
@@ -791,7 +803,7 @@ describe("FundingVault", function () {
 
       await expect(fundingVault.connect(graduator).announceGraduation(MODEL_ID_1))
         .to.not.be.reverted;
-      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1))
+      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1, 1))
         .to.not.be.reverted;
     });
 

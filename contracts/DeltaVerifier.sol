@@ -134,7 +134,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     ) external nonReentrant whenNotPaused returns (uint256) {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
-        require(modelRegistry.isActive(modelId), "Model is deactivated");
+        require(modelRegistry.isModelActive(modelId), "Model is deactivated");
         
         return _processEvaluation(modelId, data);
     }
@@ -145,7 +145,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     ) external nonReentrant whenNotPaused returns (uint256) {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
-        require(modelRegistry.isActive(modelId), "Model is deactivated");
+        require(modelRegistry.isModelActive(modelId), "Model is deactivated");
         
         // Validate wallet address
         ValidationLib.requireNonZeroAddress(data.contributorInfo.walletAddress, "wallet address");
@@ -174,7 +174,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     ) external nonReentrant whenNotPaused returns (uint256) {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
-        require(modelRegistry.isActive(modelId), "Model is deactivated");
+        require(modelRegistry.isModelActive(modelId), "Model is deactivated");
         ValidationLib.requireNonEmptyArray(contributors.length);
         ValidationLib.requireMaxArrayLength(contributors.length, 100);
         

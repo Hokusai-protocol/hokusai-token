@@ -303,6 +303,19 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       expect(usdcAfter - usdcBefore).to.be.closeTo(expectedOut, parseUnits("0.1", 6));
     });
 
+    it("Should allow holders to sell after model deactivation", async function () {
+      await modelRegistry.registerStringModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      await modelRegistry.deactivateStringModel(modelId);
+
+      const balance = await hokusaiToken.balanceOf(buyer.address);
+      const tokensIn = balance / BigInt(10);
+      const deadline = (await time.latest()) + 300;
+
+      await expect(
+        hokusaiAMM.connect(buyer).sell(tokensIn, 0, buyer.address, deadline)
+      ).to.not.be.reverted;
+    });
+
     it("Should emit Sell event", async function () {
       const balance = await hokusaiToken.balanceOf(buyer.address);
       const tokensIn = balance / BigInt(10);

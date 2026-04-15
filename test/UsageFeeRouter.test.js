@@ -248,6 +248,31 @@ describe("UsageFeeRouter", function () {
       expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(feeAmount);
     });
 
+    it("Should reject fee deposits for deactivated models", async function () {
+      const feeAmount = parseUnits("1000", 6);
+
+      await modelRegistry.deactivateStringModel(MODEL_ID_1);
+
+      await expect(
+        feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000)
+      ).to.be.revertedWith("Model is deactivated");
+
+      expect(await feeRouter.totalFeesDeposited()).to.equal(0);
+      expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(0);
+    });
+
+    it("Should accept fee deposits after model reactivation", async function () {
+      const feeAmount = parseUnits("1000", 6);
+
+      await modelRegistry.deactivateStringModel(MODEL_ID_1);
+      await modelRegistry.reactivateStringModel(MODEL_ID_1);
+
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
+
+      expect(await feeRouter.totalFeesDeposited()).to.equal(feeAmount);
+      expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(feeAmount);
+    });
+
     it("Should emit FeeDeposited event with split amounts", async function () {
       const feeAmount = parseUnits("1000", 6);
       const expectedInfra = (feeAmount * 8000n) / 10000n; // $800
@@ -696,6 +721,25 @@ describe("UsageFeeRouter", function () {
           [1000, 1000]
         )
       ).to.be.revertedWith("Pool does not exist");
+    });
+
+    it("Should reject batch deposits containing deactivated models", async function () {
+      const depositorBalanceBefore = await mockUSDC.balanceOf(depositor.address);
+
+      await modelRegistry.deactivateStringModel(MODEL_ID_2);
+
+      await expect(
+        feeRouter.connect(depositor).batchDepositFees(
+          [MODEL_ID_1, MODEL_ID_2],
+          [parseUnits("1000", 6), parseUnits("1000", 6)],
+          [1000, 1000]
+        )
+      ).to.be.revertedWith("Model is deactivated");
+
+      expect(await mockUSDC.balanceOf(depositor.address)).to.equal(depositorBalanceBefore);
+      expect(await feeRouter.totalFeesDeposited()).to.equal(0);
+      expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(0);
+      expect(await feeRouter.getModelFees(MODEL_ID_2)).to.equal(0);
     });
 
     it("Should transfer total USDC in single transaction", async function () {

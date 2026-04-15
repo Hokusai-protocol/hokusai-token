@@ -75,6 +75,7 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
 
             expect(await modelRegistry.isRegistered(0)).to.be.true;
             expect(await modelRegistry.getTokenAddress(0)).to.equal(token0Addr);
+            expect(await modelRegistry["isModelActive(uint256)"](0)).to.be.true;
         });
 
         it("should allow reverse lookup for model ID 0", async function () {
@@ -193,6 +194,33 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
             // Both should be accessible
             expect(await modelRegistry.getTokenAddress(0)).to.equal(token0Addr);
             expect(await modelRegistry.getTokenAddress(1)).to.equal(token1Addr);
+        });
+    });
+
+    describe("Active status views", function () {
+        it("should expose active status through numeric and string model IDs", async function () {
+            await modelRegistry.registerModel(0, token0Addr, "accuracy");
+            await modelRegistry.registerStringModel("string-model", token1Addr, "accuracy");
+
+            expect(await modelRegistry["isModelActive(uint256)"](0)).to.be.true;
+            expect(await modelRegistry["isModelActive(string)"]("string-model")).to.be.true;
+
+            await modelRegistry.deactivateModel(0);
+            await modelRegistry.deactivateStringModel("string-model");
+
+            expect(await modelRegistry["isModelActive(uint256)"](0)).to.be.false;
+            expect(await modelRegistry["isModelActive(string)"]("string-model")).to.be.false;
+
+            await modelRegistry.reactivateModel(0);
+            await modelRegistry.reactivateStringModel("string-model");
+
+            expect(await modelRegistry["isModelActive(uint256)"](0)).to.be.true;
+            expect(await modelRegistry["isModelActive(string)"]("string-model")).to.be.true;
+        });
+
+        it("should return false for unregistered models", async function () {
+            expect(await modelRegistry["isModelActive(uint256)"](999)).to.be.false;
+            expect(await modelRegistry["isModelActive(string)"]("missing-model")).to.be.false;
         });
     });
 });

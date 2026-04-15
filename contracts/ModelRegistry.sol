@@ -256,6 +256,15 @@ contract ModelRegistry is Ownable {
         return isModelRegistered[modelId] && models[modelId].active;
     }
 
+    /**
+     * @dev Checks if a numeric model is active
+     * @param modelId The model identifier to check
+     * @return True if the model is registered and active
+     */
+    function isModelActive(uint256 modelId) external view returns (bool) {
+        return isModelRegistered[modelId] && models[modelId].active;
+    }
+
     // ============================================================
     // STRING-BASED MODEL REGISTRY (for TokenManager integration)
     // ============================================================
@@ -386,6 +395,15 @@ contract ModelRegistry is Ownable {
      * @return True if the model is registered and active
      */
     function isStringActive(string memory modelId) external view returns (bool) {
+        return isStringModelRegistered[modelId] && modelsByString[modelId].active;
+    }
+
+    /**
+     * @dev Checks if a string model is active
+     * @param modelId The model identifier to check
+     * @return True if the model is registered and active
+     */
+    function isModelActive(string memory modelId) external view returns (bool) {
         return isStringModelRegistered[modelId] && modelsByString[modelId].active;
     }
 

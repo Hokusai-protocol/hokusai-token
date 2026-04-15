@@ -339,6 +339,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     /**
      * @dev Graduate a proposal to AMM pool
      * @param modelId String model identifier
+     * @param minTokensOut Minimum tokens to receive from the initial AMM buy
      *
      * This function:
      * 1. Creates AMM pool via HokusaiAMMFactory
@@ -352,7 +353,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
      * - Not already graduated
      * - Has committed funds
      */
-    function graduate(string memory modelId)
+    function graduate(string memory modelId, uint256 minTokensOut)
         external
         onlyRole(GRADUATOR_ROLE)
         nonReentrant
@@ -394,7 +395,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         HokusaiAMM pool = HokusaiAMM(poolAddress);
         pool.buy(
             proposal.snapshotTotalCommitted,
-            1, // minTokensOut = 1 (we accept any price for seeding)
+            minTokensOut,
             address(this), // tokens go to this vault
             block.timestamp + 300 // 5 minute deadline
         );

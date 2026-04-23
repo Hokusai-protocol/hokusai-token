@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, keccak256, toUtf8Bytes } = require("ethers");
+const { wholeTokens } = require("./helpers/tokenDeployment");
 
 describe("Backward Compatibility", function () {
   let tokenManager;
@@ -47,7 +48,7 @@ describe("Backward Compatibility", function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       const params = HokusaiParams.attach(paramsAddress);
 
-      expect(await params.tokensPerDeltaOne()).to.equal(500000); // Default
+      expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(500000)); // Default
       expect(await params.infrastructureAccrualBps()).to.equal(8000); // Default 80%
       expect(await params.licenseHash()).to.equal(keccak256(toUtf8Bytes("default-license")));
       expect(await params.licenseURI()).to.equal("https://hokusai.ai/licenses/default");
@@ -84,7 +85,7 @@ describe("Backward Compatibility", function () {
         const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
         const params = HokusaiParams.attach(paramsAddress);
 
-        expect(await params.tokensPerDeltaOne()).to.equal(500000);
+        expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(500000));
         expect(await params.infrastructureAccrualBps()).to.equal(8000);
       }
     });
@@ -126,7 +127,7 @@ describe("Backward Compatibility", function () {
 
       // Deploy using new function
       const customParams = {
-        tokensPerDeltaOne: 2000,
+        tokensPerDeltaOne: wholeTokens(2000),
         infrastructureAccrualBps: 6000,
         licenseHash: keccak256(toUtf8Bytes("custom-license")),
         licenseURI: "https://example.com/license",
@@ -153,8 +154,8 @@ describe("Backward Compatibility", function () {
       const oldParams = HokusaiParams.attach(oldParamsAddr);
       const newParams = HokusaiParams.attach(newParamsAddr);
 
-      expect(await oldParams.tokensPerDeltaOne()).to.equal(500000); // Default
-      expect(await newParams.tokensPerDeltaOne()).to.equal(2000); // Custom
+      expect(await oldParams.tokensPerDeltaOne()).to.equal(wholeTokens(500000)); // Default
+      expect(await newParams.tokensPerDeltaOne()).to.equal(wholeTokens(2000)); // Custom
 
       expect(await oldParams.infrastructureAccrualBps()).to.equal(8000); // Default 80%
       expect(await newParams.infrastructureAccrualBps()).to.equal(6000); // Custom 60%

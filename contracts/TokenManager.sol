@@ -19,7 +19,7 @@ contract TokenManager is Ownable, AccessControlBase {
 
     /// @dev Structure for initial parameter values when deploying a token
     struct InitialParams {
-        uint256 tokensPerDeltaOne;          // Tokens per deltaOne improvement (100-100000)
+        uint256 tokensPerDeltaOne;          // Wei-scaled tokens per deltaOne improvement (100-10,000,000 whole tokens)
         uint16 infrastructureAccrualBps;    // Infrastructure accrual in basis points (1000-10000, i.e., 10-100%)
         bytes32 licenseHash;                // Hash of license reference
         string licenseURI;                  // URI for license reference
@@ -89,12 +89,8 @@ contract TokenManager is Ownable, AccessControlBase {
     }
 
     /**
-     * @dev Deploy a new token for a model with default parameters - USER PAYS GAS
-     * @param modelId The model identifier (string)
-     * @param name Token name
-     * @param symbol Token symbol
-     * @param totalSupply The total supply to mint initially
-     * @return tokenAddress The deployed token address
+     * @dev Deprecated compatibility shim for legacy direct-supply deployments.
+     * New production flows should use deployTokenWithAllocations.
      */
     function deployToken(
         string memory modelId,
@@ -102,10 +98,9 @@ contract TokenManager is Ownable, AccessControlBase {
         string memory symbol,
         uint256 totalSupply
     ) external payable returns (address tokenAddress) {
-        // Use default parameters
         InitialParams memory defaultParams = InitialParams({
-            tokensPerDeltaOne: 500000,
-            infrastructureAccrualBps: 8000, // 80% infrastructure accrual (default)
+            tokensPerDeltaOne: 500_000 ether,
+            infrastructureAccrualBps: 8000,
             licenseHash: keccak256(abi.encodePacked("default-license")),
             licenseURI: "https://hokusai.ai/licenses/default",
             governor: owner()

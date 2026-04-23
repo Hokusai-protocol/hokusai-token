@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress, MaxUint256 } = require("ethers");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("Phase 2: Core AMM Bonding Curve", function () {
   let hokusaiAMM;
@@ -39,7 +40,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
     await tokenManager.waitForDeployment();
 
     // Deploy HokusaiToken via TokenManager
-    await tokenManager.deployToken(modelId, "Test Model Token", "TMT", INITIAL_SUPPLY);
+    await deployTestToken(tokenManager, modelId, "Test Model Token", "TMT", INITIAL_SUPPLY, owner.address);
     const tokenAddress = await tokenManager.getTokenAddress(modelId);
     hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
 

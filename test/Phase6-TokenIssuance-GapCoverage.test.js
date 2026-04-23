@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits, parseEther, ZeroAddress } = ethers;
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 /**
  * Phase 6: Token Issuance Gap Coverage Tests
@@ -64,7 +65,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       await deltaVerifier.waitForDeployment();
 
       await hokusaiToken.setController(await tokenManager.getAddress());
-      await tokenManager.deployToken(MODEL_ID, "Gap Test Token", "GTT", parseEther("10000"));
+      await deployTestToken(tokenManager, MODEL_ID, "Gap Test Token", "GTT", parseEther("10000"), owner.address);
       await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), await deltaVerifier.getAddress());
       await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
 
@@ -302,7 +303,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
       await tokenManager.waitForDeployment();
 
-      await tokenManager.deployToken(MODEL_ID, "Supply Test", "SPT", parseEther("1000"));
+      await deployTestToken(tokenManager, MODEL_ID, "Supply Test", "SPT", parseEther("1000"), owner.address);
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
     });
@@ -374,7 +375,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
       await tokenManager.waitForDeployment();
 
-      await tokenManager.deployToken(MODEL_ID, "Auth Test", "ATT", parseEther("1000"));
+      await deployTestToken(tokenManager, MODEL_ID, "Auth Test", "ATT", parseEther("1000"), owner.address);
     });
 
     it("should reject mint from unauthorized caller", async function () {
@@ -476,7 +477,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
       await tokenManager.waitForDeployment();
 
-      await tokenManager.deployToken(modelId, "Phase Edge Test", "PET", INITIAL_SUPPLY);
+      await deployTestToken(tokenManager, modelId, "Phase Edge Test", "PET", INITIAL_SUPPLY, owner.address);
       const tokenAddress = await tokenManager.getTokenAddress(modelId);
       hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
 
@@ -671,7 +672,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
       await tokenManager.waitForDeployment();
 
-      await tokenManager.deployToken(MODEL_ID, "Batch Test", "BTT", parseEther("1000"));
+      await deployTestToken(tokenManager, MODEL_ID, "Batch Test", "BTT", parseEther("1000"), owner.address);
     });
 
     it("should correctly batch mint to multiple recipients", async function () {

@@ -89,27 +89,6 @@ contract TokenManager is Ownable, AccessControlBase {
     }
 
     /**
-     * @dev Deprecated compatibility shim for legacy direct-supply deployments.
-     * New production flows should use deployTokenWithAllocations.
-     */
-    function deployToken(
-        string memory modelId,
-        string memory name,
-        string memory symbol,
-        uint256 totalSupply
-    ) external payable returns (address tokenAddress) {
-        InitialParams memory defaultParams = InitialParams({
-            tokensPerDeltaOne: 500_000 ether,
-            infrastructureAccrualBps: 8000,
-            licenseHash: keccak256(abi.encodePacked("default-license")),
-            licenseURI: "https://hokusai.ai/licenses/default",
-            governor: owner()
-        });
-
-        return deployTokenWithParams(modelId, name, symbol, totalSupply, defaultParams);
-    }
-
-    /**
      * @dev Deploy a new token for a model with custom parameters - USER PAYS GAS
      * @param modelId The model identifier (string)
      * @param name Token name

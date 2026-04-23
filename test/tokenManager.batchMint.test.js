@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("TokenManager Batch Minting", function () {
   let tokenManager;
@@ -32,7 +33,7 @@ describe("TokenManager Batch Minting", function () {
     await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), minter.address);
 
     // Deploy token through TokenManager
-    await tokenManager.deployToken(MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"));
+    await deployTestToken(tokenManager, MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"), owner.address);
 
     // Get the deployed token
     const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
@@ -281,7 +282,7 @@ describe("TokenManager Batch Minting", function () {
       }
 
       // Reset balances by deploying new token through TokenManager
-      await tokenManager.deployToken("2", "Hokusai Token 2", "HOKU2", parseEther("10000"));
+      await deployTestToken(tokenManager, "2", "Hokusai Token 2", "HOKU2", parseEther("10000"), owner.address);
 
       // Test batch minting
       const batchTx = await tokenManager.connect(minter).batchMintTokens(

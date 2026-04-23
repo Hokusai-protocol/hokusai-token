@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress, MaxUint256 } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("TokenManager", function () {
   let tokenManager;
@@ -31,8 +32,8 @@ describe("TokenManager", function () {
     await tokenManager.waitForDeployment();
 
     // Deploy tokens using TokenManager's deployToken function
-    await tokenManager.deployToken(MODEL_ID_1, "Hokusai Token 1", "HOKU1", parseEther("10000"));
-    await tokenManager.deployToken(MODEL_ID_2, "Hokusai Token 2", "HOKU2", parseEther("10000"));
+    await deployTestToken(tokenManager, MODEL_ID_1, "Hokusai Token 1", "HOKU1", parseEther("10000"), owner.address);
+    await deployTestToken(tokenManager, MODEL_ID_2, "Hokusai Token 2", "HOKU2", parseEther("10000"), owner.address);
 
     // Get the deployed token addresses
     const tokenAddress1 = await tokenManager.getTokenAddress(MODEL_ID_1);
@@ -362,7 +363,7 @@ describe("TokenManager", function () {
       // Deploy token through TokenManager
       const modelId = "42";
       const initialSupply = parseEther("10000");
-      await newManager.deployToken(modelId, "New Token", "NEW", initialSupply);
+      await deployTestToken(newManager, modelId, "New Token", "NEW", initialSupply, owner.address);
 
       // Get deployed token
       const tokenAddress = await newManager.getTokenAddress(modelId);

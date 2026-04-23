@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
+const { deployTestToken, deployTestTokenAddress } = require("../helpers/tokenDeployment");
 
 describe("Integration: Infrastructure Cost Accrual Flow", function () {
   let modelRegistry;
@@ -70,21 +71,11 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
     await feeRouter.waitForDeployment();
 
     // Deploy tokens and create pools
-    const token1Address = await tokenManager.deployToken.staticCall(
-      MODEL_ID_1,
-      "GPT-4 Turbo Token",
-      "GPT4T",
-      INITIAL_SUPPLY
-    );
-    await tokenManager.deployToken(MODEL_ID_1, "GPT-4 Turbo Token", "GPT4T", INITIAL_SUPPLY);
+    const token1Address = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "GPT-4 Turbo Token", "GPT4T", INITIAL_SUPPLY, owner.address);
+    await deployTestToken(tokenManager, MODEL_ID_1, "GPT-4 Turbo Token", "GPT4T", INITIAL_SUPPLY, owner.address);
 
-    const token2Address = await tokenManager.deployToken.staticCall(
-      MODEL_ID_2,
-      "Claude 3 Sonnet Token",
-      "C3S",
-      INITIAL_SUPPLY
-    );
-    await tokenManager.deployToken(MODEL_ID_2, "Claude 3 Sonnet Token", "C3S", INITIAL_SUPPLY);
+    const token2Address = await deployTestTokenAddress(tokenManager, MODEL_ID_2, "Claude 3 Sonnet Token", "C3S", INITIAL_SUPPLY, owner.address);
+    await deployTestToken(tokenManager, MODEL_ID_2, "Claude 3 Sonnet Token", "C3S", INITIAL_SUPPLY, owner.address);
 
     // Register models in ModelRegistry
     await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");

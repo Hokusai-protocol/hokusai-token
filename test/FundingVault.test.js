@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("FundingVault", function () {
   let fundingVault;
@@ -164,7 +165,7 @@ describe("FundingVault", function () {
     let deadline;
 
     beforeEach(async function () {
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       // Register model in ModelRegistry
       await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
@@ -222,7 +223,7 @@ describe("FundingVault", function () {
     let deadline;
 
     beforeEach(async function () {
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       deadline = await getDeadline();
       // Register model in ModelRegistry
@@ -304,7 +305,7 @@ describe("FundingVault", function () {
     let deadline;
 
     beforeEach(async function () {
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       deadline = await getDeadline();
       // Register model in ModelRegistry
@@ -362,7 +363,7 @@ describe("FundingVault", function () {
     let deadline;
 
     beforeEach(async function () {
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       // Register model in ModelRegistry
       await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
@@ -404,7 +405,7 @@ describe("FundingVault", function () {
     });
 
     it("Should reject announcement with zero commitments", async function () {
-      await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"), owner.address);
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
       // Register model in ModelRegistry
       await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
@@ -446,7 +447,7 @@ describe("FundingVault", function () {
     let deadline;
 
     beforeEach(async function () {
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       // Register model in ModelRegistry
       await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
@@ -500,7 +501,7 @@ describe("FundingVault", function () {
     });
 
     it("Should require announcement before graduation", async function () {
-      await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"), owner.address);
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
       // Register model in ModelRegistry
       await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
@@ -518,7 +519,7 @@ describe("FundingVault", function () {
     });
 
     it("Should reject graduation without an announced snapshot", async function () {
-      await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"), owner.address);
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
       // Register model in ModelRegistry
       await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
@@ -546,7 +547,7 @@ describe("FundingVault", function () {
     let deadline;
 
     beforeEach(async function () {
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       deadline = await getDeadline();
       // Register model in ModelRegistry
@@ -593,7 +594,7 @@ describe("FundingVault", function () {
     });
 
     it("Should reject claim before graduation", async function () {
-      await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"), owner.address);
       const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
       // Register model in ModelRegistry
       await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
@@ -635,7 +636,7 @@ describe("FundingVault", function () {
     beforeEach(async function () {
       [, , user1, user2, user3, user4, user5] = await ethers.getSigners();
 
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       token = await ethers.getContractAt("HokusaiToken", tokenAddress);
       deadline = await getDeadline();
@@ -710,7 +711,7 @@ describe("FundingVault", function () {
     let deadline;
 
     beforeEach(async function () {
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       deadline = await getDeadline();
       // Register model in ModelRegistry
@@ -744,7 +745,7 @@ describe("FundingVault", function () {
     let deadline;
 
     beforeEach(async function () {
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       deadline = await getDeadline();
       // Register model in ModelRegistry
@@ -782,7 +783,7 @@ describe("FundingVault", function () {
     let deadline;
 
     beforeEach(async function () {
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       // Register model in ModelRegistry
       await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
@@ -823,7 +824,7 @@ describe("FundingVault", function () {
   describe("Reentrancy Protection", function () {
     it("Should protect deposit from reentrancy", async function () {
       const amount = usd(1000);
-      await tokenManager.deployToken(MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
       // Register model in ModelRegistry
       await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");

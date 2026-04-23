@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("DeltaVerifier Multi-Contributor Support", function () {
   let deltaVerifier;
@@ -73,7 +74,7 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
 
     // Set up permissions and deploy token
     await hokusaiToken.setController(await tokenManager.getAddress());
-    await tokenManager.deployToken(MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"));
+    await deployTestToken(tokenManager, MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"), owner.address);
     await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), await deltaVerifier.getAddress());
     await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
 

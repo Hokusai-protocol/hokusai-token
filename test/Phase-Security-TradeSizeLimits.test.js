@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("Security: Maximum Trade Size Limits", function () {
   let hokusaiAMM;
@@ -35,7 +36,7 @@ describe("Security: Maximum Trade Size Limits", function () {
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
 
-    await tokenManager.deployToken(modelId, "Trade Limit Test", "TLT", INITIAL_SUPPLY);
+    await deployTestToken(tokenManager, modelId, "Trade Limit Test", "TLT", INITIAL_SUPPLY, owner.address);
     const tokenAddress = await tokenManager.getTokenAddress(modelId);
     hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
 

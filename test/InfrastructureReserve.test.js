@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
+const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
 
 describe("InfrastructureReserve", function () {
   let InfrastructureReserve;
@@ -61,21 +62,11 @@ describe("InfrastructureReserve", function () {
     await infraReserve.waitForDeployment();
 
     // Deploy tokens and create pools
-    const token1Address = await tokenManager.deployToken.staticCall(
-      MODEL_ID,
-      "Test Token 1",
-      "TEST1",
-      ethers.parseEther("1000000")
-    );
-    await tokenManager.deployToken(MODEL_ID, "Test Token 1", "TEST1", ethers.parseEther("1000000"));
+    const token1Address = await deployTestTokenAddress(tokenManager, MODEL_ID, "Test Token 1", "TEST1", ethers.parseEther("1000000"), owner.address);
+    await deployTestToken(tokenManager, MODEL_ID, "Test Token 1", "TEST1", ethers.parseEther("1000000"), owner.address);
 
-    const token2Address = await tokenManager.deployToken.staticCall(
-      MODEL_ID_2,
-      "Test Token 2",
-      "TEST2",
-      ethers.parseEther("1000000")
-    );
-    await tokenManager.deployToken(MODEL_ID_2, "Test Token 2", "TEST2", ethers.parseEther("1000000"));
+    const token2Address = await deployTestTokenAddress(tokenManager, MODEL_ID_2, "Test Token 2", "TEST2", ethers.parseEther("1000000"), owner.address);
+    await deployTestToken(tokenManager, MODEL_ID_2, "Test Token 2", "TEST2", ethers.parseEther("1000000"), owner.address);
 
     // Register models in ModelRegistry
     await modelRegistry.registerStringModel(MODEL_ID, token1Address, "Test metric");

@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("Phase 5: Reserve Accounting Invariants", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -34,7 +35,7 @@ describe("Phase 5: Reserve Accounting Invariants", function () {
         await tokenManager.waitForDeployment();
 
         // Deploy token
-        await tokenManager.deployToken(modelId, "Reserve Test", "RST", INITIAL_SUPPLY);
+        await deployTestToken(tokenManager, modelId, "Reserve Test", "RST", INITIAL_SUPPLY, owner.address);
         const tokenAddress = await tokenManager.getTokenAddress(modelId);
         hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
 

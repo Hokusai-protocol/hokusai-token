@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("DeltaVerifier", function () {
   let deltaVerifier;
@@ -93,7 +94,7 @@ describe("DeltaVerifier", function () {
 
     // Setup relationships
     await hokusaiToken.setController(tokenManager.target);
-    await tokenManager.deployToken(MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"));
+    await deployTestToken(tokenManager, MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"), owner.address);
     await modelRegistry.registerModel(MODEL_ID, hokusaiToken.target, "accuracy");
     await tokenManager.setDeltaVerifier(deltaVerifier.target);
 

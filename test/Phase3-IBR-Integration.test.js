@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
+const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
 
 describe("Phase 3: IBR & TokenManager Integration", function () {
     let modelRegistry;
@@ -43,13 +44,8 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
         await mockUSDC.waitForDeployment();
 
         // Deploy token via TokenManager
-        const tokenAddress = await tokenManager.deployToken.staticCall(
-            MODEL_ID,
-            TOKEN_NAME,
-            TOKEN_SYMBOL,
-            INITIAL_SUPPLY
-        );
-        await tokenManager.deployToken(MODEL_ID, TOKEN_NAME, TOKEN_SYMBOL, INITIAL_SUPPLY);
+        const tokenAddress = await deployTestTokenAddress(tokenManager, MODEL_ID, TOKEN_NAME, TOKEN_SYMBOL, INITIAL_SUPPLY, owner.address);
+        await deployTestToken(tokenManager, MODEL_ID, TOKEN_NAME, TOKEN_SYMBOL, INITIAL_SUPPLY, owner.address);
 
         // Get deployed token
         const HokusaiToken = await ethers.getContractFactory("HokusaiToken");

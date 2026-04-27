@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("TokenManager - Allocation Split", function () {
   let tokenManager;
@@ -238,11 +239,13 @@ describe("TokenManager - Allocation Split", function () {
 
   describe("Backward Compatibility", function () {
     it("Should still support deployToken without allocations", async function () {
-      await tokenManager.deployToken(
+      await deployTestToken(
+        tokenManager,
         "legacy-model",
         "Legacy Token",
         "LGC",
-        parseEther("10000")
+        parseEther("10000"),
+        owner.address
       );
 
       const tokenAddress = await tokenManager.getTokenAddress("legacy-model");

@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
+const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
 
 describe("Phase 5: Fee Collection System", function () {
     let modelRegistry;
@@ -44,21 +45,11 @@ describe("Phase 5: Fee Collection System", function () {
         await factory.waitForDeployment();
 
         // Deploy tokens and pools
-        const token1Address = await tokenManager.deployToken.staticCall(
-            MODEL_ID_1,
-            "Alpha Token",
-            "ALPHA",
-            parseEther("1")
-        );
-        await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"));
+        const token1Address = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
+        await deployTestToken(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
 
-        const token2Address = await tokenManager.deployToken.staticCall(
-            MODEL_ID_2,
-            "Beta Token",
-            "BETA",
-            parseEther("1")
-        );
-        await tokenManager.deployToken(MODEL_ID_2, "Beta Token", "BETA", parseEther("1"));
+        const token2Address = await deployTestTokenAddress(tokenManager, MODEL_ID_2, "Beta Token", "BETA", parseEther("1"), owner.address);
+        await deployTestToken(tokenManager, MODEL_ID_2, "Beta Token", "BETA", parseEther("1"), owner.address);
 
         // Register models in ModelRegistry
         await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");
@@ -306,13 +297,8 @@ describe("Phase 5: Fee Collection System", function () {
             const callCounts = [];
             for (let i = 0; i < 5; i++) {
                 const modelId = `model-${i}`;
-                const tokenAddress = await tokenManager.deployToken.staticCall(
-                    modelId,
-                    `Token ${i}`,
-                    `TKN${i}`,
-                    parseEther("1")
-                );
-                await tokenManager.deployToken(modelId, `Token ${i}`, `TKN${i}`, parseEther("1"));
+                const tokenAddress = await deployTestTokenAddress(tokenManager, modelId, `Token ${i}`, `TKN${i}`, parseEther("1"), owner.address);
+                await deployTestToken(tokenManager, modelId, `Token ${i}`, `TKN${i}`, parseEther("1"), owner.address);
                 // Register model in ModelRegistry
                 await modelRegistry.registerStringModel(modelId, tokenAddress, "Test metric");
                 await factory.createPool(modelId, tokenAddress);

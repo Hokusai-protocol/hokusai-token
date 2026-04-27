@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
+const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
 
 describe("Phase 4: Factory & Registry Integration", function () {
     let modelRegistry;
@@ -77,13 +78,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         beforeEach(async function () {
             // Deploy token via TokenManager
-            token1Address = await tokenManager.deployToken.staticCall(
-                MODEL_ID_1,
-                "Alpha Token",
-                "ALPHA",
-                parseEther("1")
-            );
-            await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"));
+            token1Address = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
             // Register model in ModelRegistry
             await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");
         });
@@ -200,29 +196,14 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         beforeEach(async function () {
             // Deploy multiple tokens
-            token1Address = await tokenManager.deployToken.staticCall(
-                MODEL_ID_1,
-                "Alpha Token",
-                "ALPHA",
-                parseEther("1")
-            );
-            await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"));
+            token1Address = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
 
-            token2Address = await tokenManager.deployToken.staticCall(
-                MODEL_ID_2,
-                "Beta Token",
-                "BETA",
-                parseEther("1")
-            );
-            await tokenManager.deployToken(MODEL_ID_2, "Beta Token", "BETA", parseEther("1"));
+            token2Address = await deployTestTokenAddress(tokenManager, MODEL_ID_2, "Beta Token", "BETA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, MODEL_ID_2, "Beta Token", "BETA", parseEther("1"), owner.address);
 
-            token3Address = await tokenManager.deployToken.staticCall(
-                MODEL_ID_3,
-                "Gamma Token",
-                "GAMMA",
-                parseEther("1")
-            );
-            await tokenManager.deployToken(MODEL_ID_3, "Gamma Token", "GAMMA", parseEther("1"));
+            token3Address = await deployTestTokenAddress(tokenManager, MODEL_ID_3, "Gamma Token", "GAMMA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, MODEL_ID_3, "Gamma Token", "GAMMA", parseEther("1"), owner.address);
 
             // Register models in ModelRegistry
             await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");
@@ -283,13 +264,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should isolate pools (different parameters)", async function () {
             // Create pool with different parameters
-            const token4Address = await tokenManager.deployToken.staticCall(
-                "model-delta",
-                "Delta Token",
-                "DELTA",
-                parseEther("1")
-            );
-            await tokenManager.deployToken("model-delta", "Delta Token", "DELTA", parseEther("1"));
+            const token4Address = await deployTestTokenAddress(tokenManager, "model-delta", "Delta Token", "DELTA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, "model-delta", "Delta Token", "DELTA", parseEther("1"), owner.address);
 
             // Register model in ModelRegistry
             await modelRegistry.registerStringModel("model-delta", token4Address, "Test metric");
@@ -382,13 +358,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should not affect existing pools when defaults change", async function () {
             // Create pool with current defaults
-            const tokenAddress = await tokenManager.deployToken.staticCall(
-                MODEL_ID_1,
-                "Alpha Token",
-                "ALPHA",
-                parseEther("1")
-            );
-            await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"));
+            const tokenAddress = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
 
             // Register model in ModelRegistry
             await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
@@ -416,13 +387,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
         let token1Address, pool1Address;
 
         beforeEach(async function () {
-            token1Address = await tokenManager.deployToken.staticCall(
-                MODEL_ID_1,
-                "Alpha Token",
-                "ALPHA",
-                parseEther("1")
-            );
-            await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"));
+            token1Address = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
 
             // Register model in ModelRegistry
             await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");
@@ -456,13 +422,8 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
     describe("Access Control", function () {
         it("Should only allow owner to create pools", async function () {
-            const tokenAddress = await tokenManager.deployToken.staticCall(
-                MODEL_ID_1,
-                "Alpha Token",
-                "ALPHA",
-                parseEther("1")
-            );
-            await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"));
+            const tokenAddress = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
 
             await expect(
                 factory.connect(user1).createPool(MODEL_ID_1, tokenAddress)

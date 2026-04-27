@@ -31,6 +31,12 @@ contract HokusaiToken is ERC20, Ownable {
     event ControllerUpdated(address indexed newController);
     event Minted(address indexed to, uint256 amount);
     event Burned(address indexed from, uint256 amount);
+    event TokenSupplyConfigured(
+        uint256 initialSupply,
+        uint256 maxSupply,
+        uint256 modelSupplierAllocation,
+        address indexed modelSupplierRecipient
+    );
     event ModelSupplierAllocationDistributed(address indexed recipient, uint256 amount);
 
     modifier onlyController() {
@@ -89,6 +95,7 @@ contract HokusaiToken is ERC20, Ownable {
             emit Minted(_controller, _initialSupply);
         }
 
+        emit TokenSupplyConfigured(_initialSupply, maxSupply, modelSupplierAllocation, modelSupplierRecipient);
         emit ControllerUpdated(_controller);
     }
 

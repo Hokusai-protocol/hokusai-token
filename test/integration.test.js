@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("TokenManager-ModelRegistry Integration", function () {
   let modelRegistry;
@@ -193,7 +194,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     
     beforeEach(async function () {
       // Deploy token through TokenManager (new approach)
-      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("10000"));
+      await deployTestToken(tokenManager, modelId, "Test Token", "TEST", parseEther("10000"), owner.address);
     });
 
     it("Should check if model is managed", async function () {
@@ -219,7 +220,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     const modelId = "67890";
 
     beforeEach(async function () {
-      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("10000"));
+      await deployTestToken(tokenManager, modelId, "Test Token", "TEST", parseEther("10000"), owner.address);
     });
 
     describe("Minting", function () {
@@ -327,8 +328,8 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     beforeEach(async function () {
       // Deploy both tokens through TokenManager
-      await tokenManager.deployToken(modelId1, "Hokusai Token 1", "HOKU1", parseEther("10000"));
-      await tokenManager.deployToken(modelId2, "Hokusai Token 2", "HOKU2", parseEther("10000"));
+      await deployTestToken(tokenManager, modelId1, "Hokusai Token 1", "HOKU1", parseEther("10000"), owner.address);
+      await deployTestToken(tokenManager, modelId2, "Hokusai Token 2", "HOKU2", parseEther("10000"), owner.address);
 
       // Get the deployed token addresses
       const tokenAddress1 = await tokenManager.getTokenAddress(modelId1);
@@ -374,7 +375,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
       const modelId = "300";
       
       // 1. Deploy token through TokenManager
-      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("10000"));
+      await deployTestToken(tokenManager, modelId, "Test Token", "TEST", parseEther("10000"), owner.address);
       expect(await tokenManager.hasToken(modelId)).to.be.true;
       
       // 2. Check TokenManager can see the model
@@ -406,7 +407,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
     const modelId = "400";
 
     beforeEach(async function () {
-      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("10000"));
+      await deployTestToken(tokenManager, modelId, "Test Token", "TEST", parseEther("10000"), owner.address);
     });
 
     it("Should track gas costs for token operations", async function () {

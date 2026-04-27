@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
+const { wholeTokens } = require("./helpers/tokenDeployment");
 
 describe("TokenManager with Params", function () {
   let tokenManager;
@@ -16,7 +17,7 @@ describe("TokenManager with Params", function () {
 
   // Default initial params for testing
   const defaultInitialParams = {
-    tokensPerDeltaOne: 1000,
+    tokensPerDeltaOne: wholeTokens(1000),
     infrastructureAccrualBps: 8000, // 80%
     licenseHash: keccak256(toUtf8Bytes("standard-license")),
     licenseURI: "https://hokusai.ai/licenses/standard",
@@ -287,14 +288,14 @@ describe("TokenManager with Params", function () {
           parseEther("10000"),
           invalidParams
         )
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
+      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 10000000 whole tokens (wei-scaled)");
     });
   });
 
   describe("Multiple Token Deployment", function () {
     it("Should deploy multiple tokens with different parameters", async function () {
-      const params1 = { ...defaultInitialParams, tokensPerDeltaOne: 1000, infrastructureAccrualBps: 6000 };
-      const params2 = { ...defaultInitialParams, tokensPerDeltaOne: 2000, infrastructureAccrualBps: 7000 };
+      const params1 = { ...defaultInitialParams, tokensPerDeltaOne: wholeTokens(1000), infrastructureAccrualBps: 6000 };
+      const params2 = { ...defaultInitialParams, tokensPerDeltaOne: wholeTokens(2000), infrastructureAccrualBps: 7000 };
 
       await tokenManager.deployTokenWithParams(MODEL_ID_1, "GPT-4 Token", "GPT4", parseEther("10000"), params1);
       await tokenManager.deployTokenWithParams(MODEL_ID_2, "DALL-E Token", "DALLE", parseEther("5000"), params2);
@@ -312,8 +313,8 @@ describe("TokenManager with Params", function () {
       const paramsContract1 = HokusaiParams.attach(paramsAddress1);
       const paramsContract2 = HokusaiParams.attach(paramsAddress2);
 
-      expect(await paramsContract1.tokensPerDeltaOne()).to.equal(1000);
-      expect(await paramsContract2.tokensPerDeltaOne()).to.equal(2000);
+      expect(await paramsContract1.tokensPerDeltaOne()).to.equal(wholeTokens(1000));
+      expect(await paramsContract2.tokensPerDeltaOne()).to.equal(wholeTokens(2000));
       expect(await paramsContract1.infrastructureAccrualBps()).to.equal(6000);
       expect(await paramsContract2.infrastructureAccrualBps()).to.equal(7000);
     });
@@ -428,7 +429,7 @@ describe("TokenManager with Params", function () {
         params.connect(governor).setTokensPerDeltaOne(1500)
       ).to.not.be.reverted;
 
-      expect(await params.tokensPerDeltaOne()).to.equal(1500);
+      expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(1500));
     });
   });
 

@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
+const { wholeTokens } = require("./helpers/tokenDeployment");
 
 describe("Full Integration: Params Module", function () {
   let modelRegistry;
@@ -18,7 +19,7 @@ describe("Full Integration: Params Module", function () {
 
   // Initial parameters for the model
   const initialParams = {
-    tokensPerDeltaOne: 1500,
+    tokensPerDeltaOne: wholeTokens(1500),
     infrastructureAccrualBps: 7000, // 70%
     licenseHash: keccak256(toUtf8Bytes("gpt-4-license-v1")),
     licenseURI: "https://openai.com/licenses/gpt-4",
@@ -251,7 +252,7 @@ describe("Full Integration: Params Module", function () {
       // Update tokensPerDeltaOne
       await expect(params.connect(governor).setTokensPerDeltaOne(2000))
         .to.emit(params, "TokensPerDeltaOneSet");
-      expect(await params.tokensPerDeltaOne()).to.equal(2000);
+      expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(2000));
 
       // Update infrastructureAccrualBps
       await expect(params.connect(governor).setInfrastructureAccrualBps(7500))
@@ -289,7 +290,7 @@ describe("Full Integration: Params Module", function () {
       // Deploy first model
       const params1 = {
         ...initialParams,
-        tokensPerDeltaOne: 1000,
+        tokensPerDeltaOne: wholeTokens(1000),
         infrastructureAccrualBps: 6000 // 60%
       };
       await tokenManager.deployTokenWithParams("1", "Model One", "M1", parseEther("100000"), params1);
@@ -297,7 +298,7 @@ describe("Full Integration: Params Module", function () {
       // Deploy second model
       const params2 = {
         ...initialParams,
-        tokensPerDeltaOne: 2000,
+        tokensPerDeltaOne: wholeTokens(2000),
         infrastructureAccrualBps: 8000 // 80%
       };
       await tokenManager.deployTokenWithParams("2", "Model Two", "M2", parseEther("200000"), params2);
@@ -355,12 +356,12 @@ describe("Full Integration: Params Module", function () {
         await params.connect(governor).setTokensPerDeltaOne(1000 + i * 200);
 
         // Verify parameter is updated
-        expect(await params.tokensPerDeltaOne()).to.equal(1000 + i * 200);
+        expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(1000 + i * 200));
 
         // Verify dynamic calculation uses new parameter
         const reward = await deltaVerifier.calculateRewardDynamic(MODEL_ID_STR, 500, 10000, 0);
-        // Formula: (deltaInBps * tokensPerDeltaOne * contributorWeight) / (100 * 10000) * 1e18
-        const expectedReward = BigInt((500 * (1000 + i * 200) * 10000) / (100 * 10000)) * BigInt(1e18);
+        // Formula: (deltaInBps * tokensPerDeltaOne * contributorWeight) / (100 * 10000)
+        const expectedReward = wholeTokens((500 * (1000 + i * 200) * 10000) / (100 * 10000));
         expect(reward).to.equal(expectedReward);
       }
     });

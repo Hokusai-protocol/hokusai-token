@@ -10,14 +10,19 @@ import "./interfaces/IHokusaiParams.sol";
  * Allows governance to adjust key operational parameters without contract upgrades
  */
 contract HokusaiParams is IHokusaiParams, AccessControl {
+    string private constant TOKENS_PER_DELTA_ONE_BOUNDS_ERROR =
+        "tokensPerDeltaOne must be between 100 and 10000000 whole tokens (wei-scaled)";
+    uint256 private constant TOKEN_UNIT = 1 ether;
+    uint256 private constant MAX_TOKENS_PER_DELTA_ONE_WHOLE = 10_000_000;
+
     /// @dev Role identifier for governance operations
     bytes32 public constant GOV_ROLE = keccak256("GOV_ROLE");
 
-    /// @dev Minimum allowed value for tokensPerDeltaOne
-    uint256 public constant MIN_TOKENS_PER_DELTA_ONE = 100;
+    /// @dev Minimum allowed value for tokensPerDeltaOne (100 whole tokens, wei-scaled)
+    uint256 public constant MIN_TOKENS_PER_DELTA_ONE = 100 ether;
 
-    /// @dev Maximum allowed value for tokensPerDeltaOne
-    uint256 public constant MAX_TOKENS_PER_DELTA_ONE = 1000000;
+    /// @dev Maximum allowed value for tokensPerDeltaOne (10,000,000 whole tokens, wei-scaled)
+    uint256 public constant MAX_TOKENS_PER_DELTA_ONE = 10_000_000 ether;
 
     /// @dev Minimum allowed value for infrastructureAccrualBps (10% in basis points)
     uint16 public constant MIN_INFRASTRUCTURE_ACCRUAL_BPS = 1000;
@@ -70,7 +75,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
 
     /**
      * @dev Constructor to initialize the parameter contract
-     * @param initialTokensPerDeltaOne Initial tokens per deltaOne value (100-1000000)
+     * @param initialTokensPerDeltaOne Initial tokens per deltaOne value in wei (100-10000000 whole tokens)
      * @param initialInfrastructureAccrualBps Initial infrastructure accrual in basis points (1000-10000)
      * @param initialLicenseHash Initial license reference hash
      * @param initialLicenseURI Initial license reference URI
@@ -84,11 +89,8 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         address governor
     ) {
         require(governor != address(0), "Governor cannot be zero address");
-        require(
-            initialTokensPerDeltaOne >= MIN_TOKENS_PER_DELTA_ONE &&
-            initialTokensPerDeltaOne <= MAX_TOKENS_PER_DELTA_ONE,
-            "tokensPerDeltaOne must be between 100 and 1000000"
-        );
+        initialTokensPerDeltaOne = _normalizeTokensPerDeltaOne(initialTokensPerDeltaOne);
+        _validateTokensPerDeltaOne(initialTokensPerDeltaOne);
         require(
             initialInfrastructureAccrualBps >= MIN_INFRASTRUCTURE_ACCRUAL_BPS &&
             initialInfrastructureAccrualBps <= MAX_INFRASTRUCTURE_ACCRUAL_BPS,
@@ -161,10 +163,8 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
      * @inheritdoc IHokusaiParams
      */
     function setTokensPerDeltaOne(uint256 newValue) external override onlyRole(GOV_ROLE) {
-        require(
-            newValue >= MIN_TOKENS_PER_DELTA_ONE && newValue <= MAX_TOKENS_PER_DELTA_ONE,
-            "tokensPerDeltaOne must be between 100 and 1000000"
-        );
+        newValue = _normalizeTokensPerDeltaOne(newValue);
+        _validateTokensPerDeltaOne(newValue);
 
         uint256 oldValue = _tokensPerDeltaOne;
         _tokensPerDeltaOne = newValue;
@@ -228,23 +228,39 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     }
 
     /**
-     * @dev Validates parameter name and value
+     * @dev Normalizes and validates a parameter value before it is stored.
+     */
+    function _normalizeTokensPerDeltaOne(uint256 value) private pure returns (uint256) {
+        if (value <= MAX_TOKENS_PER_DELTA_ONE_WHOLE) {
+            return value * TOKEN_UNIT;
+        }
+        return value;
+    }
+
+    function _validateTokensPerDeltaOne(uint256 value) private pure {
+        require(
+            value >= MIN_TOKENS_PER_DELTA_ONE && value <= MAX_TOKENS_PER_DELTA_ONE,
+            TOKENS_PER_DELTA_ONE_BOUNDS_ERROR
+        );
+    }
+
+    /**
+     * @dev Validates parameter name and value and returns the normalized stored value.
      * @param paramName The parameter name
      * @param newValue The new value to validate
      */
-    function _validateParam(string memory paramName, uint256 newValue) private pure {
+    function _validateParam(string memory paramName, uint256 newValue) private pure returns (uint256 normalizedValue) {
         bytes32 paramHash = keccak256(bytes(paramName));
 
         if (paramHash == keccak256(bytes("tokensPerDeltaOne"))) {
-            require(
-                newValue >= MIN_TOKENS_PER_DELTA_ONE && newValue <= MAX_TOKENS_PER_DELTA_ONE,
-                "tokensPerDeltaOne must be between 100 and 1000000"
-            );
+            normalizedValue = _normalizeTokensPerDeltaOne(newValue);
+            _validateTokensPerDeltaOne(normalizedValue);
         } else if (paramHash == keccak256(bytes("infrastructureAccrualBps"))) {
             require(
                 newValue >= MIN_INFRASTRUCTURE_ACCRUAL_BPS && newValue <= MAX_INFRASTRUCTURE_ACCRUAL_BPS,
                 "infrastructureAccrualBps must be between 1000 and 10000"
             );
+            normalizedValue = newValue;
         } else {
             revert("Invalid parameter name");
         }
@@ -294,18 +310,18 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         require(bytes(modelId).length > 0, "Model ID cannot be empty");
 
         _initializeModelIfNeeded(modelId);
-        _validateParam(paramName, newValue);
+        uint256 normalizedValue = _validateParam(paramName, newValue);
 
         uint256 currentValue = _getCurrentParamValue(modelId, paramName);
         uint256 effectiveAfter = _priceEpochStart[modelId] + _priceEpochDuration;
 
         _pendingParamUpdates[modelId][paramName] = PendingUpdate({
-            value: newValue,
+            value: normalizedValue,
             queuedAt: block.timestamp,
             exists: true
         });
 
-        emit ParamUpdateQueued(modelId, paramName, currentValue, newValue, effectiveAfter);
+        emit ParamUpdateQueued(modelId, paramName, currentValue, normalizedValue, effectiveAfter);
     }
 
     /**
@@ -390,15 +406,15 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         require(bytes(reason).length > 0, "Reason cannot be empty");
 
         _initializeModelIfNeeded(modelId);
-        _validateParam(paramName, newValue);
-        _setParamValue(modelId, paramName, newValue);
+        uint256 normalizedValue = _validateParam(paramName, newValue);
+        _setParamValue(modelId, paramName, normalizedValue);
 
         // Clear any pending update for this parameter
         if (_pendingParamUpdates[modelId][paramName].exists) {
             delete _pendingParamUpdates[modelId][paramName];
         }
 
-        emit EmergencyParamOverride(modelId, paramName, newValue, reason);
+        emit EmergencyParamOverride(modelId, paramName, normalizedValue, reason);
     }
 
     /**

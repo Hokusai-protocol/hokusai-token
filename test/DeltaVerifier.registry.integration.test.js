@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("DeltaVerifier - DataContributionRegistry Integration", function () {
   let deltaVerifier;
@@ -81,7 +82,7 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
 
     // Setup relationships
     await hokusaiToken.setController(tokenManager.target);
-    await tokenManager.deployToken(String(MODEL_ID), "Hokusai Token", "HOKU", parseEther("10000"));
+    await deployTestToken(tokenManager, String(MODEL_ID), "Hokusai Token", "HOKU", parseEther("10000"), owner.address);
     await modelRegistry.registerModel(MODEL_ID, hokusaiToken.target, "accuracy");
     await tokenManager.setDeltaVerifier(deltaVerifier.target);
 
@@ -279,7 +280,7 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
     it("should correctly track contributor global tokens across multiple models", async function () {
       // Deploy second token for second model
       const MODEL_ID_2 = 2;
-      await tokenManager.deployToken(String(MODEL_ID_2), "Hokusai Token 2", "HOKU2", parseEther("10000"));
+      await deployTestToken(tokenManager, String(MODEL_ID_2), "Hokusai Token 2", "HOKU2", parseEther("10000"), owner.address);
 
       const HokusaiToken2 = await ethers.getContractAt(
         "HokusaiToken",

@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
+const { wholeTokens } = require("./helpers/tokenDeployment");
 
 describe("HokusaiToken", function () {
   let Token;
@@ -548,14 +549,14 @@ describe("HokusaiToken", function () {
 
       // Verify the interface exists and can be called
       const tokensPerDelta = await params.tokensPerDeltaOne();
-      expect(tokensPerDelta).to.equal(1000);
+      expect(tokensPerDelta).to.equal(wholeTokens(1000));
     });
 
     it("Should access params functions through token", async function () {
       // Test that we can read parameters through the token's params reference
       const paramsContract = await ethers.getContractAt("IHokusaiParams", await token.params());
 
-      expect(await paramsContract.tokensPerDeltaOne()).to.equal(1000);
+      expect(await paramsContract.tokensPerDeltaOne()).to.equal(wholeTokens(1000));
       expect(await paramsContract.infrastructureAccrualBps()).to.equal(8000);
 
       const [hash, uri] = await paramsContract.licenseRef();

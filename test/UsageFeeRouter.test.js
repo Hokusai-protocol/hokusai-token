@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
+const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
 
 describe("UsageFeeRouter", function () {
   let modelRegistry;
@@ -73,21 +74,11 @@ describe("UsageFeeRouter", function () {
     await feeRouter.waitForDeployment();
 
     // Deploy tokens and create pools
-    const token1Address = await tokenManager.deployToken.staticCall(
-      MODEL_ID_1,
-      "Alpha Token",
-      "ALPHA",
-      INITIAL_SUPPLY
-    );
-    await tokenManager.deployToken(MODEL_ID_1, "Alpha Token", "ALPHA", INITIAL_SUPPLY);
+    const token1Address = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", INITIAL_SUPPLY, owner.address);
+    await deployTestToken(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", INITIAL_SUPPLY, owner.address);
 
-    const token2Address = await tokenManager.deployToken.staticCall(
-      MODEL_ID_2,
-      "Beta Token",
-      "BETA",
-      INITIAL_SUPPLY
-    );
-    await tokenManager.deployToken(MODEL_ID_2, "Beta Token", "BETA", INITIAL_SUPPLY);
+    const token2Address = await deployTestTokenAddress(tokenManager, MODEL_ID_2, "Beta Token", "BETA", INITIAL_SUPPLY, owner.address);
+    await deployTestToken(tokenManager, MODEL_ID_2, "Beta Token", "BETA", INITIAL_SUPPLY, owner.address);
 
     // Register models in ModelRegistry
     await modelRegistry.registerStringModel(MODEL_ID_1, token1Address, "Test metric");

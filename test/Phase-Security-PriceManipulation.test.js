@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("Phase 6: Price Manipulation Attack Security", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -34,7 +35,7 @@ describe("Phase 6: Price Manipulation Attack Security", function () {
         await tokenManager.waitForDeployment();
 
         // Deploy token
-        await tokenManager.deployToken(modelId, "Price Manipulation Test", "PMT", INITIAL_SUPPLY);
+        await deployTestToken(tokenManager, modelId, "Price Manipulation Test", "PMT", INITIAL_SUPPLY, owner.address);
         const tokenAddress = await tokenManager.getTokenAddress(modelId);
         hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
 

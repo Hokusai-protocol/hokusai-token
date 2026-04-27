@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress, MaxUint256 } = require("ethers");
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", function () {
   let modelRegistry;
@@ -35,7 +36,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     beforeEach(async function () {
       // Deploy a token to use in tests
-      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, modelId, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(modelId);
     });
 
@@ -100,7 +101,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     });
 
     it("Should reject token address mismatches against TokenManager", async function () {
-      await tokenManager.deployToken("other-model", "Other Token", "OTHR", parseEther("1000000"));
+      await deployTestToken(tokenManager, "other-model", "Other Token", "OTHR", parseEther("1000000"), owner.address);
 
       await expect(
         modelRegistry.registerStringModel("other-model", tokenAddress, performanceMetric)
@@ -109,7 +110,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     it("Should update a string model token and clear old reverse mapping", async function () {
       const newModelId = "model-v1-migrated";
-      await tokenManager.deployToken(newModelId, "Migrated Token", "MIG", parseEther("1000000"));
+      await deployTestToken(tokenManager, newModelId, "Migrated Token", "MIG", parseEther("1000000"), owner.address);
       const newTokenAddress = await tokenManager.getTokenAddress(newModelId);
 
       await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
@@ -133,7 +134,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     it("Should reject updating a string model to an already-registered token", async function () {
       const otherModelId = "other-model";
-      await tokenManager.deployToken(otherModelId, "Other Token", "OTHR", parseEther("1000000"));
+      await deployTestToken(tokenManager, otherModelId, "Other Token", "OTHR", parseEther("1000000"), owner.address);
       const otherTokenAddress = await tokenManager.getTokenAddress(otherModelId);
 
       await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
@@ -177,7 +178,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     it("Should only allow owner to manage registered string models", async function () {
       const newModelId = "model-owner-check";
-      await tokenManager.deployToken(newModelId, "Owner Check", "OWN", parseEther("1000000"));
+      await deployTestToken(tokenManager, newModelId, "Owner Check", "OWN", parseEther("1000000"), owner.address);
       const newTokenAddress = await tokenManager.getTokenAddress(newModelId);
 
       await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
@@ -203,7 +204,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     beforeEach(async function () {
       // Deploy token and register string model
-      await tokenManager.deployToken(modelId, "Test Token", "TEST", parseEther("1000000"));
+      await deployTestToken(tokenManager, modelId, "Test Token", "TEST", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(modelId);
       await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
     });
@@ -232,7 +233,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     it("Should prevent registering the same pool for another model", async function () {
       const modelId2 = "model-v2";
-      await tokenManager.deployToken(modelId2, "Test Token 2", "TEST2", parseEther("1000000"));
+      await deployTestToken(tokenManager, modelId2, "Test Token 2", "TEST2", parseEther("1000000"), owner.address);
       const tokenAddress2 = await tokenManager.getTokenAddress(modelId2);
       await modelRegistry.registerStringModel(modelId2, tokenAddress2, performanceMetric);
 
@@ -286,7 +287,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     it("Should return address(0) for model without pool", async function () {
       const modelId2 = "model-v2";
-      await tokenManager.deployToken(modelId2, "Test Token 2", "TEST2", parseEther("1000000"));
+      await deployTestToken(tokenManager, modelId2, "Test Token 2", "TEST2", parseEther("1000000"), owner.address);
       const tokenAddress2 = await tokenManager.getTokenAddress(modelId2);
       await modelRegistry.registerStringModel(modelId2, tokenAddress2, performanceMetric);
 
@@ -338,7 +339,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     beforeEach(async function () {
       // Deploy token
-      await tokenManager.deployToken(modelId, "Burn Test", "BURN", parseEther("1000000"));
+      await deployTestToken(tokenManager, modelId, "Burn Test", "BURN", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(modelId);
 
       // Mint some tokens to user
@@ -440,7 +441,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     it("Should complete full Phase 1 setup flow", async function () {
       // Step 1: Deploy token via TokenManager
-      await tokenManager.deployToken(modelId, "Integration Token", "INT", parseEther("1000000"));
+      await deployTestToken(tokenManager, modelId, "Integration Token", "INT", parseEther("1000000"), owner.address);
       tokenAddress = await tokenManager.getTokenAddress(modelId);
 
       // Step 2: Register string model in ModelRegistry

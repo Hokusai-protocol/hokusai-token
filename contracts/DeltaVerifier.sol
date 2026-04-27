@@ -393,13 +393,9 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
             return 0;
         }
 
-        // Calculate base reward using dynamic tokensPerDeltaOne
-        // Formula: (improvement % * tokensPerDeltaOne * contributor weight)
-        // Note: tokensPerDeltaOne replaces baseRewardRate with same scaling
+        // tokensPerDeltaOne is stored in wei-scaled whole tokens, so the reward is already in base units.
+        // Formula: (improvement % * tokensPerDeltaOne * contributor weight) / (100 * 10000)
         uint256 reward = (deltaInBps * tokensPerDeltaOne * contributorWeight) / (100 * 10000);
-
-        // Convert to wei (multiply by 10^18)
-        reward = reward * 1e18;
 
         // Cap at maximum reward
         if (reward > maxReward) {

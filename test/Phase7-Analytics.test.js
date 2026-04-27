@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
+const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
 
 describe("Phase 7: Analytics & View Functions", function () {
     let modelRegistry;
@@ -38,13 +39,8 @@ describe("Phase 7: Analytics & View Functions", function () {
         await mockUSDC.waitForDeployment();
 
         // Deploy token
-        const tokenAddress = await tokenManager.deployToken.staticCall(
-            MODEL_ID,
-            TOKEN_NAME,
-            TOKEN_SYMBOL,
-            INITIAL_SUPPLY
-        );
-        await tokenManager.deployToken(MODEL_ID, TOKEN_NAME, TOKEN_SYMBOL, INITIAL_SUPPLY);
+        const tokenAddress = await deployTestTokenAddress(tokenManager, MODEL_ID, TOKEN_NAME, TOKEN_SYMBOL, INITIAL_SUPPLY, owner.address);
+        await deployTestToken(tokenManager, MODEL_ID, TOKEN_NAME, TOKEN_SYMBOL, INITIAL_SUPPLY, owner.address);
 
         const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
         hokusaiToken = HokusaiToken.attach(tokenAddress);

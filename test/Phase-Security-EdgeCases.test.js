@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
+const { deployTestToken } = require("./helpers/tokenDeployment");
 
 describe("Phase 9: Edge Cases & Boundary Conditions", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -32,7 +33,7 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
         tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
         await tokenManager.waitForDeployment();
 
-        await tokenManager.deployToken(modelId, "Edge Case Test", "ECT", INITIAL_SUPPLY);
+        await deployTestToken(tokenManager, modelId, "Edge Case Test", "ECT", INITIAL_SUPPLY, owner.address);
         const tokenAddress = await tokenManager.getTokenAddress(modelId);
         hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
 

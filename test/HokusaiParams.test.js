@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { ZeroAddress, ZeroHash, keccak256, toUtf8Bytes } = require("ethers");
+const { wholeTokens } = require("./helpers/tokenDeployment");
 
 describe("HokusaiParams", function () {
   let HokusaiParams;
@@ -10,10 +11,12 @@ describe("HokusaiParams", function () {
   let user1;
   let addrs;
 
-  const DEFAULT_TOKENS_PER_DELTA_ONE = 1000;
+  const DEFAULT_TOKENS_PER_DELTA_ONE = wholeTokens(1000);
   const DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS = 8000; // 80%
   const DEFAULT_LICENSE_HASH = keccak256(toUtf8Bytes("default-license"));
   const DEFAULT_LICENSE_URI = "https://hokusai.ai/licenses/default";
+  const TOKENS_PER_DELTA_ONE_BOUNDS_ERROR =
+    "tokensPerDeltaOne must be between 100 and 10000000 whole tokens (wei-scaled)";
 
   beforeEach(async function () {
     [owner, governor, user1, ...addrs] = await ethers.getSigners();
@@ -76,19 +79,19 @@ describe("HokusaiParams", function () {
           DEFAULT_LICENSE_URI,
           governor.address
         )
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
+      ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
     });
 
     it("Should reject tokensPerDeltaOne above maximum", async function () {
       await expect(
         HokusaiParams.deploy(
-          1000001, // Above maximum of 1000000
+          10000001, // Above maximum of 10,000,000
           DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
         )
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
+      ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
     });
 
     it("Should reject infrastructureAccrualBps below minimum (1000)", async function () {
@@ -118,7 +121,7 @@ describe("HokusaiParams", function () {
 
   describe("Access Control", function () {
     it("Should allow governor to update tokensPerDeltaOne", async function () {
-      const newValue = 2000;
+      const newValue = wholeTokens(2000);
       await expect(params.connect(governor).setTokensPerDeltaOne(newValue))
         .to.emit(params, "TokensPerDeltaOneSet")
         .withArgs(DEFAULT_TOKENS_PER_DELTA_ONE, newValue, governor.address);
@@ -135,7 +138,7 @@ describe("HokusaiParams", function () {
     });
 
     it("Should prevent non-governor from updating tokensPerDeltaOne", async function () {
-      const newValue = 2000;
+      const newValue = wholeTokens(2000);
       await expect(
         params.connect(user1).setTokensPerDeltaOne(newValue)
       ).to.be.reverted;
@@ -200,29 +203,29 @@ describe("HokusaiParams", function () {
     it("Should reject tokensPerDeltaOne below minimum (100)", async function () {
       await expect(
         params.connect(governor).setTokensPerDeltaOne(99)
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
+      ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
     });
 
-    it("Should reject tokensPerDeltaOne above maximum (1000000)", async function () {
+    it("Should reject tokensPerDeltaOne above maximum (10000000)", async function () {
       await expect(
-        params.connect(governor).setTokensPerDeltaOne(1000001)
-      ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
+        params.connect(governor).setTokensPerDeltaOne(10000001)
+      ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
     });
 
     it("Should accept tokensPerDeltaOne at minimum boundary", async function () {
       await expect(params.connect(governor).setTokensPerDeltaOne(100))
         .to.emit(params, "TokensPerDeltaOneSet")
-        .withArgs(DEFAULT_TOKENS_PER_DELTA_ONE, 100, governor.address);
+        .withArgs(DEFAULT_TOKENS_PER_DELTA_ONE, wholeTokens(100), governor.address);
 
-      expect(await params.tokensPerDeltaOne()).to.equal(100);
+      expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(100));
     });
 
     it("Should accept tokensPerDeltaOne at maximum boundary", async function () {
-      await expect(params.connect(governor).setTokensPerDeltaOne(1000000))
+      await expect(params.connect(governor).setTokensPerDeltaOne(10000000))
         .to.emit(params, "TokensPerDeltaOneSet")
-        .withArgs(DEFAULT_TOKENS_PER_DELTA_ONE, 1000000, governor.address);
+        .withArgs(DEFAULT_TOKENS_PER_DELTA_ONE, wholeTokens(10000000), governor.address);
 
-      expect(await params.tokensPerDeltaOne()).to.equal(1000000);
+      expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(10000000));
     });
 
     it("Should reject infrastructureAccrualBps below minimum (1000)", async function () {
@@ -305,7 +308,7 @@ describe("HokusaiParams", function () {
 
   describe("Event Emission", function () {
     it("Should emit TokensPerDeltaOneSet with correct parameters", async function () {
-      const newValue = 1500;
+      const newValue = wholeTokens(1500);
       const tx = await params.connect(governor).setTokensPerDeltaOne(newValue);
 
       await expect(tx)
@@ -337,7 +340,7 @@ describe("HokusaiParams", function () {
     it("Should handle sequential parameter updates correctly", async function () {
       // Update tokensPerDeltaOne
       await params.connect(governor).setTokensPerDeltaOne(1500);
-      expect(await params.tokensPerDeltaOne()).to.equal(1500);
+      expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(1500));
 
       // Update infrastructureAccrualBps
       await params.connect(governor).setInfrastructureAccrualBps(7500);
@@ -353,7 +356,7 @@ describe("HokusaiParams", function () {
       expect(await params.licenseURI()).to.equal(newUri);
 
       // Verify all values are still correct
-      expect(await params.tokensPerDeltaOne()).to.equal(1500);
+      expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(1500));
       expect(await params.infrastructureAccrualBps()).to.equal(7500);
 
       const [hash, uri] = await params.licenseRef();
@@ -372,7 +375,7 @@ describe("HokusaiParams", function () {
         await params.connect(governor).setTokensPerDeltaOne(update.tokens);
         await params.connect(governor).setInfrastructureAccrualBps(update.infra);
 
-        expect(await params.tokensPerDeltaOne()).to.equal(update.tokens);
+        expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(update.tokens));
         expect(await params.infrastructureAccrualBps()).to.equal(update.infra);
         expect(await params.getProfitShareBps()).to.equal(10000 - update.infra);
       }
@@ -403,7 +406,7 @@ describe("HokusaiParams", function () {
     });
 
     it("Should handle setting same value twice", async function () {
-      const value = 1500;
+      const value = wholeTokens(1500);
 
       // Set initial value
       await params.connect(governor).setTokensPerDeltaOne(value);
@@ -426,7 +429,7 @@ describe("HokusaiParams", function () {
       expect(await params.hasRole(GOV_ROLE, user1.address)).to.be.true;
 
       // New governor should be able to update parameters
-      const newValue = 3000;
+      const newValue = wholeTokens(3000);
       await expect(params.connect(user1).setTokensPerDeltaOne(newValue))
         .to.emit(params, "TokensPerDeltaOneSet")
         .withArgs(DEFAULT_TOKENS_PER_DELTA_ONE, newValue, user1.address);
@@ -480,7 +483,7 @@ describe("HokusaiParams", function () {
 
     describe("Queue Parameter Updates", function () {
       it("Should queue tokensPerDeltaOne update", async function () {
-        const newValue = 2000;
+        const newValue = wholeTokens(2000);
 
         await expect(
           params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "tokensPerDeltaOne", newValue)
@@ -525,7 +528,7 @@ describe("HokusaiParams", function () {
       it("Should reject queue with out-of-bounds value", async function () {
         await expect(
           params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "tokensPerDeltaOne", 50)
-        ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
+        ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
 
         await expect(
           params.connect(governor).queueParamUpdate(TEST_MODEL_ID, "infrastructureAccrualBps", 500)
@@ -550,7 +553,7 @@ describe("HokusaiParams", function () {
 
       it("Should successfully apply updates after epoch boundary", async function () {
         const MODEL_ID = "model-apply-test";
-        const newValue = 5000;
+        const newValue = wholeTokens(5000);
 
         // Queue update
         await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", newValue);
@@ -596,7 +599,7 @@ describe("HokusaiParams", function () {
         expect(events.length).to.equal(2);
 
         // Verify new values
-        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(newTokens);
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(wholeTokens(newTokens));
         expect(await params.getModelInfrastructureAccrualBps(MODEL_ID)).to.equal(newInfra);
       });
 
@@ -677,7 +680,7 @@ describe("HokusaiParams", function () {
     describe("Emergency Override", function () {
       it("Should allow admin to force-apply parameter change", async function () {
         const MODEL_ID = "model-emergency";
-        const newValue = 15000;
+        const newValue = wholeTokens(15000);
         const reason = "Critical bug fix required";
 
         await expect(
@@ -690,7 +693,7 @@ describe("HokusaiParams", function () {
 
       it("Should bypass epoch boundary", async function () {
         const MODEL_ID = "model-bypass-epoch";
-        const newValue = 25000;
+        const newValue = wholeTokens(25000);
 
         // Emergency set should work immediately
         await params.connect(owner).emergencySetParam(
@@ -743,7 +746,7 @@ describe("HokusaiParams", function () {
       it("Should validate parameter bounds", async function () {
         await expect(
           params.connect(owner).emergencySetParam("model", "tokensPerDeltaOne", 50, "Invalid value")
-        ).to.be.revertedWith("tokensPerDeltaOne must be between 100 and 1000000");
+        ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
       });
     });
 
@@ -756,14 +759,14 @@ describe("HokusaiParams", function () {
         await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
         await ethers.provider.send("evm_mine");
         await params.applyPendingUpdates(MODEL_ID);
-        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(2000);
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(wholeTokens(2000));
 
         // Epoch 2: Queue and apply
         await params.connect(governor).queueParamUpdate(MODEL_ID, "tokensPerDeltaOne", 3000);
         await ethers.provider.send("evm_increaseTime", [EPOCH_DURATION + 1]);
         await ethers.provider.send("evm_mine");
         await params.applyPendingUpdates(MODEL_ID);
-        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(3000);
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(wholeTokens(3000));
       });
 
       it("Should handle overwriting queued updates", async function () {
@@ -777,7 +780,7 @@ describe("HokusaiParams", function () {
         await params.applyPendingUpdates(MODEL_ID);
 
         // Should apply the latest queued value
-        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(6000);
+        expect(await params.getModelTokensPerDeltaOne(MODEL_ID)).to.equal(wholeTokens(6000));
       });
 
       it("Should handle different models independently", async function () {
@@ -793,8 +796,8 @@ describe("HokusaiParams", function () {
         await params.applyPendingUpdates(MODEL_A);
         await params.applyPendingUpdates(MODEL_B);
 
-        expect(await params.getModelTokensPerDeltaOne(MODEL_A)).to.equal(5000);
-        expect(await params.getModelTokensPerDeltaOne(MODEL_B)).to.equal(7000);
+        expect(await params.getModelTokensPerDeltaOne(MODEL_A)).to.equal(wholeTokens(5000));
+        expect(await params.getModelTokensPerDeltaOne(MODEL_B)).to.equal(wholeTokens(7000));
       });
     });
   });

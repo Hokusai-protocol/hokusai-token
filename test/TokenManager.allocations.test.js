@@ -21,6 +21,7 @@ describe("TokenManager - Allocation Split", function () {
   const defaultInitialParams = {
     tokensPerDeltaOne: 1000,
     infrastructureAccrualBps: 8000, // 80%
+    initialOraclePricePerThousandUsd: 0,
     licenseHash: keccak256(toUtf8Bytes("standard-license")),
     licenseURI: "https://hokusai.ai/licenses/standard",
     governor: null // Will be set in beforeEach

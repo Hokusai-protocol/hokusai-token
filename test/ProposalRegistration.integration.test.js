@@ -74,6 +74,7 @@ describe("Proposal Registration Integration", function () {
       const initialParams = {
         tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
         infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
+        initialOraclePricePerThousandUsd: 0,
         licenseHash: LICENSE_HASH,
         licenseURI: LICENSE_URI,
         governor: owner.address
@@ -128,6 +129,7 @@ describe("Proposal Registration Integration", function () {
       const initialParams = {
         tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
         infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
+        initialOraclePricePerThousandUsd: 0,
         licenseHash: LICENSE_HASH,
         licenseURI: LICENSE_URI,
         governor: owner.address
@@ -182,6 +184,7 @@ describe("Proposal Registration Integration", function () {
       const initialParams = {
         tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
         infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
+        initialOraclePricePerThousandUsd: 0,
         licenseHash: LICENSE_HASH,
         licenseURI: LICENSE_URI,
         governor: owner.address
@@ -226,6 +229,7 @@ describe("Proposal Registration Integration", function () {
       const initialParams = {
         tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
         infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
+        initialOraclePricePerThousandUsd: 0,
         licenseHash: LICENSE_HASH,
         licenseURI: LICENSE_URI,
         governor: owner.address
@@ -259,6 +263,7 @@ describe("Proposal Registration Integration", function () {
       const initialParams = {
         tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
         infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
+        initialOraclePricePerThousandUsd: 0,
         licenseHash: LICENSE_HASH,
         licenseURI: LICENSE_URI,
         governor: owner.address
@@ -292,6 +297,7 @@ describe("Proposal Registration Integration", function () {
       const initialParams = {
         tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
         infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
+        initialOraclePricePerThousandUsd: 0,
         licenseHash: LICENSE_HASH,
         licenseURI: LICENSE_URI,
         governor: owner.address
@@ -329,6 +335,7 @@ describe("Proposal Registration Integration", function () {
       const initialParams = {
         tokensPerDeltaOne: BigInt(1000), // Default value
         infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
+        initialOraclePricePerThousandUsd: 0,
         licenseHash: LICENSE_HASH,
         licenseURI: LICENSE_URI,
         governor: owner.address
@@ -352,6 +359,7 @@ describe("Proposal Registration Integration", function () {
       const initialParams = {
         tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
         infrastructureAccrualBps: 5000, // 50%
+        initialOraclePricePerThousandUsd: 0,
         licenseHash: LICENSE_HASH,
         licenseURI: LICENSE_URI,
         governor: owner.address

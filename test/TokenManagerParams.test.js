@@ -19,6 +19,7 @@ describe("TokenManager with Params", function () {
   const defaultInitialParams = {
     tokensPerDeltaOne: wholeTokens(1000),
     infrastructureAccrualBps: 8000, // 80%
+    initialOraclePricePerThousandUsd: 123456,
     licenseHash: keccak256(toUtf8Bytes("standard-license")),
     licenseURI: "https://hokusai.ai/licenses/standard",
     governor: null // Will be set in beforeEach
@@ -136,6 +137,7 @@ describe("TokenManager with Params", function () {
 
       expect(await params.tokensPerDeltaOne()).to.equal(defaultInitialParams.tokensPerDeltaOne);
       expect(await params.infrastructureAccrualBps()).to.equal(defaultInitialParams.infrastructureAccrualBps);
+      expect(await params.oraclePricePerThousandUsd()).to.equal(defaultInitialParams.initialOraclePricePerThousandUsd);
       expect(await params.licenseHash()).to.equal(defaultInitialParams.licenseHash);
       expect(await params.licenseURI()).to.equal(defaultInitialParams.licenseURI);
 
@@ -332,7 +334,7 @@ describe("TokenManager with Params", function () {
 
       const receipt = await tx.wait();
       // Dual deployment now includes the epoch-aware params contract path.
-      expect(receipt.gasUsed).to.be.lt(3300000);
+      expect(receipt.gasUsed).to.be.lt(3350000);
     });
   });
 

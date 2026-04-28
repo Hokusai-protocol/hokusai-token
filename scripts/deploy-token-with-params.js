@@ -16,7 +16,8 @@ async function main() {
 
     // Initial parameter values
     tokensPerDeltaOne: 1000,
-    infraMarkupBps: 500, // 5%
+    infrastructureAccrualBps: 5000, // 50%
+    initialOraclePricePerThousandUsd: 0,
     licenseHash: ethers.ZeroHash, // Can update later
     licenseURI: "",
     governor: deployer.address // Change this to your governance address
@@ -50,10 +51,11 @@ async function main() {
     config.name,
     config.symbol,
     config.totalSupply,
-    {
-      tokensPerDeltaOne: config.tokensPerDeltaOne,
-      infraMarkupBps: config.infraMarkupBps,
-      licenseHash: config.licenseHash,
+      {
+        tokensPerDeltaOne: config.tokensPerDeltaOne,
+        infrastructureAccrualBps: config.infrastructureAccrualBps,
+        initialOraclePricePerThousandUsd: config.initialOraclePricePerThousandUsd,
+        licenseHash: config.licenseHash,
       licenseURI: config.licenseURI,
       governor: config.governor
     }
@@ -102,7 +104,7 @@ async function main() {
 
   console.log("\n🔗 Verify on Etherscan:");
   console.log(`npx hardhat verify --network sepolia ${tokenAddress} "${config.name}" "${config.symbol}" ${tokenManager.target} ${paramsAddress} ${config.totalSupply}`);
-  console.log(`npx hardhat verify --network sepolia ${paramsAddress} ${config.tokensPerDeltaOne} ${config.infraMarkupBps} "${config.licenseHash}" "${config.licenseURI}" ${config.governor}`);
+  console.log(`npx hardhat verify --network sepolia ${paramsAddress} ${config.tokensPerDeltaOne} ${config.infrastructureAccrualBps} ${config.initialOraclePricePerThousandUsd} "${config.licenseHash}" "${config.licenseURI}" ${config.governor}`);
 }
 
 main()

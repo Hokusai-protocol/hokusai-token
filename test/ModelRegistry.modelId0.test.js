@@ -21,6 +21,7 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
         params = await HokusaiParams.deploy(
             1000, // tokensPerDeltaOne
             8000, // infrastructureAccrualBps
+            0, // initialOraclePricePerThousandUsd
             ethers.keccak256(ethers.toUtf8Bytes("test-license")),
             "https://test.license",
             owner.address

@@ -133,6 +133,7 @@ describe("Integration: JSON Wallet Address Support", function () {
     const hokusaiParams = await HokusaiParams.deploy(
       1000, // tokensPerDeltaOne
       8000, // infrastructureAccrualBps (80%)
+      0, // initialOraclePricePerThousandUsd
       ethers.ZeroHash,
       "",
       owner.address

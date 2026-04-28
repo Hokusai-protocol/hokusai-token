@@ -64,6 +64,7 @@ describe("DeltaVerifier", function () {
     hokusaiParams = await HokusaiParams.deploy(
       1000, // tokensPerDeltaOne
       8000, // infrastructureAccrualBps (80%)
+      0, // initialOraclePricePerThousandUsd
       ethers.ZeroHash,
       "",
       owner.address
@@ -101,6 +102,10 @@ describe("DeltaVerifier", function () {
     // Grant RECORDER_ROLE to DeltaVerifier
     const RECORDER_ROLE = await contributionRegistry.RECORDER_ROLE();
     await contributionRegistry.grantRole(RECORDER_ROLE, deltaVerifier.target);
+
+    // Grant SUBMITTER_ROLE to admin signer for evaluation tests
+    const SUBMITTER_ROLE = await deltaVerifier.SUBMITTER_ROLE();
+    await deltaVerifier.grantRole(SUBMITTER_ROLE, admin.address);
   });
 
   describe("Deployment", function () {
@@ -110,7 +115,7 @@ describe("DeltaVerifier", function () {
       expect(await deltaVerifier.baseRewardRate()).to.equal(BASE_REWARD_RATE);
       expect(await deltaVerifier.minImprovementBps()).to.equal(MIN_IMPROVEMENT_BPS);
       expect(await deltaVerifier.maxReward()).to.equal(MAX_REWARD);
-      expect(await deltaVerifier.owner()).to.equal(owner.address);
+      expect(await deltaVerifier.hasRole(await deltaVerifier.DEFAULT_ADMIN_ROLE(), owner.address)).to.equal(true);
     });
 
     it("Should start unpaused", async function () {
@@ -366,11 +371,11 @@ describe("DeltaVerifier", function () {
       expect(await deltaVerifier.baseRewardRate()).to.equal(newRewardRate);
     });
 
-    it("Should prevent non-owner from updating reward parameters", async function () {
+    it("Should prevent non-admin from updating reward parameters", async function () {
       const newRewardRate = ethers.parseEther("2000");
       await expect(
         deltaVerifier.connect(contributor1).setBaseRewardRate(newRewardRate)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+      ).to.be.reverted;
     });
 
     it("Should allow owner to pause and unpause", async function () {

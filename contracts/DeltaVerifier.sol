@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "./libraries/ValidationLib.sol";
@@ -11,7 +11,8 @@ import "./HokusaiToken.sol";
 import "./interfaces/IHokusaiParams.sol";
 import "./interfaces/IDataContributionRegistry.sol";
 
-contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
+contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
+    bytes32 public constant SUBMITTER_ROLE = keccak256("SUBMITTER_ROLE");
     uint8 private constant METRIC_TYPE_MULTI = 0;
     uint8 private constant METRIC_TYPE_SINGLE = 1;
 
@@ -126,12 +127,15 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         baseRewardRate = _baseRewardRate;
         minImprovementBps = _minImprovementBps;
         maxReward = _maxReward;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(SUBMITTER_ROLE, msg.sender);
     }
 
     function submitEvaluation(
         uint256 modelId,
         EvaluationData calldata data
-    ) external nonReentrant whenNotPaused returns (uint256) {
+    ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
@@ -142,7 +146,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     function submitEvaluationWithContributorInfo(
         uint256 modelId,
         EvaluationDataWithInfo calldata data
-    ) external nonReentrant whenNotPaused returns (uint256) {
+    ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
@@ -171,7 +175,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         uint256 modelId,
         EvaluationDataBase calldata data,
         Contributor[] calldata contributors
-    ) external nonReentrant whenNotPaused returns (uint256) {
+    ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
@@ -519,28 +523,28 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
     }
     
     // Admin functions
-    function setBaseRewardRate(uint256 _baseRewardRate) external onlyOwner {
+    function setBaseRewardRate(uint256 _baseRewardRate) external onlyRole(DEFAULT_ADMIN_ROLE) {
         ValidationLib.requirePositiveAmount(_baseRewardRate, "reward rate");
         baseRewardRate = _baseRewardRate;
         emit RewardParametersUpdated(baseRewardRate, minImprovementBps, maxReward);
     }
 
-    function setMinImprovementBps(uint256 _minImprovementBps) external onlyOwner {
+    function setMinImprovementBps(uint256 _minImprovementBps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         ValidationLib.requirePositiveAmount(_minImprovementBps, "min improvement");
         minImprovementBps = _minImprovementBps;
         emit RewardParametersUpdated(baseRewardRate, minImprovementBps, maxReward);
     }
     
-    function setMaxReward(uint256 _maxReward) external onlyOwner {
+    function setMaxReward(uint256 _maxReward) external onlyRole(DEFAULT_ADMIN_ROLE) {
         maxReward = _maxReward;
         emit RewardParametersUpdated(baseRewardRate, minImprovementBps, maxReward);
     }
     
-    function pause() external onlyOwner {
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
     }
     
-    function unpause() external onlyOwner {
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
 
@@ -563,8 +567,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
         contributionHashes[0] = keccak256(abi.encodePacked(
             modelId,
             contributor,
-            pipelineRunId,
-            block.timestamp
+            pipelineRunId
         ));
 
         uint256[] memory weightsBps = new uint256[](1);
@@ -618,8 +621,7 @@ contract DeltaVerifier is Ownable, ReentrancyGuard, Pausable {
                 modelId,
                 contributorAddresses[i],
                 pipelineRunId,
-                block.timestamp,
-                i // Include index to ensure uniqueness
+                i // Include index to ensure uniqueness within batch
             ));
 
             // Extract weights (already in basis points)

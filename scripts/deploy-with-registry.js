@@ -14,7 +14,8 @@ async function main() {
     symbol: "HOKU",
     totalSupply: ethers.parseEther("1000000"),
     tokensPerDeltaOne: 1000,
-    infraMarkupBps: 500,
+    infrastructureAccrualBps: 5000,
+    initialOraclePricePerThousandUsd: 0,
     licenseHash: ethers.ZeroHash,
     licenseURI: "",
     governor: deployer.address,
@@ -61,7 +62,8 @@ async function main() {
       config.totalSupply,
       {
         tokensPerDeltaOne: config.tokensPerDeltaOne,
-        infraMarkupBps: config.infraMarkupBps,
+        infrastructureAccrualBps: config.infrastructureAccrualBps,
+        initialOraclePricePerThousandUsd: config.initialOraclePricePerThousandUsd,
         licenseHash: config.licenseHash,
         licenseURI: config.licenseURI,
         governor: config.governor
@@ -195,7 +197,8 @@ async function main() {
       config: {
         modelId: config.modelId,
         tokensPerDeltaOne: config.tokensPerDeltaOne,
-        infraMarkupBps: config.infraMarkupBps
+        infrastructureAccrualBps: config.infrastructureAccrualBps,
+        initialOraclePricePerThousandUsd: config.initialOraclePricePerThousandUsd
       }
     };
 

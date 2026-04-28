@@ -47,6 +47,7 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
     hokusaiParams = await HokusaiParams.deploy(
       1000,
       8000,
+      0,
       ethers.ZeroHash,
       "",
       owner.address

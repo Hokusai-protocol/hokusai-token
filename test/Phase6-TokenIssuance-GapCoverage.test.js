@@ -35,7 +35,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
 
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       const hokusaiParams = await HokusaiParams.deploy(
-        1000, 8000, ethers.ZeroHash, "", owner.address
+        1000, 8000, 0, ethers.ZeroHash, "", owner.address
       );
       await hokusaiParams.waitForDeployment();
 
@@ -591,7 +591,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
     it("should accept minimum accrual value (1000 = 10%)", async function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       hokusaiParams = await HokusaiParams.deploy(
-        1000, 1000, ethers.ZeroHash, "", owner.address
+        1000, 1000, 0, ethers.ZeroHash, "", owner.address
       );
       await hokusaiParams.waitForDeployment();
       expect(await hokusaiParams.infrastructureAccrualBps()).to.equal(1000);
@@ -600,7 +600,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
     it("should accept maximum accrual value (10000 = 100%)", async function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       hokusaiParams = await HokusaiParams.deploy(
-        1000, 10000, ethers.ZeroHash, "", owner.address
+        1000, 10000, 0, ethers.ZeroHash, "", owner.address
       );
       await hokusaiParams.waitForDeployment();
       expect(await hokusaiParams.infrastructureAccrualBps()).to.equal(10000);
@@ -609,21 +609,21 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
     it("should reject below minimum accrual (999)", async function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       await expect(
-        HokusaiParams.deploy(1000, 999, ethers.ZeroHash, "", owner.address)
+        HokusaiParams.deploy(1000, 999, 0, ethers.ZeroHash, "", owner.address)
       ).to.be.reverted;
     });
 
     it("should reject above maximum accrual (10001)", async function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       await expect(
-        HokusaiParams.deploy(1000, 10001, ethers.ZeroHash, "", owner.address)
+        HokusaiParams.deploy(1000, 10001, 0, ethers.ZeroHash, "", owner.address)
       ).to.be.reverted;
     });
 
     it("should allow governor to update accrual within bounds", async function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       hokusaiParams = await HokusaiParams.deploy(
-        1000, 8000, ethers.ZeroHash, "", owner.address
+        1000, 8000, 0, ethers.ZeroHash, "", owner.address
       );
       await hokusaiParams.waitForDeployment();
 
@@ -642,7 +642,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
     it("should emit InfrastructureAccrualBpsSet event on update", async function () {
       const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
       hokusaiParams = await HokusaiParams.deploy(
-        1000, 8000, ethers.ZeroHash, "", owner.address
+        1000, 8000, 0, ethers.ZeroHash, "", owner.address
       );
       await hokusaiParams.waitForDeployment();
 

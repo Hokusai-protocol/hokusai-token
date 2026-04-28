@@ -21,6 +21,7 @@ describe("Full Integration: Params Module", function () {
   const initialParams = {
     tokensPerDeltaOne: wholeTokens(1500),
     infrastructureAccrualBps: 7000, // 70%
+    initialOraclePricePerThousandUsd: 0,
     licenseHash: keccak256(toUtf8Bytes("gpt-4-license-v1")),
     licenseURI: "https://openai.com/licenses/gpt-4",
     governor: null // Will be set in beforeEach
@@ -414,7 +415,7 @@ describe("Full Integration: Params Module", function () {
       const evalReceipt = await evalTx.wait();
 
       // Verify gas usage is reasonable
-      expect(deployReceipt.gasUsed).to.be.lt(3300000);
+      expect(deployReceipt.gasUsed).to.be.lt(3350000);
       expect(registerReceipt.gasUsed).to.be.lt(200000);  // Less than 200k gas for registration
       expect(evalReceipt.gasUsed).to.be.lt(600000);     // Less than 600k gas for evaluation (includes contribution recording)
     });

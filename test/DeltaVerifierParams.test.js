@@ -47,6 +47,7 @@ describe("DeltaVerifier with Dynamic Params", function () {
   const defaultInitialParams = {
     tokensPerDeltaOne: 1000,
     infrastructureAccrualBps: 8000, // 80%
+    initialOraclePricePerThousandUsd: 0,
     licenseHash: keccak256(toUtf8Bytes("test-license")),
     licenseURI: "https://test.license",
     governor: null // Will be set in beforeEach
@@ -121,18 +122,17 @@ describe("DeltaVerifier with Dynamic Params", function () {
   });
 
   describe("Dynamic Parameter Reading", function () {
-    it("Should default to multi-metric evaluation for model-aware delta calculation", async function () {
-      const deltaFromLegacyPath = await deltaVerifier.calculateDeltaOne(
-        defaultEvaluationData.baselineMetrics,
-        defaultEvaluationData.newMetrics
-      );
+    it("Should default to single-metric evaluation for model-aware delta calculation", async function () {
+      // With SingleMetric default, the model-aware path uses only the accuracy field
+      // as a direct basis-point difference (newValue - baseline)
       const deltaFromModelPath = await deltaVerifier.calculateDeltaOneForModel(
         MODEL_ID,
         defaultEvaluationData.baselineMetrics,
         defaultEvaluationData.newMetrics
       );
 
-      expect(deltaFromModelPath).to.equal(deltaFromLegacyPath);
+      // Single-metric delta = newMetrics.accuracy - baselineMetrics.accuracy = 8500 - 8000 = 500
+      expect(deltaFromModelPath).to.equal(500);
     });
 
     it("Should read tokensPerDeltaOne from params contract", async function () {

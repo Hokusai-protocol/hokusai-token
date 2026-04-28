@@ -13,6 +13,7 @@ describe("HokusaiParams", function () {
 
   const DEFAULT_TOKENS_PER_DELTA_ONE = wholeTokens(1000);
   const DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS = 8000; // 80%
+  const DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD = 0;
   const DEFAULT_LICENSE_HASH = keccak256(toUtf8Bytes("default-license"));
   const DEFAULT_LICENSE_URI = "https://hokusai.ai/licenses/default";
   const TOKENS_PER_DELTA_ONE_BOUNDS_ERROR =
@@ -25,6 +26,7 @@ describe("HokusaiParams", function () {
     params = await HokusaiParams.deploy(
       DEFAULT_TOKENS_PER_DELTA_ONE,
       DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
+      DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
       DEFAULT_LICENSE_HASH,
       DEFAULT_LICENSE_URI,
       governor.address
@@ -34,9 +36,10 @@ describe("HokusaiParams", function () {
 
   describe("Constructor", function () {
     it("Should initialize with correct default values", async function () {
-      expect(await params.metricType()).to.equal(0);
+      expect(await params.metricType()).to.equal(1); // SingleMetric default
       expect(await params.tokensPerDeltaOne()).to.equal(DEFAULT_TOKENS_PER_DELTA_ONE);
       expect(await params.infrastructureAccrualBps()).to.equal(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS);
+      expect(await params.oraclePricePerThousandUsd()).to.equal(DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD);
       expect(await params.getProfitShareBps()).to.equal(10000 - DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS);
       expect(await params.licenseHash()).to.equal(DEFAULT_LICENSE_HASH);
       expect(await params.licenseURI()).to.equal(DEFAULT_LICENSE_URI);
@@ -63,6 +66,7 @@ describe("HokusaiParams", function () {
         HokusaiParams.deploy(
           DEFAULT_TOKENS_PER_DELTA_ONE,
           DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
+          DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           ZeroAddress
@@ -75,6 +79,7 @@ describe("HokusaiParams", function () {
         HokusaiParams.deploy(
           99, // Below minimum of 100
           DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
+          DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
@@ -87,6 +92,7 @@ describe("HokusaiParams", function () {
         HokusaiParams.deploy(
           10000001, // Above maximum of 10,000,000
           DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
+          DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
@@ -99,6 +105,7 @@ describe("HokusaiParams", function () {
         HokusaiParams.deploy(
           DEFAULT_TOKENS_PER_DELTA_ONE,
           999, // Below minimum of 1000 (10%)
+          DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
@@ -111,6 +118,7 @@ describe("HokusaiParams", function () {
         HokusaiParams.deploy(
           DEFAULT_TOKENS_PER_DELTA_ONE,
           10001, // Above maximum of 10000 (100%)
+          DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
           governor.address
@@ -130,11 +138,11 @@ describe("HokusaiParams", function () {
     });
 
     it("Should allow governor to update metricType", async function () {
-      await expect(params.connect(governor).setMetricType(1))
+      await expect(params.connect(governor).setMetricType(0))
         .to.emit(params, "MetricTypeSet")
-        .withArgs(0, 1, governor.address);
+        .withArgs(1, 0, governor.address);
 
-      expect(await params.metricType()).to.equal(1);
+      expect(await params.metricType()).to.equal(0);
     });
 
     it("Should prevent non-governor from updating tokensPerDeltaOne", async function () {

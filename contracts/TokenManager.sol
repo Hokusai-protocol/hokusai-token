@@ -21,6 +21,7 @@ contract TokenManager is Ownable, AccessControlBase {
     struct InitialParams {
         uint256 tokensPerDeltaOne;          // Wei-scaled tokens per deltaOne improvement (100-10,000,000 whole tokens)
         uint16 infrastructureAccrualBps;    // Infrastructure accrual in basis points (1000-10000, i.e., 10-100%)
+        uint256 initialOraclePricePerThousandUsd; // Initial oracle price in USD per 1000 calls
         bytes32 licenseHash;                // Hash of license reference
         string licenseURI;                  // URI for license reference
         address governor;                   // Address to grant GOV_ROLE
@@ -51,7 +52,8 @@ contract TokenManager is Ownable, AccessControlBase {
         address indexed paramsAddress,
         address indexed deployer,
         uint256 tokensPerDeltaOne,
-        uint16 infrastructureAccrualBps
+        uint16 infrastructureAccrualBps,
+        uint256 initialOraclePricePerThousandUsd
     );
     event TokensMinted(string indexed modelId, address indexed recipient, uint256 amount);
     event TokensBurned(string indexed modelId, address indexed account, uint256 amount);
@@ -132,6 +134,7 @@ contract TokenManager is Ownable, AccessControlBase {
         HokusaiParams newParams = new HokusaiParams(
             initialParams.tokensPerDeltaOne,
             initialParams.infrastructureAccrualBps,
+            initialParams.initialOraclePricePerThousandUsd,
             initialParams.licenseHash,
             initialParams.licenseURI,
             initialParams.governor
@@ -159,7 +162,14 @@ contract TokenManager is Ownable, AccessControlBase {
         // Note: Registry registration is not attempted as it uses uint256 modelId
         // The ModelRegistry can be updated separately to support string modelIds if needed
 
-        emit ParamsDeployed(modelId, paramsAddress, msg.sender, initialParams.tokensPerDeltaOne, initialParams.infrastructureAccrualBps);
+        emit ParamsDeployed(
+            modelId,
+            paramsAddress,
+            msg.sender,
+            initialParams.tokensPerDeltaOne,
+            initialParams.infrastructureAccrualBps,
+            initialParams.initialOraclePricePerThousandUsd
+        );
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
 
         return tokenAddress;
@@ -217,6 +227,7 @@ contract TokenManager is Ownable, AccessControlBase {
         HokusaiParams newParams = new HokusaiParams(
             initialParams.tokensPerDeltaOne,
             initialParams.infrastructureAccrualBps,
+            initialParams.initialOraclePricePerThousandUsd,
             initialParams.licenseHash,
             initialParams.licenseURI,
             initialParams.governor
@@ -244,7 +255,14 @@ contract TokenManager is Ownable, AccessControlBase {
         tokenToModel[tokenAddress] = modelId;
         modelParams[modelId] = paramsAddress;
 
-        emit ParamsDeployed(modelId, paramsAddress, msg.sender, initialParams.tokensPerDeltaOne, initialParams.infrastructureAccrualBps);
+        emit ParamsDeployed(
+            modelId,
+            paramsAddress,
+            msg.sender,
+            initialParams.tokensPerDeltaOne,
+            initialParams.infrastructureAccrualBps,
+            initialParams.initialOraclePricePerThousandUsd
+        );
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, maxSupply);
         emit AllocationDistributed(
             modelId,

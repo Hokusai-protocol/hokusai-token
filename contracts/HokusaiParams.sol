@@ -42,6 +42,9 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /// @dev Infrastructure cost accrual percentage in basis points (global default)
     uint16 private _infrastructureAccrualBps;
 
+    /// @dev Oracle price in USD per 1000 calls (global default)
+    uint256 private _oraclePricePerThousandUsd;
+
     /// @dev Hash of the license reference
     bytes32 private _licenseHash;
 
@@ -77,6 +80,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
      * @dev Constructor to initialize the parameter contract
      * @param initialTokensPerDeltaOne Initial tokens per deltaOne value in wei (100-10000000 whole tokens)
      * @param initialInfrastructureAccrualBps Initial infrastructure accrual in basis points (1000-10000)
+     * @param initialOraclePricePerThousandUsd Initial oracle price in USD per 1000 calls
      * @param initialLicenseHash Initial license reference hash
      * @param initialLicenseURI Initial license reference URI
      * @param governor Address to grant GOV_ROLE to
@@ -84,6 +88,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     constructor(
         uint256 initialTokensPerDeltaOne,
         uint16 initialInfrastructureAccrualBps,
+        uint256 initialOraclePricePerThousandUsd,
         bytes32 initialLicenseHash,
         string memory initialLicenseURI,
         address governor
@@ -99,8 +104,9 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
 
         // Set initial values
         _tokensPerDeltaOne = initialTokensPerDeltaOne;
-        _metricType = IHokusaiParams.MetricType.MultiMetric;
+        _metricType = IHokusaiParams.MetricType.SingleMetric;
         _infrastructureAccrualBps = initialInfrastructureAccrualBps;
+        _oraclePricePerThousandUsd = initialOraclePricePerThousandUsd;
         _licenseHash = initialLicenseHash;
         _licenseURI = initialLicenseURI;
         _priceEpochDuration = DEFAULT_PRICE_EPOCH_DURATION;
@@ -129,6 +135,13 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
      */
     function infrastructureAccrualBps() external view override returns (uint16) {
         return _infrastructureAccrualBps;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function oraclePricePerThousandUsd() external view override returns (uint256) {
+        return _oraclePricePerThousandUsd;
     }
 
     /**

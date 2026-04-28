@@ -19,6 +19,7 @@ describe("HokusaiToken", function () {
     params = await HokusaiParams.deploy(
       1000, // tokensPerDeltaOne
       8000, // infrastructureAccrualBps (80%)
+      0, // initialOraclePricePerThousandUsd
       keccak256(toUtf8Bytes("test-license")), // licenseHash
       "https://test.license", // licenseURI
       owner.address // governor

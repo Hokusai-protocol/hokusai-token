@@ -12,6 +12,7 @@ interface ProposalConfig {
   proposalDeadline?: bigint;
   tokensPerDeltaOne?: bigint;
   infrastructureAccrualBps?: number;
+  initialOraclePricePerThousandUsd?: bigint;
   licenseHash?: string;
   licenseURI?: string;
   governor?: string;
@@ -25,6 +26,7 @@ const DEFAULTS = {
   proposalDeadlineOffsetSeconds: BigInt(86400 * 30),
   tokensPerDeltaOne: BigInt(1000),
   infrastructureAccrualBps: 5000, // 50%
+  initialOraclePricePerThousandUsd: BigInt(0),
   performanceMetric: "accuracy",
   licenseHash: ethers.keccak256(ethers.toUtf8Bytes("default-license")),
   licenseURI: "https://hokusai.ai/licenses/default"
@@ -69,6 +71,7 @@ async function registerProposal(
     config.proposalDeadline ?? BigInt(latestBlock!.timestamp) + DEFAULTS.proposalDeadlineOffsetSeconds;
   const tokensPerDeltaOne = config.tokensPerDeltaOne || DEFAULTS.tokensPerDeltaOne;
   const infrastructureAccrualBps = config.infrastructureAccrualBps || DEFAULTS.infrastructureAccrualBps;
+  const initialOraclePricePerThousandUsd = config.initialOraclePricePerThousandUsd || DEFAULTS.initialOraclePricePerThousandUsd;
   const licenseHash = config.licenseHash || DEFAULTS.licenseHash;
   const licenseURI = config.licenseURI || DEFAULTS.licenseURI;
   const governor = config.governor || signer.address;
@@ -78,6 +81,7 @@ async function registerProposal(
   const initialParams = {
     tokensPerDeltaOne,
     infrastructureAccrualBps,
+    initialOraclePricePerThousandUsd,
     licenseHash,
     licenseURI,
     governor
@@ -163,7 +167,8 @@ async function main() {
     tokenSymbol: "TMT",
     initialSupply: ethers.parseEther("1000000"), // 1M tokens
     tokensPerDeltaOne: BigInt(1000),
-    infrastructureAccrualBps: 5000
+    infrastructureAccrualBps: 5000,
+    initialOraclePricePerThousandUsd: BigInt(0)
   };
 
   // These would typically be loaded from deployment addresses

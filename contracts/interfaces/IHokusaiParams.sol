@@ -32,6 +32,12 @@ interface IHokusaiParams {
     function infrastructureAccrualBps() external view returns (uint16);
 
     /**
+     * @dev Returns the oracle price in USD per 1000 calls
+     * @return The oracle price, using the platform's USD decimal convention
+     */
+    function oraclePricePerThousandUsd() external view returns (uint256);
+
+    /**
      * @dev Returns the profit share percentage in basis points (residual after infrastructure)
      * @return The profit share percentage (calculated as 10000 - infrastructureAccrualBps)
      */

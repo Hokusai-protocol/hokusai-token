@@ -67,7 +67,8 @@ Or with custom parameters:
 ```solidity
 TokenManager.InitialParams memory params = TokenManager.InitialParams({
     tokensPerDeltaOne: 5000,                                    // 5000 tokens per 1% improvement
-    infraMarkupBps: 750,                                        // 7.5% markup
+    infrastructureAccrualBps: 7500,                             // 75% infrastructure accrual
+    initialOraclePricePerThousandUsd: 0,                        // optional oracle price per 1000 calls
     licenseHash: keccak256(abi.encodePacked("MIT")),          // License hash
     licenseURI: "https://example.com/license",                 // License URI
     governor: governorAddress                                   // Governor address

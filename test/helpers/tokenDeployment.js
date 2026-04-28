@@ -8,6 +8,7 @@ function buildInitialParams(governor, overrides = {}) {
   return {
     tokensPerDeltaOne: wholeTokens(500000),
     infrastructureAccrualBps: 8000,
+    initialOraclePricePerThousandUsd: 0,
     licenseHash: keccak256(toUtf8Bytes("default-license")),
     licenseURI: "https://hokusai.ai/licenses/default",
     governor,

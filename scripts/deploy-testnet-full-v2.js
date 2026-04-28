@@ -11,16 +11,27 @@ const path = require('path');
  * 3. MockUSDC
  * 4. HokusaiAMMFactory (with two-phase pricing)
  * 5. InfrastructureReserve (NEW)
- * 6. UsageFeeRouter (UPDATED - no protocol fee, infrastructure split)
- * 7. HokusaiToken - LSCOR token via TokenManager
- * 8. HokusaiAMM - LSCOR pool with 10% CRR and two-phase pricing
- * 9. DataContributionRegistry
- * 10. DeltaVerifier
+ * 6. InfrastructureCostOracle
+ * 7. UsageFeeRouter (UPDATED - no protocol fee, infrastructure split)
+ * 8. HokusaiToken - LSCOR token via TokenManager
+ * 9. HokusaiAMM - LSCOR pool with 10% CRR and two-phase pricing
+ * 10. DataContributionRegistry
+ * 11. DeltaVerifier
  *
  * Environment Variables:
  * - TREASURY_ADDRESS: Address to receive fees and manage infrastructure payments (defaults to deployer)
  * - BACKEND_SERVICE_ADDRESS: Backend service for FEE_DEPOSITOR_ROLE (defaults to deployer)
+ * - INFRASTRUCTURE_GROSS_MARGIN_BPS: Cost oracle gross margin in bps (defaults to 2000)
+ * - LSCOR_ORACLE_PRICE_PER_THOUSAND_USD: Optional initial LSCOR cost/price per 1000 calls in USD (6 decimals accepted)
+ * - SKIP_DEPLOYMENT_WRITE=true: Run without writing deployment JSON files
  */
+
+function parseOptionalUsd(value) {
+  if (!value || value === "0") {
+    return 0n;
+  }
+  return ethers.parseUnits(value, 6);
+}
 
 // Pool configurations
 const POOL_CONFIGS = {
@@ -37,6 +48,10 @@ const POOL_CONFIGS = {
     flatCurveThreshold: ethers.parseUnits("25000", 6), // $25k threshold
     flatCurvePrice: ethers.parseUnits("0.01", 6), // $0.01 per token
     infrastructureAccrualBps: 8000, // 80% infrastructure accrual (default)
+    tokensPerDeltaOne: ethers.parseEther("100000"),
+    initialOraclePricePerThousandUsd: parseOptionalUsd(process.env.LSCOR_ORACLE_PRICE_PER_THOUSAND_USD),
+    licenseHash: ethers.ZeroHash,
+    licenseURI: "",
   }
 };
 
@@ -50,11 +65,13 @@ async function main() {
   // Treasury and backend service addresses
   const treasuryAddress = process.env.TREASURY_ADDRESS || deployer.address;
   const backendAddress = process.env.BACKEND_SERVICE_ADDRESS || deployer.address;
+  const infrastructureGrossMarginBps = Number(process.env.INFRASTRUCTURE_GROSS_MARGIN_BPS || "2000");
 
   console.log("Network:", network.name, `(chainId: ${network.chainId})`);
   console.log("Deployer:", deployer.address);
   console.log("Treasury:", treasuryAddress);
   console.log("Backend Service:", backendAddress);
+  console.log("Infrastructure Gross Margin Bps:", infrastructureGrossMarginBps);
   if (treasuryAddress === deployer.address) {
     console.log("   ⚠️  Using deployer as treasury (set TREASURY_ADDRESS env var to change)");
   }
@@ -182,13 +199,26 @@ async function main() {
     deployment.contracts.InfrastructureReserve = infraReserveAddress;
     console.log("   ✅ InfrastructureReserve:", infraReserveAddress);
 
-    // 7. Deploy UsageFeeRouter (updated - no protocol fee)
-    console.log("\n7️⃣  Deploying UsageFeeRouter (V2 - Infrastructure Split)...");
+    // 7. Deploy InfrastructureCostOracle
+    console.log("\n7️⃣  Deploying InfrastructureCostOracle...");
+    const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
+    const costOracle = await InfrastructureCostOracle.deploy(
+      deployer.address,
+      infrastructureGrossMarginBps
+    );
+    await costOracle.waitForDeployment();
+    const costOracleAddress = await costOracle.getAddress();
+    deployment.contracts.InfrastructureCostOracle = costOracleAddress;
+    console.log("   ✅ InfrastructureCostOracle:", costOracleAddress);
+
+    // 8. Deploy UsageFeeRouter (updated - no protocol fee)
+    console.log("\n8️⃣  Deploying UsageFeeRouter (V2 - Infrastructure Split)...");
     const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
     const feeRouter = await UsageFeeRouter.deploy(
       factoryAddress,       // factory
       usdcAddress,          // reserveToken (USDC)
-      infraReserveAddress   // infrastructureReserve (NEW)
+      infraReserveAddress,  // infrastructureReserve
+      costOracleAddress     // infrastructure cost oracle
     );
     await feeRouter.waitForDeployment();
     const feeRouterAddress = await feeRouter.getAddress();
@@ -228,34 +258,78 @@ async function main() {
     for (const [configKey, config] of Object.entries(POOL_CONFIGS)) {
       console.log(`\n🎯 Deploying ${config.name}...`);
 
-      // 8. Deploy token via TokenManager (automatically creates HokusaiParams with new infrastructure accrual)
+      // 9. Deploy token via TokenManager (automatically creates HokusaiParams)
       console.log(`   🪙 Deploying ${config.tokenSymbol} token...`);
-      const tokenTx = await tokenManager.deployToken(
+      const initialParams = {
+        tokensPerDeltaOne: config.tokensPerDeltaOne,
+        infrastructureAccrualBps: config.infrastructureAccrualBps,
+        initialOraclePricePerThousandUsd: config.initialOraclePricePerThousandUsd,
+        licenseHash: config.licenseHash,
+        licenseURI: config.licenseURI,
+        governor: deployer.address
+      };
+
+      const tokenTx = await tokenManager.deployTokenWithParams(
         config.modelId,
         config.tokenName,
         config.tokenSymbol,
-        config.initialSupply
+        config.initialSupply,
+        initialParams
       );
       const tokenReceipt = await tokenTx.wait();
 
       // Extract token address from event
       let tokenAddress;
+      let paramsAddress;
       for (const log of tokenReceipt.logs) {
         try {
           const parsed = tokenManager.interface.parseLog(log);
           if (parsed.name === 'TokenDeployed') {
             tokenAddress = parsed.args.tokenAddress;
+          } else if (parsed.name === 'ParamsDeployed') {
+            paramsAddress = parsed.args.paramsAddress;
           }
         } catch (e) {
           // Skip logs from other contracts
         }
       }
+      if (!tokenAddress || !paramsAddress) {
+        throw new Error(`Failed to extract token or params address for model ${config.modelId}`);
+      }
       console.log(`   ✅ Token deployed: ${tokenAddress}`);
 
       // Get HokusaiParams address
-      const paramsAddress = await tokenManager.modelParams(config.modelId);
+      const storedParamsAddress = await tokenManager.modelParams(config.modelId);
+      if (storedParamsAddress !== paramsAddress) {
+        throw new Error(`Stored params address mismatch for model ${config.modelId}`);
+      }
       console.log(`   📋 HokusaiParams: ${paramsAddress}`);
-      console.log(`   ℹ️  Default infrastructure accrual: 80% (can be adjusted by governance)`);
+
+      const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
+      const paramsContract = HokusaiParams.attach(paramsAddress);
+      const deployedOraclePrice = await paramsContract.oraclePricePerThousandUsd();
+      if (deployedOraclePrice !== config.initialOraclePricePerThousandUsd) {
+        throw new Error(`Oracle price mismatch for model ${config.modelId}`);
+      }
+      console.log(`   ✅ Initial oracle price: ${ethers.formatUnits(deployedOraclePrice, 6)} USD / 1000 calls`);
+      console.log(`   ℹ️  Default infrastructure accrual: ${config.infrastructureAccrualBps / 100}% (can be adjusted by governance)`);
+
+      if (config.initialOraclePricePerThousandUsd > 0n) {
+        console.log(`   📈 Configuring infrastructure cost oracle...`);
+        const setCostTx = await costOracle.setEstimatedCost(
+          config.modelId,
+          config.initialOraclePricePerThousandUsd,
+          0
+        );
+        await setCostTx.wait();
+        const applyCostTx = await costOracle.applyPendingUpdate(config.modelId);
+        await applyCostTx.wait();
+        const deployedCost = await costOracle.getEstimatedCost(config.modelId);
+        if (deployedCost !== config.initialOraclePricePerThousandUsd) {
+          throw new Error(`Cost oracle value mismatch for model ${config.modelId}`);
+        }
+        console.log(`   ✅ Infrastructure cost oracle configured`);
+      }
 
       // Register model in ModelRegistry
       console.log(`   📋 Registering model in ModelRegistry...`);
@@ -337,7 +411,8 @@ async function main() {
         address: tokenAddress,
         paramsAddress: paramsAddress,
         initialSupply: config.initialSupply.toString(),
-        infrastructureAccrualBps: config.infrastructureAccrualBps
+        infrastructureAccrualBps: config.infrastructureAccrualBps,
+        initialOraclePricePerThousandUsd: config.initialOraclePricePerThousandUsd.toString()
       });
 
       deployment.pools.push({
@@ -365,7 +440,7 @@ async function main() {
     console.log("-".repeat(70));
 
     // 13. Deploy DeltaVerifier
-    console.log("\n1️⃣3️⃣ Deploying DeltaVerifier...");
+    console.log("\n13. Deploying DeltaVerifier...");
     const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier");
     const deltaVerifier = await DeltaVerifier.deploy(
       registryAddress,
@@ -414,6 +489,7 @@ async function main() {
 
     console.log("\n💰 Infrastructure Cost Accrual System (NEW):");
     console.log(`   InfrastructureReserve:     ${deployment.contracts.InfrastructureReserve}`);
+    console.log(`   InfrastructureCostOracle:  ${deployment.contracts.InfrastructureCostOracle}`);
     console.log(`   UsageFeeRouter (V2):       ${deployment.contracts.UsageFeeRouter}`);
 
     console.log("\n📊 Other Contracts:");
@@ -426,6 +502,7 @@ async function main() {
       console.log(`     Params Address:  ${token.paramsAddress}`);
       console.log(`     Model ID:        ${token.modelId}`);
       console.log(`     Infra Accrual:   ${token.infrastructureAccrualBps / 100}%`);
+      console.log(`     Oracle Price:    ${ethers.formatUnits(token.initialOraclePricePerThousandUsd, 6)} USD / 1000 calls`);
     }
 
     console.log("\n🏊 Pools:");
@@ -448,6 +525,7 @@ async function main() {
       console.log("\n🔗 View on Sepolia Etherscan:");
       console.log(`   Factory:              https://sepolia.etherscan.io/address/${deployment.contracts.HokusaiAMMFactory}`);
       console.log(`   InfrastructureReserve: https://sepolia.etherscan.io/address/${deployment.contracts.InfrastructureReserve}`);
+      console.log(`   InfrastructureCostOracle: https://sepolia.etherscan.io/address/${deployment.contracts.InfrastructureCostOracle}`);
       console.log(`   UsageFeeRouter:       https://sepolia.etherscan.io/address/${deployment.contracts.UsageFeeRouter}`);
 
       console.log("\n   Tokens:");
@@ -461,26 +539,30 @@ async function main() {
       }
     }
 
-    // Save deployment to file
-    const deploymentDir = path.join(__dirname, '..', 'deployments');
-    if (!fs.existsSync(deploymentDir)) {
-      fs.mkdirSync(deploymentDir, { recursive: true });
+    if (process.env.SKIP_DEPLOYMENT_WRITE === "true") {
+      console.log("\n💾 Deployment file write skipped (SKIP_DEPLOYMENT_WRITE=true)");
+    } else {
+      // Save deployment to file
+      const deploymentDir = path.join(__dirname, '..', 'deployments');
+      if (!fs.existsSync(deploymentDir)) {
+        fs.mkdirSync(deploymentDir, { recursive: true });
+      }
+
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `${network.name}-v2-${timestamp}.json`;
+      const filepath = path.join(deploymentDir, filename);
+
+      fs.writeFileSync(filepath, JSON.stringify(deployment, null, 2));
+      console.log(`\n💾 Deployment info saved to: deployments/${filename}`);
+
+      // Also save as "latest" for easy reference
+      const latestPath = path.join(deploymentDir, `${network.name}-v2-latest.json`);
+      fs.writeFileSync(latestPath, JSON.stringify(deployment, null, 2));
+      console.log(`💾 Also saved as: deployments/${network.name}-v2-latest.json`);
     }
 
-    const timestamp = new Date().toISOString().split('T')[0];
-    const filename = `${network.name}-v2-${timestamp}.json`;
-    const filepath = path.join(deploymentDir, filename);
-
-    fs.writeFileSync(filepath, JSON.stringify(deployment, null, 2));
-    console.log(`\n💾 Deployment info saved to: deployments/${filename}`);
-
-    // Also save as "latest" for easy reference
-    const latestPath = path.join(deploymentDir, `${network.name}-v2-latest.json`);
-    fs.writeFileSync(latestPath, JSON.stringify(deployment, null, 2));
-    console.log(`💾 Also saved as: deployments/${network.name}-v2-latest.json`);
-
     console.log("\n✅ All contracts deployed successfully!");
-    console.log("   - 10 contract types");
+    console.log("   - 11 contract types");
     console.log("   - Infrastructure cost accrual system integrated");
     console.log("   - 80/20 default infrastructure/profit split");
 

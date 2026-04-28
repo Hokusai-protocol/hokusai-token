@@ -7,22 +7,23 @@ const path = require('path');
  *
  * Deploys all Hokusai contracts to Sepolia testnet:
  * 1. ModelRegistry
- * 2. TokenManager (with updated HokusaiParams - infrastructure accrual)
- * 3. MockUSDC
- * 4. HokusaiAMMFactory (with two-phase pricing)
- * 5. InfrastructureReserve (NEW)
- * 6. InfrastructureCostOracle
- * 7. UsageFeeRouter (UPDATED - no protocol fee, infrastructure split)
- * 8. HokusaiToken - LSCOR token via TokenManager
- * 9. HokusaiAMM - LSCOR pool with 10% CRR and two-phase pricing
- * 10. DataContributionRegistry
- * 11. DeltaVerifier
+ * 2. TokenDeploymentFactory
+ * 3. DeployableTokenManager (with updated HokusaiParams - infrastructure accrual)
+ * 4. MockUSDC
+ * 5. HokusaiAMMFactory (with two-phase pricing)
+ * 6. InfrastructureReserve (NEW)
+ * 7. InfrastructureCostOracle
+ * 8. UsageFeeRouter (UPDATED - no protocol fee, infrastructure split)
+ * 9. HokusaiToken - HLEAD token via TokenManager
+ * 10. HokusaiAMM - HLEAD pool with 10% CRR and two-phase pricing
+ * 11. DataContributionRegistry
+ * 12. DeltaVerifier
  *
  * Environment Variables:
  * - TREASURY_ADDRESS: Address to receive fees and manage infrastructure payments (defaults to deployer)
  * - BACKEND_SERVICE_ADDRESS: Backend service for FEE_DEPOSITOR_ROLE (defaults to deployer)
  * - INFRASTRUCTURE_GROSS_MARGIN_BPS: Cost oracle gross margin in bps (defaults to 2000)
- * - LSCOR_ORACLE_PRICE_PER_THOUSAND_USD: Optional initial LSCOR cost/price per 1000 calls in USD (6 decimals accepted)
+ * - HLEAD_ORACLE_PRICE_PER_THOUSAND_USD: Optional initial HLEAD cost/price per 1000 calls in USD (6 decimals accepted)
  * - SKIP_DEPLOYMENT_WRITE=true: Run without writing deployment JSON files
  */
 
@@ -35,11 +36,11 @@ function parseOptionalUsd(value) {
 
 // Pool configurations
 const POOL_CONFIGS = {
-  lscor: {
-    name: "LSCOR Pool (10% CRR)",
-    modelId: "21", // Model ID from hokus.ai/explore-models/21
-    tokenName: "Hokusai LSCOR",
-    tokenSymbol: "LSCOR",
+  hlead: {
+    name: "HLEAD Pool (10% CRR)",
+    modelId: "25",
+    tokenName: "Hokusai HLEAD",
+    tokenSymbol: "HLEAD",
     initialReserve: ethers.parseUnits("100", 6), // $100 - Small initial reserve to test flat price phase
     initialSupply: ethers.parseEther("1000"), // 1,000 tokens initially
     crr: 100000, // 10% CRR
@@ -49,7 +50,7 @@ const POOL_CONFIGS = {
     flatCurvePrice: ethers.parseUnits("0.01", 6), // $0.01 per token
     infrastructureAccrualBps: 8000, // 80% infrastructure accrual (default)
     tokensPerDeltaOne: ethers.parseEther("100000"),
-    initialOraclePricePerThousandUsd: parseOptionalUsd(process.env.LSCOR_ORACLE_PRICE_PER_THOUSAND_USD),
+    initialOraclePricePerThousandUsd: parseOptionalUsd(process.env.HLEAD_ORACLE_PRICE_PER_THOUSAND_USD),
     licenseHash: ethers.ZeroHash,
     licenseURI: "",
   }
@@ -113,21 +114,31 @@ async function main() {
     deployment.contracts.ModelRegistry = registryAddress;
     console.log("   ✅ ModelRegistry:", registryAddress);
 
-    // 2. Deploy TokenManager
-    console.log("\n2️⃣  Deploying TokenManager...");
-    const TokenManager = await ethers.getContractFactory("TokenManager");
-    const tokenManager = await TokenManager.deploy(registryAddress);
+    // 2. Deploy TokenDeploymentFactory
+    console.log("\n2️⃣  Deploying TokenDeploymentFactory...");
+    const TokenDeploymentFactory = await ethers.getContractFactory("TokenDeploymentFactory");
+    const tokenDeploymentFactory = await TokenDeploymentFactory.deploy();
+    await tokenDeploymentFactory.waitForDeployment();
+    const tokenDeploymentFactoryAddress = await tokenDeploymentFactory.getAddress();
+    deployment.contracts.TokenDeploymentFactory = tokenDeploymentFactoryAddress;
+    console.log("   ✅ TokenDeploymentFactory:", tokenDeploymentFactoryAddress);
+
+    // 3. Deploy TokenManager
+    console.log("\n3️⃣  Deploying DeployableTokenManager...");
+    const TokenManager = await ethers.getContractFactory("DeployableTokenManager");
+    const tokenManager = await TokenManager.deploy(registryAddress, tokenDeploymentFactoryAddress);
     await tokenManager.waitForDeployment();
     const managerAddress = await tokenManager.getAddress();
     deployment.contracts.TokenManager = managerAddress;
-    console.log("   ✅ TokenManager:", managerAddress);
+    console.log("   ✅ DeployableTokenManager:", managerAddress);
 
     console.log("   🔗 Linking ModelRegistry to TokenManager for string model validation...");
-    await modelRegistry.setStringModelTokenManager(managerAddress);
+    const setManagerTx = await modelRegistry.setStringModelTokenManager(managerAddress);
+    await setManagerTx.wait();
     console.log("   ✅ ModelRegistry string validation enabled");
 
-    // 3. Deploy DataContributionRegistry
-    console.log("\n3️⃣  Deploying DataContributionRegistry...");
+    // 4. Deploy DataContributionRegistry
+    console.log("\n4️⃣  Deploying DataContributionRegistry...");
     const DataContributionRegistry = await ethers.getContractFactory("DataContributionRegistry");
     const contributionRegistry = await DataContributionRegistry.deploy();
     await contributionRegistry.waitForDeployment();
@@ -142,8 +153,8 @@ async function main() {
     console.log("\n\n📦 PHASE 2: Test Token");
     console.log("-".repeat(70));
 
-    // 4. Deploy MockUSDC and mint test funds
-    console.log("\n4️⃣  Deploying MockUSDC...");
+    // 5. Deploy MockUSDC and mint test funds
+    console.log("\n5️⃣  Deploying MockUSDC...");
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const mockUSDC = await MockUSDC.deploy();
     await mockUSDC.waitForDeployment();
@@ -164,8 +175,8 @@ async function main() {
     console.log("\n\n📦 PHASE 3: AMM Factory");
     console.log("-".repeat(70));
 
-    // 5. Deploy HokusaiAMMFactory
-    console.log("\n5️⃣  Deploying HokusaiAMMFactory...");
+    // 6. Deploy HokusaiAMMFactory
+    console.log("\n6️⃣  Deploying HokusaiAMMFactory...");
     console.log(`   Treasury: ${treasuryAddress}`);
     const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
     const factory = await HokusaiAMMFactory.deploy(
@@ -186,8 +197,8 @@ async function main() {
     console.log("\n\n📦 PHASE 4: Infrastructure Cost Accrual System");
     console.log("-".repeat(70));
 
-    // 6. Deploy InfrastructureReserve
-    console.log("\n6️⃣  Deploying InfrastructureReserve...");
+    // 7. Deploy InfrastructureReserve
+    console.log("\n7️⃣  Deploying InfrastructureReserve...");
     const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
     const infraReserve = await InfrastructureReserve.deploy(
       usdcAddress,       // reserveToken (USDC)
@@ -199,8 +210,8 @@ async function main() {
     deployment.contracts.InfrastructureReserve = infraReserveAddress;
     console.log("   ✅ InfrastructureReserve:", infraReserveAddress);
 
-    // 7. Deploy InfrastructureCostOracle
-    console.log("\n7️⃣  Deploying InfrastructureCostOracle...");
+    // 8. Deploy InfrastructureCostOracle
+    console.log("\n8️⃣  Deploying InfrastructureCostOracle...");
     const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
     const costOracle = await InfrastructureCostOracle.deploy(
       deployer.address,
@@ -211,8 +222,8 @@ async function main() {
     deployment.contracts.InfrastructureCostOracle = costOracleAddress;
     console.log("   ✅ InfrastructureCostOracle:", costOracleAddress);
 
-    // 8. Deploy UsageFeeRouter (updated - no protocol fee)
-    console.log("\n8️⃣  Deploying UsageFeeRouter (V2 - Infrastructure Split)...");
+    // 9. Deploy UsageFeeRouter (updated - no protocol fee)
+    console.log("\n9️⃣  Deploying UsageFeeRouter (V2 - Infrastructure Split)...");
     const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
     const feeRouter = await UsageFeeRouter.deploy(
       factoryAddress,       // factory
@@ -234,17 +245,20 @@ async function main() {
     const FEE_DEPOSITOR_ROLE = await feeRouter.FEE_DEPOSITOR_ROLE();
 
     // Grant DEPOSITOR_ROLE to UsageFeeRouter
-    await infraReserve.grantRole(DEPOSITOR_ROLE, feeRouterAddress);
+    const grantDepositorTx = await infraReserve.grantRole(DEPOSITOR_ROLE, feeRouterAddress);
+    await grantDepositorTx.wait();
     console.log("   ✅ DEPOSITOR_ROLE granted to UsageFeeRouter");
     deployment.roles.InfrastructureReserve_DEPOSITOR = feeRouterAddress;
 
     // Grant PAYER_ROLE to Treasury
-    await infraReserve.grantRole(PAYER_ROLE, treasuryAddress);
+    const grantPayerTx = await infraReserve.grantRole(PAYER_ROLE, treasuryAddress);
+    await grantPayerTx.wait();
     console.log("   ✅ PAYER_ROLE granted to Treasury");
     deployment.roles.InfrastructureReserve_PAYER = treasuryAddress;
 
     // Grant FEE_DEPOSITOR_ROLE to Backend Service
-    await feeRouter.grantRole(FEE_DEPOSITOR_ROLE, backendAddress);
+    const grantFeeDepositorTx = await feeRouter.grantRole(FEE_DEPOSITOR_ROLE, backendAddress);
+    await grantFeeDepositorTx.wait();
     console.log("   ✅ FEE_DEPOSITOR_ROLE granted to Backend Service");
     deployment.roles.UsageFeeRouter_FEE_DEPOSITOR = backendAddress;
 
@@ -258,7 +272,7 @@ async function main() {
     for (const [configKey, config] of Object.entries(POOL_CONFIGS)) {
       console.log(`\n🎯 Deploying ${config.name}...`);
 
-      // 9. Deploy token via TokenManager (automatically creates HokusaiParams)
+      // 10. Deploy token via TokenManager (automatically creates HokusaiParams)
       console.log(`   🪙 Deploying ${config.tokenSymbol} token...`);
       const initialParams = {
         tokensPerDeltaOne: config.tokensPerDeltaOne,
@@ -333,7 +347,8 @@ async function main() {
 
       // Register model in ModelRegistry
       console.log(`   📋 Registering model in ModelRegistry...`);
-      await modelRegistry.registerStringModel(config.modelId, tokenAddress, "accuracy");
+      const registerModelTx = await modelRegistry.registerStringModel(config.modelId, tokenAddress, "accuracy");
+      await registerModelTx.wait();
       console.log(`   ✅ Model registered: ${config.modelId}`);
 
       // 9. Create pool via Factory
@@ -372,7 +387,8 @@ async function main() {
 
       // 11. Set provider for infrastructure payments
       console.log(`   🏭 Setting infrastructure provider to treasury...`);
-      await infraReserve.setProvider(config.modelId, treasuryAddress);
+      const setProviderTx = await infraReserve.setProvider(config.modelId, treasuryAddress);
+      await setProviderTx.wait();
       console.log(`   ✅ Provider set (can be updated later)`);
 
       // 12. Initialize pool with liquidity (if any)
@@ -460,16 +476,19 @@ async function main() {
 
     // Grant RECORDER_ROLE to DeltaVerifier
     const RECORDER_ROLE = await contributionRegistry.RECORDER_ROLE();
-    await contributionRegistry.grantRole(RECORDER_ROLE, verifierAddress);
+    const grantRecorderTx = await contributionRegistry.grantRole(RECORDER_ROLE, verifierAddress);
+    await grantRecorderTx.wait();
     console.log("   ✅ RECORDER_ROLE granted to DeltaVerifier");
 
     // Grant VERIFIER_ROLE to deployer (can be transferred later)
     const VERIFIER_ROLE = await contributionRegistry.VERIFIER_ROLE();
-    await contributionRegistry.grantRole(VERIFIER_ROLE, deployer.address);
+    const grantVerifierTx = await contributionRegistry.grantRole(VERIFIER_ROLE, deployer.address);
+    await grantVerifierTx.wait();
     console.log("   ✅ VERIFIER_ROLE granted to deployer");
 
     // Set DeltaVerifier in TokenManager
-    await tokenManager.setDeltaVerifier(verifierAddress);
+    const setDeltaVerifierTx = await tokenManager.setDeltaVerifier(verifierAddress);
+    await setDeltaVerifierTx.wait();
     console.log("   ✅ DeltaVerifier configured in TokenManager");
 
     // ============================================================
@@ -482,6 +501,7 @@ async function main() {
 
     console.log("\n📋 Core Contracts:");
     console.log(`   ModelRegistry:             ${deployment.contracts.ModelRegistry}`);
+    console.log(`   TokenDeploymentFactory:    ${deployment.contracts.TokenDeploymentFactory}`);
     console.log(`   TokenManager:              ${deployment.contracts.TokenManager}`);
     console.log(`   DataContributionRegistry:  ${deployment.contracts.DataContributionRegistry}`);
     console.log(`   MockUSDC:                  ${deployment.contracts.MockUSDC}`);

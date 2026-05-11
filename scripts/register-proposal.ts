@@ -84,7 +84,13 @@ async function registerProposal(
     initialOraclePricePerThousandUsd,
     licenseHash,
     licenseURI,
-    governor
+    governor,
+    vestingConfig: {
+      enabled: true,
+      immediateUnlockBps: 1000,
+      vestingDurationSeconds: 365 * 24 * 60 * 60,
+      cliffSeconds: 0
+    }
   };
 
   try {

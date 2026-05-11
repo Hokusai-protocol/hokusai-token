@@ -7,6 +7,8 @@ import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
 import "./HokusaiToken.sol";
 import "./HokusaiParams.sol";
+import "./interfaces/IHokusaiParams.sol";
+import "./interfaces/IRewardVestingVault.sol";
 
 /**
  * @title TokenManager
@@ -25,6 +27,7 @@ contract TokenManager is Ownable, AccessControlBase {
         bytes32 licenseHash;                // Hash of license reference
         string licenseURI;                  // URI for license reference
         address governor;                   // Address to grant GOV_ROLE
+        IHokusaiParams.VestingConfig vestingConfig; // Contributor reward vesting policy
     }
     
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -38,6 +41,7 @@ contract TokenManager is Ownable, AccessControlBase {
     // Optional platform fee for deployment
     uint256 public deploymentFee = 0;
     address public feeRecipient;
+    IRewardVestingVault public vestingVault;
 
     event TokenDeployed(
         string indexed modelId,
@@ -58,6 +62,7 @@ contract TokenManager is Ownable, AccessControlBase {
     event TokensMinted(string indexed modelId, address indexed recipient, uint256 amount);
     event TokensBurned(string indexed modelId, address indexed account, uint256 amount);
     event DeltaVerifierUpdated(address indexed newDeltaVerifier);
+    event VestingVaultUpdated(address indexed vestingVault);
     event BatchMinted(string indexed modelId, address[] recipients, uint256[] amounts, uint256 totalAmount);
     event ContributorSkipped(address indexed contributor, uint256 index);
     event DeploymentFeeUpdated(uint256 newFee);
@@ -72,6 +77,15 @@ contract TokenManager is Ownable, AccessControlBase {
         string indexed modelId,
         address indexed recipient,
         uint256 amount
+    );
+    event RewardVestingCreated(
+        string indexed modelId,
+        address indexed contributor,
+        uint256 totalReward,
+        uint256 immediateAmount,
+        uint256 vestedAmount,
+        uint256 vestingStart,
+        uint256 vestingEnd
     );
 
 
@@ -137,7 +151,8 @@ contract TokenManager is Ownable, AccessControlBase {
             initialParams.initialOraclePricePerThousandUsd,
             initialParams.licenseHash,
             initialParams.licenseURI,
-            initialParams.governor
+            initialParams.governor,
+            initialParams.vestingConfig
         );
         address paramsAddress = address(newParams);
 
@@ -230,7 +245,8 @@ contract TokenManager is Ownable, AccessControlBase {
             initialParams.initialOraclePricePerThousandUsd,
             initialParams.licenseHash,
             initialParams.licenseURI,
-            initialParams.governor
+            initialParams.governor,
+            initialParams.vestingConfig
         );
         address paramsAddress = address(newParams);
 
@@ -325,6 +341,16 @@ contract TokenManager is Ownable, AccessControlBase {
     }
 
     /**
+     * @dev Sets the reward vesting vault used for contributor reward schedules.
+     */
+    function setVestingVault(address vaultAddress) external onlyOwner {
+        ValidationLib.requireNonZeroAddress(vaultAddress, "vesting vault");
+        require(address(vestingVault) == address(0), "Vesting vault already set");
+        vestingVault = IRewardVestingVault(vaultAddress);
+        emit VestingVaultUpdated(vaultAddress);
+    }
+
+    /**
      * @dev Authorizes an AMM contract to mint and burn tokens
      * @param amm The AMM contract address to authorize
      */
@@ -367,7 +393,7 @@ contract TokenManager is Ownable, AccessControlBase {
             "Model is deactivated"
         );
 
-        HokusaiToken(tokenAddress).mint(recipient, amount);
+        _mintWithVesting(modelId, tokenAddress, recipient, amount);
 
         emit TokensMinted(modelId, recipient, amount);
     }
@@ -412,7 +438,7 @@ contract TokenManager is Ownable, AccessControlBase {
                 continue;
             }
 
-            token.mint(recipients[i], amounts[i]);
+            _mintWithVesting(modelId, tokenAddress, recipients[i], amounts[i]);
             totalAmount += amounts[i];
         }
 
@@ -492,5 +518,55 @@ contract TokenManager is Ownable, AccessControlBase {
      */
     function hasParams(string memory modelId) external view returns (bool) {
         return modelParams[modelId] != address(0);
+    }
+
+    function _mintWithVesting(
+        string memory modelId,
+        address tokenAddress,
+        address recipient,
+        uint256 amount
+    ) private {
+        HokusaiToken token = HokusaiToken(tokenAddress);
+        IHokusaiParams params = token.params();
+
+        if (!params.vestingEnabled()) {
+            token.mint(recipient, amount);
+            return;
+        }
+
+        uint16 unlockBps = params.immediateUnlockBps();
+        uint256 immediateAmount = (amount * unlockBps) / 10000;
+        uint256 vestedAmount = amount - immediateAmount;
+
+        if (immediateAmount > 0) {
+            token.mint(recipient, immediateAmount);
+        }
+
+        if (vestedAmount == 0) {
+            return;
+        }
+
+        require(address(vestingVault) != address(0), "Vesting vault not configured");
+
+        uint64 duration = params.vestingDurationSeconds();
+        token.mint(address(vestingVault), vestedAmount);
+        vestingVault.createSchedule(
+            modelId,
+            tokenAddress,
+            recipient,
+            vestedAmount,
+            params.cliffSeconds(),
+            duration
+        );
+
+        emit RewardVestingCreated(
+            modelId,
+            recipient,
+            amount,
+            immediateAmount,
+            vestedAmount,
+            block.timestamp,
+            block.timestamp + uint256(duration)
+        );
     }
 }

@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
+const { buildDisabledVestingConfig } = require("./helpers/tokenDeployment");
 
 describe("DeltaVerifier with Dynamic Params", function () {
   let deltaVerifier;
@@ -50,7 +51,8 @@ describe("DeltaVerifier with Dynamic Params", function () {
     initialOraclePricePerThousandUsd: 0,
     licenseHash: keccak256(toUtf8Bytes("test-license")),
     licenseURI: "https://test.license",
-    governor: null // Will be set in beforeEach
+    governor: null, // Will be set in beforeEach
+    vestingConfig: buildDisabledVestingConfig()
   };
 
   beforeEach(async function () {

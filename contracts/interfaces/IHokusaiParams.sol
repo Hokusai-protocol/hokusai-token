@@ -13,6 +13,13 @@ interface IHokusaiParams {
         SingleMetric
     }
 
+    struct VestingConfig {
+        bool enabled;
+        uint16 immediateUnlockBps;
+        uint64 vestingDurationSeconds;
+        uint64 cliffSeconds;
+    }
+
     /**
      * @dev Returns the metric evaluation mode for the model's token
      * @return The metric type enum value (0 = multi-metric, 1 = single-metric)
@@ -63,6 +70,31 @@ interface IHokusaiParams {
     function licenseRef() external view returns (bytes32 hash, string memory uri);
 
     /**
+     * @dev Returns whether reward vesting is enabled for contributor emissions.
+     */
+    function vestingEnabled() external view returns (bool);
+
+    /**
+     * @dev Returns the liquid reward portion in basis points.
+     */
+    function immediateUnlockBps() external view returns (uint16);
+
+    /**
+     * @dev Returns the full vesting duration in seconds.
+     */
+    function vestingDurationSeconds() external view returns (uint64);
+
+    /**
+     * @dev Returns the cliff in seconds before any tokens become claimable.
+     */
+    function cliffSeconds() external view returns (uint64);
+
+    /**
+     * @dev Returns the full vesting configuration.
+     */
+    function vestingConfig() external view returns (VestingConfig memory);
+
+    /**
      * @dev Sets the tokens per deltaOne parameter
      * @param newValue The new tokens per deltaOne value (must be between 100-100000)
      * Requirements:
@@ -99,6 +131,11 @@ interface IHokusaiParams {
     function setLicenseRef(bytes32 hash, string memory uri) external;
 
     /**
+     * @dev Sets the vesting configuration for contributor rewards.
+     */
+    function setVestingConfig(VestingConfig calldata cfg) external;
+
+    /**
      * @dev Emitted when tokensPerDeltaOne is updated
      * @param oldValue The previous tokens per deltaOne value
      * @param newValue The new tokens per deltaOne value
@@ -130,6 +167,17 @@ interface IHokusaiParams {
      * @param updatedBy The address that made the update
      */
     event LicenseRefSet(bytes32 indexed oldHash, bytes32 indexed newHash, string newUri, address indexed updatedBy);
+
+    /**
+     * @dev Emitted when the vesting configuration is updated.
+     */
+    event VestingConfigSet(
+        bool enabled,
+        uint16 immediateUnlockBps,
+        uint64 vestingDurationSeconds,
+        uint64 cliffSeconds,
+        address indexed updatedBy
+    );
 
     /**
      * @dev Emitted when a parameter update is queued for a model

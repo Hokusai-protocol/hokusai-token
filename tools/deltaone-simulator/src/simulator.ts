@@ -43,8 +43,9 @@ export class Simulator {
     evaluationData: EvaluationData
   ): Promise<SimulationResult | ErrorResult> {
     try {
-      // Step 1: Calculate DeltaOne score (average improvement across metrics)
-      const deltaOneScore = await this.calculateDeltaOne(
+      // Step 1: Calculate DeltaOne score (single-metric accuracy delta)
+      const deltaOneScore = await this.calculateDeltaOneForModel(
+        modelId,
         evaluationData.baselineMetrics,
         evaluationData.newMetrics
       );
@@ -107,13 +108,15 @@ export class Simulator {
   }
 
   /**
-   * Calculate DeltaOne score (average improvement)
+   * Calculate DeltaOne score (single-metric accuracy delta)
    */
-  private async calculateDeltaOne(
+  private async calculateDeltaOneForModel(
+    modelId: string,
     baselineMetrics: Metrics,
     newMetrics: Metrics
   ): Promise<bigint> {
-    return await this.deltaVerifier.calculateDeltaOne(
+    return await this.deltaVerifier.calculateDeltaOneForModel(
+      modelId,
       baselineMetrics,
       newMetrics
     );

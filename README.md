@@ -285,18 +285,6 @@ function submitEvaluation(
 **Returns:**
 - `rewardAmount`: The calculated token reward amount
 
-#### calculateDeltaOne(Metrics memory baseline, Metrics memory newMetrics)
-Calculates the DeltaOne score (average percentage improvement).
-```solidity
-function calculateDeltaOne(
-    Metrics memory baseline,
-    Metrics memory newMetrics
-) public pure returns (uint256)
-```
-
-**Returns:**
-- Delta score in basis points (100 = 1%)
-
 #### calculateReward(uint256 deltaInBps, uint256 contributorWeight, uint256 contributedSamples)
 Calculates token reward based on performance improvement.
 ```solidity

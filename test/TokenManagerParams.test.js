@@ -333,8 +333,8 @@ describe("TokenManager with Params", function () {
       );
 
       const receipt = await tx.wait();
-      // Dual deployment now includes the epoch-aware params contract path.
-      expect(receipt.gasUsed).to.be.lt(3350000);
+      // Dual deployment now includes the epoch-aware params contract path plus oracle price governance state.
+      expect(receipt.gasUsed).to.be.lt(3400000);
     });
   });
 

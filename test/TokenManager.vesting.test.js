@@ -188,6 +188,37 @@ describe("TokenManager Vesting", function () {
     expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(parseEther("135"));
   });
 
+  it("mints entire reward as liquid when immediateUnlockBps is 10000 (100%)", async function () {
+    const { token } = await deployToken(
+      "full-liquid",
+      buildVestingConfig({ immediateUnlockBps: 10000 })
+    );
+    const rewardAmount = parseEther("1000");
+
+    await tokenManager.mintTokens("full-liquid", contributor.address, rewardAmount);
+
+    expect(await token.balanceOf(contributor.address)).to.equal(rewardAmount);
+    expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(0);
+    expect(await vestingVault.getSchedulesByBeneficiary(contributor.address)).to.deep.equal([]);
+  });
+
+  it("sends entire reward to vault when immediateUnlockBps is 0 (100% vested)", async function () {
+    const { token } = await deployToken(
+      "full-vested",
+      buildVestingConfig({ immediateUnlockBps: 0 })
+    );
+    const rewardAmount = parseEther("1000");
+
+    await tokenManager.mintTokens("full-vested", contributor.address, rewardAmount);
+
+    expect(await token.balanceOf(contributor.address)).to.equal(0);
+    expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(rewardAmount);
+    const scheduleIds = await vestingVault.getSchedulesByBeneficiary(contributor.address);
+    expect(scheduleIds).to.deep.equal([0n]);
+    const schedule = await vestingVault.getSchedule(0);
+    expect(schedule.totalAmount).to.equal(rewardAmount);
+  });
+
   it("keeps rewards fully liquid when vesting is disabled", async function () {
     const { token, params } = await deployToken("no-vesting", buildDisabledVestingConfig());
     const rewardAmount = parseEther("500");

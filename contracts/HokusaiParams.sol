@@ -33,6 +33,24 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /// @dev Default price epoch duration (30 days in seconds)
     uint256 public constant DEFAULT_PRICE_EPOCH_DURATION = 30 days;
 
+    /// @dev Default vesting enabled state
+    bool public constant DEFAULT_VESTING_ENABLED = true;
+
+    /// @dev Default immediate unlock percentage (10% in basis points)
+    uint16 public constant DEFAULT_IMMEDIATE_UNLOCK_BPS = 1000;
+
+    /// @dev Default vesting duration (365 days in seconds)
+    uint64 public constant DEFAULT_VESTING_DURATION_SECONDS = 365 days;
+
+    /// @dev Default cliff duration (0 seconds)
+    uint64 public constant DEFAULT_CLIFF_SECONDS = 0;
+
+    /// @dev Maximum allowed value for immediateUnlockBps (100% in basis points)
+    uint16 public constant MAX_IMMEDIATE_UNLOCK_BPS = 10000;
+
+    /// @dev Maximum allowed vesting duration (10 years in seconds)
+    uint64 public constant MAX_VESTING_DURATION_SECONDS = 10 * 365 days;
+
     /// @dev Number of tokens to mint per unit of deltaOne improvement (global default)
     uint256 private _tokensPerDeltaOne;
 
@@ -53,6 +71,18 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
 
     /// @dev Price epoch duration in seconds
     uint256 private _priceEpochDuration;
+
+    /// @dev Vesting enabled flag
+    bool private _vestingEnabled;
+
+    /// @dev Immediate unlock percentage in basis points
+    uint16 private _immediateUnlockBps;
+
+    /// @dev Vesting duration in seconds
+    uint64 private _vestingDurationSeconds;
+
+    /// @dev Cliff duration in seconds
+    uint64 private _cliffSeconds;
 
     /// @dev Struct to track pending parameter updates
     struct PendingUpdate {
@@ -83,6 +113,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
      * @param initialOraclePricePerThousandUsd Initial oracle price in USD per 1000 calls
      * @param initialLicenseHash Initial license reference hash
      * @param initialLicenseURI Initial license reference URI
+     * @param initialVestingConfig Initial vesting configuration
      * @param governor Address to grant GOV_ROLE to
      */
     constructor(
@@ -91,6 +122,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         uint256 initialOraclePricePerThousandUsd,
         bytes32 initialLicenseHash,
         string memory initialLicenseURI,
+        IHokusaiParams.VestingConfig memory initialVestingConfig,
         address governor
     ) {
         require(governor != address(0), "Governor cannot be zero address");
@@ -102,6 +134,9 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
             "infrastructureAccrualBps must be between 1000 and 10000"
         );
 
+        // Validate vesting config
+        _validateVestingConfig(initialVestingConfig);
+
         // Set initial values
         _tokensPerDeltaOne = initialTokensPerDeltaOne;
         _metricType = IHokusaiParams.MetricType.SingleMetric;
@@ -110,6 +145,12 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         _licenseHash = initialLicenseHash;
         _licenseURI = initialLicenseURI;
         _priceEpochDuration = DEFAULT_PRICE_EPOCH_DURATION;
+
+        // Set vesting config
+        _vestingEnabled = initialVestingConfig.enabled;
+        _immediateUnlockBps = initialVestingConfig.immediateUnlockBps;
+        _vestingDurationSeconds = initialVestingConfig.vestingDurationSeconds;
+        _cliffSeconds = initialVestingConfig.cliffSeconds;
 
         // Setup access control
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -175,6 +216,58 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /**
      * @inheritdoc IHokusaiParams
      */
+    function vestingEnabled() external view override returns (bool) {
+        return _vestingEnabled;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function immediateUnlockBps() external view override returns (uint16) {
+        return _immediateUnlockBps;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function vestingDurationSeconds() external view override returns (uint64) {
+        return _vestingDurationSeconds;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function cliffSeconds() external view override returns (uint64) {
+        return _cliffSeconds;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function vestingConfig() external view override returns (IHokusaiParams.VestingConfig memory) {
+        return IHokusaiParams.VestingConfig({
+            enabled: _vestingEnabled,
+            immediateUnlockBps: _immediateUnlockBps,
+            vestingDurationSeconds: _vestingDurationSeconds,
+            cliffSeconds: _cliffSeconds
+        });
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function defaultVestingConfig() external pure override returns (IHokusaiParams.VestingConfig memory) {
+        return IHokusaiParams.VestingConfig({
+            enabled: DEFAULT_VESTING_ENABLED,
+            immediateUnlockBps: DEFAULT_IMMEDIATE_UNLOCK_BPS,
+            vestingDurationSeconds: DEFAULT_VESTING_DURATION_SECONDS,
+            cliffSeconds: DEFAULT_CLIFF_SECONDS
+        });
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
     function setTokensPerDeltaOne(uint256 newValue) external override onlyRole(GOV_ROLE) {
         newValue = _normalizeTokensPerDeltaOne(newValue);
         _validateTokensPerDeltaOne(newValue);
@@ -223,6 +316,26 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         emit LicenseRefSet(oldHash, hash, uri, msg.sender);
     }
 
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function setVestingConfig(IHokusaiParams.VestingConfig calldata config) external override onlyRole(GOV_ROLE) {
+        _validateVestingConfig(config);
+
+        _vestingEnabled = config.enabled;
+        _immediateUnlockBps = config.immediateUnlockBps;
+        _vestingDurationSeconds = config.vestingDurationSeconds;
+        _cliffSeconds = config.cliffSeconds;
+
+        emit VestingConfigSet(
+            config.enabled,
+            config.immediateUnlockBps,
+            config.vestingDurationSeconds,
+            config.cliffSeconds,
+            msg.sender
+        );
+    }
+
     // ============================================================
     // EPOCH-BASED PRICE LOCKING FUNCTIONS
     // ============================================================
@@ -255,6 +368,32 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
             value >= MIN_TOKENS_PER_DELTA_ONE && value <= MAX_TOKENS_PER_DELTA_ONE,
             TOKENS_PER_DELTA_ONE_BOUNDS_ERROR
         );
+    }
+
+    /**
+     * @dev Validates vesting configuration
+     * @param config The vesting configuration to validate
+     */
+    function _validateVestingConfig(IHokusaiParams.VestingConfig memory config) private pure {
+        require(
+            config.immediateUnlockBps <= MAX_IMMEDIATE_UNLOCK_BPS,
+            "immediateUnlockBps must be <= 10000"
+        );
+
+        if (config.enabled) {
+            require(
+                config.vestingDurationSeconds > 0,
+                "vestingDurationSeconds must be > 0 when vesting is enabled"
+            );
+            require(
+                config.vestingDurationSeconds <= MAX_VESTING_DURATION_SECONDS,
+                "vestingDurationSeconds exceeds maximum"
+            );
+            require(
+                config.cliffSeconds <= config.vestingDurationSeconds,
+                "cliffSeconds must be <= vestingDurationSeconds"
+            );
+        }
     }
 
     /**

@@ -14,6 +14,16 @@ interface IHokusaiParams {
     }
 
     /**
+     * @dev Vesting configuration for token rewards
+     */
+    struct VestingConfig {
+        bool enabled;
+        uint16 immediateUnlockBps;
+        uint64 vestingDurationSeconds;
+        uint64 cliffSeconds;
+    }
+
+    /**
      * @dev Returns the metric evaluation mode for the model's token
      * @return The metric type enum value (0 = multi-metric, 1 = single-metric)
      */
@@ -63,6 +73,42 @@ interface IHokusaiParams {
     function licenseRef() external view returns (bytes32 hash, string memory uri);
 
     /**
+     * @dev Returns whether vesting is enabled for token rewards
+     * @return True if vesting is enabled, false otherwise
+     */
+    function vestingEnabled() external view returns (bool);
+
+    /**
+     * @dev Returns the immediate unlock percentage in basis points
+     * @return The immediate unlock percentage (0-10000 basis points)
+     */
+    function immediateUnlockBps() external view returns (uint16);
+
+    /**
+     * @dev Returns the vesting duration in seconds
+     * @return The vesting duration in seconds
+     */
+    function vestingDurationSeconds() external view returns (uint64);
+
+    /**
+     * @dev Returns the vesting cliff in seconds
+     * @return The cliff duration in seconds
+     */
+    function cliffSeconds() external view returns (uint64);
+
+    /**
+     * @dev Returns the complete vesting configuration
+     * @return The VestingConfig struct with all vesting parameters
+     */
+    function vestingConfig() external view returns (VestingConfig memory);
+
+    /**
+     * @dev Returns the protocol-wide default vesting configuration
+     * @return The default VestingConfig struct
+     */
+    function defaultVestingConfig() external pure returns (VestingConfig memory);
+
+    /**
      * @dev Sets the tokens per deltaOne parameter
      * @param newValue The new tokens per deltaOne value (must be between 100-100000)
      * Requirements:
@@ -99,6 +145,17 @@ interface IHokusaiParams {
     function setLicenseRef(bytes32 hash, string memory uri) external;
 
     /**
+     * @dev Sets the vesting configuration
+     * @param config The new vesting configuration
+     * Requirements:
+     * - Only addresses with GOV_ROLE can call this function
+     * - immediateUnlockBps must be <= 10000
+     * - If enabled, vestingDurationSeconds must be > 0
+     * - cliffSeconds must be <= vestingDurationSeconds
+     */
+    function setVestingConfig(VestingConfig calldata config) external;
+
+    /**
      * @dev Emitted when tokensPerDeltaOne is updated
      * @param oldValue The previous tokens per deltaOne value
      * @param newValue The new tokens per deltaOne value
@@ -130,6 +187,22 @@ interface IHokusaiParams {
      * @param updatedBy The address that made the update
      */
     event LicenseRefSet(bytes32 indexed oldHash, bytes32 indexed newHash, string newUri, address indexed updatedBy);
+
+    /**
+     * @dev Emitted when vesting configuration is updated
+     * @param enabled Whether vesting is enabled
+     * @param immediateUnlockBps The immediate unlock percentage in basis points
+     * @param vestingDurationSeconds The vesting duration in seconds
+     * @param cliffSeconds The cliff duration in seconds
+     * @param updatedBy The address that made the update
+     */
+    event VestingConfigSet(
+        bool enabled,
+        uint16 immediateUnlockBps,
+        uint64 vestingDurationSeconds,
+        uint64 cliffSeconds,
+        address indexed updatedBy
+    );
 
     /**
      * @dev Emitted when a parameter update is queued for a model

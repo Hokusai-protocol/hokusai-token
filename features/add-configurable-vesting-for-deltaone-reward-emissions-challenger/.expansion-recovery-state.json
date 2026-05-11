@@ -1,0 +1,10 @@
+{
+  "attempted": true,
+  "issue": "HOK-1651_c",
+  "reason": "missing",
+  "status": "failed",
+  "attemptedAt": "2026-05-11T22:44:45Z",
+  "completedAt": "2026-05-11T22:44:46Z",
+  "exitCode": 1,
+  "detail": "expand-issue-exited-non-zero"
+}

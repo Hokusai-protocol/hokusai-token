@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress } = require("ethers");
-const { deployTestToken } = require("./helpers/tokenDeployment");
+const { deployTestToken, defaultVestingConfig } = require("./helpers/tokenDeployment");
 
 describe("DeltaVerifier - DataContributionRegistry Integration", function () {
   let deltaVerifier;
@@ -50,6 +50,7 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       0,
       ethers.ZeroHash,
       "",
+      defaultVestingConfig(),
       owner.address
     );
 

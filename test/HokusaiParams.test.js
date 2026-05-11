@@ -16,6 +16,12 @@ describe("HokusaiParams", function () {
   const DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD = 0;
   const DEFAULT_LICENSE_HASH = keccak256(toUtf8Bytes("default-license"));
   const DEFAULT_LICENSE_URI = "https://hokusai.ai/licenses/default";
+  const DEFAULT_VESTING_CONFIG = {
+    enabled: true,
+    immediateUnlockBps: 1000, // 10%
+    vestingDurationSeconds: 365 * 24 * 60 * 60, // 365 days
+    cliffSeconds: 0
+  };
   const TOKENS_PER_DELTA_ONE_BOUNDS_ERROR =
     "tokensPerDeltaOne must be between 100 and 10000000 whole tokens (wei-scaled)";
 
@@ -29,6 +35,7 @@ describe("HokusaiParams", function () {
       DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
       DEFAULT_LICENSE_HASH,
       DEFAULT_LICENSE_URI,
+      DEFAULT_VESTING_CONFIG,
       governor.address
     );
     await params.waitForDeployment();
@@ -69,6 +76,7 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
+          DEFAULT_VESTING_CONFIG,
           ZeroAddress
         )
       ).to.be.revertedWith("Governor cannot be zero address");
@@ -82,6 +90,7 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
+          DEFAULT_VESTING_CONFIG,
           governor.address
         )
       ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
@@ -95,6 +104,7 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
+          DEFAULT_VESTING_CONFIG,
           governor.address
         )
       ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
@@ -108,6 +118,7 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
+          DEFAULT_VESTING_CONFIG,
           governor.address
         )
       ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
@@ -121,6 +132,7 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
+          DEFAULT_VESTING_CONFIG,
           governor.address
         )
       ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
@@ -807,6 +819,156 @@ describe("HokusaiParams", function () {
         expect(await params.getModelTokensPerDeltaOne(MODEL_A)).to.equal(wholeTokens(5000));
         expect(await params.getModelTokensPerDeltaOne(MODEL_B)).to.equal(wholeTokens(7000));
       });
+    });
+  });
+
+  describe("Vesting Configuration", function () {
+    it("Should initialize with default vesting values", async function () {
+      expect(await params.vestingEnabled()).to.equal(true);
+      expect(await params.immediateUnlockBps()).to.equal(1000); // 10%
+      expect(await params.vestingDurationSeconds()).to.equal(365 * 24 * 60 * 60);
+      expect(await params.cliffSeconds()).to.equal(0);
+    });
+
+    it("Should return complete vesting config", async function () {
+      const config = await params.vestingConfig();
+      expect(config.enabled).to.equal(true);
+      expect(config.immediateUnlockBps).to.equal(1000);
+      expect(config.vestingDurationSeconds).to.equal(365 * 24 * 60 * 60);
+      expect(config.cliffSeconds).to.equal(0);
+    });
+
+    it("Should return default vesting config from pure function", async function () {
+      const defaultConfig = await params.defaultVestingConfig();
+      expect(defaultConfig.enabled).to.equal(true);
+      expect(defaultConfig.immediateUnlockBps).to.equal(1000);
+      expect(defaultConfig.vestingDurationSeconds).to.equal(365 * 24 * 60 * 60);
+      expect(defaultConfig.cliffSeconds).to.equal(0);
+    });
+
+    it("Should allow governor to update vesting config", async function () {
+      const newConfig = {
+        enabled: true,
+        immediateUnlockBps: 2500, // 25%
+        vestingDurationSeconds: 30 * 24 * 60 * 60, // 30 days
+        cliffSeconds: 7 * 24 * 60 * 60 // 7 days
+      };
+
+      await expect(params.connect(governor).setVestingConfig(newConfig))
+        .to.emit(params, "VestingConfigSet")
+        .withArgs(
+          newConfig.enabled,
+          newConfig.immediateUnlockBps,
+          newConfig.vestingDurationSeconds,
+          newConfig.cliffSeconds,
+          governor.address
+        );
+
+      expect(await params.vestingEnabled()).to.equal(newConfig.enabled);
+      expect(await params.immediateUnlockBps()).to.equal(newConfig.immediateUnlockBps);
+      expect(await params.vestingDurationSeconds()).to.equal(newConfig.vestingDurationSeconds);
+      expect(await params.cliffSeconds()).to.equal(newConfig.cliffSeconds);
+    });
+
+    it("Should allow disabling vesting", async function () {
+      const disabledConfig = {
+        enabled: false,
+        immediateUnlockBps: 10000, // 100%
+        vestingDurationSeconds: 0,
+        cliffSeconds: 0
+      };
+
+      await params.connect(governor).setVestingConfig(disabledConfig);
+      expect(await params.vestingEnabled()).to.equal(false);
+    });
+
+    it("Should reject immediateUnlockBps > 10000", async function () {
+      const invalidConfig = {
+        enabled: true,
+        immediateUnlockBps: 10001,
+        vestingDurationSeconds: 365 * 24 * 60 * 60,
+        cliffSeconds: 0
+      };
+
+      await expect(
+        params.connect(governor).setVestingConfig(invalidConfig)
+      ).to.be.revertedWith("immediateUnlockBps must be <= 10000");
+    });
+
+    it("Should reject zero duration when vesting enabled", async function () {
+      const invalidConfig = {
+        enabled: true,
+        immediateUnlockBps: 1000,
+        vestingDurationSeconds: 0,
+        cliffSeconds: 0
+      };
+
+      await expect(
+        params.connect(governor).setVestingConfig(invalidConfig)
+      ).to.be.revertedWith("vestingDurationSeconds must be > 0 when vesting is enabled");
+    });
+
+    it("Should reject cliff > duration", async function () {
+      const invalidConfig = {
+        enabled: true,
+        immediateUnlockBps: 1000,
+        vestingDurationSeconds: 30 * 24 * 60 * 60, // 30 days
+        cliffSeconds: 60 * 24 * 60 * 60 // 60 days (cliff > duration)
+      };
+
+      await expect(
+        params.connect(governor).setVestingConfig(invalidConfig)
+      ).to.be.revertedWith("cliffSeconds must be <= vestingDurationSeconds");
+    });
+
+    it("Should reject vesting duration exceeding maximum", async function () {
+      const invalidConfig = {
+        enabled: true,
+        immediateUnlockBps: 1000,
+        vestingDurationSeconds: BigInt(11) * BigInt(365) * BigInt(24) * BigInt(60) * BigInt(60), // 11 years > MAX
+        cliffSeconds: 0
+      };
+
+      await expect(
+        params.connect(governor).setVestingConfig(invalidConfig)
+      ).to.be.revertedWith("vestingDurationSeconds exceeds maximum");
+    });
+
+    it("Should prevent non-governor from updating vesting config", async function () {
+      const newConfig = {
+        enabled: true,
+        immediateUnlockBps: 2000,
+        vestingDurationSeconds: 365 * 24 * 60 * 60,
+        cliffSeconds: 0
+      };
+
+      await expect(
+        params.connect(user1).setVestingConfig(newConfig)
+      ).to.be.reverted;
+    });
+
+    it("Should allow custom vesting config in constructor", async function () {
+      const customConfig = {
+        enabled: true,
+        immediateUnlockBps: 5000, // 50%
+        vestingDurationSeconds: 180 * 24 * 60 * 60, // 180 days
+        cliffSeconds: 30 * 24 * 60 * 60 // 30 days
+      };
+
+      const customParams = await HokusaiParams.deploy(
+        DEFAULT_TOKENS_PER_DELTA_ONE,
+        DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
+        DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
+        DEFAULT_LICENSE_HASH,
+        DEFAULT_LICENSE_URI,
+        customConfig,
+        governor.address
+      );
+
+      expect(await customParams.vestingEnabled()).to.equal(customConfig.enabled);
+      expect(await customParams.immediateUnlockBps()).to.equal(customConfig.immediateUnlockBps);
+      expect(await customParams.vestingDurationSeconds()).to.equal(customConfig.vestingDurationSeconds);
+      expect(await customParams.cliffSeconds()).to.equal(customConfig.cliffSeconds);
     });
   });
 });

@@ -4,6 +4,15 @@ function wholeTokens(value) {
   return parseEther(value.toString());
 }
 
+function defaultVestingConfig() {
+  return {
+    enabled: true,
+    immediateUnlockBps: 1000, // 10%
+    vestingDurationSeconds: 365 * 24 * 60 * 60, // 365 days
+    cliffSeconds: 0
+  };
+}
+
 function buildInitialParams(governor, overrides = {}) {
   return {
     tokensPerDeltaOne: wholeTokens(500000),
@@ -11,6 +20,7 @@ function buildInitialParams(governor, overrides = {}) {
     initialOraclePricePerThousandUsd: 0,
     licenseHash: keccak256(toUtf8Bytes("default-license")),
     licenseURI: "https://hokusai.ai/licenses/default",
+    vestingConfig: defaultVestingConfig(),
     governor,
     ...overrides,
   };
@@ -36,6 +46,7 @@ async function deployTestTokenAddress(tokenManager, modelId, name, symbol, total
 
 module.exports = {
   buildInitialParams,
+  defaultVestingConfig,
   wholeTokens,
   deployTestToken,
   deployTestTokenAddress,

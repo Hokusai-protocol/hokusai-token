@@ -1,0 +1,18 @@
+{
+  "planner": "claude-opus-4-7",
+  "coder": "claude-sonnet-4-5-20250929",
+  "reviewer": "claude-sonnet-4-6",
+  "planDepth": "deep",
+  "codeDepth": "medium",
+  "reviewMode": "static+llm",
+  "reviewRecommended": "static+llm",
+  "provenance": {
+    "source": "bootstrap",
+    "inputKind": "issue",
+    "inputPath": "features/add-configurable-vesting-for-deltaone-reward-emissions-challenger/selected-task.json",
+    "inputHash": "",
+    "routedAt": "2026-05-11T22:34:49Z",
+    "routerMode": "normal"
+  },
+  "maxCostUsd": 25.00
+}

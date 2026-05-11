@@ -7,6 +7,8 @@ import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
 import "./HokusaiToken.sol";
 import "./HokusaiParams.sol";
+import "./interfaces/IHokusaiParams.sol";
+import "./interfaces/IRewardVestingVault.sol";
 
 /**
  * @title TokenManager
@@ -16,6 +18,7 @@ import "./HokusaiParams.sol";
 contract TokenManager is Ownable, AccessControlBase {
     ModelRegistry public registry;
     address public deltaVerifier;
+    address public rewardVestingVault;
 
     /// @dev Structure for initial parameter values when deploying a token
     struct InitialParams {
@@ -24,6 +27,7 @@ contract TokenManager is Ownable, AccessControlBase {
         uint256 initialOraclePricePerThousandUsd; // Initial oracle price in USD per 1000 calls
         bytes32 licenseHash;                // Hash of license reference
         string licenseURI;                  // URI for license reference
+        IHokusaiParams.VestingConfig vestingConfig; // Vesting configuration for rewards
         address governor;                   // Address to grant GOV_ROLE
     }
     
@@ -73,7 +77,20 @@ contract TokenManager is Ownable, AccessControlBase {
         address indexed recipient,
         uint256 amount
     );
-
+    event RewardVestingVaultUpdated(address indexed newVault);
+    event ParamsVestingConfigured(
+        string indexed modelId,
+        bool enabled,
+        uint16 immediateUnlockBps,
+        uint64 vestingDurationSeconds,
+        uint64 cliffSeconds
+    );
+    event BatchRewardsMinted(
+        string indexed modelId,
+        address[] recipients,
+        uint256[] amounts,
+        uint256 totalAmount
+    );
 
     constructor(address registryAddress)
         Ownable()
@@ -137,6 +154,7 @@ contract TokenManager is Ownable, AccessControlBase {
             initialParams.initialOraclePricePerThousandUsd,
             initialParams.licenseHash,
             initialParams.licenseURI,
+            initialParams.vestingConfig,
             initialParams.governor
         );
         address paramsAddress = address(newParams);
@@ -169,6 +187,13 @@ contract TokenManager is Ownable, AccessControlBase {
             initialParams.tokensPerDeltaOne,
             initialParams.infrastructureAccrualBps,
             initialParams.initialOraclePricePerThousandUsd
+        );
+        emit ParamsVestingConfigured(
+            modelId,
+            initialParams.vestingConfig.enabled,
+            initialParams.vestingConfig.immediateUnlockBps,
+            initialParams.vestingConfig.vestingDurationSeconds,
+            initialParams.vestingConfig.cliffSeconds
         );
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
 
@@ -230,6 +255,7 @@ contract TokenManager is Ownable, AccessControlBase {
             initialParams.initialOraclePricePerThousandUsd,
             initialParams.licenseHash,
             initialParams.licenseURI,
+            initialParams.vestingConfig,
             initialParams.governor
         );
         address paramsAddress = address(newParams);
@@ -262,6 +288,13 @@ contract TokenManager is Ownable, AccessControlBase {
             initialParams.tokensPerDeltaOne,
             initialParams.infrastructureAccrualBps,
             initialParams.initialOraclePricePerThousandUsd
+        );
+        emit ParamsVestingConfigured(
+            modelId,
+            initialParams.vestingConfig.enabled,
+            initialParams.vestingConfig.immediateUnlockBps,
+            initialParams.vestingConfig.vestingDurationSeconds,
+            initialParams.vestingConfig.cliffSeconds
         );
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, maxSupply);
         emit AllocationDistributed(
@@ -322,6 +355,16 @@ contract TokenManager is Ownable, AccessControlBase {
         ValidationLib.requireNonZeroAddress(_deltaVerifier, "delta verifier");
         deltaVerifier = _deltaVerifier;
         emit DeltaVerifierUpdated(_deltaVerifier);
+    }
+
+    /**
+     * @dev Sets the RewardVestingVault contract address
+     * @param _vault The RewardVestingVault contract address
+     */
+    function setRewardVestingVault(address _vault) external onlyOwner {
+        ValidationLib.requireNonZeroAddress(_vault, "reward vesting vault");
+        rewardVestingVault = _vault;
+        emit RewardVestingVaultUpdated(_vault);
     }
 
     /**
@@ -417,6 +460,180 @@ contract TokenManager is Ownable, AccessControlBase {
         }
 
         emit BatchMinted(modelId, recipients, amounts, totalAmount);
+    }
+
+    /**
+     * @dev Mints reward tokens with optional vesting
+     * @param modelId The model identifier
+     * @param recipient The address to receive the reward
+     * @param amount The total reward amount
+     */
+    function mintReward(string memory modelId, address recipient, uint256 amount)
+        external
+    {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to mint"
+        );
+
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(recipient, "recipient");
+        ValidationLib.requirePositiveAmount(amount, "amount");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        require(
+            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            "Model is deactivated"
+        );
+
+        HokusaiToken token = HokusaiToken(tokenAddress);
+        IHokusaiParams params = IHokusaiParams(modelParams[modelId]);
+
+        // Check if vesting is enabled
+        if (!params.vestingEnabled()) {
+            // No vesting - mint full amount to recipient
+            token.mint(recipient, amount);
+            emit TokensMinted(modelId, recipient, amount);
+            return;
+        }
+
+        // Vesting enabled - split reward
+        uint256 immediateAmount = (amount * params.immediateUnlockBps()) / 10000;
+        uint256 vestedAmount = amount - immediateAmount;
+
+        // If immediate unlock is 100%, skip vault
+        if (vestedAmount == 0) {
+            token.mint(recipient, amount);
+            emit TokensMinted(modelId, recipient, amount);
+            return;
+        }
+
+        // Require vault to be set
+        require(rewardVestingVault != address(0), "Reward vesting vault not set");
+
+        // Mint immediate portion to recipient
+        if (immediateAmount > 0) {
+            token.mint(recipient, immediateAmount);
+            emit TokensMinted(modelId, recipient, immediateAmount);
+        }
+
+        // Mint vested portion to vault
+        token.mint(rewardVestingVault, vestedAmount);
+
+        // Create vesting schedule
+        IRewardVestingVault(rewardVestingVault).createSchedule(
+            modelId,
+            tokenAddress,
+            recipient,
+            amount,
+            immediateAmount,
+            vestedAmount,
+            params.vestingDurationSeconds(),
+            params.cliffSeconds()
+        );
+    }
+
+    /**
+     * @dev Mints reward tokens to multiple recipients with optional vesting
+     * @param modelId The model identifier
+     * @param recipients Array of addresses to receive rewards
+     * @param amounts Array of reward amounts corresponding to each recipient
+     */
+    function batchMintReward(
+        string memory modelId,
+        address[] calldata recipients,
+        uint256[] calldata amounts
+    )
+        external
+    {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Unauthorized"
+        );
+
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireValidBatch(recipients.length, amounts.length, 100);
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        require(
+            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            "Model is deactivated"
+        );
+
+        HokusaiToken token = HokusaiToken(tokenAddress);
+        IHokusaiParams params = IHokusaiParams(modelParams[modelId]);
+        bool vestingEnabled = params.vestingEnabled();
+        uint256 totalAmount = 0;
+
+        // If vesting disabled, use standard batch mint
+        if (!vestingEnabled) {
+            for (uint256 i = 0; i < recipients.length; i++) {
+                ValidationLib.requireNonZeroAddress(recipients[i], "recipient");
+
+                if (amounts[i] == 0) {
+                    emit ContributorSkipped(recipients[i], i);
+                    continue;
+                }
+
+                token.mint(recipients[i], amounts[i]);
+                totalAmount += amounts[i];
+            }
+
+            emit BatchMinted(modelId, recipients, amounts, totalAmount);
+            return;
+        }
+
+        // Vesting enabled
+        require(rewardVestingVault != address(0), "Reward vesting vault not set");
+
+        uint16 immediateUnlockBps = params.immediateUnlockBps();
+        uint64 duration = params.vestingDurationSeconds();
+        uint64 cliff = params.cliffSeconds();
+
+        for (uint256 i = 0; i < recipients.length; i++) {
+            ValidationLib.requireNonZeroAddress(recipients[i], "recipient");
+
+            if (amounts[i] == 0) {
+                emit ContributorSkipped(recipients[i], i);
+                continue;
+            }
+
+            uint256 immediateAmount = (amounts[i] * immediateUnlockBps) / 10000;
+            uint256 vestedAmount = amounts[i] - immediateAmount;
+
+            // If 100% immediate, just mint directly
+            if (vestedAmount == 0) {
+                token.mint(recipients[i], amounts[i]);
+                emit TokensMinted(modelId, recipients[i], amounts[i]);
+            } else {
+                // Mint immediate portion
+                if (immediateAmount > 0) {
+                    token.mint(recipients[i], immediateAmount);
+                    emit TokensMinted(modelId, recipients[i], immediateAmount);
+                }
+
+                // Mint vested portion to vault
+                token.mint(rewardVestingVault, vestedAmount);
+
+                // Create vesting schedule
+                IRewardVestingVault(rewardVestingVault).createSchedule(
+                    modelId,
+                    tokenAddress,
+                    recipients[i],
+                    amounts[i],
+                    immediateAmount,
+                    vestedAmount,
+                    duration,
+                    cliff
+                );
+            }
+
+            totalAmount += amounts[i];
+        }
+
+        emit BatchRewardsMinted(modelId, recipients, amounts, totalAmount);
     }
 
     /**

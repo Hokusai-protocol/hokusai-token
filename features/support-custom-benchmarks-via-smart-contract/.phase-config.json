@@ -1,0 +1,19 @@
+{
+  "planning": {
+    "model": "claude-opus-4-7",
+    "agent": "claude",
+    "depth": "deep"
+  },
+  "coding": {
+    "model": "gpt-5.4",
+    "agent": "codex",
+    "depth": "medium"
+  },
+  "review": {
+    "model": "claude-haiku-4-5-20251001",
+    "agent": "claude",
+    "mode": "static"
+  },
+  "resolvedAt": "2026-05-12T19:00:28Z",
+  "forceModel": null
+}

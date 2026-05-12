@@ -32,5 +32,57 @@
       "Bash(aws ecs list-clusters:*)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/timothyogilvie/Dropbox/wavemill/shared/hooks/claude-status-hook.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/timothyogilvie/Dropbox/wavemill/shared/hooks/claude-status-hook.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/timothyogilvie/Dropbox/wavemill/shared/hooks/claude-status-hook.sh"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/timothyogilvie/Dropbox/wavemill/shared/hooks/claude-status-hook.sh"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/timothyogilvie/Dropbox/wavemill/shared/hooks/claude-status-hook.sh"
+          }
+        ]
+      }
+    ]
   }
 }

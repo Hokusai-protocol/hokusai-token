@@ -86,6 +86,7 @@ export class MintRequestConsumer extends EventEmitter {
 
       if (retryCount < this.config.maxRetries) {
         message._retryCount = retryCount + 1;
+        await this.redis.lRem(this.config.processingQueue, 1, messageStr);
         await this.redis.lPush(this.config.inboundQueue, JSON.stringify(message));
       } else {
         await this.redis.lRem(this.config.processingQueue, 1, messageStr);

@@ -106,7 +106,8 @@ async function main() {
     await registerTx.wait();
   }
 
-  await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
+  const setDeltaVerifierTx = await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
+  await setDeltaVerifierTx.wait();
   await grantRoleIfMissing(tokenManager, await tokenManager.MINTER_ROLE(), await deltaVerifier.getAddress());
   await grantRoleIfMissing(deltaVerifier, await deltaVerifier.SUBMITTER_ROLE(), submitterAddress);
   await grantRoleIfMissing(contributionRegistry, await contributionRegistry.RECORDER_ROLE(), await deltaVerifier.getAddress());

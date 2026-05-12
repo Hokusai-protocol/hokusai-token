@@ -1,0 +1,25 @@
+{
+  "model_id_uint": 42,
+  "eval_id": "wavemill-benchmark-2026-05-12T13:45:00Z",
+  "attestation_hash": "0x8f16a7d3946f4731c9b3a5d47f4d7f3ed5b1f9af1d87a6d5fd0d1d25e8f4c2ab",
+  "baseline_score_bps": 8125,
+  "new_score_bps": 8450,
+  "cost": {
+    "max_cost_usd": 250,
+    "actual_cost_usd": 180
+  },
+  "contributors": [
+    {
+      "wallet_address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "weight_bps": 5000
+    },
+    {
+      "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "weight_bps": 3000
+    },
+    {
+      "wallet_address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+      "weight_bps": 2000
+    }
+  ]
+}

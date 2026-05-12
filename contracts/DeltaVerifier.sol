@@ -61,6 +61,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         Metrics newMetrics;
         uint256 maxCostUsd;
         uint256 actualCostUsd;
+        uint256 totalSamples;
     }
 
     ModelRegistry public immutable modelRegistry;
@@ -198,6 +199,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         }
         
         require(totalWeight == 10000, "Weights must sum to 100%");
+        require(data.totalSamples > 0, "Total samples must be positive");
 
         if (_isBudgetConstraintViolated(data.maxCostUsd, data.actualCostUsd)) {
             emit BudgetConstraintViolated(
@@ -247,6 +249,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
                 modelIdStr,
                 contributorAddresses,
                 contributors,
+                data.totalSamples,
                 rewardAmounts,
                 data.pipelineRunId
             );
@@ -530,7 +533,8 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
      * @dev Records contributions in the DataContributionRegistry
      * @param modelId The model identifier (string)
      * @param contributorAddresses Array of contributor addresses
-     * @param contributors Array of Contributor structs with weights and samples
+     * @param contributors Array of Contributor structs with attribution weights
+     * @param totalSamples Total sample count for the evaluated dataset
      * @param rewardAmounts Array of token amounts earned
      * @param pipelineRunId ML pipeline execution reference
      */
@@ -538,6 +542,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         string memory modelId,
         address[] memory contributorAddresses,
         Contributor[] calldata contributors,
+        uint256 totalSamples,
         uint256[] memory rewardAmounts,
         string memory pipelineRunId
     ) private {
@@ -545,10 +550,6 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         bytes32[] memory contributionHashes = new bytes32[](contributorAddresses.length);
         uint256[] memory contributedSamples = new uint256[](contributorAddresses.length);
         uint256[] memory weightsBps = new uint256[](contributorAddresses.length);
-
-        // Calculate total samples (assumed to be sum of all contributed samples for simplicity)
-        // In production, this should come from the evaluation data
-        uint256 totalSamples = 0;
 
         for (uint256 i = 0; i < contributorAddresses.length; i++) {
             // Generate deterministic hash for this contribution
@@ -562,10 +563,8 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
             // Extract weights (already in basis points)
             weightsBps[i] = contributors[i].weight;
 
-            // For now, calculate contributed samples proportional to weight
-            // In a real implementation, this should come from the evaluation data
-            contributedSamples[i] = (contributors[i].weight * 1000) / 100; // Placeholder calculation
-            totalSamples += contributedSamples[i];
+            // Attribute integer samples proportionally; truncation dust stays unassigned.
+            contributedSamples[i] = (totalSamples * contributors[i].weight) / 10000;
         }
 
         // Record contributions in the registry

@@ -119,6 +119,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       expect(contribution.modelId).to.equal(String(MODEL_ID));
       expect(contribution.contributor).to.equal(contributor1.address);
       expect(contribution.contributorWeightBps).to.equal(10000);
+      expect(contribution.contributedSamples).to.equal(5000);
+      expect(contribution.totalSamples).to.equal(5000);
       expect(contribution.pipelineRunId).to.equal("run_test_001");
       expect(contribution.status).to.equal(0); // Pending
       expect(contribution.tokensEarned).to.be.gt(0);
@@ -157,7 +159,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         baselineMetrics: sampleBaselineMetrics,
         newMetrics: sampleNewMetrics,
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       // Submit evaluation with multiple contributors
@@ -176,6 +179,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       expect(contribution1.modelId).to.equal(String(MODEL_ID));
       expect(contribution1.contributor).to.equal(contributor1.address);
       expect(contribution1.contributorWeightBps).to.equal(6000);
+      expect(contribution1.contributedSamples).to.equal(6000);
+      expect(contribution1.totalSamples).to.equal(10000);
       expect(contribution1.pipelineRunId).to.equal("run_test_multi_001");
       expect(contribution1.tokensEarned).to.be.gt(0);
 
@@ -184,6 +189,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       expect(contribution2.modelId).to.equal(String(MODEL_ID));
       expect(contribution2.contributor).to.equal(contributor2.address);
       expect(contribution2.contributorWeightBps).to.equal(4000);
+      expect(contribution2.contributedSamples).to.equal(4000);
+      expect(contribution2.totalSamples).to.equal(10000);
       expect(contribution2.pipelineRunId).to.equal("run_test_multi_001");
       expect(contribution2.tokensEarned).to.be.gt(0);
 
@@ -208,7 +215,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         baselineMetrics: sampleBaselineMetrics,
         newMetrics: sampleNewMetrics,
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       // Should revert with batch size > 100 (now using custom error)
@@ -234,7 +242,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         baselineMetrics: sampleBaselineMetrics,
         newMetrics: sampleNewMetrics,
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -258,7 +267,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
           auroc: 9500
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 5000
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -297,7 +307,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         baselineMetrics: sampleBaselineMetrics,
         newMetrics: sampleNewMetrics,
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -314,7 +325,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         baselineMetrics: sampleBaselineMetrics,
         newMetrics: sampleNewMetrics,
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -346,7 +358,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         baselineMetrics: sampleBaselineMetrics,
         newMetrics: sampleNewMetrics,
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -369,7 +382,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
           auroc: 9500
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 5000
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -419,6 +433,7 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
 
       expect(totalContributions).to.equal(2);
       expect(totalTokens).to.be.gt(0);
+      expect(totalSamples).to.equal(10000);
     });
   });
 
@@ -454,7 +469,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
         baselineMetrics: sampleBaselineMetrics,
         newMetrics: sampleNewMetrics,
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -466,6 +482,108 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
 
       // Should be reasonable for batch operations (< 1M for 2 contributors including recording)
       expect(receipt.gasUsed).to.be.lt(1000000);
+    });
+  });
+
+  describe("Sample Recording", function () {
+    it("should record proportional contributed samples for multi-contributor submissions", async function () {
+      const contributors = [
+        { walletAddress: contributor1.address, weight: 6000 },
+        { walletAddress: contributor2.address, weight: 3000 },
+        { walletAddress: contributor3.address, weight: 1000 }
+      ];
+      const evalData = {
+        pipelineRunId: "run_samples_proportional",
+        baselineMetrics: sampleBaselineMetrics,
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0,
+        totalSamples: 10000
+      };
+
+      await deltaVerifier.submitEvaluationWithMultipleContributors(MODEL_ID, evalData, contributors);
+
+      const contribution1 = await contributionRegistry.getContribution(1);
+      const contribution2 = await contributionRegistry.getContribution(2);
+      const contribution3 = await contributionRegistry.getContribution(3);
+
+      expect(contribution1.contributedSamples).to.equal(6000);
+      expect(contribution2.contributedSamples).to.equal(3000);
+      expect(contribution3.contributedSamples).to.equal(1000);
+      expect(contribution1.totalSamples).to.equal(10000);
+      expect(contribution2.totalSamples).to.equal(10000);
+      expect(contribution3.totalSamples).to.equal(10000);
+    });
+
+    it("should record the full sample count when a single contributor uses the multi-contributor path", async function () {
+      const evalData = {
+        pipelineRunId: "run_samples_single_multi",
+        baselineMetrics: sampleBaselineMetrics,
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0,
+        totalSamples: 5000
+      };
+
+      await deltaVerifier.submitEvaluationWithMultipleContributors(
+        MODEL_ID,
+        evalData,
+        [{ walletAddress: contributor1.address, weight: 10000 }]
+      );
+
+      const contribution = await contributionRegistry.getContribution(1);
+      expect(contribution.contributedSamples).to.equal(5000);
+      expect(contribution.totalSamples).to.equal(5000);
+    });
+
+    it("should truncate fractional samples while keeping the batch total within totalSamples", async function () {
+      const contributors = [
+        { walletAddress: contributor1.address, weight: 3333 },
+        { walletAddress: contributor2.address, weight: 3333 },
+        { walletAddress: contributor3.address, weight: 3334 }
+      ];
+      const evalData = {
+        pipelineRunId: "run_samples_rounding",
+        baselineMetrics: sampleBaselineMetrics,
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0,
+        totalSamples: 10
+      };
+
+      await deltaVerifier.submitEvaluationWithMultipleContributors(MODEL_ID, evalData, contributors);
+
+      const contribution1 = await contributionRegistry.getContribution(1);
+      const contribution2 = await contributionRegistry.getContribution(2);
+      const contribution3 = await contributionRegistry.getContribution(3);
+      const recordedTotal =
+        contribution1.contributedSamples +
+        contribution2.contributedSamples +
+        contribution3.contributedSamples;
+
+      expect(contribution1.contributedSamples).to.equal(3);
+      expect(contribution2.contributedSamples).to.equal(3);
+      expect(contribution3.contributedSamples).to.equal(3);
+      expect(recordedTotal).to.be.lte(10);
+    });
+
+    it("should reject zero totalSamples in the multi-contributor path", async function () {
+      const contributors = [
+        { walletAddress: contributor1.address, weight: 6000 },
+        { walletAddress: contributor2.address, weight: 4000 }
+      ];
+      const evalData = {
+        pipelineRunId: "run_samples_zero",
+        baselineMetrics: sampleBaselineMetrics,
+        newMetrics: sampleNewMetrics,
+        maxCostUsd: 0,
+        actualCostUsd: 0,
+        totalSamples: 0
+      };
+
+      await expect(
+        deltaVerifier.submitEvaluationWithMultipleContributors(MODEL_ID, evalData, contributors)
+      ).to.be.revertedWith("Total samples must be positive");
     });
   });
 });

@@ -202,7 +202,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           auroc: 9300
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -261,7 +262,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           auroc: 9300
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 5000
       };
 
       const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -295,7 +297,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           auroc: 9300
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       await expect(
@@ -337,7 +340,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           auroc: 9300
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       await expect(
@@ -378,7 +382,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           auroc: 9300
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       await expect(
@@ -421,7 +426,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           auroc: 9300
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       const tx = await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -496,7 +502,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
           auroc: 9300
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       // Test single contributor
@@ -527,7 +534,7 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
 
       const tx2 = await deltaVerifier.submitEvaluationWithMultipleContributors(
         MODEL_ID,
-        { ...evaluationData, pipelineRunId: "gas_test_2" },
+        { ...evaluationData, pipelineRunId: "gas_test_2", totalSamples: 10000 },
         contributors
       );
       const receipt2 = await tx2.wait();

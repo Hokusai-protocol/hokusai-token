@@ -131,6 +131,7 @@ describe("DeltaVerifier Vesting Integration", function () {
       newMetrics: improvedMetrics,
       maxCostUsd: 0,
       actualCostUsd: 0,
+      totalSamples: 10000,
     };
 
     const expectedDelta = await deltaVerifier.calculateDeltaOneForModel(

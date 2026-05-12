@@ -33,6 +33,7 @@ This is the pipeline-side reference shape the relayer should accept:
   "attestation_hash": "0x<64 hex chars>",
   "baseline_score_bps": 8125,
   "new_score_bps": 8450,
+  "total_samples": 10000,
   "cost": {
     "max_cost_usd": 250,
     "actual_cost_usd": 180
@@ -64,6 +65,7 @@ Units and conventions:
 | `attestation_hash` | `0x`-prefixed 32-byte hex string | No v1 on-chain destination | n/a | Keep off-chain only in v1. Optional non-normative fallback: concatenate into `eval_id` if a deployment requires it, but that is not the standard mapping. | Must match `^0x[0-9a-fA-F]{64}$` off-chain so downstream systems can treat it as canonical `bytes32`. No contract line consumes it directly. | No DeltaVerifier revert because it is not submitted on-chain in v1 |
 | `baseline_score_bps` | integer bps | `data.baselineMetrics.accuracy` | `uint256` | Direct integer conversion | Must be an integer in `[0, 10000]`. The multi-contributor path does not invoke `_validateMetrics`, so the relayer must enforce the cap client-side. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L213), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L418) | Without relayer validation this path can submit out-of-range values; v1 contract does not reject them |
 | `new_score_bps` | integer bps | `data.newMetrics.accuracy` | `uint256` | Direct integer conversion | Must be an integer in `[0, 10000]`. Same relayer-side cap as baseline score. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L213), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L423) | If `new_score_bps <= baseline_score_bps`, `_calculateSingleMetricDelta` returns `0` and the call succeeds with zero reward. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L390) |
+| `total_samples` | integer count | `data.totalSamples` | `uint256` | Direct integer conversion | Must be an integer `> 0`. The contract now rejects zero to avoid recording meaningless provenance counts. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L200) | Reverts `"Total samples must be positive"` |
 | `cost.max_cost_usd` | integer USD | `data.maxCostUsd` | `uint256` | Direct integer conversion | Must be an integer `>= 0`. `0` is a sentinel that disables budget enforcement. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L62), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L452) | If both cost fields are non-zero and `actualCostUsd > maxCostUsd`, the call succeeds, emits `BudgetConstraintViolated`, and returns `0`. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L202) |
 | `cost.actual_cost_usd` | integer USD | `data.actualCostUsd` | `uint256` | Direct integer conversion | Must be an integer `>= 0`. `0` disables budget enforcement together with `maxCostUsd`. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L63), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L453) | Same `BudgetConstraintViolated` success-without-mint semantics as above |
 | `contributors[*].wallet_address` | address string | `contributors[*].walletAddress` | `address` | Canonicalize to EIP-55 before encoding | Must be a valid address, non-zero, unique within the array. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L189), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L193) | Reverts `ZeroAddress("wallet address")` or `"Duplicate contributor address"` |
@@ -81,6 +83,7 @@ Submitted on-chain:
 - `eval_id`
 - `baseline_score_bps`
 - `new_score_bps`
+- `total_samples`
 - `cost.max_cost_usd`
 - `cost.actual_cost_usd`
 - `contributors[*].wallet_address`
@@ -93,6 +96,7 @@ Retained off-chain in v1:
 Rationale:
 
 - `submitEvaluationWithMultipleContributors` has no `bytes32 attestationHash` field.
+- `submitEvaluationWithMultipleContributors` now carries `totalSamples` on-chain so per-contributor provenance records can store real sample counts instead of placeholder values.
 - No event, reward path, or contribution registry write consumes `attestation_hash`.
 - Embedding it into `pipelineRunId` would overload a human-readable tracking field and create indexer ambiguity. Keep it off-chain unless a specific integration explicitly opts into that non-standard fallback.
 
@@ -101,6 +105,7 @@ Rationale:
 ### Basis-point values
 
 - `baseline_score_bps` and `new_score_bps` must be integers in `[0, 10000]`.
+- `total_samples` must be an integer `> 0`.
 - Each contributor `weight_bps` should be an integer in `[1, 10000]`.
 - The contract validates the `Metrics` cap only on the single-contributor `_processEvaluation` path through `_validateMetrics` in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L418).
 - The multi-contributor v1 path does not invoke `_validateMetrics`, so the relayer must enforce the cap before broadcast.

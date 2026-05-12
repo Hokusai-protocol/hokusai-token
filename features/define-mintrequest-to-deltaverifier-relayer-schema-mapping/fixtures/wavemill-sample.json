@@ -4,6 +4,7 @@
   "attestation_hash": "0x8f16a7d3946f4731c9b3a5d47f4d7f3ed5b1f9af1d87a6d5fd0d1d25e8f4c2ab",
   "baseline_score_bps": 8125,
   "new_score_bps": 8450,
+  "total_samples": 10000,
   "cost": {
     "max_cost_usd": 250,
     "actual_cost_usd": 180

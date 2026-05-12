@@ -10,15 +10,15 @@
   },
   "contributors": [
     {
-      "wallet_address": "0x742d35cc6631c0532925a3b844d35d2be8b6c6dd",
+      "wallet_address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       "weight_bps": 5000
     },
     {
-      "wallet_address": "0x66f820a414680b5bcda5eeca5dea238543f42054",
+      "wallet_address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
       "weight_bps": 3000
     },
     {
-      "wallet_address": "0xa0cf798816d4b9b9866b5330e92a4a525b5009cc",
+      "wallet_address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
       "weight_bps": 2000
     }
   ]

@@ -8,7 +8,7 @@ Verified against commit `c11ec75dda62d18a1f893ad6f32124154b7ae13c`.
 
 ## Standard v1 transaction path
 
-The standard v1 path is `DeltaVerifier.submitEvaluationWithMultipleContributors(uint256 modelId, EvaluationDataBase data, Contributor[] contributors)` in [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:172).
+The standard v1 path is `DeltaVerifier.submitEvaluationWithMultipleContributors(uint256 modelId, EvaluationDataBase data, Contributor[] contributors)` in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L172).
 
 Why this is the standard path:
 
@@ -19,8 +19,8 @@ Why this is the standard path:
 
 The other public entrypoints are non-v1:
 
-- `submitEvaluation` in [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:133) expects single-contributor sample metadata and goes through `_processEvaluation`, including the one-hour per-contributor rate limit in [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:268).
-- `submitEvaluationWithContributorInfo` in [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:144) is still a single-contributor wrapper and also goes through `_processEvaluation`.
+- `submitEvaluation` in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L133) expects single-contributor sample metadata and goes through `_processEvaluation`, including the one-hour per-contributor rate limit in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L268).
+- `submitEvaluationWithContributorInfo` in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L144) is still a single-contributor wrapper and also goes through `_processEvaluation`.
 
 ## MintRequest reference schema
 
@@ -59,19 +59,19 @@ Units and conventions:
 
 | MintRequest field | Type (pipeline) | DeltaVerifier destination | Type (Solidity) | Transformation | Validation rules | On revert / outcome |
 | --- | --- | --- | --- | --- | --- | --- |
-| `model_id_uint` | integer | `modelId` function arg in `submitEvaluationWithMultipleContributors` | `uint256` | Direct integer conversion | Must be an integer `>= 0`; relayer should preflight `modelRegistry.isRegistered(modelId)` and `modelRegistry.isModelActive(modelId)` before submit. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:178), [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:179) | Reverts `"Model not registered"` or `"Model is deactivated"` |
-| `eval_id` | string | `data.pipelineRunId` | `string` | Pass through unchanged | Treat as required and non-empty. DeltaVerifier emits it in `EvaluationSubmitted` and `BudgetConstraintViolated`, and `DataContributionRegistry.recordContributionBatch` requires non-empty `pipelineRunId`. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:58), [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:255), [contracts/DataContributionRegistry.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DataContributionRegistry.sol:218) | If reward distribution is reached and the string is empty, contribution recording reverts with `"Pipeline run ID cannot be empty"` |
+| `model_id_uint` | integer | `modelId` function arg in `submitEvaluationWithMultipleContributors` | `uint256` | Direct integer conversion | Must be an integer `>= 0`; relayer should preflight `modelRegistry.isRegistered(modelId)` and `modelRegistry.isModelActive(modelId)` before submit. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L178), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L179) | Reverts `"Model not registered"` or `"Model is deactivated"` |
+| `eval_id` | string | `data.pipelineRunId` | `string` | Pass through unchanged | Treat as required and non-empty. DeltaVerifier emits it in `EvaluationSubmitted` and `BudgetConstraintViolated`, and `DataContributionRegistry.recordContributionBatch` requires non-empty `pipelineRunId`. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L58), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L255), [contracts/DataContributionRegistry.sol](../../contracts/DataContributionRegistry.sol#L218) | If reward distribution is reached and the string is empty, contribution recording reverts with `"Pipeline run ID cannot be empty"` |
 | `attestation_hash` | `0x`-prefixed 32-byte hex string | No v1 on-chain destination | n/a | Keep off-chain only in v1. Optional non-normative fallback: concatenate into `eval_id` if a deployment requires it, but that is not the standard mapping. | Must match `^0x[0-9a-fA-F]{64}$` off-chain so downstream systems can treat it as canonical `bytes32`. No contract line consumes it directly. | No DeltaVerifier revert because it is not submitted on-chain in v1 |
-| `baseline_score_bps` | integer bps | `data.baselineMetrics.accuracy` | `uint256` | Direct integer conversion | Must be an integer in `[0, 10000]`. The multi-contributor path does not invoke `_validateMetrics`, so the relayer must enforce the cap client-side. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:213), [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:418) | Without relayer validation this path can submit out-of-range values; v1 contract does not reject them |
-| `new_score_bps` | integer bps | `data.newMetrics.accuracy` | `uint256` | Direct integer conversion | Must be an integer in `[0, 10000]`. Same relayer-side cap as baseline score. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:213), [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:423) | If `new_score_bps <= baseline_score_bps`, `_calculateSingleMetricDelta` returns `0` and the call succeeds with zero reward. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:390) |
-| `cost.max_cost_usd` | integer USD | `data.maxCostUsd` | `uint256` | Direct integer conversion | Must be an integer `>= 0`. `0` is a sentinel that disables budget enforcement. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:62), [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:452) | If both cost fields are non-zero and `actualCostUsd > maxCostUsd`, the call succeeds, emits `BudgetConstraintViolated`, and returns `0`. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:202) |
-| `cost.actual_cost_usd` | integer USD | `data.actualCostUsd` | `uint256` | Direct integer conversion | Must be an integer `>= 0`. `0` disables budget enforcement together with `maxCostUsd`. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:63), [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:453) | Same `BudgetConstraintViolated` success-without-mint semantics as above |
-| `contributors[*].wallet_address` | address string | `contributors[*].walletAddress` | `address` | Canonicalize to EIP-55 before encoding | Must be a valid address, non-zero, unique within the array. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:189), [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:193) | Reverts `ZeroAddress("wallet address")` or `"Duplicate contributor address"` |
-| `contributors[*].weight_bps` | integer bps | `contributors[*].weight` | `uint256` | Direct integer conversion | Each weight should be an integer in `[1, 10000]`; the contract only enforces array total `== 10000`, so the relayer should reject zeros and oversize values. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:197), [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:200) | Reverts `"Weights must sum to 100%"` if the array sum is not exactly `10000` |
+| `baseline_score_bps` | integer bps | `data.baselineMetrics.accuracy` | `uint256` | Direct integer conversion | Must be an integer in `[0, 10000]`. The multi-contributor path does not invoke `_validateMetrics`, so the relayer must enforce the cap client-side. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L213), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L418) | Without relayer validation this path can submit out-of-range values; v1 contract does not reject them |
+| `new_score_bps` | integer bps | `data.newMetrics.accuracy` | `uint256` | Direct integer conversion | Must be an integer in `[0, 10000]`. Same relayer-side cap as baseline score. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L213), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L423) | If `new_score_bps <= baseline_score_bps`, `_calculateSingleMetricDelta` returns `0` and the call succeeds with zero reward. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L390) |
+| `cost.max_cost_usd` | integer USD | `data.maxCostUsd` | `uint256` | Direct integer conversion | Must be an integer `>= 0`. `0` is a sentinel that disables budget enforcement. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L62), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L452) | If both cost fields are non-zero and `actualCostUsd > maxCostUsd`, the call succeeds, emits `BudgetConstraintViolated`, and returns `0`. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L202) |
+| `cost.actual_cost_usd` | integer USD | `data.actualCostUsd` | `uint256` | Direct integer conversion | Must be an integer `>= 0`. `0` disables budget enforcement together with `maxCostUsd`. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L63), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L453) | Same `BudgetConstraintViolated` success-without-mint semantics as above |
+| `contributors[*].wallet_address` | address string | `contributors[*].walletAddress` | `address` | Canonicalize to EIP-55 before encoding | Must be a valid address, non-zero, unique within the array. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L189), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L193) | Reverts `ZeroAddress("wallet address")` or `"Duplicate contributor address"` |
+| `contributors[*].weight_bps` | integer bps | `contributors[*].weight` | `uint256` | Direct integer conversion | Each weight should be an integer in `[1, 10000]`; the contract only enforces array total `== 10000`, so the relayer should reject zeros and oversize values. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L197), [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L200) | Reverts `"Weights must sum to 100%"` if the array sum is not exactly `10000` |
 
 ### Metrics fields not named by MintRequest
 
-`EvaluationDataBase` still requires full `Metrics` structs. For v1, map only the MintRequest scores to `accuracy` and set `precision`, `recall`, `f1`, and `auroc` to `0`. This is safe because the reward path uses `accuracy` only in [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:213) and [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:285).
+`EvaluationDataBase` still requires full `Metrics` structs. For v1, map only the MintRequest scores to `accuracy` and set `precision`, `recall`, `f1`, and `auroc` to `0`. This is safe because the reward path uses `accuracy` only in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L213) and [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L285).
 
 ## On-chain vs off-chain split
 
@@ -102,13 +102,13 @@ Rationale:
 
 - `baseline_score_bps` and `new_score_bps` must be integers in `[0, 10000]`.
 - Each contributor `weight_bps` should be an integer in `[1, 10000]`.
-- The contract validates the `Metrics` cap only on the single-contributor `_processEvaluation` path through `_validateMetrics` in [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:418).
+- The contract validates the `Metrics` cap only on the single-contributor `_processEvaluation` path through `_validateMetrics` in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L418).
 - The multi-contributor v1 path does not invoke `_validateMetrics`, so the relayer must enforce the cap before broadcast.
 
 ### Contributor weights
 
-- `contributors.length` must be in `[1, 100]`. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:180).
-- The sum of `weight_bps` must equal exactly `10000`. Source: [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:200).
+- `contributors.length` must be in `[1, 100]`. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L180).
+- The sum of `weight_bps` must equal exactly `10000`. Source: [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L200).
 - A single-contributor submission with `weight_bps = 10000` is valid and should still use the multi-contributor path.
 - To avoid rounding dust in the client, compute the last contributor weight as `10000 - sum(previousWeights)`.
 
@@ -136,14 +136,14 @@ Rationale:
 ### Cost fields
 
 - `cost.max_cost_usd` and `cost.actual_cost_usd` should be whole-dollar integers `>= 0`.
-- `0` on either field disables the budget-constraint check in `_isBudgetConstraintViolated` at [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:452).
+- `0` on either field disables the budget-constraint check in `_isBudgetConstraintViolated` at [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L452).
 - If both are non-zero and `actual_cost_usd > max_cost_usd`, the transaction returns success with no mint rather than reverting.
 
 ## Pre-submission checklist
 
 - Validate `model_id_uint` is an integer and query `modelRegistry.isRegistered(modelId)`.
 - Query `modelRegistry.isModelActive(modelId)`.
-- Query `tokenManager.getTokenAddress(modelId.toString())` and reject `address(0)` to avoid the `"Token not found for model"` revert in [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:364).
+- Query `tokenManager.getTokenAddress(modelId.toString())` and reject `address(0)` to avoid the `"Token not found for model"` revert in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L364).
 - Confirm the relayer wallet has `SUBMITTER_ROLE`.
 - Confirm the contract is not paused.
 - Require `eval_id` to be a non-empty string.
@@ -160,13 +160,13 @@ Rationale:
 
 Expected events on a successful rewarding submission:
 
-- `EvaluationSubmitted` from [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:77)
-- `RewardCalculated` from [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:82)
-- `BatchRewardsDistributed` from [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:94)
+- `EvaluationSubmitted` from [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L77)
+- `RewardCalculated` from [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L82)
+- `BatchRewardsDistributed` from [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L94)
 
 Expected event on a budget-blocked submission:
 
-- `BudgetConstraintViolated` from [contracts/DeltaVerifier.sol](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/contracts/DeltaVerifier.sol:101)
+- `BudgetConstraintViolated` from [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L101)
 
 Interpretation rules:
 
@@ -178,14 +178,14 @@ Interpretation rules:
 
 The reproducible sample lives in:
 
-- Fixture: [wavemill-sample.json](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/features/define-mintrequest-to-deltaverifier-relayer-schema-mapping/fixtures/wavemill-sample.json:1)
-- Script: [generate-sample-calldata.ts](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/features/define-mintrequest-to-deltaverifier-relayer-schema-mapping/scripts/generate-sample-calldata.ts:1)
-- Output doc: [sample-calldata.md](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/features/define-mintrequest-to-deltaverifier-relayer-schema-mapping/sample-calldata.md:1)
+- Fixture: [wavemill-sample.json](./fixtures/wavemill-sample.json)
+- Script: [generate-sample-calldata.ts](./scripts/generate-sample-calldata.ts)
+- Output doc: [sample-calldata.md](./sample-calldata.md)
 
 Run:
 
 ```bash
-node --no-warnings features/define-mintrequest-to-deltaverifier-relayer-schema-mapping/scripts/generate-sample-calldata.ts
+npx tsx features/define-mintrequest-to-deltaverifier-relayer-schema-mapping/scripts/generate-sample-calldata.ts
 ```
 
 ## Verification footer

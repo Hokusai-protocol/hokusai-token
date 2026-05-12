@@ -89,6 +89,15 @@ interface IHokusaiParams {
     function setInfrastructureAccrualBps(uint16 newBps) external;
 
     /**
+     * @dev Sets the oracle price in USD per 1000 calls
+     * @param newValue The new oracle price using the platform's USD decimal convention
+     * Requirements:
+     * - Only addresses with GOV_ROLE can call this function
+     * - newValue must not exceed the implementation's sanity bound
+     */
+    function setOraclePricePerThousandUsd(uint256 newValue) external;
+
+    /**
      * @dev Sets the license reference
      * @param hash The bytes32 hash of the license reference
      * @param uri The string URI for the license reference
@@ -120,6 +129,18 @@ interface IHokusaiParams {
      * @param updatedBy The address that made the update
      */
     event InfrastructureAccrualBpsSet(uint16 indexed oldBps, uint16 indexed newBps, address indexed updatedBy);
+
+    /**
+     * @dev Emitted when oraclePricePerThousandUsd is updated
+     * @param oldValue The previous oracle price value
+     * @param newValue The new oracle price value
+     * @param updatedBy The address that made the update
+     */
+    event OraclePricePerThousandUsdSet(
+        uint256 indexed oldValue,
+        uint256 indexed newValue,
+        address indexed updatedBy
+    );
 
     /**
      * @dev Emitted when license reference is updated

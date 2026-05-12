@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { ZeroAddress, ZeroHash, keccak256, toUtf8Bytes } = require("ethers");
-const { wholeTokens } = require("./helpers/tokenDeployment");
+const { buildDisabledVestingConfig, wholeTokens } = require("./helpers/tokenDeployment");
 
 describe("HokusaiParams", function () {
   let HokusaiParams;
@@ -16,6 +16,7 @@ describe("HokusaiParams", function () {
   const DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD = 0;
   const DEFAULT_LICENSE_HASH = keccak256(toUtf8Bytes("default-license"));
   const DEFAULT_LICENSE_URI = "https://hokusai.ai/licenses/default";
+  const DEFAULT_VESTING_CONFIG = buildDisabledVestingConfig();
   const TOKENS_PER_DELTA_ONE_BOUNDS_ERROR =
     "tokensPerDeltaOne must be between 100 and 10000000 whole tokens (wei-scaled)";
   const MAX_ORACLE_PRICE_PER_THOUSAND_USD = 1_000_000_000_000n;
@@ -31,7 +32,8 @@ describe("HokusaiParams", function () {
       DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
       DEFAULT_LICENSE_HASH,
       DEFAULT_LICENSE_URI,
-      governor.address
+      governor.address,
+      DEFAULT_VESTING_CONFIG
     );
     await params.waitForDeployment();
   });
@@ -71,7 +73,8 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          ZeroAddress
+          ZeroAddress,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith("Governor cannot be zero address");
     });
@@ -84,7 +87,8 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          governor.address
+          governor.address,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
     });
@@ -97,7 +101,8 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          governor.address
+          governor.address,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
     });
@@ -110,7 +115,8 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          governor.address
+          governor.address,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
     });
@@ -123,7 +129,8 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          governor.address
+          governor.address,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
     });
@@ -136,7 +143,8 @@ describe("HokusaiParams", function () {
           MAX_ORACLE_PRICE_PER_THOUSAND_USD + 1n,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          governor.address
+          governor.address,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith(ORACLE_PRICE_BOUNDS_ERROR);
     });

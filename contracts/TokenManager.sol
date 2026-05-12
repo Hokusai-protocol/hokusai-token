@@ -7,6 +7,8 @@ import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
 import "./HokusaiToken.sol";
 import "./HokusaiParams.sol";
+import "./interfaces/IHokusaiParams.sol";
+import "./interfaces/IRewardVestingVault.sol";
 
 /**
  * @title TokenManager
@@ -25,6 +27,7 @@ contract TokenManager is Ownable, AccessControlBase {
         bytes32 licenseHash;                // Hash of license reference
         string licenseURI;                  // URI for license reference
         address governor;                   // Address to grant GOV_ROLE
+        IHokusaiParams.VestingConfig vestingConfig; // Contributor reward vesting policy
     }
     
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -38,6 +41,7 @@ contract TokenManager is Ownable, AccessControlBase {
     // Optional platform fee for deployment
     uint256 public deploymentFee = 0;
     address public feeRecipient;
+    IRewardVestingVault public vestingVault;
 
     event TokenDeployed(
         string indexed modelId,
@@ -58,6 +62,7 @@ contract TokenManager is Ownable, AccessControlBase {
     event TokensMinted(string indexed modelId, address indexed recipient, uint256 amount);
     event TokensBurned(string indexed modelId, address indexed account, uint256 amount);
     event DeltaVerifierUpdated(address indexed newDeltaVerifier);
+    event VestingVaultUpdated(address indexed vestingVault);
     event BatchMinted(string indexed modelId, address[] recipients, uint256[] amounts, uint256 totalAmount);
     event ContributorSkipped(address indexed contributor, uint256 index);
     event DeploymentFeeUpdated(uint256 newFee);
@@ -72,6 +77,15 @@ contract TokenManager is Ownable, AccessControlBase {
         string indexed modelId,
         address indexed recipient,
         uint256 amount
+    );
+    event RewardVestingCreated(
+        string indexed modelId,
+        address indexed contributor,
+        uint256 totalReward,
+        uint256 immediateAmount,
+        uint256 vestedAmount,
+        uint256 vestingStart,
+        uint256 vestingEnd
     );
 
 
@@ -137,7 +151,8 @@ contract TokenManager is Ownable, AccessControlBase {
             initialParams.initialOraclePricePerThousandUsd,
             initialParams.licenseHash,
             initialParams.licenseURI,
-            initialParams.governor
+            initialParams.governor,
+            initialParams.vestingConfig
         );
         address paramsAddress = address(newParams);
 
@@ -230,7 +245,8 @@ contract TokenManager is Ownable, AccessControlBase {
             initialParams.initialOraclePricePerThousandUsd,
             initialParams.licenseHash,
             initialParams.licenseURI,
-            initialParams.governor
+            initialParams.governor,
+            initialParams.vestingConfig
         );
         address paramsAddress = address(newParams);
 
@@ -325,6 +341,16 @@ contract TokenManager is Ownable, AccessControlBase {
     }
 
     /**
+     * @dev Sets the reward vesting vault used for contributor reward schedules.
+     */
+    function setVestingVault(address vaultAddress) external onlyOwner {
+        ValidationLib.requireNonZeroAddress(vaultAddress, "vesting vault");
+        require(address(vestingVault) == address(0), "Vesting vault already set");
+        vestingVault = IRewardVestingVault(vaultAddress);
+        emit VestingVaultUpdated(vaultAddress);
+    }
+
+    /**
      * @dev Authorizes an AMM contract to mint and burn tokens
      * @param amm The AMM contract address to authorize
      */
@@ -342,7 +368,7 @@ contract TokenManager is Ownable, AccessControlBase {
     }
 
     /**
-     * @dev Mints tokens for a specific model to a recipient
+     * @dev Mints tokens for a specific model to a recipient (general-purpose, no vesting)
      * @param modelId The model identifier
      * @param recipient The address to receive the tokens
      * @param amount The amount of tokens to mint
@@ -368,12 +394,11 @@ contract TokenManager is Ownable, AccessControlBase {
         );
 
         HokusaiToken(tokenAddress).mint(recipient, amount);
-
         emit TokensMinted(modelId, recipient, amount);
     }
 
     /**
-     * @dev Mints tokens to multiple recipients in a single transaction
+     * @dev Mints tokens to multiple recipients in a single transaction (general-purpose, no vesting)
      * @param modelId The model identifier
      * @param recipients Array of addresses to receive tokens
      * @param amounts Array of token amounts corresponding to each recipient
@@ -413,6 +438,80 @@ contract TokenManager is Ownable, AccessControlBase {
             }
 
             token.mint(recipients[i], amounts[i]);
+            totalAmount += amounts[i];
+        }
+
+        emit BatchMinted(modelId, recipients, amounts, totalAmount);
+    }
+
+    /**
+     * @dev Mints DeltaOne contributor reward tokens with optional vesting
+     * @param modelId The model identifier
+     * @param recipient The contributor address to receive the reward
+     * @param amount The total reward amount
+     */
+    function mintReward(string memory modelId, address recipient, uint256 amount)
+        external
+    {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to mint"
+        );
+
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(recipient, "recipient");
+        ValidationLib.requirePositiveAmount(amount, "amount");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        require(
+            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            "Model is deactivated"
+        );
+
+        _mintRewardWithVesting(modelId, tokenAddress, recipient, amount);
+        emit TokensMinted(modelId, recipient, amount);
+    }
+
+    /**
+     * @dev Mints DeltaOne contributor rewards to multiple recipients with optional vesting
+     * @param modelId The model identifier
+     * @param recipients Array of contributor addresses to receive rewards
+     * @param amounts Array of reward amounts corresponding to each recipient
+     */
+    function batchMintReward(
+        string memory modelId,
+        address[] calldata recipients,
+        uint256[] calldata amounts
+    )
+        external
+    {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Unauthorized"
+        );
+
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireValidBatch(recipients.length, amounts.length, 100);
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        require(
+            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            "Model is deactivated"
+        );
+
+        uint256 totalAmount = 0;
+
+        for (uint256 i = 0; i < recipients.length; i++) {
+            ValidationLib.requireNonZeroAddress(recipients[i], "recipient");
+
+            if (amounts[i] == 0) {
+                emit ContributorSkipped(recipients[i], i);
+                continue;
+            }
+
+            _mintRewardWithVesting(modelId, tokenAddress, recipients[i], amounts[i]);
             totalAmount += amounts[i];
         }
 
@@ -492,5 +591,55 @@ contract TokenManager is Ownable, AccessControlBase {
      */
     function hasParams(string memory modelId) external view returns (bool) {
         return modelParams[modelId] != address(0);
+    }
+
+    function _mintRewardWithVesting(
+        string memory modelId,
+        address tokenAddress,
+        address recipient,
+        uint256 amount
+    ) private {
+        HokusaiToken token = HokusaiToken(tokenAddress);
+        IHokusaiParams params = token.params();
+
+        if (!params.vestingEnabled()) {
+            token.mint(recipient, amount);
+            return;
+        }
+
+        uint16 unlockBps = params.immediateUnlockBps();
+        uint256 immediateAmount = (amount * unlockBps) / 10000;
+        uint256 vestedAmount = amount - immediateAmount;
+
+        if (immediateAmount > 0) {
+            token.mint(recipient, immediateAmount);
+        }
+
+        if (vestedAmount == 0) {
+            return;
+        }
+
+        require(address(vestingVault) != address(0), "Vesting vault not configured");
+
+        uint64 duration = params.vestingDurationSeconds();
+        token.mint(address(vestingVault), vestedAmount);
+        vestingVault.createSchedule(
+            modelId,
+            tokenAddress,
+            recipient,
+            vestedAmount,
+            params.cliffSeconds(),
+            duration
+        );
+
+        emit RewardVestingCreated(
+            modelId,
+            recipient,
+            amount,
+            immediateAmount,
+            vestedAmount,
+            block.timestamp,
+            block.timestamp + uint256(duration)
+        );
     }
 }

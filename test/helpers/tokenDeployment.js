@@ -4,6 +4,26 @@ function wholeTokens(value) {
   return parseEther(value.toString());
 }
 
+function buildVestingConfig(overrides = {}) {
+  return {
+    enabled: true,
+    immediateUnlockBps: 1000,
+    vestingDurationSeconds: 365 * 24 * 60 * 60,
+    cliffSeconds: 0,
+    ...overrides,
+  };
+}
+
+function buildDisabledVestingConfig(overrides = {}) {
+  return {
+    enabled: false,
+    immediateUnlockBps: 10000,
+    vestingDurationSeconds: 0,
+    cliffSeconds: 0,
+    ...overrides,
+  };
+}
+
 function buildInitialParams(governor, overrides = {}) {
   return {
     tokensPerDeltaOne: wholeTokens(500000),
@@ -12,6 +32,7 @@ function buildInitialParams(governor, overrides = {}) {
     licenseHash: keccak256(toUtf8Bytes("default-license")),
     licenseURI: "https://hokusai.ai/licenses/default",
     governor,
+    vestingConfig: buildDisabledVestingConfig(),
     ...overrides,
   };
 }
@@ -36,6 +57,8 @@ async function deployTestTokenAddress(tokenManager, modelId, name, symbol, total
 
 module.exports = {
   buildInitialParams,
+  buildDisabledVestingConfig,
+  buildVestingConfig,
   wholeTokens,
   deployTestToken,
   deployTestTokenAddress,

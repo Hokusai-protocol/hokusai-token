@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
-const { wholeTokens } = require("./helpers/tokenDeployment");
+const { buildDisabledVestingConfig, wholeTokens } = require("./helpers/tokenDeployment");
 
 describe("Full Integration: Params Module", function () {
   let modelRegistry;
@@ -24,7 +24,8 @@ describe("Full Integration: Params Module", function () {
     initialOraclePricePerThousandUsd: 0,
     licenseHash: keccak256(toUtf8Bytes("gpt-4-license-v1")),
     licenseURI: "https://openai.com/licenses/gpt-4",
-    governor: null // Will be set in beforeEach
+    governor: null, // Will be set in beforeEach
+    vestingConfig: buildDisabledVestingConfig()
   };
 
   // Test evaluation data with moderate improvements
@@ -415,7 +416,7 @@ describe("Full Integration: Params Module", function () {
       const evalReceipt = await evalTx.wait();
 
       // Verify gas usage is reasonable
-      expect(deployReceipt.gasUsed).to.be.lt(3350000);
+      expect(deployReceipt.gasUsed).to.be.lt(3700000);
       expect(registerReceipt.gasUsed).to.be.lt(200000);  // Less than 200k gas for registration
       expect(evalReceipt.gasUsed).to.be.lt(600000);     // Less than 600k gas for evaluation (includes contribution recording)
     });

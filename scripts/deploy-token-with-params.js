@@ -20,7 +20,13 @@ async function main() {
     initialOraclePricePerThousandUsd: 0,
     licenseHash: ethers.ZeroHash, // Can update later
     licenseURI: "",
-    governor: deployer.address // Change this to your governance address
+    governor: deployer.address, // Change this to your governance address
+    vestingConfig: {
+      enabled: true,
+      immediateUnlockBps: 1000,
+      vestingDurationSeconds: 365 * 24 * 60 * 60,
+      cliffSeconds: 0
+    }
   };
 
   // Deploy ModelRegistry (if not already deployed)
@@ -36,6 +42,12 @@ async function main() {
   const tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
   await tokenManager.waitForDeployment();
   console.log("TokenManager deployed to:", await tokenManager.getAddress());
+
+  const RewardVestingVault = await ethers.getContractFactory("RewardVestingVault");
+  const vestingVault = await RewardVestingVault.deploy(await tokenManager.getAddress());
+  await vestingVault.waitForDeployment();
+  await tokenManager.setVestingVault(await vestingVault.getAddress());
+  console.log("RewardVestingVault deployed to:", await vestingVault.getAddress());
 
   await modelRegistry.setStringModelTokenManager(await tokenManager.getAddress());
   console.log("ModelRegistry string validation enabled");
@@ -56,8 +68,9 @@ async function main() {
         infrastructureAccrualBps: config.infrastructureAccrualBps,
         initialOraclePricePerThousandUsd: config.initialOraclePricePerThousandUsd,
         licenseHash: config.licenseHash,
-      licenseURI: config.licenseURI,
-      governor: config.governor
+        licenseURI: config.licenseURI,
+        governor: config.governor,
+        vestingConfig: config.vestingConfig
     }
   );
 
@@ -98,6 +111,7 @@ async function main() {
   console.log("=====================================");
   console.log(`MODEL_REGISTRY_ADDRESS=${await modelRegistry.getAddress()}`);
   console.log(`TOKEN_MANAGER_ADDRESS=${await tokenManager.getAddress()}`);
+  console.log(`REWARD_VESTING_VAULT_ADDRESS=${await vestingVault.getAddress()}`);
   console.log(`DELTA_VERIFIER_ADDRESS=${await deltaVerifier.getAddress()}`);
   console.log(`HOKUSAI_TOKEN_ADDRESS=${tokenAddress}`);
   console.log(`HOKUSAI_PARAMS_ADDRESS=${paramsAddress}`);

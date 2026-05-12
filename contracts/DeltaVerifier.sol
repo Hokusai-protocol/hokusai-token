@@ -237,7 +237,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
                 }
 
                 // Mint tokens in batch (zero-amount contributors are skipped by TokenManager)
-                tokenManager.batchMintTokens(modelIdStr, contributorAddresses, rewardAmounts);
+                tokenManager.batchMintReward(modelIdStr, contributorAddresses, rewardAmounts);
 
                 emit BatchRewardsDistributed(modelId, contributorAddresses, rewardAmounts, totalDistributed);
             }
@@ -299,7 +299,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         
         // Trigger minting through TokenManager if reward > 0
         if (rewardAmount > 0) {
-            tokenManager.mintTokens(modelIdStr, data.contributor, rewardAmount);
+            tokenManager.mintReward(modelIdStr, data.contributor, rewardAmount);
 
             // Record contribution in registry
             _recordSingleContribution(

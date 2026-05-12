@@ -27,7 +27,8 @@ describe("HokusaiToken", function () {
       0, // initialOraclePricePerThousandUsd
       keccak256(toUtf8Bytes("test-license")), // licenseHash
       "https://test.license", // licenseURI
-      governor.address // governor
+      governor.address, // governor
+      { enabled: false, immediateUnlockBps: 10000, vestingDurationSeconds: 0, cliffSeconds: 0 }
     );
     await params.waitForDeployment();
   });

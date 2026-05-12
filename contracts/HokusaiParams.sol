@@ -36,6 +36,11 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /// @dev Default price epoch duration (30 days in seconds)
     uint256 public constant DEFAULT_PRICE_EPOCH_DURATION = 30 days;
 
+    bool public constant DEFAULT_VESTING_ENABLED = true;
+    uint16 public constant DEFAULT_IMMEDIATE_UNLOCK_BPS = 1000;
+    uint64 public constant DEFAULT_VESTING_DURATION_SECONDS = 365 days;
+    uint64 public constant DEFAULT_CLIFF_SECONDS = 0;
+
     /// @dev Number of tokens to mint per unit of deltaOne improvement (global default)
     uint256 private _tokensPerDeltaOne;
 
@@ -53,6 +58,9 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
 
     /// @dev URI string for the license reference
     string private _licenseURI;
+
+    /// @dev Vesting policy for contributor rewards minted via TokenManager.
+    IHokusaiParams.VestingConfig private _vestingConfig;
 
     /// @dev Price epoch duration in seconds
     uint256 private _priceEpochDuration;
@@ -94,7 +102,8 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         uint256 initialOraclePricePerThousandUsd,
         bytes32 initialLicenseHash,
         string memory initialLicenseURI,
-        address governor
+        address governor,
+        IHokusaiParams.VestingConfig memory initialVestingConfig
     ) {
         require(governor != address(0), "Governor cannot be zero address");
         initialTokensPerDeltaOne = _normalizeTokensPerDeltaOne(initialTokensPerDeltaOne);
@@ -117,6 +126,7 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         _licenseHash = initialLicenseHash;
         _licenseURI = initialLicenseURI;
         _priceEpochDuration = DEFAULT_PRICE_EPOCH_DURATION;
+        _vestingConfig = _resolveInitialVestingConfig(initialVestingConfig);
 
         // Setup access control
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -177,6 +187,41 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
      */
     function licenseRef() external view override returns (bytes32 hash, string memory uri) {
         return (_licenseHash, _licenseURI);
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function vestingEnabled() external view override returns (bool) {
+        return _vestingConfig.enabled;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function immediateUnlockBps() external view override returns (uint16) {
+        return _vestingConfig.immediateUnlockBps;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function vestingDurationSeconds() external view override returns (uint64) {
+        return _vestingConfig.vestingDurationSeconds;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function cliffSeconds() external view override returns (uint64) {
+        return _vestingConfig.cliffSeconds;
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function vestingConfig() external view override returns (IHokusaiParams.VestingConfig memory) {
+        return _vestingConfig;
     }
 
     /**
@@ -245,6 +290,13 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         emit LicenseRefSet(oldHash, hash, uri, msg.sender);
     }
 
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function setVestingConfig(IHokusaiParams.VestingConfig calldata cfg) external override onlyRole(GOV_ROLE) {
+        _setVestingConfig(cfg);
+    }
+
     // ============================================================
     // EPOCH-BASED PRICE LOCKING FUNCTIONS
     // ============================================================
@@ -270,6 +322,55 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
             return value * TOKEN_UNIT;
         }
         return value;
+    }
+
+    function _resolveInitialVestingConfig(
+        IHokusaiParams.VestingConfig memory cfg
+    ) private pure returns (IHokusaiParams.VestingConfig memory resolved) {
+        if (_isDefaultVestingSentinel(cfg)) {
+            return IHokusaiParams.VestingConfig({
+                enabled: DEFAULT_VESTING_ENABLED,
+                immediateUnlockBps: DEFAULT_IMMEDIATE_UNLOCK_BPS,
+                vestingDurationSeconds: DEFAULT_VESTING_DURATION_SECONDS,
+                cliffSeconds: DEFAULT_CLIFF_SECONDS
+            });
+        }
+
+        _validateVestingConfig(cfg);
+        return cfg;
+    }
+
+    function _isDefaultVestingSentinel(IHokusaiParams.VestingConfig memory cfg) private pure returns (bool) {
+        return
+            !cfg.enabled &&
+            cfg.immediateUnlockBps == 0 &&
+            cfg.vestingDurationSeconds == 0 &&
+            cfg.cliffSeconds == 0;
+    }
+
+    function _validateVestingConfig(IHokusaiParams.VestingConfig memory cfg) private pure {
+        require(cfg.immediateUnlockBps <= 10000, "immediateUnlockBps must be <= 10000");
+
+        if (cfg.enabled) {
+            require(cfg.vestingDurationSeconds > 0, "vesting duration must be > 0");
+            require(cfg.cliffSeconds <= cfg.vestingDurationSeconds, "cliff exceeds vesting duration");
+        } else {
+            require(cfg.cliffSeconds == 0, "disabled vesting cliff must be 0");
+            require(cfg.vestingDurationSeconds == 0, "disabled vesting duration must be 0");
+        }
+    }
+
+    function _setVestingConfig(IHokusaiParams.VestingConfig memory cfg) private {
+        _validateVestingConfig(cfg);
+        _vestingConfig = cfg;
+
+        emit VestingConfigSet(
+            cfg.enabled,
+            cfg.immediateUnlockBps,
+            cfg.vestingDurationSeconds,
+            cfg.cliffSeconds,
+            msg.sender
+        );
     }
 
     function _validateTokensPerDeltaOne(uint256 value) private pure {

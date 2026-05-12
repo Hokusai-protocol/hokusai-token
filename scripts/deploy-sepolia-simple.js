@@ -18,7 +18,13 @@ async function main() {
     initialOraclePricePerThousandUsd: 0,
     licenseHash: ethers.ZeroHash,
     licenseURI: "",
-    governor: deployer.address
+    governor: deployer.address,
+    vestingConfig: {
+      enabled: true,
+      immediateUnlockBps: 1000,
+      vestingDurationSeconds: 365 * 24 * 60 * 60,
+      cliffSeconds: 0
+    }
   };
 
   try {
@@ -37,6 +43,13 @@ async function main() {
     await tokenManager.waitForDeployment();
     const managerAddress = await tokenManager.getAddress();
     console.log("   ✅ TokenManager:", managerAddress);
+
+    console.log("   Deploying RewardVestingVault...");
+    const RewardVestingVault = await ethers.getContractFactory("RewardVestingVault");
+    const vestingVault = await RewardVestingVault.deploy(managerAddress);
+    await vestingVault.waitForDeployment();
+    await tokenManager.setVestingVault(await vestingVault.getAddress());
+    console.log("   ✅ RewardVestingVault:", await vestingVault.getAddress());
 
     console.log("   🔗 Linking ModelRegistry to TokenManager for string model validation...");
     await modelRegistry.setStringModelTokenManager(managerAddress);
@@ -57,7 +70,8 @@ async function main() {
         initialOraclePricePerThousandUsd: config.initialOraclePricePerThousandUsd,
         licenseHash: config.licenseHash,
         licenseURI: config.licenseURI,
-        governor: config.governor
+        governor: config.governor,
+        vestingConfig: config.vestingConfig
       }
     );
 
@@ -103,6 +117,7 @@ async function main() {
     console.log("\n📋 Contract Addresses:");
     console.log(`MODEL_REGISTRY_ADDRESS=${registryAddress}`);
     console.log(`TOKEN_MANAGER_ADDRESS=${managerAddress}`);
+    console.log(`REWARD_VESTING_VAULT_ADDRESS=${await vestingVault.getAddress()}`);
     console.log(`HOKUSAI_TOKEN_ADDRESS=${tokenAddress}`);
     console.log(`HOKUSAI_PARAMS_ADDRESS=${paramsAddress}`);
     console.log(`DELTA_VERIFIER_ADDRESS=${verifierAddress}`);

@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
-const { wholeTokens } = require("./helpers/tokenDeployment");
+const { buildDisabledVestingConfig, wholeTokens } = require("./helpers/tokenDeployment");
 
 describe("TokenManager with Params", function () {
   let tokenManager;
@@ -22,7 +22,8 @@ describe("TokenManager with Params", function () {
     initialOraclePricePerThousandUsd: 123456,
     licenseHash: keccak256(toUtf8Bytes("standard-license")),
     licenseURI: "https://hokusai.ai/licenses/standard",
-    governor: null // Will be set in beforeEach
+    governor: null, // Will be set in beforeEach
+    vestingConfig: buildDisabledVestingConfig()
   };
 
   beforeEach(async function () {
@@ -333,8 +334,8 @@ describe("TokenManager with Params", function () {
       );
 
       const receipt = await tx.wait();
-      // Dual deployment now includes the epoch-aware params contract path plus oracle price governance state.
-      expect(receipt.gasUsed).to.be.lt(3400000);
+      // Deployment now includes vesting config storage and oracle price governance state.
+      expect(receipt.gasUsed).to.be.lt(3700000);
     });
   });
 

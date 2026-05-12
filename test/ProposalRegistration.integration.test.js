@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther } = require("ethers");
+const { buildDisabledVestingConfig } = require("./helpers/tokenDeployment");
 
 describe("Proposal Registration Integration", function () {
   let tokenManager;
@@ -25,6 +26,19 @@ describe("Proposal Registration Integration", function () {
   async function getDeadline(offsetDays = 30) {
     const latestBlock = await ethers.provider.getBlock("latest");
     return latestBlock.timestamp + 86400 * offsetDays;
+  }
+
+  function makeInitialParams(overrides = {}) {
+    return {
+      tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
+      infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
+      initialOraclePricePerThousandUsd: 0,
+      licenseHash: LICENSE_HASH,
+      licenseURI: LICENSE_URI,
+      governor: owner.address,
+      vestingConfig: buildDisabledVestingConfig(),
+      ...overrides
+    };
   }
 
   beforeEach(async function () {
@@ -71,14 +85,7 @@ describe("Proposal Registration Integration", function () {
   describe("Full Proposal Creation Flow", function () {
     it("Should successfully complete all three registration steps", async function () {
       // Step 1: Deploy token via TokenManager
-      const initialParams = {
-        tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
-        infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
-        initialOraclePricePerThousandUsd: 0,
-        licenseHash: LICENSE_HASH,
-        licenseURI: LICENSE_URI,
-        governor: owner.address
-      };
+      const initialParams = makeInitialParams();
 
       const deployTx = await tokenManager.deployTokenWithParams(
         MODEL_ID,
@@ -126,14 +133,7 @@ describe("Proposal Registration Integration", function () {
 
     it("Should allow investors to deposit immediately after registration", async function () {
       // Complete full registration
-      const initialParams = {
-        tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
-        infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
-        initialOraclePricePerThousandUsd: 0,
-        licenseHash: LICENSE_HASH,
-        licenseURI: LICENSE_URI,
-        governor: owner.address
-      };
+      const initialParams = makeInitialParams();
 
       await tokenManager.deployTokenWithParams(
         MODEL_ID,
@@ -181,14 +181,7 @@ describe("Proposal Registration Integration", function () {
     });
 
     it("Should maintain consistency across all three contracts", async function () {
-      const initialParams = {
-        tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
-        infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
-        initialOraclePricePerThousandUsd: 0,
-        licenseHash: LICENSE_HASH,
-        licenseURI: LICENSE_URI,
-        governor: owner.address
-      };
+      const initialParams = makeInitialParams();
 
       // Deploy and register
       await tokenManager.deployTokenWithParams(
@@ -226,14 +219,7 @@ describe("Proposal Registration Integration", function () {
 
   describe("Error Handling and Edge Cases", function () {
     it("Should handle partial failure gracefully - token deployed but registration fails", async function () {
-      const initialParams = {
-        tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
-        infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
-        initialOraclePricePerThousandUsd: 0,
-        licenseHash: LICENSE_HASH,
-        licenseURI: LICENSE_URI,
-        governor: owner.address
-      };
+      const initialParams = makeInitialParams();
 
       // Step 1 succeeds
       await tokenManager.deployTokenWithParams(
@@ -260,14 +246,7 @@ describe("Proposal Registration Integration", function () {
     });
 
     it("Should prevent registration with mismatched token address", async function () {
-      const initialParams = {
-        tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
-        infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
-        initialOraclePricePerThousandUsd: 0,
-        licenseHash: LICENSE_HASH,
-        licenseURI: LICENSE_URI,
-        governor: owner.address
-      };
+      const initialParams = makeInitialParams();
 
       // Deploy token for MODEL_ID
       await tokenManager.deployTokenWithParams(
@@ -294,14 +273,7 @@ describe("Proposal Registration Integration", function () {
       const model1 = "model-1";
       const model2 = "model-2";
 
-      const initialParams = {
-        tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
-        infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
-        initialOraclePricePerThousandUsd: 0,
-        licenseHash: LICENSE_HASH,
-        licenseURI: LICENSE_URI,
-        governor: owner.address
-      };
+      const initialParams = makeInitialParams();
 
       // Deploy both tokens
       await tokenManager.deployTokenWithParams(model1, "Token 1", "TK1", INITIAL_SUPPLY, initialParams);
@@ -332,14 +304,9 @@ describe("Proposal Registration Integration", function () {
 
   describe("Default Parameters", function () {
     it("Should work with default tokensPerDeltaOne value", async function () {
-      const initialParams = {
-        tokensPerDeltaOne: BigInt(1000), // Default value
-        infrastructureAccrualBps: INFRA_ACCRUAL_BPS,
-        initialOraclePricePerThousandUsd: 0,
-        licenseHash: LICENSE_HASH,
-        licenseURI: LICENSE_URI,
-        governor: owner.address
-      };
+      const initialParams = makeInitialParams({
+        tokensPerDeltaOne: BigInt(1000)
+      });
 
       await expect(
         tokenManager.deployTokenWithParams(
@@ -356,14 +323,9 @@ describe("Proposal Registration Integration", function () {
     });
 
     it("Should work with 50% infrastructure accrual (5000 bps)", async function () {
-      const initialParams = {
-        tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
-        infrastructureAccrualBps: 5000, // 50%
-        initialOraclePricePerThousandUsd: 0,
-        licenseHash: LICENSE_HASH,
-        licenseURI: LICENSE_URI,
-        governor: owner.address
-      };
+      const initialParams = makeInitialParams({
+        infrastructureAccrualBps: 5000
+      });
 
       await expect(
         tokenManager.deployTokenWithParams(

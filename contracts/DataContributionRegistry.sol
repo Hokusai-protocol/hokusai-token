@@ -68,6 +68,12 @@ contract DataContributionRegistry is AccessControl {
         string reason
     );
 
+    event ContributionClaimed(
+        uint256 indexed contributionId,
+        address indexed contributor,
+        uint256 timestamp
+    );
+
     event RecorderAuthorized(address indexed recorder);
     event RecorderRevoked(address indexed recorder);
 
@@ -267,6 +273,24 @@ contract DataContributionRegistry is AccessControl {
         contributions[contributionId].status = ContributionStatus.Rejected;
 
         emit ContributionRejected(contributionId, reason);
+    }
+
+    /**
+     * @dev Transitions a verified contribution to claimed status.
+     *      Callable only by the original contributor recorded on the contribution.
+     * @param contributionId The contribution ID to claim
+     */
+    function claimContribution(uint256 contributionId) external {
+        require(isContributionRegistered[contributionId], "Contribution not registered");
+        require(msg.sender == contributions[contributionId].contributor, "Not contributor");
+        require(
+            contributions[contributionId].status == ContributionStatus.Verified,
+            "Contribution not verified"
+        );
+
+        contributions[contributionId].status = ContributionStatus.Claimed;
+
+        emit ContributionClaimed(contributionId, msg.sender, block.timestamp);
     }
 
     /**

@@ -6,9 +6,11 @@ Service for listening to contract deployment requests from a Redis queue and dep
 
 This service:
 - Listens to a Redis queue for deployment requests
+- Listens to a Redis queue for benchmark-backed MintRequest submissions
 - Validates incoming requests
 - Deploys new HokusaiToken contracts using a factory pattern
 - Registers deployed contracts with the ModelRegistry
+- Submits MintRequest payloads to DeltaVerifier via `submitMintRequest`
 - Handles retries and error cases
 - Provides health checks and monitoring endpoints
 
@@ -45,6 +47,13 @@ Key configuration parameters:
 - `DEPLOYER_PRIVATE_KEY`: Deployer wallet private key
 - `TOKEN_MANAGER_ADDRESS`: Address of the TokenManager contract
 - `MODEL_REGISTRY_ADDRESS`: Address of the ModelRegistry contract
+- `DELTA_VERIFIER_ADDRESS`: Enables the MintRequest consumer when set
+- `MINT_REQUEST_QUEUE`: Defaults to `hokusai:mint_requests`
+- `MINT_REQUEST_PROCESSING_QUEUE`: Defaults to `hokusai:mint_requests:processing`
+- `MINT_REQUEST_DLQ`: Defaults to `hokusai:mint_requests:dlq`
+- `MINT_REQUEST_PROCESSED_SET`: Defaults to `hokusai:mint_requests:processed`
+- `MINT_REQUEST_SETTLEMENT_QUEUE`: Defaults to `hokusai:mint_request_settlements`
+- `MINT_REQUEST_MAX_RETRIES`: Defaults to `3`
 - `VALID_API_KEYS`: Comma-separated list of valid API keys
 
 #### 2. AWS SSM Parameter Store (Production)
@@ -169,6 +178,8 @@ The service expects messages in the Redis queue to have the following format:
   }
 }
 ```
+
+For benchmark-backed reward minting, the service also consumes `hokusai:mint_requests` messages containing `model_id_uint`, `eval_id`, attestation and idempotency hashes, normalized score bps values, optional `benchmark_spec_id` / `dataset_hash`, and contributor weights that sum to `10000`.
 
 ## Error Handling
 

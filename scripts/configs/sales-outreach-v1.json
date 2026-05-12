@@ -1,0 +1,16 @@
+{
+  "modelId": 21,
+  "metricName": "sales:revenue_per_1000_messages",
+  "tokenName": "Sales Outreach v1",
+  "tokenSymbol": "SOUT",
+  "initialSupply": "1000000",
+  "tokensPerDeltaOne": "1000",
+  "infrastructureAccrualBps": 8000,
+  "initialOraclePricePerThousandUsd": 0,
+  "vestingConfig": {
+    "enabled": false,
+    "immediateUnlockBps": 10000,
+    "vestingDurationSeconds": 0,
+    "cliffSeconds": 0
+  }
+}

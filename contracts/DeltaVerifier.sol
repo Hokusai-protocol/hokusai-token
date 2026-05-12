@@ -63,6 +63,24 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         uint256 actualCostUsd;
     }
 
+    struct BenchmarkAnchors {
+        bytes32 benchmarkSpecHash;
+        bytes32 datasetHash;
+        bytes32 attestationHash;
+        bytes32 idempotencyKey;
+        string metricName;
+        string metricFamily;
+    }
+
+    struct MintRequestPayload {
+        string pipelineRunId;
+        uint256 baselineScoreBps;
+        uint256 candidateScoreBps;
+        uint256 maxCostUsdMicro;
+        uint256 actualCostUsdMicro;
+        BenchmarkAnchors anchors;
+    }
+
     ModelRegistry public immutable modelRegistry;
     TokenManager public immutable tokenManager;
     IDataContributionRegistry public immutable contributionRegistry;
@@ -73,6 +91,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
     
     uint256 private constant RATE_LIMIT_DURATION = 1 hours;
     mapping(address => uint256) private lastSubmissionTime;
+    mapping(bytes32 => bool) public processedIdempotencyKeys;
     
     event EvaluationSubmitted(
         string indexed pipelineRunId,
@@ -103,6 +122,20 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         uint256 indexed modelId,
         uint256 maxCostUsd,
         uint256 actualCostUsd
+    );
+
+    event DeltaOneAccepted(
+        uint256 indexed modelId,
+        bytes32 indexed idempotencyKey,
+        bytes32 indexed benchmarkSpecHash,
+        bytes32 attestationHash,
+        bytes32 datasetHash,
+        string metricName,
+        string metricFamily,
+        uint256 baselineScoreBps,
+        uint256 candidateScoreBps,
+        uint256 rewardAmount,
+        string pipelineRunId
     );
 
     constructor(
@@ -177,27 +210,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
-        ValidationLib.requireNonEmptyArray(contributors.length);
-        ValidationLib.requireMaxArrayLength(contributors.length, 100);
-        
-        // Validate contributors and weights
-        uint256 totalWeight = 0;
-        address[] memory contributorAddresses = new address[](contributors.length);
-        uint256[] memory rewardAmounts = new uint256[](contributors.length);
-        
-        for (uint256 i = 0; i < contributors.length; i++) {
-            ValidationLib.requireNonZeroAddress(contributors[i].walletAddress, "wallet address");
-
-            // Check for duplicates
-            for (uint256 j = 0; j < i; j++) {
-                require(contributors[i].walletAddress != contributorAddresses[j], "Duplicate contributor address");
-            }
-
-            contributorAddresses[i] = contributors[i].walletAddress;
-            totalWeight += contributors[i].weight;
-        }
-        
-        require(totalWeight == 10000, "Weights must sum to 100%");
+        (address[] memory contributorAddresses, uint256[] memory rewardAmounts) = _validateContributors(contributors);
 
         if (_isBudgetConstraintViolated(data.maxCostUsd, data.actualCostUsd)) {
             emit BudgetConstraintViolated(
@@ -253,6 +266,89 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         }
 
         emit EvaluationSubmitted(data.pipelineRunId, modelId);
+
+        return totalReward;
+    }
+
+    /**
+     * @dev Callers must normalize any non-proportion metric to a 0-10000 bps scale before submission.
+     */
+    function submitMintRequest(
+        uint256 modelId,
+        MintRequestPayload calldata payload,
+        Contributor[] calldata contributors
+    ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
+        require(modelRegistry.isRegistered(modelId), "Model not registered");
+        require(modelRegistry.isModelActive(modelId), "Model is deactivated");
+        require(payload.anchors.idempotencyKey != bytes32(0), "Idempotency key cannot be empty");
+        require(!processedIdempotencyKeys[payload.anchors.idempotencyKey], "Idempotency key already processed");
+        require(bytes(payload.pipelineRunId).length > 0, "Pipeline run ID cannot be empty");
+        require(bytes(payload.anchors.metricName).length > 0, "Metric name cannot be empty");
+        require(payload.baselineScoreBps <= 10000, "Baseline score exceeds 10000 bps");
+        require(payload.candidateScoreBps <= 10000, "Candidate score exceeds 10000 bps");
+
+        (address[] memory contributorAddresses, uint256[] memory rewardAmounts) = _validateContributors(contributors);
+
+        processedIdempotencyKeys[payload.anchors.idempotencyKey] = true;
+
+        if (_isBudgetConstraintViolated(payload.maxCostUsdMicro, payload.actualCostUsdMicro)) {
+            emit BudgetConstraintViolated(
+                payload.pipelineRunId,
+                modelId,
+                payload.maxCostUsdMicro,
+                payload.actualCostUsdMicro
+            );
+            return 0;
+        }
+
+        uint256 deltaInBps = _calculateSingleMetricDelta(payload.baselineScoreBps, payload.candidateScoreBps);
+        string memory modelIdStr = _uintToString(modelId);
+        uint256 totalReward = calculateRewardDynamic(modelIdStr, deltaInBps, 10000, 0);
+
+        if (totalReward > 0) {
+            uint256 totalDistributed = 0;
+
+            for (uint256 i = 0; i < contributors.length; i++) {
+                uint256 contributorReward = (totalReward * contributors[i].weight) / 10000;
+                rewardAmounts[i] = contributorReward;
+                totalDistributed += contributorReward;
+
+                emit RewardCalculated(contributors[i].walletAddress, deltaInBps, contributorReward);
+            }
+
+            uint256 dust = totalReward - totalDistributed;
+            if (dust > 0) {
+                rewardAmounts[0] += dust;
+                totalDistributed += dust;
+            }
+
+            tokenManager.batchMintReward(modelIdStr, contributorAddresses, rewardAmounts);
+
+            emit BatchRewardsDistributed(modelId, contributorAddresses, rewardAmounts, totalDistributed);
+
+            _recordContributions(
+                modelIdStr,
+                contributorAddresses,
+                contributors,
+                rewardAmounts,
+                payload.pipelineRunId
+            );
+        }
+
+        emit DeltaOneAccepted(
+            modelId,
+            payload.anchors.idempotencyKey,
+            payload.anchors.benchmarkSpecHash,
+            payload.anchors.attestationHash,
+            payload.anchors.datasetHash,
+            payload.anchors.metricName,
+            payload.anchors.metricFamily,
+            payload.baselineScoreBps,
+            payload.candidateScoreBps,
+            totalReward,
+            payload.pipelineRunId
+        );
+        emit EvaluationSubmitted(payload.pipelineRunId, modelId);
 
         return totalReward;
     }
@@ -455,6 +551,30 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         }
 
         return actualCostUsd > maxCostUsd;
+    }
+
+    function _validateContributors(
+        Contributor[] calldata contributors
+    ) private pure returns (address[] memory contributorAddresses, uint256[] memory rewardAmounts) {
+        ValidationLib.requireNonEmptyArray(contributors.length);
+        ValidationLib.requireMaxArrayLength(contributors.length, 100);
+
+        uint256 totalWeight = 0;
+        contributorAddresses = new address[](contributors.length);
+        rewardAmounts = new uint256[](contributors.length);
+
+        for (uint256 i = 0; i < contributors.length; i++) {
+            ValidationLib.requireNonZeroAddress(contributors[i].walletAddress, "wallet address");
+
+            for (uint256 j = 0; j < i; j++) {
+                require(contributors[i].walletAddress != contributorAddresses[j], "Duplicate contributor address");
+            }
+
+            contributorAddresses[i] = contributors[i].walletAddress;
+            totalWeight += contributors[i].weight;
+        }
+
+        require(totalWeight == 10000, "Weights must sum to 100%");
     }
     
     // Admin functions

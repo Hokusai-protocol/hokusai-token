@@ -28,6 +28,7 @@ const envSchema = Joi.object({
   // Contract addresses
   MODEL_REGISTRY_ADDRESS: Joi.string().required(),
   TOKEN_MANAGER_ADDRESS: Joi.string().required(),
+  DELTA_VERIFIER_ADDRESS: Joi.string().optional(),
   
   // Deployer configuration
   DEPLOYER_PRIVATE_KEY: Joi.string().required(),
@@ -44,6 +45,12 @@ const envSchema = Joi.object({
   // Queue configuration
   QUEUE_NAME: Joi.string().default('contract-deployments'),
   QUEUE_PREFIX: Joi.string().default('hokusai'),
+  MINT_REQUEST_QUEUE: Joi.string().default('hokusai:mint_requests'),
+  MINT_REQUEST_PROCESSING_QUEUE: Joi.string().default('hokusai:mint_requests:processing'),
+  MINT_REQUEST_DLQ: Joi.string().default('hokusai:mint_requests:dlq'),
+  MINT_REQUEST_PROCESSED_SET: Joi.string().default('hokusai:mint_requests:processed'),
+  MINT_REQUEST_SETTLEMENT_QUEUE: Joi.string().default('hokusai:mint_request_settlements'),
+  MINT_REQUEST_MAX_RETRIES: Joi.number().integer().min(0).default(3),
   
   // API configuration
   RATE_LIMIT_WINDOW_MS: Joi.number().default(900000), // 15 minutes
@@ -113,6 +120,7 @@ export interface Config {
   NETWORK_NAME: string;
   MODEL_REGISTRY_ADDRESS: string;
   TOKEN_MANAGER_ADDRESS: string;
+  DELTA_VERIFIER_ADDRESS?: string;
   DEPLOYER_PRIVATE_KEY: string;
   GAS_PRICE_MULTIPLIER: number;
   MAX_GAS_PRICE_GWEI: number;
@@ -121,6 +129,12 @@ export interface Config {
   CONFIRMATION_TIMEOUT_MS: number;
   QUEUE_NAME: string;
   QUEUE_PREFIX: string;
+  MINT_REQUEST_QUEUE: string;
+  MINT_REQUEST_PROCESSING_QUEUE: string;
+  MINT_REQUEST_DLQ: string;
+  MINT_REQUEST_PROCESSED_SET: string;
+  MINT_REQUEST_SETTLEMENT_QUEUE: string;
+  MINT_REQUEST_MAX_RETRIES: number;
   RATE_LIMIT_WINDOW_MS: number;
   RATE_LIMIT_MAX_REQUESTS: number;
   CORS_ORIGINS: string;

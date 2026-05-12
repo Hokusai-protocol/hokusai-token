@@ -17,6 +17,7 @@ _Last updated: 2026-01-15_
 ### Backend Services
 - contract-deployer (Queue Mode): Service monitoring Redis for model_ready_to_deploy events, deploys tokens automatically [details: features/contract-deploy-listener/prd.md]
 - contract-deployer (API Mode): RESTful endpoints for frontend-initiated deployments, JWT auth, rate limiting [details: features/api-endpoint-contract-deploys/prd.md]
+- contract-deployer (MintRequest Mode): Consumes `hokusai:mint_requests`, dedupes by idempotency key, submits `DeltaVerifier.submitMintRequest`, and publishes `hokusai:mint_request_settlements`
 
 ## Documented Flows
 
@@ -28,6 +29,9 @@ _Last updated: 2026-01-15_
 
 ### Contribution Recording Flow (Automatic)
 - ML pipeline submits evaluation → DeltaVerifier validates and calculates rewards → TokenManager mints tokens → DataContributionRegistry records contribution with attribution weights → Backend queries for analytics [details: features/data-contribution-registry/plan.md]
+
+### MintRequest Settlement Flow
+- hokusai-data-pipeline publishes `hokusai:mint_requests` → contract-deployer validates schema and Redis replay state → DeltaVerifier enforces on-chain idempotency and emits `DeltaOneAccepted` → contract-deployer publishes `hokusai:mint_request_settlements`
 
 ## Architecture Patterns
 
@@ -43,6 +47,7 @@ _Last updated: 2026-01-15_
 
 ### Event-Driven Architecture
 - Redis queues for async message passing between services (hokusai:model_ready_queue, hokusai:token_deployed_queue)
+- Mint settlement queues: `hokusai:mint_requests`, `hokusai:mint_requests:processing`, `hokusai:mint_requests:dlq`, `hokusai:mint_request_settlements`
 - BRPOPLPUSH pattern for reliable message processing with DLQ support
 - Optional webhooks for deployment completion notifications
 

@@ -6,6 +6,25 @@ Audience: relayer and pipeline implementers.
 
 Verified against commit `c11ec75dda62d18a1f893ad6f32124154b7ae13c`.
 
+## Standard v2 transaction path
+
+The protocol-aware path is now `DeltaVerifier.submitMintRequest(uint256 modelId, MintRequestPayload payload, Contributor[] contributors)` in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L217).
+
+What v2 adds on-chain:
+
+- `attestation_hash` via `payload.anchors.attestationHash`
+- `idempotency_key` via `payload.anchors.idempotencyKey`
+- `benchmark_spec_id` anchoring as `keccak256(benchmark_spec_id)` or a deterministic fallback hash when the field is absent
+- `dataset_hash` when present, else `bytes32(0)`
+- `metric_name` and `metric_family`
+- an indexed `DeltaOneAccepted` event for audit and settlement indexing
+
+Notes:
+
+- The contract remains single-metric. Callers must normalize non-proportion metrics to integer bps in `[0, 10000]` before submission.
+- v2 consumes the idempotency key even for budget-blocked or zero-delta submissions, so replay attempts revert on-chain.
+- v1 remains valid for legacy callers, but new benchmark-backed relayers should target v2.
+
 ## Standard v1 transaction path
 
 The standard v1 path is `DeltaVerifier.submitEvaluationWithMultipleContributors(uint256 modelId, EvaluationDataBase data, Contributor[] contributors)` in [contracts/DeltaVerifier.sol](../../contracts/DeltaVerifier.sol#L172).

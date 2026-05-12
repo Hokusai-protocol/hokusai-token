@@ -3,6 +3,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import { ContractDeployListener } from './contract-deploy-listener';
+import { MintRequestListener } from './mint-request-listener';
 import { HealthCheckService } from './monitoring/health-check';
 import { logger } from './utils/logger';
 import { createClient } from 'redis';
@@ -29,6 +30,7 @@ async function main(): Promise<void> {
 
     // Try to initialize the contract deploy listener (with optional Redis)
     let listener: ContractDeployListener | null = null;
+    let mintListener: MintRequestListener | null = null;
     let redisConnected = false;
     
     try {
@@ -66,6 +68,39 @@ async function main(): Promise<void> {
       logger.warn('Failed to initialize Contract Deploy Listener with Redis', error);
       logger.info('Continuing without queue functionality');
       listener = null;
+    }
+
+    if (config.DELTA_VERIFIER_ADDRESS) {
+      try {
+        mintListener = new MintRequestListener({
+          redis: {
+            url: config.REDIS_URL || `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`
+          },
+          blockchain: {
+            rpcUrls: config.RPC_URL.split(','),
+            privateKey: config.DEPLOYER_PRIVATE_KEY,
+            deltaVerifierAddress: config.DELTA_VERIFIER_ADDRESS,
+            modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
+            confirmations: config.CONFIRMATION_BLOCKS,
+            gasMultiplier: config.GAS_PRICE_MULTIPLIER,
+            maxGasPrice: (config.MAX_GAS_PRICE_GWEI * 1e9).toString()
+          },
+          queues: {
+            inbound: config.MINT_REQUEST_QUEUE,
+            processing: config.MINT_REQUEST_PROCESSING_QUEUE,
+            deadLetter: config.MINT_REQUEST_DLQ,
+            processedSet: config.MINT_REQUEST_PROCESSED_SET,
+            settlements: config.MINT_REQUEST_SETTLEMENT_QUEUE,
+            maxRetries: config.MINT_REQUEST_MAX_RETRIES
+          }
+        });
+
+        await mintListener.initialize();
+        logger.info('MintRequest Listener initialized with Redis');
+      } catch (error) {
+        logger.warn('Failed to initialize MintRequest Listener', error);
+        mintListener = null;
+      }
     }
 
     // Set up Express app for health checks
@@ -118,11 +153,16 @@ async function main(): Promise<void> {
 
     // Start processing messages if Redis is available
     let processingPromise: Promise<void> | null = null;
+    let mintProcessingPromise: Promise<void> | null = null;
     if (listener && redisConnected) {
       processingPromise = listener.start();
       logger.info('Contract Deployer Service started successfully with queue processing');
     } else {
       logger.info('Contract Deployer Service started successfully (API only mode, no queue processing)');
+    }
+    if (mintListener) {
+      mintProcessingPromise = mintListener.start();
+      logger.info('MintRequest processing started');
     }
 
     // Setup graceful shutdown
@@ -138,15 +178,24 @@ async function main(): Promise<void> {
       if (listener) {
         listener.stop();
       }
+      if (mintListener) {
+        mintListener.stop();
+      }
       
       // Wait for message processing to complete if it was started
       if (processingPromise) {
         await processingPromise;
       }
+      if (mintProcessingPromise) {
+        await mintProcessingPromise;
+      }
       
       // Clean up resources
       if (listener) {
         await listener.cleanup();
+      }
+      if (mintListener) {
+        await mintListener.cleanup();
       }
       if (redis) {
         await redis.quit();

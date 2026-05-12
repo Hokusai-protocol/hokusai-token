@@ -1,0 +1,63 @@
+{
+  "planner": "claude-opus-4-7",
+  "coder": "gpt-5.4",
+  "reviewer": "claude-haiku-4-5-20251001",
+  "planDepth": "deep",
+  "codeDepth": "medium",
+  "reviewMode": "static",
+  "reviewRecommended": "static",
+  "provenance": {
+    "source": "expanded",
+    "inputKind": "task-packet",
+    "inputPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/../worktrees/support-custom-benchmarks-via-smart-contract/features/support-custom-benchmarks-via-smart-contract/task-packet.md",
+    "inputHash": "07d2a52d61db201330c8c8de05f2ec0e1860a4b8b3b365a07a023dd232d29f8b",
+    "routedAt": "2026-05-12T19:00:28.844Z",
+    "routerMode": "normal",
+    "appliedFrom": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/../worktrees/support-custom-benchmarks-via-smart-contract/features/support-custom-benchmarks-via-smart-contract/.post-expansion-route.json",
+    "appliedAt": "2026-05-12T19:00:28Z"
+  },
+  "maxCostUsd": 25,
+  "expectedSuccess": 0.62,
+  "confidence": 0.23,
+  "expectedCostPlan": 1.8,
+  "expectedCostCode": 3.64,
+  "expectedCostReview": 0.03,
+  "reasoning": [
+    "Task classified as documentation with long prompt length.",
+    "Risk score 6 from complexity, scope, and repo-surface keywords.",
+    "Coder baseline uses gpt-5.4 from heuristic eval routing.",
+    "Review mode static chosen to match expected change risk.",
+    "DeepSeek models were ignored because providers.deepseek.enabled is not true."
+  ],
+  "signals": {
+    "taskType": "documentation",
+    "promptLength": "long",
+    "complexityScore": 1,
+    "fileTypes": [
+      ".py",
+      ".md",
+      ".js"
+    ],
+    "riskScore": 6
+  },
+  "constraints": {
+    "maxCostUsd": 25
+  },
+  "routingMode": "heuristic-fallback",
+  "neighborCount": 0,
+  "neighborSimilarityRange": [
+    0,
+    0
+  ],
+  "expectedCost": 5.47,
+  "challengeRecommendation": {
+    "shouldChallenge": true,
+    "reason": "low-confidence",
+    "defaultModel": "gpt-5.4",
+    "challengerModel": "claude-sonnet-4-5-20250929",
+    "priority": 300
+  },
+  "cache_hit": false,
+  "route_source": "single",
+  "packet_hash": "75c4380b30814e3324cea4820eb2702068148dda63759a74c549b6c89a13b1bc"
+}

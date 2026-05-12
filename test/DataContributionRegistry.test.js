@@ -407,6 +407,156 @@ describe("DataContributionRegistry - Phase 1: Core Functions", function () {
         });
     });
 
+    describe("Claim", function () {
+        const modelId = "chest-xray-v2";
+        const tokensEarned = ethers.parseEther("100");
+
+        beforeEach(async function () {
+            await registry.connect(recorder).recordContribution(
+                modelId,
+                contributor1.address,
+                ethers.keccak256(ethers.toUtf8Bytes("claim-hash-1")),
+                5000,
+                1000,
+                2000,
+                tokensEarned,
+                "run_claim_1"
+            );
+
+            await registry.connect(recorder).recordContribution(
+                modelId,
+                contributor2.address,
+                ethers.keccak256(ethers.toUtf8Bytes("claim-hash-2")),
+                5000,
+                1000,
+                2000,
+                tokensEarned,
+                "run_claim_2"
+            );
+        });
+
+        it("should support the full lifecycle from pending to verified to claimed", async function () {
+            let record = await registry.getContribution(1);
+            expect(record.status).to.equal(0); // Pending
+
+            await registry.connect(verifier).verifyContribution(1);
+
+            record = await registry.getContribution(1);
+            expect(record.status).to.equal(1); // Verified
+
+            await registry.connect(contributor1).claimContribution(1);
+
+            record = await registry.getContribution(1);
+            expect(record.status).to.equal(2); // Claimed
+        });
+
+        it("should claim a verified contribution", async function () {
+            await registry.connect(verifier).verifyContribution(1);
+            await registry.connect(contributor1).claimContribution(1);
+
+            const record = await registry.getContribution(1);
+            expect(record.status).to.equal(2); // Claimed
+        });
+
+        it("should emit ContributionClaimed event with correct args", async function () {
+            await registry.connect(verifier).verifyContribution(1);
+
+            const tx = await registry.connect(contributor1).claimContribution(1);
+            const receipt = await tx.wait();
+            const block = await ethers.provider.getBlock(receipt.blockNumber);
+            const event = receipt.logs.find(log => {
+                try {
+                    return registry.interface.parseLog(log).name === "ContributionClaimed";
+                } catch {
+                    return false;
+                }
+            });
+
+            expect(event).to.not.be.undefined;
+            const parsedEvent = registry.interface.parseLog(event);
+            expect(parsedEvent.args.contributionId).to.equal(1);
+            expect(parsedEvent.args.contributor).to.equal(contributor1.address);
+            expect(parsedEvent.args.timestamp).to.equal(block.timestamp);
+        });
+
+        it("should revert if non-contributor tries to claim", async function () {
+            await registry.connect(verifier).verifyContribution(1);
+
+            await expect(
+                registry.connect(other).claimContribution(1)
+            ).to.be.revertedWith("Not contributor");
+
+            const record = await registry.getContribution(1);
+            expect(record.status).to.equal(1); // Verified
+        });
+
+        it("should revert if admin or verifier tries to claim another contributor's contribution", async function () {
+            await registry.connect(verifier).verifyContribution(1);
+
+            await expect(
+                registry.connect(owner).claimContribution(1)
+            ).to.be.revertedWith("Not contributor");
+
+            await expect(
+                registry.connect(verifier).claimContribution(1)
+            ).to.be.revertedWith("Not contributor");
+        });
+
+        it("should revert claiming a pending contribution", async function () {
+            await expect(
+                registry.connect(contributor1).claimContribution(1)
+            ).to.be.revertedWith("Contribution not verified");
+        });
+
+        it("should revert claiming a rejected contribution", async function () {
+            await registry.connect(verifier).rejectContribution(1, "Invalid data");
+
+            await expect(
+                registry.connect(contributor1).claimContribution(1)
+            ).to.be.revertedWith("Contribution not verified");
+        });
+
+        it("should revert claiming an already claimed contribution", async function () {
+            await registry.connect(verifier).verifyContribution(1);
+            await registry.connect(contributor1).claimContribution(1);
+
+            await expect(
+                registry.connect(contributor1).claimContribution(1)
+            ).to.be.revertedWith("Contribution not verified");
+        });
+
+        it("should revert claiming a non-existent contribution", async function () {
+            await expect(
+                registry.connect(contributor1).claimContribution(999)
+            ).to.be.revertedWith("Contribution not registered");
+        });
+
+        it("should revert claiming contribution id zero", async function () {
+            await expect(
+                registry.connect(contributor1).claimContribution(0)
+            ).to.be.revertedWith("Contribution not registered");
+        });
+
+        it("should revert claiming max uint256 contribution id", async function () {
+            await expect(
+                registry.connect(contributor1).claimContribution(ethers.MaxUint256)
+            ).to.be.revertedWith("Contribution not registered");
+        });
+
+        it("should only update the claimed contribution when multiple verified contributions exist", async function () {
+            await registry.connect(verifier).verifyContribution(1);
+            await registry.connect(verifier).verifyContribution(2);
+
+            await registry.connect(contributor1).claimContribution(1);
+
+            const claimedRecord = await registry.getContribution(1);
+            const untouchedRecord = await registry.getContribution(2);
+
+            expect(claimedRecord.status).to.equal(2); // Claimed
+            expect(untouchedRecord.status).to.equal(1); // Verified
+        });
+    });
+
     describe("View Functions", function () {
         beforeEach(async function () {
             // Record multiple contributions

@@ -13,7 +13,8 @@ import "./interfaces/IDataContributionRegistry.sol";
 
 contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
     bytes32 public constant SUBMITTER_ROLE = keccak256("SUBMITTER_ROLE");
-    uint8 private constant METRIC_TYPE_SINGLE = 0;
+    uint8 private constant METRIC_TYPE_MULTI = 0;
+    uint8 private constant METRIC_TYPE_SINGLE = 1;
 
     struct Metrics {
         uint256 accuracy;
@@ -317,6 +318,26 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         return rewardAmount;
     }
     
+    function calculateDeltaOne(
+        Metrics memory baseline,
+        Metrics memory newMetrics
+    ) public pure returns (uint256) {
+        uint256 totalDelta = 0;
+        uint256 metricCount = 0;
+        
+        // Calculate individual metric deltas
+        totalDelta += _calculateMetricDelta(baseline.accuracy, newMetrics.accuracy);
+        totalDelta += _calculateMetricDelta(baseline.precision, newMetrics.precision);
+        totalDelta += _calculateMetricDelta(baseline.recall, newMetrics.recall);
+        totalDelta += _calculateMetricDelta(baseline.f1, newMetrics.f1);
+        totalDelta += _calculateMetricDelta(baseline.auroc, newMetrics.auroc);
+        metricCount = 5;
+        
+        // Return average delta in basis points
+        if (metricCount == 0) return 0;
+        return totalDelta / metricCount;
+    }
+
     function calculateDeltaOneForModel(
         uint256 modelId,
         Metrics memory baseline,
@@ -412,8 +433,13 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         Metrics memory newMetrics
     ) private view returns (uint256) {
         uint8 metricType = _getMetricType(modelId);
-        require(metricType == METRIC_TYPE_SINGLE, "Unsupported metric type");
-        return _calculateSingleMetricDelta(baseline.accuracy, newMetrics.accuracy);
+
+        if (metricType == METRIC_TYPE_SINGLE) {
+            return _calculateSingleMetricDelta(baseline.accuracy, newMetrics.accuracy);
+        }
+
+        require(metricType == METRIC_TYPE_MULTI, "Unsupported metric type");
+        return calculateDeltaOne(baseline, newMetrics);
     }
 
     function _calculateSingleMetricDelta(

@@ -123,6 +123,66 @@ describe("DeltaVerifier", function () {
     });
   });
 
+  describe("DeltaOne Calculation", function () {
+    it("Should calculate correct DeltaOne score from sample metrics", async function () {
+      const deltaOne = await deltaVerifier.calculateDeltaOne(
+        sampleBaselineMetrics,
+        sampleNewMetrics
+      );
+      
+      // Let's calculate the expected value:
+      // Accuracy: (88.4 - 85.4) / 85.4 = 3.51%
+      // Precision: (85.4 - 82.7) / 82.7 = 3.26%
+      // Recall: (91.3 - 88.7) / 88.7 = 2.93%
+      // F1: (89.1 - 83.9) / 83.9 = 6.20%
+      // AUROC: (93.5 - 90.4) / 90.4 = 3.43%
+      // Average: (3.51 + 3.26 + 2.93 + 6.20 + 3.43) / 5 = 3.866%
+      // Expected: ~3.87% improvement = 387 bps
+      expect(deltaOne).to.be.within(385, 389);
+    });
+
+    it("Should return 0 for no improvement", async function () {
+      const deltaOne = await deltaVerifier.calculateDeltaOne(
+        sampleBaselineMetrics,
+        sampleBaselineMetrics
+      );
+      expect(deltaOne).to.equal(0);
+    });
+
+    it("Should handle metrics with 0 baseline values", async function () {
+      const zeroBaseline = {
+        accuracy: 0,
+        precision: 0,
+        recall: 0,
+        f1: 0,
+        auroc: 0
+      };
+
+      const improvedMetrics = {
+        accuracy: 5000,
+        precision: 5000,
+        recall: 5000,
+        f1: 5000,
+        auroc: 5000
+      };
+
+      // Should not revert, but handle gracefully
+      await expect(
+        deltaVerifier.calculateDeltaOne(zeroBaseline, improvedMetrics)
+      ).to.not.be.reverted;
+    });
+
+    it("Should handle negative improvements correctly", async function () {
+      const deltaOne = await deltaVerifier.calculateDeltaOne(
+        sampleNewMetrics,
+        sampleBaselineMetrics
+      );
+      
+      // Should return 0 for negative improvements
+      expect(deltaOne).to.equal(0);
+    });
+  });
+
   describe("Reward Calculation", function () {
     it("Should calculate correct reward for valid improvement", async function () {
       const deltaInBps = 387; // 3.87% improvement

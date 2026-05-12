@@ -248,7 +248,7 @@ All outputs conform to the specified schema:
 - Network: Sepolia
 - Status: ✅ Responding
 - Functions tested:
-  - `calculateDeltaOne()` ✅
+  - `calculateDeltaOneForModel()` ✅
   - `calculateReward()` ✅
   - `calculateRewardDynamic()` ✅ (with fallback)
 

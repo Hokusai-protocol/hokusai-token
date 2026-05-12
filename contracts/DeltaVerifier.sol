@@ -13,8 +13,6 @@ import "./interfaces/IDataContributionRegistry.sol";
 
 contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
     bytes32 public constant SUBMITTER_ROLE = keccak256("SUBMITTER_ROLE");
-    uint8 private constant METRIC_TYPE_MULTI = 0;
-    uint8 private constant METRIC_TYPE_SINGLE = 1;
 
     struct Metrics {
         uint256 accuracy;
@@ -212,7 +210,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         }
 
         // Calculate delta one score
-        uint256 deltaInBps = _calculateDeltaOneForModel(modelId, data.baselineMetrics, data.newMetrics);
+        uint256 deltaInBps = _calculateSingleMetricDelta(data.baselineMetrics.accuracy, data.newMetrics.accuracy);
 
         // Calculate total reward based on full improvement using dynamic parameters
         string memory modelIdStr = _uintToString(modelId);
@@ -284,8 +282,8 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         lastSubmissionTime[data.contributor] = block.timestamp;
         
         // Calculate delta one score
-        uint256 deltaInBps = _calculateDeltaOneForModel(modelId, data.baselineMetrics, data.newMetrics);
-        
+        uint256 deltaInBps = _calculateSingleMetricDelta(data.baselineMetrics.accuracy, data.newMetrics.accuracy);
+
         // Calculate reward using dynamic parameters
         string memory modelIdStr = _uintToString(modelId);
         uint256 rewardAmount = calculateRewardDynamic(
@@ -318,32 +316,12 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         return rewardAmount;
     }
     
-    function calculateDeltaOne(
+    function calculateDeltaOneForModel(
+        uint256 /* modelId */,
         Metrics memory baseline,
         Metrics memory newMetrics
     ) public pure returns (uint256) {
-        uint256 totalDelta = 0;
-        uint256 metricCount = 0;
-        
-        // Calculate individual metric deltas
-        totalDelta += _calculateMetricDelta(baseline.accuracy, newMetrics.accuracy);
-        totalDelta += _calculateMetricDelta(baseline.precision, newMetrics.precision);
-        totalDelta += _calculateMetricDelta(baseline.recall, newMetrics.recall);
-        totalDelta += _calculateMetricDelta(baseline.f1, newMetrics.f1);
-        totalDelta += _calculateMetricDelta(baseline.auroc, newMetrics.auroc);
-        metricCount = 5;
-        
-        // Return average delta in basis points
-        if (metricCount == 0) return 0;
-        return totalDelta / metricCount;
-    }
-
-    function calculateDeltaOneForModel(
-        uint256 modelId,
-        Metrics memory baseline,
-        Metrics memory newMetrics
-    ) public view returns (uint256) {
-        return _calculateDeltaOneForModel(modelId, baseline, newMetrics);
+        return _calculateSingleMetricDelta(baseline.accuracy, newMetrics.accuracy);
     }
     
     function calculateReward(
@@ -409,39 +387,6 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         return reward;
     }
     
-    function _calculateMetricDelta(
-        uint256 baseline,
-        uint256 newValue
-    ) private pure returns (uint256) {
-        if (baseline == 0) {
-            // Handle zero baseline case
-            return newValue > 0 ? 10000 : 0; // 100% improvement if from 0 to any positive
-        }
-        
-        if (newValue <= baseline) {
-            return 0; // No improvement
-        }
-        
-        // Calculate percentage improvement in basis points
-        uint256 delta = ((newValue - baseline) * 10000) / baseline;
-        return delta;
-    }
-
-    function _calculateDeltaOneForModel(
-        uint256 modelId,
-        Metrics memory baseline,
-        Metrics memory newMetrics
-    ) private view returns (uint256) {
-        uint8 metricType = _getMetricType(modelId);
-
-        if (metricType == METRIC_TYPE_SINGLE) {
-            return _calculateSingleMetricDelta(baseline.accuracy, newMetrics.accuracy);
-        }
-
-        require(metricType == METRIC_TYPE_MULTI, "Unsupported metric type");
-        return calculateDeltaOne(baseline, newMetrics);
-    }
-
     function _calculateSingleMetricDelta(
         uint256 baseline,
         uint256 newValue
@@ -453,16 +398,6 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         return newValue - baseline;
     }
 
-    function _getMetricType(uint256 modelId) private view returns (uint8) {
-        string memory modelIdStr = _uintToString(modelId);
-        address tokenAddress = tokenManager.getTokenAddress(modelIdStr);
-        require(tokenAddress != address(0), "Token not found for model");
-
-        HokusaiToken token = HokusaiToken(tokenAddress);
-        IHokusaiParams params = token.params();
-        return params.metricType();
-    }
-    
     function _validateEvaluationData(EvaluationData calldata data) private pure {
         // Validate contributor address
         ValidationLib.requireNonZeroAddress(data.contributor, "contributor address");

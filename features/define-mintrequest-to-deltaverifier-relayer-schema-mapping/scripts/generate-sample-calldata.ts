@@ -15,6 +15,7 @@ interface MintRequestFixture {
   attestation_hash: string;
   baseline_score_bps: number;
   new_score_bps: number;
+  total_samples: number;
   cost: {
     max_cost_usd: number;
     actual_cost_usd: number;
@@ -103,6 +104,11 @@ function buildArgs(input: MintRequestFixture) {
     0,
     10000
   );
+  const totalSamples = assertIntegerInRange(
+    input.total_samples,
+    "total_samples",
+    1
+  );
   const maxCostUsd = assertIntegerInRange(
     input.cost?.max_cost_usd,
     "cost.max_cost_usd",
@@ -181,7 +187,8 @@ function buildArgs(input: MintRequestFixture) {
         auroc: 0
       },
       maxCostUsd,
-      actualCostUsd
+      actualCostUsd,
+      totalSamples
     },
     contributors
   ] as const;
@@ -216,27 +223,30 @@ assert.deepEqual(
     baselineMetrics: normalizeMetrics(decoded.data.baselineMetrics.toObject()),
     newMetrics: normalizeMetrics(decoded.data.newMetrics.toObject()),
     maxCostUsd: decoded.data.maxCostUsd,
-    actualCostUsd: decoded.data.actualCostUsd
+    actualCostUsd: decoded.data.actualCostUsd,
+    totalSamples: decoded.data.totalSamples
   },
   {
-  pipelineRunId: args[1].pipelineRunId,
-  baselineMetrics: {
-    accuracy: BigInt(args[1].baselineMetrics.accuracy),
-    precision: 0n,
-    recall: 0n,
-    f1: 0n,
-    auroc: 0n
-  },
-  newMetrics: {
-    accuracy: BigInt(args[1].newMetrics.accuracy),
-    precision: 0n,
-    recall: 0n,
-    f1: 0n,
-    auroc: 0n
-  },
-  maxCostUsd: BigInt(args[1].maxCostUsd),
-  actualCostUsd: BigInt(args[1].actualCostUsd)
-});
+    pipelineRunId: args[1].pipelineRunId,
+    baselineMetrics: {
+      accuracy: BigInt(args[1].baselineMetrics.accuracy),
+      precision: 0n,
+      recall: 0n,
+      f1: 0n,
+      auroc: 0n
+    },
+    newMetrics: {
+      accuracy: BigInt(args[1].newMetrics.accuracy),
+      precision: 0n,
+      recall: 0n,
+      f1: 0n,
+      auroc: 0n
+    },
+    maxCostUsd: BigInt(args[1].maxCostUsd),
+    actualCostUsd: BigInt(args[1].actualCostUsd),
+    totalSamples: BigInt(args[1].totalSamples)
+  }
+);
 assert.deepEqual(normalizeMetrics(decoded.data.baselineMetrics.toObject()), {
   accuracy: BigInt(args[1].baselineMetrics.accuracy),
   precision: 0n,

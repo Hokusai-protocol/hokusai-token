@@ -16,6 +16,7 @@ function buildMintRequestPayload(overrides = {}) {
     candidateScoreBps: 7500,
     maxCostUsdMicro: 0,
     actualCostUsdMicro: 0,
+    totalSamples: 10000,
     ...overrides,
     anchors: {
       ...defaultAnchors,

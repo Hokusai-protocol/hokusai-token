@@ -211,7 +211,8 @@ describe("Full Integration: Params Module", function () {
         baselineMetrics: evaluationData.baselineMetrics,
         newMetrics: evaluationData.newMetrics,
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 2000
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(

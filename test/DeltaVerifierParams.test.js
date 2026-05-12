@@ -299,7 +299,8 @@ describe("DeltaVerifier with Dynamic Params", function () {
         baselineMetrics: defaultEvaluationData.baselineMetrics,
         newMetrics: defaultEvaluationData.newMetrics,
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 1000
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(
@@ -375,7 +376,8 @@ describe("DeltaVerifier with Dynamic Params", function () {
           auroc: 9000
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 1000
       };
 
       await deltaVerifier.submitEvaluationWithMultipleContributors(

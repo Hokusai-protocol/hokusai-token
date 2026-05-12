@@ -219,7 +219,8 @@ describe("Integration: JSON Wallet Address Support", function () {
           totalSamples: jsonData.contributor_info.total_samples
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 5000
       };
 
       // Submit evaluation
@@ -304,7 +305,8 @@ describe("Integration: JSON Wallet Address Support", function () {
           auroc: Math.floor(jsonData.evaluation_results.new_metrics.auroc * 10000)
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 5000
       };
 
       const contributors = jsonData.contributors.map(c => ({
@@ -420,7 +422,8 @@ describe("Integration: JSON Wallet Address Support", function () {
           auroc: 9300
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       await expect(
@@ -452,7 +455,8 @@ describe("Integration: JSON Wallet Address Support", function () {
           auroc: 9300
         },
         maxCostUsd: 0,
-        actualCostUsd: 0
+        actualCostUsd: 0,
+        totalSamples: 10000
       };
 
       // Test with different numbers of contributors

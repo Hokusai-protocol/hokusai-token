@@ -83,6 +83,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
         newMetrics: { accuracy: 8800, precision: 8500, recall: 9100, f1: 8900, auroc: 9300 },
         maxCostUsd: 0,
         actualCostUsd: 0,
+        totalSamples: 10000,
       };
     }
 

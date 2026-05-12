@@ -1,0 +1,96 @@
+# Sample Calldata
+
+This worked example is derived from the feature fixture at [wavemill-sample.json](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/define-mintrequest-to-deltaverifier-relayer-schema-mapping/features/define-mintrequest-to-deltaverifier-relayer-schema-mapping/fixtures/wavemill-sample.json:1). It is Wavemill-shaped sample data based on the existing multi-contributor simulator example, extended with MintRequest-only fields.
+
+## Raw MintRequest
+
+```json
+{
+  "model_id_uint": 42,
+  "eval_id": "wavemill-benchmark-2026-05-12T13:45:00Z",
+  "attestation_hash": "0x8f16a7d3946f4731c9b3a5d47f4d7f3ed5b1f9af1d87a6d5fd0d1d25e8f4c2ab",
+  "baseline_score_bps": 8125,
+  "new_score_bps": 8450,
+  "cost": {
+    "max_cost_usd": 250,
+    "actual_cost_usd": 180
+  },
+  "contributors": [
+    {
+      "wallet_address": "0x742d35cc6631c0532925a3b844d35d2be8b6c6dd",
+      "weight_bps": 5000
+    },
+    {
+      "wallet_address": "0x66f820a414680b5bcda5eeca5dea238543f42054",
+      "weight_bps": 3000
+    },
+    {
+      "wallet_address": "0xa0cf798816d4b9b9866b5330e92a4a525b5009cc",
+      "weight_bps": 2000
+    }
+  ]
+}
+```
+
+## Decoded contract arguments
+
+```json
+{
+  "function": "submitEvaluationWithMultipleContributors",
+  "modelId": 42,
+  "data": {
+    "pipelineRunId": "wavemill-benchmark-2026-05-12T13:45:00Z",
+    "baselineMetrics": {
+      "accuracy": 8125,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "auroc": 0
+    },
+    "newMetrics": {
+      "accuracy": 8450,
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "auroc": 0
+    },
+    "maxCostUsd": 250,
+    "actualCostUsd": 180
+  },
+  "contributors": [
+    {
+      "walletAddress": "0x742D35CC6631c0532925A3B844d35D2be8B6C6dD",
+      "weight": 5000
+    },
+    {
+      "walletAddress": "0x66f820a414680B5bcda5eECA5dea238543F42054",
+      "weight": 3000
+    },
+    {
+      "walletAddress": "0xA0cF798816d4b9B9866b5330E92A4a525B5009cc",
+      "weight": 2000
+    }
+  ]
+}
+```
+
+## Encoded calldata
+
+```text
+0x9a0dc549000000000000000000000000000000000000000000000000000000000000002a0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000026000000000000000000000000000000000000000000000000000000000000001a00000000000000000000000000000000000000000000000000000000000001fbd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002102000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fa00000000000000000000000000000000000000000000000000000000000000b40000000000000000000000000000000000000000000000000000000000000027776176656d696c6c2d62656e63686d61726b2d323032362d30352d31325431333a34353a30305a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000742d35cc6631c0532925a3b844d35d2be8b6c6dd000000000000000000000000000000000000000000000000000000000000138800000000000000000000000066f820a414680b5bcda5eeca5dea238543f420540000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000a0cf798816d4b9b9866b5330e92a4a525b5009cc00000000000000000000000000000000000000000000000000000000000007d0
+```
+
+Verify locally:
+
+```bash
+node --no-warnings features/define-mintrequest-to-deltaverifier-relayer-schema-mapping/scripts/generate-sample-calldata.ts
+```
+
+## Invalid input appendix
+
+Rejected before submit:
+
+- Contributor weights `5000 + 3000 + 1999` because the sum is `9999`, not `10000`.
+- Contributor address `0x0000000000000000000000000000000000000000` because the v1 path rejects the zero address.
+- `attestation_hash = "0x1234"` because it is not a canonical 32-byte hex string.
+- `baseline_score_bps = 10001` because the relayer must enforce the same `<= 10000` cap that `_validateMetrics` enforces on the single-contributor path.

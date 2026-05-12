@@ -9,13 +9,12 @@ pragma solidity ^0.8.0;
  */
 interface IHokusaiParams {
     enum MetricType {
-        MultiMetric,
         SingleMetric
     }
 
     /**
      * @dev Returns the metric evaluation mode for the model's token
-     * @return The metric type enum value (0 = multi-metric, 1 = single-metric)
+     * @return The metric type enum value (0 = single-metric)
      */
     function metricType() external view returns (uint8);
 
@@ -73,7 +72,7 @@ interface IHokusaiParams {
 
     /**
      * @dev Sets the metric evaluation mode
-     * @param newMetricType The metric type enum value (0 = multi-metric, 1 = single-metric)
+     * @param newMetricType The metric type enum value (0 = single-metric)
      * Requirements:
      * - Only addresses with GOV_ROLE can call this function
      * - newMetricType must be a supported mode

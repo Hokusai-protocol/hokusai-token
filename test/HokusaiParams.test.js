@@ -36,7 +36,7 @@ describe("HokusaiParams", function () {
 
   describe("Constructor", function () {
     it("Should initialize with correct default values", async function () {
-      expect(await params.metricType()).to.equal(0); // SingleMetric default
+      expect(await params.metricType()).to.equal(1); // SingleMetric default
       expect(await params.tokensPerDeltaOne()).to.equal(DEFAULT_TOKENS_PER_DELTA_ONE);
       expect(await params.infrastructureAccrualBps()).to.equal(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS);
       expect(await params.oraclePricePerThousandUsd()).to.equal(DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD);
@@ -137,6 +137,14 @@ describe("HokusaiParams", function () {
       expect(await params.tokensPerDeltaOne()).to.equal(newValue);
     });
 
+    it("Should allow governor to update metricType", async function () {
+      await expect(params.connect(governor).setMetricType(0))
+        .to.emit(params, "MetricTypeSet")
+        .withArgs(1, 0, governor.address);
+
+      expect(await params.metricType()).to.equal(0);
+    });
+
     it("Should prevent non-governor from updating tokensPerDeltaOne", async function () {
       const newValue = wholeTokens(2000);
       await expect(
@@ -146,7 +154,7 @@ describe("HokusaiParams", function () {
 
     it("Should prevent non-governor from updating metricType", async function () {
       await expect(
-        params.connect(user1).setMetricType(0)
+        params.connect(user1).setMetricType(1)
       ).to.be.reverted;
     });
 
@@ -195,10 +203,6 @@ describe("HokusaiParams", function () {
 
   describe("Parameter Bounds Validation", function () {
     it("Should reject unsupported metricType values", async function () {
-      await expect(
-        params.connect(governor).setMetricType(1)
-      ).to.be.revertedWith("Invalid metric type");
-
       await expect(
         params.connect(governor).setMetricType(2)
       ).to.be.revertedWith("Invalid metric type");

@@ -109,8 +109,9 @@ export class DeltaOneSimulator {
     evaluationData: EvaluationData
   ): Promise<SimulationResult> {
     try {
-      // Step 1: Calculate DeltaOne score
-      const deltaOneScore = await this.deltaVerifier.calculateDeltaOne(
+      // Step 1: Calculate DeltaOne score (single-metric accuracy delta)
+      const deltaOneScore = await this.deltaVerifier.calculateDeltaOneForModel(
+        modelId,
         evaluationData.baselineMetrics,
         evaluationData.newMetrics
       );

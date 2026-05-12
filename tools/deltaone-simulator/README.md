@@ -156,7 +156,7 @@ Create a JSON file with this structure:
 
 ### Simulation Flow
 1. Connect to Sepolia RPC (read-only, no wallet)
-2. Call `calculateDeltaOne()` to get improvement score
+2. Call `calculateDeltaOneForModel()` to get improvement score
 3. Call `calculateReward()` to get token amount
 4. Format and return JSON result
 

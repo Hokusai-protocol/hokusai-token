@@ -368,7 +368,7 @@ contract TokenManager is Ownable, AccessControlBase {
     }
 
     /**
-     * @dev Mints tokens for a specific model to a recipient
+     * @dev Mints tokens for a specific model to a recipient (general-purpose, no vesting)
      * @param modelId The model identifier
      * @param recipient The address to receive the tokens
      * @param amount The amount of tokens to mint
@@ -393,13 +393,12 @@ contract TokenManager is Ownable, AccessControlBase {
             "Model is deactivated"
         );
 
-        _mintWithVesting(modelId, tokenAddress, recipient, amount);
-
+        HokusaiToken(tokenAddress).mint(recipient, amount);
         emit TokensMinted(modelId, recipient, amount);
     }
 
     /**
-     * @dev Mints tokens to multiple recipients in a single transaction
+     * @dev Mints tokens to multiple recipients in a single transaction (general-purpose, no vesting)
      * @param modelId The model identifier
      * @param recipients Array of addresses to receive tokens
      * @param amounts Array of token amounts corresponding to each recipient
@@ -438,7 +437,81 @@ contract TokenManager is Ownable, AccessControlBase {
                 continue;
             }
 
-            _mintWithVesting(modelId, tokenAddress, recipients[i], amounts[i]);
+            token.mint(recipients[i], amounts[i]);
+            totalAmount += amounts[i];
+        }
+
+        emit BatchMinted(modelId, recipients, amounts, totalAmount);
+    }
+
+    /**
+     * @dev Mints DeltaOne contributor reward tokens with optional vesting
+     * @param modelId The model identifier
+     * @param recipient The contributor address to receive the reward
+     * @param amount The total reward amount
+     */
+    function mintReward(string memory modelId, address recipient, uint256 amount)
+        external
+    {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to mint"
+        );
+
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(recipient, "recipient");
+        ValidationLib.requirePositiveAmount(amount, "amount");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        require(
+            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            "Model is deactivated"
+        );
+
+        _mintRewardWithVesting(modelId, tokenAddress, recipient, amount);
+        emit TokensMinted(modelId, recipient, amount);
+    }
+
+    /**
+     * @dev Mints DeltaOne contributor rewards to multiple recipients with optional vesting
+     * @param modelId The model identifier
+     * @param recipients Array of contributor addresses to receive rewards
+     * @param amounts Array of reward amounts corresponding to each recipient
+     */
+    function batchMintReward(
+        string memory modelId,
+        address[] calldata recipients,
+        uint256[] calldata amounts
+    )
+        external
+    {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Unauthorized"
+        );
+
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireValidBatch(recipients.length, amounts.length, 100);
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        require(
+            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            "Model is deactivated"
+        );
+
+        uint256 totalAmount = 0;
+
+        for (uint256 i = 0; i < recipients.length; i++) {
+            ValidationLib.requireNonZeroAddress(recipients[i], "recipient");
+
+            if (amounts[i] == 0) {
+                emit ContributorSkipped(recipients[i], i);
+                continue;
+            }
+
+            _mintRewardWithVesting(modelId, tokenAddress, recipients[i], amounts[i]);
             totalAmount += amounts[i];
         }
 
@@ -520,7 +593,7 @@ contract TokenManager is Ownable, AccessControlBase {
         return modelParams[modelId] != address(0);
     }
 
-    function _mintWithVesting(
+    function _mintRewardWithVesting(
         string memory modelId,
         address tokenAddress,
         address recipient,

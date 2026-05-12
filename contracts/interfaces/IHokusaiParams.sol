@@ -9,7 +9,6 @@ pragma solidity ^0.8.0;
  */
 interface IHokusaiParams {
     enum MetricType {
-        MultiMetric,
         SingleMetric
     }
 
@@ -22,7 +21,7 @@ interface IHokusaiParams {
 
     /**
      * @dev Returns the metric evaluation mode for the model's token
-     * @return The metric type enum value (0 = multi-metric, 1 = single-metric)
+     * @return The metric type enum value (0 = single-metric)
      */
     function metricType() external view returns (uint8);
 
@@ -105,7 +104,7 @@ interface IHokusaiParams {
 
     /**
      * @dev Sets the metric evaluation mode
-     * @param newMetricType The metric type enum value (0 = multi-metric, 1 = single-metric)
+     * @param newMetricType The metric type enum value (0 = single-metric)
      * Requirements:
      * - Only addresses with GOV_ROLE can call this function
      * - newMetricType must be a supported mode
@@ -120,6 +119,15 @@ interface IHokusaiParams {
      * - newBps must be between 5000 and 10000 (50-100%)
      */
     function setInfrastructureAccrualBps(uint16 newBps) external;
+
+    /**
+     * @dev Sets the oracle price in USD per 1000 calls
+     * @param newValue The new oracle price using the platform's USD decimal convention
+     * Requirements:
+     * - Only addresses with GOV_ROLE can call this function
+     * - newValue must not exceed the implementation's sanity bound
+     */
+    function setOraclePricePerThousandUsd(uint256 newValue) external;
 
     /**
      * @dev Sets the license reference
@@ -158,6 +166,18 @@ interface IHokusaiParams {
      * @param updatedBy The address that made the update
      */
     event InfrastructureAccrualBpsSet(uint16 indexed oldBps, uint16 indexed newBps, address indexed updatedBy);
+
+    /**
+     * @dev Emitted when oraclePricePerThousandUsd is updated
+     * @param oldValue The previous oracle price value
+     * @param newValue The new oracle price value
+     * @param updatedBy The address that made the update
+     */
+    event OraclePricePerThousandUsdSet(
+        uint256 indexed oldValue,
+        uint256 indexed newValue,
+        address indexed updatedBy
+    );
 
     /**
      * @dev Emitted when license reference is updated

@@ -30,6 +30,9 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
     /// @dev Maximum allowed value for infrastructureAccrualBps (100% in basis points)
     uint16 public constant MAX_INFRASTRUCTURE_ACCRUAL_BPS = 10000;
 
+    /// @dev Maximum allowed oracle price per 1000 calls, using the platform's 6-decimal USD convention
+    uint256 public constant MAX_ORACLE_PRICE_PER_THOUSAND_USD = 1_000_000_000_000;
+
     /// @dev Default price epoch duration (30 days in seconds)
     uint256 public constant DEFAULT_PRICE_EPOCH_DURATION = 30 days;
 
@@ -109,6 +112,10 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
             initialInfrastructureAccrualBps >= MIN_INFRASTRUCTURE_ACCRUAL_BPS &&
             initialInfrastructureAccrualBps <= MAX_INFRASTRUCTURE_ACCRUAL_BPS,
             "infrastructureAccrualBps must be between 1000 and 10000"
+        );
+        require(
+            initialOraclePricePerThousandUsd <= MAX_ORACLE_PRICE_PER_THOUSAND_USD,
+            "oraclePricePerThousandUsd exceeds maximum"
         );
 
         // Set initial values
@@ -255,6 +262,21 @@ contract HokusaiParams is IHokusaiParams, AccessControl {
         _infrastructureAccrualBps = newBps;
 
         emit InfrastructureAccrualBpsSet(oldBps, newBps, msg.sender);
+    }
+
+    /**
+     * @inheritdoc IHokusaiParams
+     */
+    function setOraclePricePerThousandUsd(uint256 newValue) external override onlyRole(GOV_ROLE) {
+        require(
+            newValue <= MAX_ORACLE_PRICE_PER_THOUSAND_USD,
+            "oraclePricePerThousandUsd exceeds maximum"
+        );
+
+        uint256 oldValue = _oraclePricePerThousandUsd;
+        _oraclePricePerThousandUsd = newValue;
+
+        emit OraclePricePerThousandUsdSet(oldValue, newValue, msg.sender);
     }
 
     /**

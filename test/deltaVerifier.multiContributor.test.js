@@ -43,7 +43,8 @@ describe("DeltaVerifier Multi-Contributor Support", function () {
       0, // initialOraclePricePerThousandUsd
       ethers.ZeroHash,
       "",
-      owner.address
+      owner.address,
+      { enabled: false, immediateUnlockBps: 10000, vestingDurationSeconds: 0, cliffSeconds: 0 }
     );
     await hokusaiParams.waitForDeployment();
 

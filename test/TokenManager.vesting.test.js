@@ -106,7 +106,7 @@ describe("TokenManager Vesting", function () {
     expect(await params.vestingDurationSeconds()).to.equal(365 * 24 * 60 * 60);
     expect(await params.cliffSeconds()).to.equal(0);
 
-    await expect(tokenManager.mintTokens(MODEL_ID, contributor.address, rewardAmount))
+    await expect(tokenManager.mintReward(MODEL_ID, contributor.address, rewardAmount))
       .to.emit(tokenManager, "RewardVestingCreated")
       .withArgs(
         MODEL_ID,
@@ -131,7 +131,7 @@ describe("TokenManager Vesting", function () {
     const { token, params } = await deployToken("custom-vesting", customConfig);
     const rewardAmount = parseEther("1000");
 
-    await tokenManager.mintTokens("custom-vesting", contributor.address, rewardAmount);
+    await tokenManager.mintReward("custom-vesting", contributor.address, rewardAmount);
 
     expect(await params.immediateUnlockBps()).to.equal(2500);
     expect(await params.vestingDurationSeconds()).to.equal(30 * 24 * 60 * 60);
@@ -148,7 +148,7 @@ describe("TokenManager Vesting", function () {
     const vestedAmount = parseEther("225000");
     const perSecondVesting = vestedAmount / BigInt(365 * 24 * 60 * 60);
 
-    await tokenManager.mintTokens(MODEL_ID, contributor.address, rewardAmount);
+    await tokenManager.mintReward(MODEL_ID, contributor.address, rewardAmount);
 
     await expect(vestingVault.connect(contributor).claim(0)).to.be.revertedWith("No vested rewards available");
 
@@ -174,7 +174,7 @@ describe("TokenManager Vesting", function () {
     const recipients = [contributor.address, contributor2.address, treasury.address];
     const amounts = [parseEther("100"), parseEther("50"), 0];
 
-    await expect(tokenManager.batchMintTokens(MODEL_ID, recipients, amounts))
+    await expect(tokenManager.batchMintReward(MODEL_ID, recipients, amounts))
       .to.emit(tokenManager, "ContributorSkipped")
       .withArgs(treasury.address, 2);
 
@@ -195,7 +195,7 @@ describe("TokenManager Vesting", function () {
     );
     const rewardAmount = parseEther("1000");
 
-    await tokenManager.mintTokens("full-liquid", contributor.address, rewardAmount);
+    await tokenManager.mintReward("full-liquid", contributor.address, rewardAmount);
 
     expect(await token.balanceOf(contributor.address)).to.equal(rewardAmount);
     expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(0);
@@ -209,7 +209,7 @@ describe("TokenManager Vesting", function () {
     );
     const rewardAmount = parseEther("1000");
 
-    await tokenManager.mintTokens("full-vested", contributor.address, rewardAmount);
+    await tokenManager.mintReward("full-vested", contributor.address, rewardAmount);
 
     expect(await token.balanceOf(contributor.address)).to.equal(0);
     expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(rewardAmount);
@@ -225,7 +225,7 @@ describe("TokenManager Vesting", function () {
 
     expect(await params.vestingEnabled()).to.equal(false);
 
-    await tokenManager.mintTokens("no-vesting", contributor.address, rewardAmount);
+    await tokenManager.mintReward("no-vesting", contributor.address, rewardAmount);
 
     expect(await token.balanceOf(contributor.address)).to.equal(rewardAmount);
     expect(await vestingVault.getSchedulesByBeneficiary(contributor.address)).to.deep.equal([]);
@@ -234,7 +234,7 @@ describe("TokenManager Vesting", function () {
   it("prevents the AMM from draining unvested rewards because contributors do not hold them", async function () {
     const { token, tokenAddress } = await deployToken(MODEL_ID, buildVestingConfig());
     const rewardAmount = parseEther("1000");
-    await tokenManager.mintTokens(MODEL_ID, contributor.address, rewardAmount);
+    await tokenManager.mintReward(MODEL_ID, contributor.address, rewardAmount);
 
     const { amm } = await deployAmm(tokenAddress);
 

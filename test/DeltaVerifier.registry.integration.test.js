@@ -50,7 +50,8 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       0,
       ethers.ZeroHash,
       "",
-      owner.address
+      owner.address,
+      { enabled: false, immediateUnlockBps: 10000, vestingDurationSeconds: 0, cliffSeconds: 0 }
     );
 
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");

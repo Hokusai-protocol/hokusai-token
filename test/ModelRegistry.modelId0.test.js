@@ -24,7 +24,8 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
             0, // initialOraclePricePerThousandUsd
             ethers.keccak256(ethers.toUtf8Bytes("test-license")),
             "https://test.license",
-            owner.address
+            owner.address,
+            { enabled: false, immediateUnlockBps: 10000, vestingDurationSeconds: 0, cliffSeconds: 0 }
         );
         await params.waitForDeployment();
 

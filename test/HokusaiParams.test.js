@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { ZeroAddress, ZeroHash, keccak256, toUtf8Bytes } = require("ethers");
-const { wholeTokens } = require("./helpers/tokenDeployment");
+const { buildDisabledVestingConfig, wholeTokens } = require("./helpers/tokenDeployment");
 
 describe("HokusaiParams", function () {
   let HokusaiParams;
@@ -16,8 +16,11 @@ describe("HokusaiParams", function () {
   const DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD = 0;
   const DEFAULT_LICENSE_HASH = keccak256(toUtf8Bytes("default-license"));
   const DEFAULT_LICENSE_URI = "https://hokusai.ai/licenses/default";
+  const DEFAULT_VESTING_CONFIG = buildDisabledVestingConfig();
   const TOKENS_PER_DELTA_ONE_BOUNDS_ERROR =
     "tokensPerDeltaOne must be between 100 and 10000000 whole tokens (wei-scaled)";
+  const MAX_ORACLE_PRICE_PER_THOUSAND_USD = 1_000_000_000_000n;
+  const ORACLE_PRICE_BOUNDS_ERROR = "oraclePricePerThousandUsd exceeds maximum";
 
   beforeEach(async function () {
     [owner, governor, user1, ...addrs] = await ethers.getSigners();
@@ -29,14 +32,15 @@ describe("HokusaiParams", function () {
       DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
       DEFAULT_LICENSE_HASH,
       DEFAULT_LICENSE_URI,
-      governor.address
+      governor.address,
+      DEFAULT_VESTING_CONFIG
     );
     await params.waitForDeployment();
   });
 
   describe("Constructor", function () {
     it("Should initialize with correct default values", async function () {
-      expect(await params.metricType()).to.equal(1); // SingleMetric default
+      expect(await params.metricType()).to.equal(0); // SingleMetric default
       expect(await params.tokensPerDeltaOne()).to.equal(DEFAULT_TOKENS_PER_DELTA_ONE);
       expect(await params.infrastructureAccrualBps()).to.equal(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS);
       expect(await params.oraclePricePerThousandUsd()).to.equal(DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD);
@@ -69,7 +73,8 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          ZeroAddress
+          ZeroAddress,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith("Governor cannot be zero address");
     });
@@ -82,7 +87,8 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          governor.address
+          governor.address,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
     });
@@ -95,7 +101,8 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          governor.address
+          governor.address,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith(TOKENS_PER_DELTA_ONE_BOUNDS_ERROR);
     });
@@ -108,7 +115,8 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          governor.address
+          governor.address,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
     });
@@ -121,9 +129,24 @@ describe("HokusaiParams", function () {
           DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD,
           DEFAULT_LICENSE_HASH,
           DEFAULT_LICENSE_URI,
-          governor.address
+          governor.address,
+          DEFAULT_VESTING_CONFIG
         )
       ).to.be.revertedWith("infrastructureAccrualBps must be between 1000 and 10000");
+    });
+
+    it("Should reject oraclePricePerThousandUsd above maximum", async function () {
+      await expect(
+        HokusaiParams.deploy(
+          DEFAULT_TOKENS_PER_DELTA_ONE,
+          DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS,
+          MAX_ORACLE_PRICE_PER_THOUSAND_USD + 1n,
+          DEFAULT_LICENSE_HASH,
+          DEFAULT_LICENSE_URI,
+          governor.address,
+          DEFAULT_VESTING_CONFIG
+        )
+      ).to.be.revertedWith(ORACLE_PRICE_BOUNDS_ERROR);
     });
   });
 
@@ -137,24 +160,10 @@ describe("HokusaiParams", function () {
       expect(await params.tokensPerDeltaOne()).to.equal(newValue);
     });
 
-    it("Should allow governor to update metricType", async function () {
-      await expect(params.connect(governor).setMetricType(0))
-        .to.emit(params, "MetricTypeSet")
-        .withArgs(1, 0, governor.address);
-
-      expect(await params.metricType()).to.equal(0);
-    });
-
     it("Should prevent non-governor from updating tokensPerDeltaOne", async function () {
       const newValue = wholeTokens(2000);
       await expect(
         params.connect(user1).setTokensPerDeltaOne(newValue)
-      ).to.be.reverted;
-    });
-
-    it("Should prevent non-governor from updating metricType", async function () {
-      await expect(
-        params.connect(user1).setMetricType(1)
       ).to.be.reverted;
     });
 
@@ -172,6 +181,21 @@ describe("HokusaiParams", function () {
       const newBps = 7000;
       await expect(
         params.connect(user1).setInfrastructureAccrualBps(newBps)
+      ).to.be.reverted;
+    });
+
+    it("Should allow governor to update oraclePricePerThousandUsd", async function () {
+      const newValue = 123456n;
+      await expect(params.connect(governor).setOraclePricePerThousandUsd(newValue))
+        .to.emit(params, "OraclePricePerThousandUsdSet")
+        .withArgs(DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD, newValue, governor.address);
+
+      expect(await params.oraclePricePerThousandUsd()).to.equal(newValue);
+    });
+
+    it("Should prevent non-governor from updating oraclePricePerThousandUsd", async function () {
+      await expect(
+        params.connect(user1).setOraclePricePerThousandUsd(123456)
       ).to.be.reverted;
     });
 
@@ -202,12 +226,6 @@ describe("HokusaiParams", function () {
   });
 
   describe("Parameter Bounds Validation", function () {
-    it("Should reject unsupported metricType values", async function () {
-      await expect(
-        params.connect(governor).setMetricType(2)
-      ).to.be.revertedWith("Invalid metric type");
-    });
-
     it("Should reject tokensPerDeltaOne below minimum (100)", async function () {
       await expect(
         params.connect(governor).setTokensPerDeltaOne(99)
@@ -264,6 +282,28 @@ describe("HokusaiParams", function () {
 
       expect(await params.infrastructureAccrualBps()).to.equal(10000);
       expect(await params.getProfitShareBps()).to.equal(0); // 0% profit
+    });
+
+    it("Should reject oraclePricePerThousandUsd above maximum", async function () {
+      await expect(
+        params.connect(governor).setOraclePricePerThousandUsd(MAX_ORACLE_PRICE_PER_THOUSAND_USD + 1n)
+      ).to.be.revertedWith(ORACLE_PRICE_BOUNDS_ERROR);
+    });
+
+    it("Should accept oraclePricePerThousandUsd at zero", async function () {
+      await expect(params.connect(governor).setOraclePricePerThousandUsd(0))
+        .to.emit(params, "OraclePricePerThousandUsdSet")
+        .withArgs(DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD, 0, governor.address);
+
+      expect(await params.oraclePricePerThousandUsd()).to.equal(0);
+    });
+
+    it("Should accept oraclePricePerThousandUsd at maximum boundary", async function () {
+      await expect(params.connect(governor).setOraclePricePerThousandUsd(MAX_ORACLE_PRICE_PER_THOUSAND_USD))
+        .to.emit(params, "OraclePricePerThousandUsdSet")
+        .withArgs(DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD, MAX_ORACLE_PRICE_PER_THOUSAND_USD, governor.address);
+
+      expect(await params.oraclePricePerThousandUsd()).to.equal(MAX_ORACLE_PRICE_PER_THOUSAND_USD);
     });
   });
 
@@ -333,6 +373,15 @@ describe("HokusaiParams", function () {
         .withArgs(DEFAULT_INFRASTRUCTURE_ACCRUAL_BPS, newBps, governor.address);
     });
 
+    it("Should emit OraclePricePerThousandUsdSet with correct parameters", async function () {
+      const newValue = 987654n;
+      const tx = await params.connect(governor).setOraclePricePerThousandUsd(newValue);
+
+      await expect(tx)
+        .to.emit(params, "OraclePricePerThousandUsdSet")
+        .withArgs(DEFAULT_ORACLE_PRICE_PER_THOUSAND_USD, newValue, governor.address);
+    });
+
     it("Should emit LicenseRefSet with correct parameters", async function () {
       const newHash = keccak256(toUtf8Bytes("updated-license"));
       const newUri = "https://hokusai.ai/licenses/updated";
@@ -355,6 +404,10 @@ describe("HokusaiParams", function () {
       expect(await params.infrastructureAccrualBps()).to.equal(7500);
       expect(await params.getProfitShareBps()).to.equal(2500);
 
+      // Update oracle price
+      await params.connect(governor).setOraclePricePerThousandUsd(246810n);
+      expect(await params.oraclePricePerThousandUsd()).to.equal(246810n);
+
       // Update license reference
       const newHash = keccak256(toUtf8Bytes("sequence-license"));
       const newUri = "https://hokusai.ai/licenses/sequence";
@@ -366,6 +419,7 @@ describe("HokusaiParams", function () {
       // Verify all values are still correct
       expect(await params.tokensPerDeltaOne()).to.equal(wholeTokens(1500));
       expect(await params.infrastructureAccrualBps()).to.equal(7500);
+      expect(await params.oraclePricePerThousandUsd()).to.equal(246810n);
 
       const [hash, uri] = await params.licenseRef();
       expect(hash).to.equal(newHash);

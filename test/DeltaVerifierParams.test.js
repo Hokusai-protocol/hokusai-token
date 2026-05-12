@@ -218,8 +218,6 @@ describe("DeltaVerifier with Dynamic Params", function () {
     });
 
     it("Should calculate single-metric delta as a direct basis-point difference", async function () {
-      await hokusaiParams.connect(governor).setMetricType(1);
-
       const singleMetricBaseline = {
         accuracy: 7200,
         precision: 1000,
@@ -328,8 +326,6 @@ describe("DeltaVerifier with Dynamic Params", function () {
     });
 
     it("Should use single-metric mode for submitEvaluation", async function () {
-      await hokusaiParams.connect(governor).setMetricType(1);
-
       const evaluationData = {
         ...defaultEvaluationData,
         pipelineRunId: "single-metric-submit",
@@ -357,8 +353,6 @@ describe("DeltaVerifier with Dynamic Params", function () {
     });
 
     it("Should use single-metric mode for submitEvaluationWithMultipleContributors", async function () {
-      await hokusaiParams.connect(governor).setMetricType(1);
-
       const contributors = [
         { walletAddress: contributor.address, weight: 6000 },
         { walletAddress: user1.address, weight: 4000 }

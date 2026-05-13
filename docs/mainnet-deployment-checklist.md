@@ -180,22 +180,34 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 **Conservative Pool:**
 - [ ] Model ID: `model-conservative-001`
 - [ ] Token: Hokusai Conservative (HKS-CON)
+- [ ] Supplier Allocation: `___________`
+- [ ] Investor Allocation: `___________`
+- [ ] Max Supply: `___________`
+- [ ] Tokens Per DeltaOne: `___________`
 - [ ] Initial Reserve: $10,000 USDC
 - [ ] CRR: 30%
-- [ ] Trade Fee: 0.25%
+- [ ] Trade Fee: 0.30%
 - [ ] IBR Duration: 7 days
 
 **Aggressive Pool:**
 - [ ] Model ID: `model-aggressive-002`
 - [ ] Token: Hokusai Aggressive (HKS-AGG)
+- [ ] Supplier Allocation: `___________`
+- [ ] Investor Allocation: `___________`
+- [ ] Max Supply: `___________`
+- [ ] Tokens Per DeltaOne: `___________`
 - [ ] Initial Reserve: $50,000 USDC
 - [ ] CRR: 10%
-- [ ] Trade Fee: 0.50%
+- [ ] Trade Fee: 0.30%
 - [ ] IBR Duration: 7 days
 
 **Balanced Pool:**
 - [ ] Model ID: `model-balanced-003`
 - [ ] Token: Hokusai Balanced (HKS-BAL)
+- [ ] Supplier Allocation: `___________`
+- [ ] Investor Allocation: `___________`
+- [ ] Max Supply: `___________`
+- [ ] Tokens Per DeltaOne: `___________`
 - [ ] Initial Reserve: $25,000 USDC
 - [ ] CRR: 20%
 - [ ] Trade Fee: 0.30%
@@ -229,6 +241,19 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Initial liquidity added
 - [ ] Reserve balance verified: $25,000
 - [ ] Spot price checked: $___________
+
+### Supplier Allocation Distribution
+- [ ] Review `scripts/configs/mainnet-launch-tokens.json` for each token's `distributionTiming`
+- [ ] Conservative timing: `pre-launch` or `post-verification` = `___________`
+- [ ] Conservative signer (`TokenManager.owner()` / multisig): `___________`
+- [ ] Conservative distribution tx hash: `___________`
+- [ ] Aggressive timing: `pre-launch` or `post-verification` = `___________`
+- [ ] Aggressive signer (`TokenManager.owner()` / multisig): `___________`
+- [ ] Aggressive distribution tx hash: `___________`
+- [ ] Balanced timing: `pre-launch` or `post-verification` = `___________`
+- [ ] Balanced signer (`TokenManager.owner()` / multisig): `___________`
+- [ ] Balanced distribution tx hash: `___________`
+- [ ] If any token is `post-verification`, confirm `deployments/mainnet-pending-actions.json` was generated and reviewed
 
 ### Pool Verification
 - [ ] All pools created successfully

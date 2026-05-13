@@ -6,6 +6,12 @@ type Artifact = {
   abi: any[];
 };
 
+const LAUNCH_CRITICAL = [
+  "scripts/create-mainnet-pools.js",
+];
+const LEGACY_DEPLOY_RX = /tokenManager\s*\.\s*deployToken\s*\(/;
+const COMMENT_RX = /^\s*(\/\/|\*)/;
+
 function loadArtifact(name: string): Artifact {
   const artifactPath = join(process.cwd(), "artifacts", "contracts", `${name}.sol`, `${name}.json`);
   return JSON.parse(readFileSync(artifactPath, "utf8"));
@@ -31,6 +37,28 @@ function assertEqual(label: string, actual: bigint, expected?: bigint): void {
 }
 
 async function main(): Promise<void> {
+  if (process.argv.includes("--lint")) {
+    const offenders: string[] = [];
+
+    for (const rel of LAUNCH_CRITICAL) {
+      const lines = readFileSync(join(process.cwd(), rel), "utf8").split(/\r?\n/);
+      lines.forEach((line, index) => {
+        if (LEGACY_DEPLOY_RX.test(line) && !COMMENT_RX.test(line)) {
+          offenders.push(`${rel}:${index + 1}  ${line.trim()}`);
+        }
+      });
+    }
+
+    if (offenders.length > 0) {
+      console.error("Legacy deployToken call detected in launch-critical script:");
+      offenders.forEach((offender) => console.error(`  ${offender}`));
+      process.exit(1);
+    }
+
+    console.log("Lint passed — no legacy deployToken in launch-critical scripts.");
+    process.exit(0);
+  }
+
   const tokenAddress = getArg("--token");
   const modelId = getArg("--model-id");
   const tokenManagerAddress = getArg("--token-manager");

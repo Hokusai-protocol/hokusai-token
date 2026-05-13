@@ -65,7 +65,7 @@ describe("deployFullStack", function () {
     expect(result.contracts.UsageFeeRouter).to.properAddress;
     expect(result.contracts.DeltaVerifier).to.properAddress;
     expect(result.contracts._tokenManagerImpl).to.equal("DeployableTokenManager");
-    expect(result.notes.rewardVestingVaultInert).to.be.a("string");
+    expect(result.notes.rewardVestingVaultWired).to.equal(true);
 
     const modelRegistry = await hre.ethers.getContractAt("ModelRegistry", result.contracts.ModelRegistry);
     const tokenManager = await hre.ethers.getContractAt("DeployableTokenManager", result.contracts.TokenManager);
@@ -81,6 +81,7 @@ describe("deployFullStack", function () {
 
     expect(await modelRegistry.stringModelTokenManager()).to.equal(result.contracts.TokenManager);
     expect(await tokenManager.deltaVerifier()).to.equal(result.contracts.DeltaVerifier);
+    expect(await tokenManager.vestingVault()).to.equal(result.contracts.RewardVestingVault);
     expect(await usageFeeRouter.factory()).to.equal(result.contracts.HokusaiAMMFactory);
     expect(await usageFeeRouter.reserveToken()).to.equal(result.config.reserveToken);
     expect(await usageFeeRouter.infraReserve()).to.equal(result.contracts.InfrastructureReserve);

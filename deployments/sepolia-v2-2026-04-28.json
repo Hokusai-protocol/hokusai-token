@@ -1,0 +1,54 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "timestamp": "2026-04-28T16:17:00.741Z",
+  "deployer": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "treasury": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "backendService": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "contracts": {
+    "ModelRegistry": "0x8E891850C0677c2D9581c953bF1Df5446cB4c54f",
+    "TokenDeploymentFactory": "0xd42b833F80a989f362BE37d0bD62d91b7eC3372D",
+    "TokenManager": "0x4ebC3558Ec08c81AbB9F220fd2C98c838b96De68",
+    "DataContributionRegistry": "0xD390BAE1361bBc8296EA7b6e5757A86b3438ac4E",
+    "MockUSDC": "0x4fE61E343D9c7CB5C0D9DeE293F0Dbcf7C2Dd645",
+    "HokusaiAMMFactory": "0xc6c7f2079fE6222885dC401C58260D9bfFc48447",
+    "InfrastructureReserve": "0x68A5B3b6519d70D1D08A46B0F2206cF442AF05A1",
+    "InfrastructureCostOracle": "0x2BF187014a051A54B56FA5552838e3F9005A7AEe",
+    "UsageFeeRouter": "0x31258B9A4eF51cDfa09fb8d479CE1Cd19f5ab8c5",
+    "DeltaVerifier": "0x4812263c7A4317E971F461E611ACD2A51679F7af"
+  },
+  "tokens": [
+    {
+      "configKey": "hlead",
+      "modelId": "25",
+      "name": "Hokusai HLEAD",
+      "symbol": "HLEAD",
+      "address": "0x9690580864274E57899a79bD97e8d7C6cAe0d7d5",
+      "paramsAddress": "0xc7325cB1f179f404Bad7FE62B83B708181FAaD6d",
+      "initialSupply": "1000000000000000000000",
+      "infrastructureAccrualBps": 8000,
+      "initialOraclePricePerThousandUsd": "3000000"
+    }
+  ],
+  "pools": [
+    {
+      "configKey": "hlead",
+      "modelId": "25",
+      "tokenAddress": "0x9690580864274E57899a79bD97e8d7C6cAe0d7d5",
+      "ammAddress": "0x726f46e15cb8F05F291C6337F497da9D5A2738ff",
+      "paramsAddress": "0xc7325cB1f179f404Bad7FE62B83B708181FAaD6d",
+      "initialReserve": "100000000",
+      "crr": 100000,
+      "tradeFee": 30,
+      "ibrDuration": 604800,
+      "flatCurveThreshold": "25000000000",
+      "flatCurvePrice": "10000"
+    }
+  ],
+  "roles": {
+    "InfrastructureReserve_DEPOSITOR": "0x31258B9A4eF51cDfa09fb8d479CE1Cd19f5ab8c5",
+    "InfrastructureReserve_PAYER": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+    "UsageFeeRouter_FEE_DEPOSITOR": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+  },
+  "gasUsed": {}
+}

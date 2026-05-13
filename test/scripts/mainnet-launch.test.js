@@ -145,16 +145,16 @@ describe("mainnet launch deploy flow", function () {
 
       const vestingConfig = await params.vestingConfig();
       expect(vestingConfig.enabled).to.equal(config.vestingConfig.enabled);
-      expect(vestingConfig.immediateUnlockBps).to.equal(config.vestingConfig.immediateUnlockBps);
-      expect(vestingConfig.vestingDurationSeconds).to.equal(config.vestingConfig.vestingDurationSeconds);
-      expect(vestingConfig.cliffSeconds).to.equal(config.vestingConfig.cliffSeconds);
+      expect(vestingConfig.immediateUnlockBps).to.equal(BigInt(config.vestingConfig.immediateUnlockBps));
+      expect(vestingConfig.vestingDurationSeconds).to.equal(BigInt(config.vestingConfig.vestingDurationSeconds));
+      expect(vestingConfig.cliffSeconds).to.equal(BigInt(config.vestingConfig.cliffSeconds));
 
       if (config.distributionTiming === "pre-launch") {
         expect(await token.modelSupplierDistributed()).to.equal(true);
         expect(await token.balanceOf(config.supplierRecipient)).to.equal(supplierWei);
       } else {
         expect(await token.modelSupplierDistributed()).to.equal(false);
-        expect(await token.balanceOf(config.supplierRecipient)).to.equal(0);
+        expect(await token.balanceOf(config.supplierRecipient)).to.equal(0n);
         expect(
           pendingActions.actions.some((action) => (
             action.modelId === config.modelId &&

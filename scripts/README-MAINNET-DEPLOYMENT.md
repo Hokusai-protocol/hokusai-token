@@ -15,7 +15,7 @@ This deployment flow now matches the current live-deployable stack:
 
 `DeployableTokenManager` is the size-safe replacement for the oversized `TokenManager`. The deployment artifact still records its address under `contracts.TokenManager` for downstream compatibility, with `_tokenManagerImpl: "DeployableTokenManager"` as a disambiguator.
 
-`RewardVestingVault` is deployed and recorded, but currently inert. `DeployableTokenManager` does not yet expose `setVestingVault` or vesting-aware reward minting, so the vault is a reserved address for follow-up wiring work.
+`RewardVestingVault` is deployed and wired via `tokenManager.setVestingVault(...)`. All contributor reward mints are split per the model's `HokusaiParams` vesting configuration.
 
 ## Prerequisites
 

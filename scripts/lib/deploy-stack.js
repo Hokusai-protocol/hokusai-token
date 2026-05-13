@@ -102,10 +102,7 @@ async function deployFullStack(networkConfig, runtime) {
   const contracts = {};
   const roles = {};
   const gasUsed = { wiring: {} };
-  const notes = {
-    rewardVestingVaultInert:
-      "RewardVestingVault is deployed but not wired — DeployableTokenManager has no setVestingVault. Follow-up work must restore vesting-aware minting on the size-safe manager.",
-  };
+  const notes = {};
   const receipts = [];
 
   const recordReceipt = (receipt) => {
@@ -153,6 +150,14 @@ async function deployFullStack(networkConfig, runtime) {
       modelRegistry.setStringModelTokenManager(contracts.TokenManager),
       gasUsed.wiring,
       "setStringModelTokenManager"
+    )
+  );
+
+  recordReceipt(
+    await waitForTx(
+      tokenManager.setVestingVault(contracts.RewardVestingVault),
+      gasUsed.wiring,
+      "setVestingVault"
     )
   );
 
@@ -307,6 +312,7 @@ async function deployFullStack(networkConfig, runtime) {
   logger.log("Verification");
   expectAddress(await modelRegistry.stringModelTokenManager(), contracts.TokenManager, "ModelRegistry.stringModelTokenManager");
   expectAddress(await tokenManager.deltaVerifier(), contracts.DeltaVerifier, "TokenManager.deltaVerifier");
+  expectAddress(await tokenManager.vestingVault(), contracts.RewardVestingVault, "TokenManager.vestingVault");
   expectAddress(await rewardVestingVault.tokenManager(), contracts.TokenManager, "RewardVestingVault.tokenManager");
   expectAddress(await factory.modelRegistry(), contracts.ModelRegistry, "HokusaiAMMFactory.modelRegistry");
   expectAddress(await factory.tokenManager(), contracts.TokenManager, "HokusaiAMMFactory.tokenManager");
@@ -367,6 +373,7 @@ async function deployFullStack(networkConfig, runtime) {
   roles.TokenManager = {
     owner: await tokenManager.owner(),
     deltaVerifier: await tokenManager.deltaVerifier(),
+    vestingVault: contracts.RewardVestingVault,
   };
   roles.DataContributionRegistry = {
     DEFAULT_ADMIN_ROLE: [deployer.address],

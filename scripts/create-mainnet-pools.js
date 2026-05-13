@@ -170,7 +170,7 @@ async function runLaunchDeploy({
   console.log("\n📂 Loading deployment info...");
   console.log("✅ Loaded deployment from:", deployment.timestamp);
 
-  const usdcAddress = deployment.config.usdcAddress;
+  const usdcAddress = deployment.config.reserveToken;
   const registryAddress = deployment.contracts.ModelRegistry;
   const managerAddress = deployment.contracts.TokenManager;
   const factoryAddress = deployment.contracts.HokusaiAMMFactory;

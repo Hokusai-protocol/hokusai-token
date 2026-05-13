@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "test": "hardhat test",
-    "deploy:sepolia": "npx ts-node scripts/deploy-sepolia.ts",
+    "deploy:mainnet": "npx hardhat run scripts/deploy-mainnet.js --network mainnet",
+    "deploy:sepolia": "npx hardhat run scripts/deploy-sepolia.js --network sepolia",
     "test-queue": "npx ts-node scripts/test-queue.ts"
   },
   "devDependencies": {

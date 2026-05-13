@@ -95,7 +95,7 @@ describe("mainnet launch deploy flow", function () {
     const deployment = {
       timestamp: "2026-05-13T00:00:00.000Z",
       config: {
-        usdcAddress: await usdc.getAddress(),
+        reserveToken: await usdc.getAddress(),
       },
       contracts: {
         ModelRegistry: await modelRegistry.getAddress(),

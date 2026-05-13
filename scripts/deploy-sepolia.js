@@ -2,13 +2,11 @@ const hre = require("hardhat");
 const { ethers } = hre;
 const { deployFullStack, stringifyError } = require("./lib/deploy-stack");
 
-const MAINNET_USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-
-function getMainnetConfig(deployerAddress) {
+function getSepoliaConfig(deployerAddress) {
   return {
-    name: "mainnet",
-    expectedChainId: 1n,
-    reserveTokenAddress: MAINNET_USDC,
+    name: "sepolia",
+    expectedChainId: 11155111n,
+    reserveTokenAddress: process.env.SEPOLIA_USDC_ADDRESS || null,
     factoryDefaults: {
       crr: 200000,
       tradeFee: 30,
@@ -27,23 +25,24 @@ function getMainnetConfig(deployerAddress) {
     treasury: process.env.TREASURY_ADDRESS || deployerAddress,
     backendService: process.env.BACKEND_SERVICE_ADDRESS || null,
     verifierAddress: process.env.VERIFIER_ADDRESS || deployerAddress,
-    minDeployerBalanceEth: "0.5",
+    minDeployerBalanceEth: "0.1",
     maxGasPriceGwei: process.env.MAX_GAS_PRICE_GWEI
       ? Number(process.env.MAX_GAS_PRICE_GWEI)
-      : 100,
-    confirmationPauseSeconds: 10,
+      : null,
+    confirmationPauseSeconds: 0,
   };
 }
 
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
   const dryRun = process.env.DRY_RUN === "true";
-  const config = getMainnetConfig(deployer.address);
+  const config = getSepoliaConfig(deployer.address);
 
-  console.log("Starting mainnet deployment");
+  console.log("Starting Sepolia deployment");
   console.log(`Deployer: ${deployer.address}`);
   console.log(`Treasury: ${config.treasury}`);
   console.log(`Backend service: ${config.backendService || "none"}`);
+  console.log(`Reserve token: ${config.reserveTokenAddress || "MockUSDC fallback"}`);
   console.log(`DRY_RUN: ${dryRun}`);
 
   const result = await deployFullStack(config, {
@@ -65,7 +64,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("Mainnet deployment failed:");
+  console.error("Sepolia deployment failed:");
   console.error(stringifyError(error));
   process.exitCode = 1;
 });

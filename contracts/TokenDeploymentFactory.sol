@@ -31,7 +31,8 @@ contract TokenDeploymentFactory is ITokenDeploymentFactory {
             initialParams.initialOraclePricePerThousandUsd,
             initialParams.licenseHash,
             initialParams.licenseURI,
-            initialParams.governor
+            initialParams.governor,
+            initialParams.vestingConfig
         );
         paramsAddress = address(newParams);
 

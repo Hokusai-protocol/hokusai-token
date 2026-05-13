@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "./IHokusaiParams.sol";
+
 interface ITokenDeploymentFactory {
     struct InitialParams {
         uint256 tokensPerDeltaOne;
@@ -9,6 +11,7 @@ interface ITokenDeploymentFactory {
         bytes32 licenseHash;
         string licenseURI;
         address governor;
+        IHokusaiParams.VestingConfig vestingConfig;
     }
 
     function deployTokenAndParams(

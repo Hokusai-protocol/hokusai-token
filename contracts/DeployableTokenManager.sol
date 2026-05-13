@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
+import "./interfaces/IHokusaiParams.sol";
 import "./interfaces/IManagedHokusaiToken.sol";
 import "./interfaces/ITokenDeploymentFactory.sol";
 
@@ -25,6 +26,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         bytes32 licenseHash;
         string licenseURI;
         address governor;
+        IHokusaiParams.VestingConfig vestingConfig;
     }
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -352,7 +354,8 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             initialOraclePricePerThousandUsd: initialParams.initialOraclePricePerThousandUsd,
             licenseHash: initialParams.licenseHash,
             licenseURI: initialParams.licenseURI,
-            governor: initialParams.governor
+            governor: initialParams.governor,
+            vestingConfig: initialParams.vestingConfig
         });
     }
 }

@@ -280,7 +280,13 @@ async function main() {
         initialOraclePricePerThousandUsd: config.initialOraclePricePerThousandUsd,
         licenseHash: config.licenseHash,
         licenseURI: config.licenseURI,
-        governor: deployer.address
+        governor: deployer.address,
+        vestingConfig: {
+          enabled: true,
+          immediateUnlockBps: 1000,
+          vestingDurationSeconds: 365 * 24 * 60 * 60,
+          cliffSeconds: 0
+        }
       };
 
       const tokenTx = await tokenManager.deployTokenWithParams(

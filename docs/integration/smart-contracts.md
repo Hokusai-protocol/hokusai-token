@@ -5,6 +5,7 @@ This guide is for protocol developers building on top of Hokusai. It covers depl
 ## Table of Contents
 
 - [Deployment Sequence](#deployment-sequence)
+- [Supplier Allocation Distribution](#supplier-allocation-distribution)
 - [Role-Based Access Control](#role-based-access-control)
 - [Parameter Bounds](#parameter-bounds)
 - [Integration Patterns](#integration-patterns)
@@ -53,32 +54,28 @@ Once the infrastructure contracts are deployed, creating a new token and AMM poo
 **Step 1: Deploy Token**
 
 ```solidity
-// Deploy with default parameters
-address tokenAddress = tokenManager.deployToken(
-    "model-sentiment-v1",           // modelId (string)
-    "Sentiment Model Token",         // name
-    "SENT",                          // symbol
-    1_000_000 * 10**18              // totalSupply (18 decimals)
-);
-```
-
-Or with custom parameters:
-
-```solidity
 TokenManager.InitialParams memory params = TokenManager.InitialParams({
-    tokensPerDeltaOne: 5000,                                    // 5000 tokens per 1% improvement
+    tokensPerDeltaOne: 5000 * 10**18,                           // parseUnits("5000", 18)
     infrastructureAccrualBps: 7500,                             // 75% infrastructure accrual
-    initialOraclePricePerThousandUsd: 0,                        // optional oracle price per 1000 calls
-    licenseHash: keccak256(abi.encodePacked("MIT")),          // License hash
-    licenseURI: "https://example.com/license",                 // License URI
-    governor: governorAddress                                   // Governor address
+    initialOraclePricePerThousandUsd: 0,                        // 6-decimal USD convention
+    licenseHash: keccak256(abi.encodePacked("MIT")),            // License hash
+    licenseURI: "https://example.com/license",                  // License URI
+    governor: governorAddress,                                  // Governor address
+    vestingConfig: IHokusaiParams.VestingConfig({
+        enabled: false,
+        immediateUnlockBps: 10000,
+        vestingDurationSeconds: 0,
+        cliffSeconds: 0
+    })
 });
 
-address tokenAddress = tokenManager.deployTokenWithParams(
-    modelId,
-    name,
-    symbol,
-    totalSupply,
+address tokenAddress = tokenManager.deployTokenWithAllocations(
+    "model-sentiment-v1",
+    "Sentiment Model Token",
+    "SENT",
+    2_500_000 * 10**18,                                       // supplier allocation
+    supplierRecipient,
+    10_000_000 * 10**18,                                      // investor allocation cap
     params
 );
 ```
@@ -104,8 +101,9 @@ address poolAddress = factory.createPoolWithParams(
     tokenAddress,                    // token address
     100000,                          // crr (10% in ppm)
     25,                              // tradeFee (0.25% in bps)
-    500,                             // protocolFeeBps (5%)
-    7 days                           // ibrDuration
+    7 days,                          // ibrDuration
+    25_000 * 10**6,                  // flatCurveThreshold (USDC, 6 decimals)
+    10_000                           // flatCurvePrice (USDC, 6 decimals = $0.01)
 );
 ```
 
@@ -119,6 +117,15 @@ IERC20(usdcAddress).approve(poolAddress, initialReserveAmount);
 HokusaiAMM pool = HokusaiAMM(poolAddress);
 pool.depositFees(initialReserveAmount);
 ```
+
+## Supplier Allocation Distribution
+
+Launch tokens created through `deployTokenWithAllocations(...)` do not mint the supplier allocation immediately. The deploy script reads `distributionTiming` from [`scripts/configs/mainnet-launch-tokens.json`](../../scripts/configs/mainnet-launch-tokens.json).
+
+- `pre-launch`: the deploy script calls `tokenManager.distributeModelSupplierAllocation(modelId)` before finishing and verifies that the supplier received the configured amount.
+- `post-verification`: the deploy script writes a deferred action to `deployments/mainnet-pending-actions.json` and leaves the supplier allocation undistributed until off-chain model verification is complete.
+
+For the three launch tokens, the default config is `post-verification`. The signing account for the distribution transaction is `TokenManager.owner()`. If ownership has been transferred to a multisig before launch, that multisig signs the transaction; otherwise the deployer EOA does. Record the signer and transaction hash for each token in the mainnet deployment checklist.
 
 ## Role-Based Access Control
 
@@ -440,19 +447,26 @@ contract PoolDeployer {
         string memory modelId,
         string memory tokenName,
         string memory tokenSymbol,
-        uint256 initialSupply,
+        uint256 supplierAllocation,
+        address supplierRecipient,
+        uint256 investorAllocation,
+        TokenManager.InitialParams memory params,
         uint256 crr,
         uint256 tradeFee,
-        uint16 protocolFee,
         uint256 ibrDuration,
+        uint256 flatCurveThreshold,
+        uint256 flatCurvePrice,
         uint256 initialLiquidity
     ) external returns (address tokenAddress, address poolAddress) {
         // 1. Deploy token
-        tokenAddress = tokenManager.deployToken(
+        tokenAddress = tokenManager.deployTokenWithAllocations(
             modelId,
             tokenName,
             tokenSymbol,
-            initialSupply
+            supplierAllocation,
+            supplierRecipient,
+            investorAllocation,
+            params
         );
 
         // 2. Register model
@@ -464,14 +478,18 @@ contract PoolDeployer {
             tokenAddress,
             crr,
             tradeFee,
-            protocolFee,
-            ibrDuration
+            ibrDuration,
+            flatCurveThreshold,
+            flatCurvePrice
         );
 
         // 4. Add initial liquidity
         IERC20(usdc).transferFrom(msg.sender, address(this), initialLiquidity);
         IERC20(usdc).approve(poolAddress, initialLiquidity);
         IHokusaiAMM(poolAddress).depositFees(initialLiquidity);
+
+        // 5. Optional supplier mint if configured for pre-launch timing
+        tokenManager.distributeModelSupplierAllocation(modelId);
 
         return (tokenAddress, poolAddress);
     }

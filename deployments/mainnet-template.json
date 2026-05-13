@@ -1,41 +1,133 @@
 {
   "network": "mainnet",
   "chainId": "1",
-  "timestamp": "2026-01-XX:XX:XX.XXXZ",
+  "dryRun": false,
+  "timestamp": "2026-05-13T15:00:00.000Z",
+  "git": {
+    "sha": "0123456789abcdef0123456789abcdef01234567",
+    "dirty": false
+  },
+  "scriptSha": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "deployer": "0x...",
+  "treasury": "0x...",
+  "backendService": "0x...",
   "contracts": {
     "ModelRegistry": "0x...",
+    "TokenDeploymentFactory": "0x...",
     "TokenManager": "0x...",
-    "HokusaiParams": "0x...",
+    "_tokenManagerImpl": "DeployableTokenManager",
+    "RewardVestingVault": "0x...",
     "DataContributionRegistry": "0x...",
     "HokusaiAMMFactory": "0x...",
+    "InfrastructureReserve": "0x...",
+    "InfrastructureCostOracle": "0x...",
     "UsageFeeRouter": "0x...",
-    "DeltaVerifier": "0x..."
+    "DeltaVerifier": "0x...",
+    "MockUSDC": null
+  },
+  "roles": {
+    "ModelRegistry": {
+      "owner": "0x...",
+      "stringModelTokenManager": "0x..."
+    },
+    "TokenManager": {
+      "owner": "0x...",
+      "deltaVerifier": "0x..."
+    },
+    "DataContributionRegistry": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x..."
+      ],
+      "RECORDER_ROLE": [
+        "0x...",
+        "0x..."
+      ],
+      "VERIFIER_ROLE": [
+        "0x..."
+      ]
+    },
+    "InfrastructureReserve": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x..."
+      ],
+      "DEPOSITOR_ROLE": [
+        "0x..."
+      ],
+      "PAYER_ROLE": [
+        "0x..."
+      ]
+    },
+    "UsageFeeRouter": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x..."
+      ],
+      "FEE_DEPOSITOR_ROLE": [
+        "0x...",
+        "0x..."
+      ]
+    },
+    "DeltaVerifier": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x..."
+      ],
+      "SUBMITTER_ROLE": [
+        "0x..."
+      ]
+    },
+    "InfrastructureCostOracle": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x..."
+      ],
+      "GOV_ROLE": [
+        "0x..."
+      ]
+    }
   },
   "config": {
-    "usdcAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "reserveToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     "factoryDefaults": {
       "crr": 200000,
       "tradeFee": 30,
-      "protocolFee": 3000,
-      "ibrDuration": 604800
+      "ibrDuration": 604800,
+      "flatCurveThreshold": "25000000000",
+      "flatCurvePrice": 10000
     },
     "deltaVerifierParams": {
       "baseRewardRate": 1000,
       "minImprovementBps": 100,
       "maxReward": "1000000000000000000000000"
     },
-    "usageFeeParams": {
-      "protocolFeeBps": 500
-    }
+    "infrastructureCostOracleParams": {
+      "initialGrossMarginBps": 1500
+    },
+    "expectedChainId": "1"
   },
-  "tokens": [],
-  "pools": [],
-  "gasUsed": {},
-  "poolsCreatedAt": null,
-  "notes": [
-    "This is a template for mainnet deployment artifact",
-    "tokens[] and pools[] will be populated by create-mainnet-pools.js",
-    "All addresses starting with 0x... must be replaced with actual deployed addresses"
-  ]
+  "gasUsed": {
+    "ModelRegistry": "0",
+    "TokenDeploymentFactory": "0",
+    "TokenManager": "0",
+    "RewardVestingVault": "0",
+    "DataContributionRegistry": "0",
+    "HokusaiAMMFactory": "0",
+    "InfrastructureReserve": "0",
+    "InfrastructureCostOracle": "0",
+    "UsageFeeRouter": "0",
+    "DeltaVerifier": "0",
+    "wiring": {
+      "setStringModelTokenManager": "0",
+      "factorySetDefaults": "0",
+      "infraDepositorRole": "0",
+      "infraPayerRole": "0",
+      "feeRouterDepositorRole": "0",
+      "contributionRegistryRecorderRole": "0",
+      "contributionRegistryVerifierRole": "0",
+      "setDeltaVerifier": "0"
+    },
+    "totalGas": "0",
+    "totalCostWei": "0",
+    "totalCostEth": "0.0"
+  },
+  "notes": {
+    "rewardVestingVaultInert": "RewardVestingVault is deployed but not wired until DeployableTokenManager regains vesting-aware minting."
+  }
 }

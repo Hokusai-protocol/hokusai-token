@@ -15,6 +15,14 @@ export interface MintRequestEvaluation {
   new_score_bps: number;
   max_cost_usd_micro: number;
   actual_cost_usd_micro: number;
+  sample_size_baseline?: number | null;
+  sample_size_candidate?: number | null;
+  ci_low_bps?: number | null;
+  ci_high_bps?: number | null;
+  p_value?: number | null;
+  effect_size_bps?: number | null;
+  statistical_method?: string | null;
+  statistical_reason?: string | null;
 }
 
 export interface MintRequestMessage {
@@ -29,6 +37,7 @@ export interface MintRequestMessage {
   idempotency_key: string;
   benchmark_spec_id?: string;
   dataset_hash?: string;
+  total_samples?: number;
   evaluation: MintRequestEvaluation;
   contributors: MintRequestContributor[];
   _retryCount?: number;
@@ -63,6 +72,14 @@ const evaluationSchema = Joi.object<MintRequestEvaluation>({
   new_score_bps: Joi.number().integer().min(0).max(10000).required(),
   max_cost_usd_micro: Joi.number().integer().min(0).required(),
   actual_cost_usd_micro: Joi.number().integer().min(0).required(),
+  sample_size_baseline: Joi.number().integer().min(0).allow(null).optional(),
+  sample_size_candidate: Joi.number().integer().min(0).allow(null).optional(),
+  ci_low_bps: Joi.number().integer().min(0).max(10000).allow(null).optional(),
+  ci_high_bps: Joi.number().integer().min(0).max(10000).allow(null).optional(),
+  p_value: Joi.number().min(0).max(1).allow(null).optional(),
+  effect_size_bps: Joi.number().integer().min(0).max(10000).allow(null).optional(),
+  statistical_method: Joi.string().max(128).allow(null).optional(),
+  statistical_reason: Joi.string().max(256).allow(null).optional(),
 });
 
 const mintRequestSchema = Joi.object<MintRequestMessage>({
@@ -79,6 +96,7 @@ const mintRequestSchema = Joi.object<MintRequestMessage>({
   idempotency_key: Joi.string().pattern(HASH_REGEX).required(),
   benchmark_spec_id: Joi.string().optional(),
   dataset_hash: Joi.string().pattern(HASH_REGEX).optional(),
+  total_samples: Joi.number().integer().positive().optional(),
   evaluation: evaluationSchema.required(),
   contributors: Joi.array()
     .items(contributorSchema)

@@ -37,11 +37,11 @@ describe('MintRequest flow integration', () => {
           const siblingResult = validateMintRequestMessage(siblingFixture);
           expect(siblingResult.error).toBeUndefined();
 
-          if (vendoredContent !== siblingContent) {
+          if (JSON.stringify(vendoredFixture) !== JSON.stringify(siblingFixture)) {
             console.error(
               `Vendored fixture mismatch detected!\n\nVendored: ${vendoredPath}\nSibling: ${candidatePath}\n\nPlease re-sync by copying the sibling file to the vendored location.`
             );
-            expect(vendoredContent).toBe(siblingContent);
+            expect(vendoredFixture).toEqual(siblingFixture);
           }
 
           siblingSynced = true;

@@ -130,6 +130,12 @@ describe('DeltaVerifierClient', () => {
       },
     }, []);
 
+    expect(deltaVerifierContract.submitMintRequest).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ totalSamples: 1000 }),
+      expect.anything(),
+      expect.anything()
+    );
     expect(result).toEqual({
       status: 'minted',
       txHash: receipt.hash,

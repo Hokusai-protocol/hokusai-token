@@ -95,6 +95,27 @@ describe('MintRequestProcessor', () => {
     expect(payload.totalSamples).toBe(1500);
   });
 
+  test('derives totalSamples from sample_size_baseline when candidate is absent', async () => {
+    const client = {
+      submitMintRequest: jest.fn().mockResolvedValue({
+        status: 'minted',
+        rewardAmount: '123',
+      }),
+    } as any;
+
+    const processor = new MintRequestProcessor(client);
+    await processor.process({
+      ...message,
+      evaluation: {
+        ...message.evaluation,
+        sample_size_baseline: 800,
+      },
+    });
+
+    const payload = client.submitMintRequest.mock.calls[0][1];
+    expect(payload.totalSamples).toBe(800);
+  });
+
   test('uses top-level total_samples with precedence over sample_size_candidate', async () => {
     const client = {
       submitMintRequest: jest.fn().mockResolvedValue({

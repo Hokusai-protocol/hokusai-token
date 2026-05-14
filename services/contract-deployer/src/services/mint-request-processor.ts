@@ -9,15 +9,39 @@ import {
   MintRequestSettlement,
   createMintRequestSettlement,
 } from '../schemas/mint-request-schema';
+import { logger } from '../utils/logger';
 
 export class MintRequestProcessor {
   constructor(private readonly deltaVerifierClient: DeltaVerifierClient) {}
 
   async process(message: MintRequestMessage): Promise<MintRequestSettlement> {
     const modelId = BigInt(message.model_id_uint);
-    const payload = this.buildPayload(message, modelId);
+
+    // Derive totalSamples using precedence: top-level > sample_size_candidate > sample_size_baseline > 0
+    const totalSamples = message.total_samples
+      ?? message.evaluation.sample_size_candidate
+      ?? message.evaluation.sample_size_baseline
+      ?? 0;
+
+    const payload = this.buildPayload(message, modelId, totalSamples);
     const contributors = this.buildContributors(message);
     const result = await this.deltaVerifierClient.submitMintRequest(modelId, payload, contributors);
+
+    // Emit audit log for evaluation metadata (observability-only; not on-chain/not in settlement)
+    logger.info('MintRequest evaluation metadata', {
+      idempotency_key: message.idempotency_key,
+      model_id: message.model_id,
+      eval_id: message.eval_id,
+      total_samples: totalSamples,
+      sample_size_baseline: message.evaluation.sample_size_baseline ?? null,
+      sample_size_candidate: message.evaluation.sample_size_candidate ?? null,
+      ci_low_bps: message.evaluation.ci_low_bps ?? null,
+      ci_high_bps: message.evaluation.ci_high_bps ?? null,
+      p_value: message.evaluation.p_value ?? null,
+      effect_size_bps: message.evaluation.effect_size_bps ?? null,
+      statistical_method: message.evaluation.statistical_method ?? null,
+      statistical_reason: message.evaluation.statistical_reason ?? null,
+    });
 
     return createMintRequestSettlement({
       idempotency_key: message.idempotency_key,
@@ -33,7 +57,7 @@ export class MintRequestProcessor {
     });
   }
 
-  private buildPayload(message: MintRequestMessage, modelId: bigint): MintRequestPayloadInput {
+  private buildPayload(message: MintRequestMessage, modelId: bigint, totalSamples: number): MintRequestPayloadInput {
     const benchmarkSpecHash =
       typeof message.benchmark_spec_id === 'string' && message.benchmark_spec_id.length > 0
         ? ethers.keccak256(ethers.toUtf8Bytes(message.benchmark_spec_id))
@@ -50,6 +74,7 @@ export class MintRequestProcessor {
       candidateScoreBps: message.evaluation.new_score_bps,
       maxCostUsdMicro: message.evaluation.max_cost_usd_micro,
       actualCostUsdMicro: message.evaluation.actual_cost_usd_micro,
+      totalSamples,
       anchors: {
         benchmarkSpecHash,
         datasetHash: message.dataset_hash ?? ethers.ZeroHash,

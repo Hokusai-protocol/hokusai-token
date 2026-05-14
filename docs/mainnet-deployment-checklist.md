@@ -50,6 +50,9 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Multi-sig setup (if using): `___________`
 - [ ] Admin roles documented
 - [ ] Ownership transfer plan documented
+- [ ] [Mainnet custody and role rehearsal runbook](mainnet-custody-runbook.md) completed
+- [ ] Sepolia ownership-transfer and deployer-role revocation rehearsal completed
+- [ ] Sepolia emergency pause/unpause rehearsal completed
 
 ---
 

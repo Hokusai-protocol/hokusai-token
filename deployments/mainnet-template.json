@@ -32,7 +32,8 @@
     },
     "TokenManager": {
       "owner": "0x...",
-      "deltaVerifier": "0x..."
+      "deltaVerifier": "0x...",
+      "vestingVault": "0x..."
     },
     "DataContributionRegistry": {
       "DEFAULT_ADMIN_ROLE": [
@@ -115,6 +116,7 @@
     "DeltaVerifier": "0",
     "wiring": {
       "setStringModelTokenManager": "0",
+      "setVestingVault": "0",
       "factorySetDefaults": "0",
       "infraDepositorRole": "0",
       "infraPayerRole": "0",
@@ -128,6 +130,6 @@
     "totalCostEth": "0.0"
   },
   "notes": {
-    "rewardVestingVaultInert": "RewardVestingVault is deployed but not wired until DeployableTokenManager regains vesting-aware minting."
+    "rewardVestingVaultWired": true
   }
 }

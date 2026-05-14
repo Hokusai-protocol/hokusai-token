@@ -64,6 +64,7 @@ describe('DeltaVerifierClient', () => {
       candidateScoreBps: 7500,
       maxCostUsdMicro: 0,
       actualCostUsdMicro: 0,
+      totalSamples: 1000,
       anchors: {
         benchmarkSpecHash: ethers.ZeroHash,
         datasetHash: ethers.ZeroHash,
@@ -118,6 +119,7 @@ describe('DeltaVerifierClient', () => {
       candidateScoreBps: 7500,
       maxCostUsdMicro: 0,
       actualCostUsdMicro: 0,
+      totalSamples: 1000,
       anchors: {
         benchmarkSpecHash: ethers.ZeroHash,
         datasetHash: ethers.ZeroHash,
@@ -159,6 +161,7 @@ describe('DeltaVerifierClient', () => {
         candidateScoreBps: 7500,
         maxCostUsdMicro: 0,
         actualCostUsdMicro: 0,
+        totalSamples: 1000,
         anchors: {
           benchmarkSpecHash: ethers.ZeroHash,
           datasetHash: ethers.ZeroHash,

@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { MintRequestProcessor } from '../../../src/services/mint-request-processor';
 import { MintRequestMessage } from '../../../src/schemas/mint-request-schema';
+import { logger } from '../../../src/utils/logger';
 
 describe('MintRequestProcessor', () => {
   const message: MintRequestMessage = {
@@ -71,5 +72,136 @@ describe('MintRequestProcessor', () => {
       )
     );
     expect(settlement.status).toBe('no_delta');
+  });
+
+  test('derives totalSamples from sample_size_candidate when present', async () => {
+    const client = {
+      submitMintRequest: jest.fn().mockResolvedValue({
+        status: 'minted',
+        rewardAmount: '123',
+      }),
+    } as any;
+
+    const processor = new MintRequestProcessor(client);
+    await processor.process({
+      ...message,
+      evaluation: {
+        ...message.evaluation,
+        sample_size_candidate: 1500,
+      },
+    });
+
+    const payload = client.submitMintRequest.mock.calls[0][1];
+    expect(payload.totalSamples).toBe(1500);
+  });
+
+  test('uses top-level total_samples with precedence over sample_size_candidate', async () => {
+    const client = {
+      submitMintRequest: jest.fn().mockResolvedValue({
+        status: 'minted',
+        rewardAmount: '123',
+      }),
+    } as any;
+
+    const processor = new MintRequestProcessor(client);
+    await processor.process({
+      ...message,
+      total_samples: 2000,
+      evaluation: {
+        ...message.evaluation,
+        sample_size_candidate: 1500,
+      },
+    });
+
+    const payload = client.submitMintRequest.mock.calls[0][1];
+    expect(payload.totalSamples).toBe(2000);
+  });
+
+  test('falls back to zero when no sample size is present', async () => {
+    const client = {
+      submitMintRequest: jest.fn().mockResolvedValue({
+        status: 'minted',
+        rewardAmount: '0',
+      }),
+    } as any;
+
+    const processor = new MintRequestProcessor(client);
+    await processor.process(message);
+
+    const payload = client.submitMintRequest.mock.calls[0][1];
+    expect(payload.totalSamples).toBe(0);
+  });
+
+  test('emits audit log with statistical fields', async () => {
+    const client = {
+      submitMintRequest: jest.fn().mockResolvedValue({
+        status: 'minted',
+        rewardAmount: '123',
+      }),
+    } as any;
+
+    const loggerSpy = jest.spyOn(logger, 'info').mockImplementation();
+
+    const processor = new MintRequestProcessor(client);
+    await processor.process({
+      ...message,
+      total_samples: 2000,
+      evaluation: {
+        ...message.evaluation,
+        sample_size_baseline: 1000,
+        sample_size_candidate: 1000,
+        ci_low_bps: 50,
+        ci_high_bps: 550,
+        p_value: 0.03,
+        effect_size_bps: 300,
+        statistical_method: 'bootstrap_ci',
+        statistical_reason: 'accepted',
+      },
+    });
+
+    expect(loggerSpy).toHaveBeenCalledWith('MintRequest evaluation metadata', expect.objectContaining({
+      idempotency_key: message.idempotency_key,
+      model_id: message.model_id,
+      eval_id: message.eval_id,
+      total_samples: 2000,
+      sample_size_baseline: 1000,
+      sample_size_candidate: 1000,
+      ci_low_bps: 50,
+      ci_high_bps: 550,
+      p_value: 0.03,
+      effect_size_bps: 300,
+      statistical_method: 'bootstrap_ci',
+      statistical_reason: 'accepted',
+    }));
+
+    loggerSpy.mockRestore();
+  });
+
+  test('emits audit log with null values for missing statistical fields', async () => {
+    const client = {
+      submitMintRequest: jest.fn().mockResolvedValue({
+        status: 'minted',
+        rewardAmount: '0',
+      }),
+    } as any;
+
+    const loggerSpy = jest.spyOn(logger, 'info').mockImplementation();
+
+    const processor = new MintRequestProcessor(client);
+    await processor.process(message);
+
+    expect(loggerSpy).toHaveBeenCalledWith('MintRequest evaluation metadata', expect.objectContaining({
+      total_samples: 0,
+      sample_size_baseline: null,
+      sample_size_candidate: null,
+      ci_low_bps: null,
+      ci_high_bps: null,
+      p_value: null,
+      effect_size_bps: null,
+      statistical_method: null,
+      statistical_reason: null,
+    }));
+
+    loggerSpy.mockRestore();
   });
 });

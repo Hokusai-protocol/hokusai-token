@@ -1,0 +1,37 @@
+{
+  "message_type": "mint_request",
+  "schema_version": "1.0",
+  "message_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "timestamp": "2026-05-05T12:00:00.000000+00:00",
+  "model_id": "model-a",
+  "model_id_uint": "12345678901234567890",
+  "eval_id": "eval-2026-abc123",
+  "attestation_hash": "0xd12b65d6be0c2170d427589cc027d4988031dc23356a7f83ecf476fc712bb543",
+  "idempotency_key": "0xfd742fa5dea6034d1be32ea5be01a73f931ef061869509afc3585fda659909e7",
+  "evaluation": {
+    "metric_name": "accuracy",
+    "metric_family": "proportion",
+    "baseline_score_bps": 7800,
+    "new_score_bps": 8100,
+    "max_cost_usd_micro": 5000000,
+    "actual_cost_usd_micro": 2340000,
+    "sample_size_baseline": 1000,
+    "sample_size_candidate": 1000,
+    "ci_low_bps": 50,
+    "ci_high_bps": 550,
+    "p_value": 0.03,
+    "effect_size_bps": 300,
+    "statistical_method": "bootstrap_ci",
+    "statistical_reason": "accepted"
+  },
+  "contributors": [
+    {
+      "wallet_address": "0x742d35cc6634c0532925a3b844bc9e7595f62341",
+      "weight_bps": 7000
+    },
+    {
+      "wallet_address": "0x6c3e007f281f6948b37c511a11e43c8026d2f069",
+      "weight_bps": 3000
+    }
+  ]
+}

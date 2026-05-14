@@ -66,6 +66,14 @@ Choose your integration path:
   - Gas optimization tips
   - Debugging tools and techniques
 
+### Operations
+
+- [Mainnet Custody And Role Rehearsal Runbook](mainnet-custody-runbook.md)
+  - Treasury/admin Safe setup
+  - Role grant/revoke matrix
+  - Sepolia ownership-transfer rehearsal
+  - Emergency pause/unpause procedure
+
 ### API Reference
 
 Detailed contract documentation:

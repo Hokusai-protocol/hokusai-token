@@ -1,34 +1,46 @@
 {
   "network": "sepolia",
   "chainId": "11155111",
-  "timestamp": "2026-02-04T18:00:17.350Z",
+  "timestamp": "2026-04-28T16:17:00.741Z",
+  "artifactStatus": "legacy-v2-current-pointer",
+  "artifactNote": "Canonical Sepolia pointer updated from sepolia-v2-latest.json on 2026-05-14 after archiving older legacy artifacts. Regenerate with npm run deploy:sepolia before production custody rehearsal; the current deployment script now also deploys RewardVestingVault and writes richer role/git/script metadata.",
   "deployer": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
   "treasury": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "backendService": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
   "contracts": {
-    "ModelRegistry": "0xf88844FB75e44030f775BFA1ed0A6BFd5685F2Fc",
-    "TokenManager": "0xe08da225C1B49610DB0d3606Ee2642b043B5Db08",
-    "DataContributionRegistry": "0xfd1dDDDcCA3F695c2cD2C2c044443Cc703AA6cfe",
-    "MockUSDC": "0x2e0336fB2f65aa2953ABF2035Fd812572D68AAF9",
-    "HokusaiAMMFactory": "0xaB877Ce2b3e193103374c813E44522f964137e1d",
-    "UsageFeeRouter": "0x7e3593642BF99bF648e7EB810635bE3b191258fC",
-    "DeltaVerifier": "0x8dE6dc062beca7C202A8E3C8B6bdb45bc7C4637b"
+    "ModelRegistry": "0x8E891850C0677c2D9581c953bF1Df5446cB4c54f",
+    "TokenDeploymentFactory": "0xd42b833F80a989f362BE37d0bD62d91b7eC3372D",
+    "TokenManager": "0x4ebC3558Ec08c81AbB9F220fd2C98c838b96De68",
+    "_tokenManagerImpl": "DeployableTokenManager",
+    "DataContributionRegistry": "0xD390BAE1361bBc8296EA7b6e5757A86b3438ac4E",
+    "MockUSDC": "0x4fE61E343D9c7CB5C0D9DeE293F0Dbcf7C2Dd645",
+    "HokusaiAMMFactory": "0xc6c7f2079fE6222885dC401C58260D9bfFc48447",
+    "InfrastructureReserve": "0x68A5B3b6519d70D1D08A46B0F2206cF442AF05A1",
+    "InfrastructureCostOracle": "0x2BF187014a051A54B56FA5552838e3F9005A7AEe",
+    "UsageFeeRouter": "0x31258B9A4eF51cDfa09fb8d479CE1Cd19f5ab8c5",
+    "DeltaVerifier": "0x4812263c7A4317E971F461E611ACD2A51679F7af",
+    "RewardVestingVault": null
   },
   "tokens": [
     {
-      "configKey": "lscor",
-      "modelId": "21",
-      "name": "Hokusai LSCOR",
-      "symbol": "LSCOR",
-      "address": "0x0fC57906d2E34826c4b7e76Eaf6D421EFaD31cfD",
-      "initialSupply": "1000000000000000000000"
+      "configKey": "hlead",
+      "modelId": "25",
+      "name": "Hokusai HLEAD",
+      "symbol": "HLEAD",
+      "address": "0x9690580864274E57899a79bD97e8d7C6cAe0d7d5",
+      "paramsAddress": "0xc7325cB1f179f404Bad7FE62B83B708181FAaD6d",
+      "initialSupply": "1000000000000000000000",
+      "infrastructureAccrualBps": 8000,
+      "initialOraclePricePerThousandUsd": "3000000"
     }
   ],
   "pools": [
     {
-      "configKey": "lscor",
-      "modelId": "21",
-      "tokenAddress": "0x0fC57906d2E34826c4b7e76Eaf6D421EFaD31cfD",
-      "ammAddress": "0xf01873C0324A213f8268Fb5a5c234113185D20c1",
+      "configKey": "hlead",
+      "modelId": "25",
+      "tokenAddress": "0x9690580864274E57899a79bD97e8d7C6cAe0d7d5",
+      "ammAddress": "0x726f46e15cb8F05F291C6337F497da9D5A2738ff",
+      "paramsAddress": "0xc7325cB1f179f404Bad7FE62B83B708181FAaD6d",
       "initialReserve": "100000000",
       "crr": 100000,
       "tradeFee": 30,
@@ -37,5 +49,10 @@
       "flatCurvePrice": "10000"
     }
   ],
+  "roles": {
+    "InfrastructureReserve_DEPOSITOR": "0x31258B9A4eF51cDfa09fb8d479CE1Cd19f5ab8c5",
+    "InfrastructureReserve_PAYER": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+    "UsageFeeRouter_FEE_DEPOSITOR": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+  },
   "gasUsed": {}
 }

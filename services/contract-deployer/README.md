@@ -181,6 +181,24 @@ The service expects messages in the Redis queue to have the following format:
 
 For benchmark-backed reward minting, the service also consumes `hokusai:mint_requests` messages containing `model_id_uint`, `eval_id`, attestation and idempotency hashes, normalized score bps values, optional `benchmark_spec_id` / `dataset_hash`, and contributor weights that sum to `10000`.
 
+## Syncing the DeltaVerifier ABI
+
+The bundled `contracts/DeltaVerifier.json` is regenerated from the Hardhat
+artifact, not edited by hand. After modifying `contracts/DeltaVerifier.sol`
+at the repo root:
+
+```bash
+npx hardhat compile                               # from repo root
+cd services/contract-deployer
+npm run sync:abi                                   # regenerate bundled ABI
+npm run sync:abi -- --check                        # CI-safe drift assertion
+npm test -- --runTestsByPath tests/unit/blockchain/abi-sync.test.ts
+```
+
+The unit suite includes a guard test that pins the `submitMintRequest`
+4-byte selector (`0x6d2140ad`) and asserts the payload tuple still contains
+`totalSamples`.
+
 ## Error Handling
 
 The service implements robust error handling:

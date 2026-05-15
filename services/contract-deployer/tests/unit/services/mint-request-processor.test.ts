@@ -14,6 +14,7 @@ describe('MintRequestProcessor', () => {
     eval_id: 'eval-1',
     attestation_hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     idempotency_key: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    totalSamples: 140,
     evaluation: {
       metric_name: 'sales:revenue_per_1000_messages',
       metric_family: 'zero_inflated_continuous',
@@ -83,7 +84,7 @@ describe('MintRequestProcessor', () => {
     expect(settlement.status).toBe('no_delta');
   });
 
-  test('falls back to sample_size_baseline when candidate is not positive', async () => {
+  test('uses message.totalSamples directly in payload', async () => {
     const client = {
       submitMintRequest: jest.fn().mockResolvedValue({
         status: 'no_delta',
@@ -94,6 +95,7 @@ describe('MintRequestProcessor', () => {
     const processor = new MintRequestProcessor(client);
     await processor.process({
       ...message,
+      totalSamples: 120,
       evaluation: {
         ...message.evaluation,
         sample_size_candidate: 0,
@@ -154,6 +156,7 @@ describe('MintRequestProcessor', () => {
 
     await processor.process({
       ...message,
+      totalSamples: 120,
       evaluation: {
         ...message.evaluation,
         ci_low_bps: null,

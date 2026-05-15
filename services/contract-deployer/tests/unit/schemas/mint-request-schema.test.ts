@@ -16,6 +16,7 @@ describe('MintRequest schema', () => {
     eval_id: 'eval-1',
     attestation_hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     idempotency_key: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    totalSamples: 140,
     benchmark_spec_id: 'bench-1',
     dataset_hash: '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
     evaluation: {
@@ -49,6 +50,7 @@ describe('MintRequest schema', () => {
   test('accepts the canonical statistical metadata fields', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
+      totalSamples: 1000,
       timestamp: '2026-05-05T12:00:00.000000+00:00',
       evaluation: {
         ...validMessage.evaluation,
@@ -86,6 +88,7 @@ describe('MintRequest schema', () => {
   test('accepts null statistical metadata fields', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
+      totalSamples: 1000,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_baseline: 1000,
@@ -241,9 +244,10 @@ describe('MintRequest schema', () => {
     expect(negativeResult.error).toBeDefined();
   });
 
-  test('rejects missing derivable totalSamples', () => {
+  test('rejects missing derivable totalSamples in evaluation', () => {
     const missingResult = validateMintRequestMessage({
       ...validMessage,
+      totalSamples: 100,
       evaluation: {
         metric_name: validMessage.evaluation.metric_name,
         metric_family: validMessage.evaluation.metric_family,
@@ -255,6 +259,7 @@ describe('MintRequest schema', () => {
     });
     const nullResult = validateMintRequestMessage({
       ...validMessage,
+      totalSamples: 100,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: null,
@@ -263,6 +268,7 @@ describe('MintRequest schema', () => {
     });
     const zeroCandidateResult = validateMintRequestMessage({
       ...validMessage,
+      totalSamples: 100,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: 0,
@@ -286,6 +292,7 @@ describe('MintRequest schema', () => {
   test('accepts baseline fallback when candidate sample size is zero', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
+      totalSamples: 1000,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: 0,
@@ -293,6 +300,85 @@ describe('MintRequest schema', () => {
       },
     });
 
+    expect(result.error).toBeUndefined();
+  });
+
+  test('accepts valid totalSamples >= 1', () => {
+    const result = validateMintRequestMessage({
+      ...validMessage,
+      totalSamples: 1,
+      evaluation: {
+        ...validMessage.evaluation,
+        sample_size_candidate: undefined,
+        sample_size_baseline: 1,
+      },
+    });
+    expect(result.error).toBeUndefined();
+  });
+
+  test('rejects totalSamples = 0', () => {
+    const result = validateMintRequestMessage({ ...validMessage, totalSamples: 0 });
+    expect(result.error).toBeDefined();
+  });
+
+  test('rejects negative totalSamples', () => {
+    const result = validateMintRequestMessage({ ...validMessage, totalSamples: -5 });
+    expect(result.error).toBeDefined();
+  });
+
+  test('rejects float totalSamples', () => {
+    const result = validateMintRequestMessage({ ...validMessage, totalSamples: 3.7 });
+    expect(result.error).toBeDefined();
+  });
+
+  test('rejects missing totalSamples', () => {
+    const { totalSamples: _, ...withoutTotalSamples } = validMessage;
+    const result = validateMintRequestMessage(withoutTotalSamples);
+    expect(result.error).toBeDefined();
+  });
+
+  test('rejects non-numeric totalSamples', () => {
+    const result = validateMintRequestMessage({ ...validMessage, totalSamples: 'abc' });
+    expect(result.error).toBeDefined();
+  });
+
+  test('rejects totalSamples mismatch with evaluation.sample_size_candidate', () => {
+    const result = validateMintRequestMessage({
+      ...validMessage,
+      totalSamples: 999,
+      evaluation: {
+        ...validMessage.evaluation,
+        sample_size_candidate: 140,
+      },
+    });
+    expect(result.error).toBeDefined();
+    expect(
+      result.error?.details.some((d) => d.message.includes('does not match')),
+    ).toBe(true);
+  });
+
+  test('accepts totalSamples when sample_size_candidate is absent', () => {
+    const result = validateMintRequestMessage({
+      ...validMessage,
+      totalSamples: 500,
+      evaluation: {
+        ...validMessage.evaluation,
+        sample_size_candidate: undefined,
+        sample_size_baseline: 500,
+      },
+    });
+    expect(result.error).toBeUndefined();
+  });
+
+  test('accepts totalSamples matching sample_size_candidate', () => {
+    const result = validateMintRequestMessage({
+      ...validMessage,
+      totalSamples: 140,
+      evaluation: {
+        ...validMessage.evaluation,
+        sample_size_candidate: 140,
+      },
+    });
     expect(result.error).toBeUndefined();
   });
 

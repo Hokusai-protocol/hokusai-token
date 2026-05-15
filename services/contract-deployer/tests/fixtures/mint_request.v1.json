@@ -8,6 +8,7 @@
   "eval_id": "eval-2026-abc123",
   "attestation_hash": "0xd12b65d6be0c2170d427589cc027d4988031dc23356a7f83ecf476fc712bb543",
   "idempotency_key": "0xfd742fa5dea6034d1be32ea5be01a73f931ef061869509afc3585fda659909e7",
+  "totalSamples": 1000,
   "evaluation": {
     "metric_name": "accuracy",
     "metric_family": "proportion",

@@ -18,6 +18,7 @@ describe('MintRequestConsumer', () => {
     eval_id: 'eval-1',
     attestation_hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     idempotency_key: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    totalSamples: 140,
     evaluation: {
       metric_name: 'sales:revenue_per_1000_messages',
       metric_family: 'zero_inflated_continuous',

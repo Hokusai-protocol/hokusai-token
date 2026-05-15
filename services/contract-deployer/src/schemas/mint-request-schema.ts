@@ -35,6 +35,7 @@ export interface MintRequestMessage {
   eval_id: string;
   attestation_hash: string;
   idempotency_key: string;
+  totalSamples: number;
   benchmark_spec_id?: string;
   dataset_hash?: string;
   evaluation: MintRequestEvaluation;
@@ -118,6 +119,7 @@ const mintRequestSchema = Joi.object<MintRequestMessage>({
   eval_id: Joi.string().min(1).required(),
   attestation_hash: Joi.string().pattern(HASH_REGEX).required(),
   idempotency_key: Joi.string().pattern(HASH_REGEX).required(),
+  totalSamples: Joi.number().integer().min(1).required(),
   benchmark_spec_id: Joi.string().optional(),
   dataset_hash: Joi.string().pattern(HASH_REGEX).optional(),
   evaluation: evaluationSchema.required(),
@@ -134,7 +136,23 @@ const mintRequestSchema = Joi.object<MintRequestMessage>({
       return value;
     }, 'contributors total weight validation'),
   _retryCount: Joi.number().integer().min(0).optional(),
-}).options({ abortEarly: false });
+})
+  .custom((value: MintRequestMessage, helpers) => {
+    const candidate = value.evaluation?.sample_size_candidate;
+    if (
+      typeof candidate === 'number' &&
+      Number.isInteger(candidate) &&
+      candidate > 0 &&
+      candidate !== value.totalSamples
+    ) {
+      return helpers.error('any.custom', {
+        message: `"totalSamples" (${value.totalSamples}) does not match evaluation.sample_size_candidate (${candidate})`,
+      });
+    }
+    return value;
+  }, 'totalSamples cross-field validation')
+  .messages({ 'any.custom': '{{#message}}' })
+  .options({ abortEarly: false });
 
 export function validateMintRequestMessage(
   message: unknown,

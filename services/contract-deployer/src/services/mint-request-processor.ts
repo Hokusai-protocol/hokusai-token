@@ -5,7 +5,6 @@ import {
   MintRequestPayloadInput,
 } from '../blockchain/delta-verifier-client';
 import {
-  deriveTotalSamples,
   MintRequestMessage,
   MintRequestSettlement,
   createMintRequestSettlement,
@@ -55,21 +54,13 @@ export class MintRequestProcessor {
               [modelId, message.evaluation.metric_name],
             ),
           );
-    const totalSamples = deriveTotalSamples(message.evaluation);
-
-    if (totalSamples === null) {
-      throw new Error(
-        'MintRequest evaluation must include a positive integer sample_size_candidate or sample_size_baseline to derive totalSamples',
-      );
-    }
-
     return {
       pipelineRunId: message.eval_id,
       baselineScoreBps: message.evaluation.baseline_score_bps,
       candidateScoreBps: message.evaluation.new_score_bps,
       maxCostUsdMicro: message.evaluation.max_cost_usd_micro,
       actualCostUsdMicro: message.evaluation.actual_cost_usd_micro,
-      totalSamples,
+      totalSamples: message.totalSamples,
       anchors: {
         benchmarkSpecHash,
         datasetHash: message.dataset_hash ?? ethers.ZeroHash,

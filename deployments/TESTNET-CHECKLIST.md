@@ -99,6 +99,7 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
 
 ## Sign-Off
 
+- [ ] Trust model reviewed: [features/document-v1-deltaone-trusted-submitter-and-anti-gaming-model/trust-model.md](../features/document-v1-deltaone-trusted-submitter-and-anti-gaming-model/trust-model.md)
 - [ ] Final `deployments/sepolia-latest.json` archived in release notes
 - [ ] Known issues documented
 - [ ] Pool pause-path status explicitly approved

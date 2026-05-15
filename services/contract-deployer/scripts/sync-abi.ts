@@ -33,7 +33,7 @@ function main(): void {
     }
 
     process.stderr.write(
-      'DeltaVerifier ABI drift detected: bundled service artifact differs from Hardhat artifact.\n' +
+      'DeltaVerifier ABI drift detected: bundled service artifact differs from Hardhat artifact (e.g., submitMintRequest selector, payload shape).\n' +
         'Run `npm run sync:abi` to regenerate.\n',
     );
     process.exit(1);

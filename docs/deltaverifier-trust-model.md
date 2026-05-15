@@ -19,7 +19,7 @@ This document exists so reviewers can answer four questions precisely:
 
 Version scope:
 
-- This note describes the current repository state on the `task/document-v1-deltaone-trusted-submitter-and-anti-gaming-model` branch.
+- This note describes the v1 DeltaVerifier trust model as shipped; update this document when trust assumptions change.
 - Where legacy v1 and protocol-aware v2 paths differ, both are called out explicitly so launch reviewers do not overgeneralize one path's guarantees onto the other.
 
 ## System overview
@@ -237,9 +237,9 @@ These omissions are acceptable only if operators and reviewers understand that v
 
 ## Cross-links
 
-- Sepolia rehearsal checklist: [deployments/TESTNET-CHECKLIST.md](../../deployments/TESTNET-CHECKLIST.md)
-- Mainnet custody and role runbook: [docs/mainnet-custody-runbook.md](../../docs/mainnet-custody-runbook.md)
-- MintRequest relayer mapping: [relayer-schema-mapping.md](../define-mintrequest-to-deltaverifier-relayer-schema-mapping/relayer-schema-mapping.md)
+- Sepolia rehearsal checklist: [deployments/TESTNET-CHECKLIST.md](../deployments/TESTNET-CHECKLIST.md)
+- Mainnet custody and role runbook: [docs/mainnet-custody-runbook.md](mainnet-custody-runbook.md)
+- MintRequest relayer mapping: [relayer-schema-mapping.md](../features/define-mintrequest-to-deltaverifier-relayer-schema-mapping/relayer-schema-mapping.md)
 - Parent launch issue follow-up: after merge, post the final document link to Linear issue `HOK-1269` so launch reviewers can find the trust model from the launch tracker.
 
 ## Reviewer summary

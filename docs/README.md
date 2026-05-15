@@ -59,6 +59,14 @@ Choose your integration path:
 - Decimal handling (USDC: 6, tokens: 18)
 - Multicall batching for performance
 
+### Security
+
+- [DeltaVerifier v1 Trust Model](deltaverifier-trust-model.md)
+  - Who can submit evaluations and how `SUBMITTER_ROLE` is granted/rotated
+  - On-chain vs. off-chain anti-gaming controls (replay, fake evals, contributor weighting, benchmark gaming, cost caps)
+  - What `attestation_hash` commits to and what remains off-chain
+  - Residual trust assumptions and v1 scope limitations
+
 ### Troubleshooting
 
 - [Troubleshooting Guide](troubleshooting.md)

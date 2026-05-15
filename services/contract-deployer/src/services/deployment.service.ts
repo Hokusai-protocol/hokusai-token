@@ -21,6 +21,7 @@ import { createLogger } from '../utils/logger';
 export interface DeploymentServiceConfig {
   redisHost: string;
   redisPort: number;
+  redisUrl?: string;
   queueName: string;
   statusTtlSeconds: number;
   maxConcurrentDeployments: number;
@@ -44,7 +45,9 @@ export class DeploymentService {
   ) {
     this.logger = createLogger('deployment-service');
     
-    this.redisClient = createClient({
+    this.redisClient = createClient(config.redisUrl ? {
+      url: config.redisUrl,
+    } : {
       socket: {
         host: config.redisHost,
         port: config.redisPort,

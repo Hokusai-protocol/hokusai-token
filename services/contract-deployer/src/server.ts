@@ -43,7 +43,9 @@ async function createServer(): Promise<express.Application> {
   console.log('[STARTUP] Redis host:', config.REDIS_HOST);
   console.log('[STARTUP] Redis port:', config.REDIS_PORT);
   
-  const redisClient = createClient({
+  const redisClient = createClient(config.REDIS_URL ? {
+    url: config.REDIS_URL,
+  } : {
     socket: {
       host: config.REDIS_HOST,
       port: config.REDIS_PORT,
@@ -74,7 +76,8 @@ async function createServer(): Promise<express.Application> {
     queueService = new QueueService(
       config.REDIS_HOST,
       config.REDIS_PORT,
-      logger
+      logger,
+      config.REDIS_URL
     );
     await Promise.race([
       queueService.connect(),
@@ -114,6 +117,7 @@ async function createServer(): Promise<express.Application> {
       {
         redisHost: config.REDIS_HOST,
         redisPort: config.REDIS_PORT,
+        redisUrl: config.REDIS_URL,
         queueName: config.QUEUE_NAME,
         statusTtlSeconds: 86400, // 24 hours
         maxConcurrentDeployments: 10 // Default value
@@ -214,7 +218,7 @@ async function createServer(): Promise<express.Application> {
     });
   }
   
-  app.use('/health', healthRouter);
+  app.use('/health', healthRouter());
 
   // Monitoring routes (only if monitoring is enabled)
   if (ammMonitor) {

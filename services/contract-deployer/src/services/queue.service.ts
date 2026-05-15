@@ -10,8 +10,11 @@ export class QueueService {
     private readonly host: string,
     private readonly port: number,
     private readonly logger: Logger,
+    private readonly redisUrl?: string,
   ) {
-    this.client = createClient({
+    this.client = createClient(redisUrl ? {
+      url: redisUrl,
+    } : {
       socket: {
         host: this.host,
         port: this.port,

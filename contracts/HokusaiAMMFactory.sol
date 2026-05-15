@@ -40,6 +40,7 @@ contract HokusaiAMMFactory is Ownable {
     mapping(address => string) public poolToModel; // pool => modelId
     mapping(address => bool) public isPool; // Quick lookup
     address[] public allPools; // Array of all pools
+    address public pauser; // Emergency pauser for pool pause operations
 
     // ============================================================
     // CONSTANTS
@@ -50,6 +51,7 @@ contract HokusaiAMMFactory is Ownable {
     uint256 public constant MAX_TRADE_FEE = 1000; // 10%
     uint256 public constant MIN_IBR_DURATION = 1 days;
     uint256 public constant MAX_IBR_DURATION = 30 days;
+    uint256 public constant MAX_PAUSE_BATCH = 50;
 
     // ============================================================
     // EVENTS
@@ -71,6 +73,9 @@ contract HokusaiAMMFactory is Ownable {
     );
 
     event TreasuryUpdated(address indexed newTreasury);
+    event PoolPaused(string modelId, address indexed pool, address indexed caller);
+    event PoolUnpaused(string modelId, address indexed pool, address indexed caller);
+    event PauserUpdated(address indexed previousPauser, address indexed newPauser);
 
     // ============================================================
     // CONSTRUCTOR
@@ -105,6 +110,15 @@ contract HokusaiAMMFactory is Ownable {
         defaultIbrDuration = 7 days;
         defaultFlatCurveThreshold = 25000 * 1e6; // $25,000 USDC
         defaultFlatCurvePrice = 1e4; // $0.01 (6 decimals: 0.01 * 1e6 = 10000)
+    }
+
+    // ============================================================
+    // MODIFIERS
+    // ============================================================
+
+    modifier onlyOwnerOrPauser() {
+        require(msg.sender == owner() || msg.sender == pauser, "Not owner or pauser");
+        _;
     }
 
     // ============================================================
@@ -307,6 +321,116 @@ contract HokusaiAMMFactory is Ownable {
         ValidationLib.requireNonZeroAddress(newTreasury, "treasury");
         treasury = newTreasury;
         emit TreasuryUpdated(newTreasury);
+    }
+
+    // ============================================================
+    // EMERGENCY PAUSE
+    // ============================================================
+
+    /**
+     * @dev Resolve a pool address for a model ID
+     * @param modelId String model identifier
+     * @return pool Pool address
+     */
+    function _requirePool(string calldata modelId) internal view returns (address pool) {
+        pool = pools[modelId];
+        require(pool != address(0), "Pool not found");
+    }
+
+    /**
+     * @dev Update the emergency pauser address
+     * @param newPauser New pauser address, or zero to revoke the role
+     */
+    function setPauser(address newPauser) external onlyOwner {
+        emit PauserUpdated(pauser, newPauser);
+        pauser = newPauser;
+    }
+
+    /**
+     * @dev Pause a specific pool
+     * @param modelId String model identifier
+     */
+    function pausePool(string calldata modelId) external onlyOwnerOrPauser {
+        address pool = _requirePool(modelId);
+        HokusaiAMM(pool).pause();
+        emit PoolPaused(modelId, pool, msg.sender);
+    }
+
+    /**
+     * @dev Unpause a specific pool
+     * @param modelId String model identifier
+     */
+    function unpausePool(string calldata modelId) external onlyOwner {
+        address pool = _requirePool(modelId);
+        HokusaiAMM(pool).unpause();
+        emit PoolUnpaused(modelId, pool, msg.sender);
+    }
+
+    /**
+     * @dev Pause a bounded list of pools
+     * @param modelIds Model identifiers to pause
+     */
+    function pausePools(string[] calldata modelIds) external onlyOwnerOrPauser {
+        ValidationLib.requireNonEmptyArray(modelIds.length);
+        ValidationLib.requireMaxArrayLength(modelIds.length, MAX_PAUSE_BATCH);
+
+        for (uint256 i = 0; i < modelIds.length; i++) {
+            address pool = _requirePool(modelIds[i]);
+            HokusaiAMM amm = HokusaiAMM(pool);
+
+            if (!amm.paused()) {
+                amm.pause();
+                emit PoolPaused(modelIds[i], pool, msg.sender);
+            }
+        }
+    }
+
+    /**
+     * @dev Unpause a bounded list of pools
+     * @param modelIds Model identifiers to unpause
+     */
+    function unpausePools(string[] calldata modelIds) external onlyOwner {
+        ValidationLib.requireNonEmptyArray(modelIds.length);
+        ValidationLib.requireMaxArrayLength(modelIds.length, MAX_PAUSE_BATCH);
+
+        for (uint256 i = 0; i < modelIds.length; i++) {
+            address pool = _requirePool(modelIds[i]);
+            HokusaiAMM amm = HokusaiAMM(pool);
+
+            if (amm.paused()) {
+                amm.unpause();
+                emit PoolUnpaused(modelIds[i], pool, msg.sender);
+            }
+        }
+    }
+
+    /**
+     * @dev Pause a paginated range of pools
+     * @param start Start index in the pool array
+     * @param limit Maximum number of pools to process
+     */
+    function pauseAllPools(uint256 start, uint256 limit) external onlyOwnerOrPauser {
+        require(limit <= MAX_PAUSE_BATCH, "Limit exceeds max batch");
+
+        uint256 total = allPools.length;
+        if (start >= total) {
+            return;
+        }
+
+        uint256 end = start + limit;
+        if (end > total) {
+            end = total;
+        }
+
+        for (uint256 i = start; i < end; i++) {
+            address pool = allPools[i];
+            HokusaiAMM amm = HokusaiAMM(pool);
+
+            if (!amm.paused()) {
+                amm.pause();
+                emit PoolPaused(poolToModel[pool], pool, msg.sender);
+            }
+        }
     }
 
     // ============================================================

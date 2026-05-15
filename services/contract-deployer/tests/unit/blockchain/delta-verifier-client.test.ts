@@ -1,5 +1,6 @@
-import { ethers } from 'ethers';
+import { ethers, Interface } from 'ethers';
 import { DeltaVerifierClient } from '../../../src/blockchain/delta-verifier-client';
+import serviceArtifact from '../../../contracts/DeltaVerifier.json';
 
 describe('DeltaVerifierClient', () => {
   const deltaVerifierAddress = '0x1111111111111111111111111111111111111111';
@@ -193,5 +194,57 @@ describe('DeltaVerifierClient', () => {
         [],
       ),
     ).rejects.toThrow('Model not registered');
+  });
+});
+
+describe('submitMintRequest calldata encoding', () => {
+  const iface = new Interface(serviceArtifact.abi);
+
+  test('encodes a current-shape payload with selector 0x6d2140ad', () => {
+    const payload = {
+      pipelineRunId: 'eval-1',
+      baselineScoreBps: 5000,
+      candidateScoreBps: 7500,
+      maxCostUsdMicro: 0,
+      actualCostUsdMicro: 0,
+      totalSamples: 140,
+      anchors: {
+        benchmarkSpecHash: ethers.ZeroHash,
+        datasetHash: ethers.ZeroHash,
+        attestationHash: ethers.ZeroHash,
+        idempotencyKey: ethers.ZeroHash,
+        metricName: 'accuracy',
+        metricFamily: 'classification',
+      },
+    };
+
+    const contributors = [
+      { walletAddress: '0x742D35cC6634C0532925a3b844BC9E7595f82b3d', weight: 10000 },
+    ];
+
+    const calldata = iface.encodeFunctionData('submitMintRequest', [21n, payload, contributors]);
+    expect(calldata.startsWith('0x6d2140ad')).toBe(true);
+  });
+
+  test('encoding fails loudly when totalSamples is missing', () => {
+    const payload = {
+      pipelineRunId: 'eval-1',
+      baselineScoreBps: 5000,
+      candidateScoreBps: 7500,
+      maxCostUsdMicro: 0,
+      actualCostUsdMicro: 0,
+      anchors: {
+        benchmarkSpecHash: ethers.ZeroHash,
+        datasetHash: ethers.ZeroHash,
+        attestationHash: ethers.ZeroHash,
+        idempotencyKey: ethers.ZeroHash,
+        metricName: 'accuracy',
+        metricFamily: 'classification',
+      },
+    };
+
+    expect(() =>
+      iface.encodeFunctionData('submitMintRequest', [21n, payload, []]),
+    ).toThrow();
   });
 });

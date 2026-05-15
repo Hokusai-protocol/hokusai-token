@@ -25,6 +25,8 @@ describe('MintRequestConsumer', () => {
       new_score_bps: 7500,
       max_cost_usd_micro: 1000,
       actual_cost_usd_micro: 500,
+      sample_size_baseline: 120,
+      sample_size_candidate: 140,
     },
     contributors: [
       {
@@ -85,7 +87,7 @@ describe('MintRequestConsumer', () => {
 
     expect(mockRedis.lPush).toHaveBeenCalledWith(
       'mint',
-      JSON.stringify({ ...validMessage, _retryCount: 1 })
+      JSON.stringify({ ...validMessage, _retryCount: 1 }),
     );
   });
 

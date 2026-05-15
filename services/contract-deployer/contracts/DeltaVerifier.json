@@ -1213,6 +1213,11 @@
               "type": "uint256"
             },
             {
+              "internalType": "uint256",
+              "name": "totalSamples",
+              "type": "uint256"
+            },
+            {
               "components": [
                 {
                   "internalType": "bytes32",

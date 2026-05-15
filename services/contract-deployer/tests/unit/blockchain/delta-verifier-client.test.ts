@@ -58,21 +58,26 @@ describe('DeltaVerifierClient', () => {
       maxGasPrice: '1000',
     });
 
-    const result = await client.submitMintRequest(21n, {
-      pipelineRunId: 'eval-1',
-      baselineScoreBps: 5000,
-      candidateScoreBps: 7500,
-      maxCostUsdMicro: 0,
-      actualCostUsdMicro: 0,
-      anchors: {
-        benchmarkSpecHash: ethers.ZeroHash,
-        datasetHash: ethers.ZeroHash,
-        attestationHash: ethers.ZeroHash,
-        idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-        metricName: 'metric',
-        metricFamily: 'family',
+    const result = await client.submitMintRequest(
+      21n,
+      {
+        pipelineRunId: 'eval-1',
+        baselineScoreBps: 5000,
+        candidateScoreBps: 7500,
+        maxCostUsdMicro: 0,
+        actualCostUsdMicro: 0,
+        totalSamples: 1,
+        anchors: {
+          benchmarkSpecHash: ethers.ZeroHash,
+          datasetHash: ethers.ZeroHash,
+          attestationHash: ethers.ZeroHash,
+          idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          metricName: 'metric',
+          metricFamily: 'family',
+        },
       },
-    }, []);
+      [],
+    );
 
     expect(result.status).toBe('replay');
     expect(deltaVerifierContract.submitMintRequest).not.toHaveBeenCalled();
@@ -112,21 +117,26 @@ describe('DeltaVerifierClient', () => {
       maxGasPrice: '1000',
     });
 
-    const result = await client.submitMintRequest(21n, {
-      pipelineRunId: 'eval-1',
-      baselineScoreBps: 5000,
-      candidateScoreBps: 7500,
-      maxCostUsdMicro: 0,
-      actualCostUsdMicro: 0,
-      anchors: {
-        benchmarkSpecHash: ethers.ZeroHash,
-        datasetHash: ethers.ZeroHash,
-        attestationHash: ethers.ZeroHash,
-        idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-        metricName: 'metric',
-        metricFamily: 'family',
+    const result = await client.submitMintRequest(
+      21n,
+      {
+        pipelineRunId: 'eval-1',
+        baselineScoreBps: 5000,
+        candidateScoreBps: 7500,
+        maxCostUsdMicro: 0,
+        actualCostUsdMicro: 0,
+        totalSamples: 1,
+        anchors: {
+          benchmarkSpecHash: ethers.ZeroHash,
+          datasetHash: ethers.ZeroHash,
+          attestationHash: ethers.ZeroHash,
+          idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          metricName: 'metric',
+          metricFamily: 'family',
+        },
       },
-    }, []);
+      [],
+    );
 
     expect(result).toEqual({
       status: 'minted',
@@ -135,6 +145,15 @@ describe('DeltaVerifierClient', () => {
       rewardAmount: '55',
       gasUsed: '321',
     });
+    expect(deltaVerifierContract.submitMintRequest).toHaveBeenCalledWith(
+      21n,
+      expect.objectContaining({ totalSamples: 1 }),
+      [],
+      expect.objectContaining({
+        gasLimit: expect.any(BigInt),
+        gasPrice: 50n,
+      }),
+    );
   });
 
   test('throws for unregistered or inactive models', async () => {
@@ -153,21 +172,26 @@ describe('DeltaVerifierClient', () => {
     });
 
     await expect(
-      client.submitMintRequest(21n, {
-        pipelineRunId: 'eval-1',
-        baselineScoreBps: 5000,
-        candidateScoreBps: 7500,
-        maxCostUsdMicro: 0,
-        actualCostUsdMicro: 0,
-        anchors: {
-          benchmarkSpecHash: ethers.ZeroHash,
-          datasetHash: ethers.ZeroHash,
-          attestationHash: ethers.ZeroHash,
-          idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-          metricName: 'metric',
-          metricFamily: 'family',
+      client.submitMintRequest(
+        21n,
+        {
+          pipelineRunId: 'eval-1',
+          baselineScoreBps: 5000,
+          candidateScoreBps: 7500,
+          maxCostUsdMicro: 0,
+          actualCostUsdMicro: 0,
+          totalSamples: 1,
+          anchors: {
+            benchmarkSpecHash: ethers.ZeroHash,
+            datasetHash: ethers.ZeroHash,
+            attestationHash: ethers.ZeroHash,
+            idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            metricName: 'metric',
+            metricFamily: 'family',
+          },
         },
-      }, [])
+        [],
+      ),
     ).rejects.toThrow('Model not registered');
   });
 });

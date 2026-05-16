@@ -51,8 +51,10 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Admin roles documented
 - [ ] Ownership transfer plan documented
 - [ ] [Mainnet custody and role rehearsal runbook](mainnet-custody-runbook.md) completed
+- [ ] [Mainnet launch day rollback runbook](mainnet-launch-rollback-runbook.md) completed through operator assignment and tabletop rehearsal
 - [ ] Sepolia ownership-transfer and deployer-role revocation rehearsal completed
 - [ ] Sepolia emergency pause/unpause rehearsal completed
+- [ ] Frontend/backend write-disable rollback drill completed
 
 ---
 
@@ -435,6 +437,8 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 ---
 
 ## Emergency Procedures
+
+Use [Mainnet Custody And Role Rehearsal Runbook](mainnet-custody-runbook.md) as the single emergency entry point. If launch is in progress or newly public, activate [Mainnet Launch Day Rollback Runbook](mainnet-launch-rollback-runbook.md) before taking further deployment, pool, custody, frontend, or announcement actions.
 
 ### If Monitoring Detects Issue
 1. **Critical Alert (Pause, Ownership Transfer, Zero Reserve)**

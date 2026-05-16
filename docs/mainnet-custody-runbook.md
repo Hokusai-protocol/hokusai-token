@@ -1,6 +1,8 @@
 # Mainnet Custody And Role Rehearsal Runbook
 
-This runbook must be completed before any Hokusai mainnet deployment. It defines production custody, role ownership, signer separation, Sepolia rehearsal steps, and the emergency pause procedure for the live-deployable stack.
+This runbook must be completed before any Hokusai mainnet deployment. It defines production custody, role ownership, signer separation, Sepolia rehearsal steps, the emergency pause procedure, and the launch-day rollback reference for the live-deployable stack.
+
+Related launch-day rollback procedure: [Mainnet Launch Day Rollback Runbook](mainnet-launch-rollback-runbook.md). Treat this custody runbook as the single entry point: custody, Safe authority, emergency pause, and rollback decisions should all reference these two documents together.
 
 The current deployment guide records `DeployableTokenManager` under `contracts.TokenManager` in deployment artifacts. In this document, `TokenManager` means the deployed address recorded as `contracts.TokenManager`, regardless of whether the implementation is `TokenManager` or `DeployableTokenManager`.
 
@@ -14,10 +16,12 @@ Do not deploy to mainnet until every item in this section is checked.
 - [ ] Backend fee depositor address is documented.
 - [ ] Deployer Ledger address is documented.
 - [ ] Emergency operator and backup operator addresses are documented.
+- [ ] Launch-day rollback authority and operators are documented in [Mainnet Launch Day Rollback Runbook](mainnet-launch-rollback-runbook.md).
 - [ ] Role grant/revoke matrix below is completed with concrete addresses.
 - [ ] Ownership transfer process is rehearsed on Sepolia.
 - [ ] Temporary deployer role revocation process is rehearsed on Sepolia.
 - [ ] Emergency pause/unpause process is rehearsed on Sepolia.
+- [ ] Launch-day rollback tabletop is rehearsed on Sepolia or a mainnet fork.
 - [ ] Rehearsal transaction hashes are recorded.
 - [ ] Any Sepolia rehearsal blocker is fixed in code, scripts, or governance process before mainnet.
 
@@ -242,6 +246,23 @@ Rehearsal checks:
 - [ ] Monitoring alerts fire for `Unpaused(address)`.
 - [ ] Frontend/backend state refreshes correctly.
 
+## Launch-Day Rollback Reference
+
+Rollback is not a separate authority path from custody. The same Safe, signer threshold, emergency operator, backup operator, and technical reviewer defined above own rollback execution.
+
+Use [Mainnet Launch Day Rollback Runbook](mainnet-launch-rollback-runbook.md) when any launch step fails or shows unsafe state. At minimum, rehearse these rollback paths before mainnet:
+
+- [ ] Abort before deployment transaction after bad `.env` or gas config is detected.
+- [ ] Stop after core contracts deploy but before pools when artifact or wiring verification fails.
+- [ ] Pause created pools before public announcement.
+- [ ] Disable frontend/backend write paths after a simulated public-launch issue.
+- [ ] Draft and review a Safe pause transaction with decoded calldata.
+- [ ] Decide continue vs abandon for a deployment with a wrong immutable constructor dependency.
+
+Launch-day stop conditions include wrong chain, wrong custody address, wrong backend/verifier address, failed Safe execution, missing monitoring, unexecutable pool pause path, unexpected reserve movement, unexpected minting, unexpected supplier allocation distribution, or frontend/backend pointing at unapproved addresses.
+
+Hard gate: do not announce pools publicly until the rollback runbook has named operators, the frontend/backend disable path is known, and Safe signers have confirmed availability.
+
 ## Mainnet Execution Order
 
 1. Create and approve the mainnet Safe.
@@ -260,7 +281,8 @@ Rehearsal checks:
 11. Revoke temporary deployer roles.
 12. Run backend fee-deposit smoke test with the backend fee depositor.
 13. Run read-only role audit and archive the output.
-14. Approve launch only after custody, monitoring, and pause checks are green.
+14. Confirm launch-day rollback operators and Safe signer availability.
+15. Approve launch only after custody, monitoring, pause, and rollback checks are green.
 
 ## Rehearsal Log
 
@@ -278,6 +300,9 @@ Rehearsal checks:
 | Unpause `InfrastructureReserve` | `0x____________________________` | `pass/fail` | `___` | `YYYY-MM-DD` |
 | Pause `DeltaVerifier` | `0x____________________________` | `pass/fail` | `___` | `YYYY-MM-DD` |
 | Unpause `DeltaVerifier` | `0x____________________________` | `pass/fail` | `___` | `YYYY-MM-DD` |
+| Rollback tabletop | `____________________________` | `pass/fail` | `___` | `YYYY-MM-DD` |
+| Safe pause calldata review | `____________________________` | `pass/fail` | `___` | `YYYY-MM-DD` |
+| Frontend/backend write-disable drill | `____________________________` | `pass/fail` | `___` | `YYYY-MM-DD` |
 | Backend fee-deposit smoke test | `0x____________________________` | `pass/fail` | `___` | `YYYY-MM-DD` |
 | Revoke deployer roles | `0x____________________________` | `pass/fail` | `___` | `YYYY-MM-DD` |
 | Final role audit | `0x____________________________` | `pass/fail` | `___` | `YYYY-MM-DD` |
@@ -288,6 +313,7 @@ Rehearsal checks:
 - Technical reviewer: `____________________________`
 - Emergency operator: `____________________________`
 - Backup operator: `____________________________`
+- Rollback incident commander: `____________________________`
 - Sepolia rehearsal artifact: `____________________________`
 - Final role audit artifact: `____________________________`
 - Approved for mainnet deployment: `yes/no`

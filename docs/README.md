@@ -81,6 +81,11 @@ Choose your integration path:
   - Role grant/revoke matrix
   - Sepolia ownership-transfer rehearsal
   - Emergency pause/unpause procedure
+  - Single entry point for launch-day rollback authority
+- [Mainnet Launch Day Rollback Runbook](mainnet-launch-rollback-runbook.md)
+  - Stop conditions and rollback severity levels
+  - Stage-based rollback paths before/after pools and public launch
+  - Safe transaction, frontend/backend disable, resume, and abandon checklists
 
 ### API Reference
 

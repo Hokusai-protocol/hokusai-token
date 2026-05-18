@@ -197,6 +197,23 @@ export function createMonitoringConfig(): MonitoringConfig {
 
   // Load contract addresses and pools from deployment artifact
   const { contracts, pools } = loadDeploymentConfig(network);
+  const hasContractEnvOverrides = Boolean(
+    process.env.MODEL_REGISTRY_ADDRESS ||
+    process.env.TOKEN_MANAGER_ADDRESS ||
+    process.env.FACTORY_ADDRESS ||
+    process.env.AMM_FACTORY_ADDRESS ||
+    process.env.USAGE_FEE_ROUTER_ADDRESS ||
+    process.env.USDC_ADDRESS
+  );
+  const configuredContracts: ContractAddresses = {
+    modelRegistry: process.env.MODEL_REGISTRY_ADDRESS || contracts.modelRegistry,
+    tokenManager: process.env.TOKEN_MANAGER_ADDRESS || contracts.tokenManager,
+    hokusaiParams: process.env.HOKUSAI_PARAMS_ADDRESS || contracts.hokusaiParams,
+    ammFactory: process.env.FACTORY_ADDRESS || process.env.AMM_FACTORY_ADDRESS || contracts.ammFactory,
+    usageFeeRouter: process.env.USAGE_FEE_ROUTER_ADDRESS || contracts.usageFeeRouter,
+    deltaVerifier: process.env.DELTA_VERIFIER_ADDRESS || contracts.deltaVerifier,
+    usdc: process.env.USDC_ADDRESS || contracts.usdc
+  };
 
   // Build configuration
   const config: MonitoringConfig = {
@@ -205,8 +222,8 @@ export function createMonitoringConfig(): MonitoringConfig {
     rpcUrl: process.env.MAINNET_RPC_URL || process.env.SEPOLIA_RPC_URL || '',
     backupRpcUrl: process.env.BACKUP_RPC_URL,
 
-    contracts,
-    initialPools: pools,
+    contracts: configuredContracts,
+    initialPools: hasContractEnvOverrides ? [] : pools,
 
     thresholds: {
       minReserveUSD: parseFloat(process.env.ALERT_RESERVE_MIN_USD || String(DEFAULT_THRESHOLDS.minReserveUSD)),
@@ -231,8 +248,8 @@ export function createMonitoringConfig(): MonitoringConfig {
     },
 
     statePollingIntervalMs: parseInt(process.env.MONITORING_INTERVAL_MS || '300000'), // 5 minutes fallback (was 12s)
-    eventPollingFromBlock: process.env.MONITORING_START_BLOCK === 'latest' ? 'latest' :
-                           parseInt(process.env.MONITORING_START_BLOCK || 'latest'),
+    eventPollingFromBlock: !process.env.MONITORING_START_BLOCK || process.env.MONITORING_START_BLOCK === 'latest' ? 'latest' :
+                           parseInt(process.env.MONITORING_START_BLOCK, 10),
 
     alertEmail: process.env.ALERT_EMAIL || '',
     awsSesRegion: process.env.AWS_SES_REGION || 'us-east-1',

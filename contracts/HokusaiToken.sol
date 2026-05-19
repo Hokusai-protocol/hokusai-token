@@ -204,6 +204,26 @@ contract HokusaiToken is ERC20, Ownable {
     }
 
     /**
+     * @dev Burns tokens for an AMM sell, reducing investor allocation headroom first,
+     * then reward allocation. Allows reward token holders to sell into the AMM without
+     * reverting when investorMinted < amount.
+     */
+    function burnAMM(address from, uint256 amount) external onlyController {
+        if (maxSupply < type(uint256).max) {
+            uint256 investorBurn = amount <= investorMinted ? amount : investorMinted;
+            uint256 rewardBurn = amount - investorBurn;
+            investorMinted -= investorBurn;
+            if (rewardBurn > 0) {
+                require(rewardBurn <= rewardMinted, "Burn exceeds minted supply");
+                rewardMinted -= rewardBurn;
+            }
+        }
+
+        _burn(from, amount);
+        emit Burned(from, amount);
+    }
+
+    /**
      * @dev Returns the remaining investor allocation for cap-based tokens.
      */
     function getRemainingSupply() external view returns (uint256) {

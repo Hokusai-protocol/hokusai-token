@@ -251,6 +251,26 @@ describe("HokusaiAMM redeemable supply pricing", function () {
     expect(spotAfterSell).to.be.lt(spotAfterBuy);
   });
 
+  it("allows reward token holders to sell unlocked tokens into the AMM", async function () {
+    const { MODEL_ID, tokenManager, vestingVault, token, usdc, amm } =
+      await deployLegacyCurveFixture(buildDisabledVestingConfig());
+
+    const rewardAmount = parseEther("500");
+    await tokenManager.mintReward(MODEL_ID, contributor.address, rewardAmount);
+
+    expect(await token.balanceOf(contributor.address)).to.equal(rewardAmount);
+
+    const sellAmount = parseEther("100");
+    const minOut = 0n;
+    await token.connect(contributor).approve(await amm.getAddress(), sellAmount);
+    await expect(
+      amm.connect(contributor).sell(sellAmount, minOut, contributor.address, (await time.latest()) + 3600)
+    ).to.not.be.reverted;
+
+    expect(await token.balanceOf(contributor.address)).to.equal(rewardAmount - sellAmount);
+    expect(await usdc.balanceOf(contributor.address)).to.be.gt(0n);
+  });
+
   it("drops spot price when supplier allocation becomes redeemable", async function () {
     const { MODEL_ID, SUPPLIER_ALLOCATION, tokenManager, amm } = await deployCapCurveFixture();
 

@@ -594,6 +594,30 @@ contract TokenManager is Ownable, AccessControlBase {
     }
 
     /**
+     * @dev Burns tokens from an AMM sell, restoring investor headroom first then reward.
+     * Allows both investor and reward token holders to sell into the AMM without reverting.
+     */
+    function burnAMMTokens(string memory modelId, address account, uint256 amount)
+        external
+    {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to burn"
+        );
+
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(account, "account");
+        ValidationLib.requirePositiveAmount(amount, "amount");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+
+        _burnAMMToken(tokenAddress, account, amount);
+
+        emit TokensBurned(modelId, account, amount);
+    }
+
+    /**
      * @dev Gets the token address for a specific model
      * @param modelId The model identifier
      * @return The token contract address
@@ -721,5 +745,16 @@ contract TokenManager is Ownable, AccessControlBase {
         }
 
         token.burnInvestor(account, amount);
+    }
+
+    function _burnAMMToken(address tokenAddress, address account, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+
+        if (token.maxSupply() == type(uint256).max) {
+            token.burnFrom(account, amount);
+            return;
+        }
+
+        token.burnAMM(account, amount);
     }
 }

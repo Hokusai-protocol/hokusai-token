@@ -4,6 +4,8 @@ const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { parseEther, parseUnits } = require("ethers");
 const { buildInitialParams, buildVestingConfig } = require("./helpers/tokenDeployment");
 
+// Scenario-specific separated-accounting regression coverage now lives in
+// test/AllocationAccountingSeparation.regression.test.js.
 describe("Investor allocation separation", function () {
   const MODEL_ID = "cap-model";
   const INVESTOR_ALLOCATION = parseEther("100");

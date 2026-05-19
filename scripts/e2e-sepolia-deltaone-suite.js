@@ -39,6 +39,8 @@ const ABIS = {
     "function investorMinted() view returns (uint256)",
     "function maxSupply() view returns (uint256)",
     "function params() view returns (address)",
+    "function rewardMinted() view returns (uint256)",
+    "function getRewardMintingCap() view returns (uint256)",
     "function totalSupply() view returns (uint256)",
   ],
   tokenParams: [
@@ -133,6 +135,9 @@ function createRecorder() {
   const checks = [];
   return {
     checks,
+    note(name, details) {
+      checks.push({ status: "note", name, details: stringify(details) });
+    },
     pass(name, details) {
       checks.push({ status: "pass", name, details: stringify(details) });
     },
@@ -246,10 +251,16 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
   const maxSupply = await ctx.token.maxSupply();
   const totalSupply = await ctx.token.totalSupply();
   let remainingMintable = maxSupply > totalSupply ? maxSupply - totalSupply : 0n;
+  let investorAllocation = null;
+  let investorMintedBefore = null;
+  let rewardMintedBefore = null;
+  let rewardCap = null;
   try {
-    const investorAllocation = await ctx.token.investorAllocation();
-    const investorMinted = await ctx.token.investorMinted();
-    remainingMintable = investorAllocation > investorMinted ? investorAllocation - investorMinted : 0n;
+    investorAllocation = await ctx.token.investorAllocation();
+    investorMintedBefore = await ctx.token.investorMinted();
+    rewardMintedBefore = await ctx.token.rewardMinted();
+    rewardCap = await ctx.token.getRewardMintingCap();
+    remainingMintable = investorAllocation > investorMintedBefore ? investorAllocation - investorMintedBefore : 0n;
   } catch (error) {
     // Legacy tokens only expose the old maxSupply semantics.
   }
@@ -318,6 +329,22 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
 
   const tx = await contracts.deltaVerifier.submitMintRequest(modelId, payload, contributors);
   const receipt = await tx.wait(1);
+  let investorMintedAfter = null;
+  let rewardMintedAfter = null;
+  try {
+    investorMintedAfter = await ctx.token.investorMinted();
+    rewardMintedAfter = await ctx.token.rewardMinted();
+    recorder.note(`${label} separated mint accounting`, {
+      investorAllocation,
+      investorMintedBefore,
+      investorMintedAfter,
+      rewardMintedBefore,
+      rewardMintedAfter,
+      rewardCap,
+    });
+  } catch (error) {
+    // Legacy tokens only expose the old maxSupply semantics.
+  }
 
   const afterBalances = await Promise.all(contributors.map((contributor) => ctx.token.balanceOf(contributor.walletAddress)));
   const afterContributionCounts = await Promise.all(
@@ -336,6 +363,19 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
     txHash: receipt.hash,
     count: deltaOneEvents.length,
   });
+  if (rewardMintedBefore !== null && rewardMintedAfter !== null) {
+    recorder.assert(`${label} happy path increments rewardMinted by the static reward`, rewardMintedAfter === rewardMintedBefore + staticReward, {
+      rewardMintedBefore,
+      rewardMintedAfter,
+      staticReward,
+    });
+  }
+  if (investorMintedBefore !== null && investorMintedAfter !== null) {
+    recorder.assert(`${label} happy path does not change investorMinted`, investorMintedAfter === investorMintedBefore, {
+      investorMintedBefore,
+      investorMintedAfter,
+    });
+  }
   recorder.assert(`${label} happy path emits EvaluationSubmitted`, evaluationEvents.length === 1, {
     txHash: receipt.hash,
     count: evaluationEvents.length,
@@ -550,10 +590,13 @@ function printSummary(result) {
     return acc;
   }, {});
   console.log("");
-  console.log(`Checks: ${counts.pass || 0} passed, ${counts.warn || 0} warnings, ${counts.fail || 0} failed`);
+  console.log(
+    `Checks: ${counts.pass || 0} passed, ${counts.note || 0} notes, ${counts.warn || 0} warnings, ${counts.fail || 0} failed`
+  );
 
   for (const check of result.checks) {
-    const marker = check.status === "pass" ? "PASS" : check.status === "warn" ? "WARN" : "FAIL";
+    const marker =
+      check.status === "pass" ? "PASS" : check.status === "note" ? "NOTE" : check.status === "warn" ? "WARN" : "FAIL";
     console.log(`${marker} ${check.name}`);
     if (check.status !== "pass" && check.details) {
       console.log(`     ${JSON.stringify(check.details)}`);

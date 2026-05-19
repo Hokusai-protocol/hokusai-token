@@ -8,6 +8,10 @@
     "deploy:sepolia": "npx hardhat run scripts/deploy-sepolia.js --network sepolia",
     "smoke:sepolia": "npx hardhat run scripts/smoke-sepolia-readonly.js --network sepolia",
     "e2e:sepolia:mintrequest": "npx hardhat run scripts/e2e-sepolia-mintrequest.js --network sepolia",
+    "e2e:sepolia:tokens": "npx hardhat run scripts/e2e-sepolia-token-suite.js --network sepolia",
+    "e2e:sepolia:deltaone": "npx hardhat run scripts/e2e-sepolia-deltaone-suite.js --network sepolia",
+    "test:e2e:local": "npx hardhat test test/e2e/local-mainnet-readiness.test.js",
+    "test:property": "npx hardhat test test/property/fuzz-invariants.test.js",
     "test:e2e:sepolia": "SEPOLIA_E2E_READONLY=1 npx hardhat test test/e2e/sepolia-end-to-end.test.js --network sepolia",
     "test-queue": "npx ts-node scripts/test-queue.ts"
   },

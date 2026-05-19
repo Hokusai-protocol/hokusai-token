@@ -101,159 +101,159 @@ describe("Phase 4: Factory Emergency Pause", function () {
         });
 
         it("allows revoking the pauser by setting zero address", async function () {
-            const pool = await createPool("model-alpha");
+            const pool = await createPool("401");
             await factory.setPauser(pauser.address);
-            await factory.connect(pauser).pausePool("model-alpha");
+            await factory.connect(pauser).pausePool("401");
 
             await expect(factory.setPauser(ethers.ZeroAddress))
                 .to.emit(factory, "PauserUpdated")
                 .withArgs(pauser.address, ethers.ZeroAddress);
 
-            await factory.unpausePool("model-alpha");
+            await factory.unpausePool("401");
             await expect(
-                factory.connect(pauser).pausePool("model-alpha")
+                factory.connect(pauser).pausePool("401")
             ).to.be.revertedWith("Not owner or pauser");
         });
     });
 
     describe("pausePool", function () {
         it("pauses a pool and emits the pause event", async function () {
-            const pool = await createPool("model-alpha");
+            const pool = await createPool("401");
 
-            await expect(factory.pausePool("model-alpha"))
+            await expect(factory.pausePool("401"))
                 .to.emit(factory, "PoolPaused")
-                .withArgs("model-alpha", await pool.getAddress(), owner.address);
+                .withArgs("401", await pool.getAddress(), owner.address);
 
             expect(await pool.paused()).to.be.true;
         });
 
         it("allows the pauser role to pause", async function () {
-            const pool = await createPool("model-alpha");
+            const pool = await createPool("401");
             await factory.setPauser(pauser.address);
 
-            await expect(factory.connect(pauser).pausePool("model-alpha"))
+            await expect(factory.connect(pauser).pausePool("401"))
                 .to.emit(factory, "PoolPaused")
-                .withArgs("model-alpha", await pool.getAddress(), pauser.address);
+                .withArgs("401", await pool.getAddress(), pauser.address);
 
             expect(await pool.paused()).to.be.true;
         });
 
         it("rejects unknown pools", async function () {
             await expect(
-                factory.pausePool("unknown-model")
+                factory.pausePool("999")
             ).to.be.revertedWith("Pool not found");
         });
 
         it("bubbles the pool revert on double pause", async function () {
-            await createPool("model-alpha");
-            await factory.pausePool("model-alpha");
+            await createPool("401");
+            await factory.pausePool("401");
 
             await expect(
-                factory.pausePool("model-alpha")
+                factory.pausePool("401")
             ).to.be.revertedWith("Pausable: paused");
         });
 
         it("rejects callers that are neither owner nor pauser", async function () {
-            await createPool("model-alpha");
+            await createPool("401");
 
             await expect(
-                factory.connect(attacker).pausePool("model-alpha")
+                factory.connect(attacker).pausePool("401")
             ).to.be.revertedWith("Not owner or pauser");
         });
     });
 
     describe("unpausePool", function () {
         it("unpauses a pool and emits the unpause event", async function () {
-            const pool = await createPool("model-alpha");
-            await factory.pausePool("model-alpha");
+            const pool = await createPool("401");
+            await factory.pausePool("401");
 
-            await expect(factory.unpausePool("model-alpha"))
+            await expect(factory.unpausePool("401"))
                 .to.emit(factory, "PoolUnpaused")
-                .withArgs("model-alpha", await pool.getAddress(), owner.address);
+                .withArgs("401", await pool.getAddress(), owner.address);
 
             expect(await pool.paused()).to.be.false;
         });
 
         it("rejects unknown pools", async function () {
             await expect(
-                factory.unpausePool("unknown-model")
+                factory.unpausePool("999")
             ).to.be.revertedWith("Pool not found");
         });
 
         it("bubbles the pool revert on unpause when already active", async function () {
-            await createPool("model-alpha");
+            await createPool("401");
 
             await expect(
-                factory.unpausePool("model-alpha")
+                factory.unpausePool("401")
             ).to.be.revertedWith("Pausable: not paused");
         });
 
         it("does not allow the pauser role to unpause", async function () {
-            await createPool("model-alpha");
+            await createPool("401");
             await factory.setPauser(pauser.address);
-            await factory.pausePool("model-alpha");
+            await factory.pausePool("401");
 
             await expect(
-                factory.connect(pauser).unpausePool("model-alpha")
+                factory.connect(pauser).unpausePool("401")
             ).to.be.revertedWith("Ownable: caller is not the owner");
         });
 
         it("rejects non-owner callers", async function () {
-            await createPool("model-alpha");
-            await factory.pausePool("model-alpha");
+            await createPool("401");
+            await factory.pausePool("401");
 
             await expect(
-                factory.connect(attacker).unpausePool("model-alpha")
+                factory.connect(attacker).unpausePool("401")
             ).to.be.revertedWith("Ownable: caller is not the owner");
         });
     });
 
     describe("pausePools", function () {
         it("pauses each pool in the list and emits one event per newly paused pool", async function () {
-            const pools = await createPools(["m1", "m2", "m3"]);
+            const pools = await createPools(["501", "502", "503"]);
 
-            const receipt = await (await factory.pausePools(["m1", "m2", "m3"])).wait();
+            const receipt = await (await factory.pausePools(["501", "502", "503"])).wait();
             const events = getEventArgs(receipt, "PoolPaused");
 
             expect(events).to.have.length(3);
-            expect(events.map(event => event.modelId)).to.deep.equal(["m1", "m2", "m3"]);
+            expect(events.map(event => event.modelId)).to.deep.equal(["501", "502", "503"]);
             expect(events.map(event => event.pool)).to.deep.equal([
-                await pools.m1.getAddress(),
-                await pools.m2.getAddress(),
-                await pools.m3.getAddress(),
+                await pools["501"].getAddress(),
+                await pools["502"].getAddress(),
+                await pools["503"].getAddress(),
             ]);
-            expect(await pools.m1.paused()).to.be.true;
-            expect(await pools.m2.paused()).to.be.true;
-            expect(await pools.m3.paused()).to.be.true;
+            expect(await pools["501"].paused()).to.be.true;
+            expect(await pools["502"].paused()).to.be.true;
+            expect(await pools["503"].paused()).to.be.true;
         });
 
         it("skips pools that are already paused", async function () {
-            const pools = await createPools(["m1", "m2", "m3"]);
-            await factory.pausePool("m2");
+            const pools = await createPools(["501", "502", "503"]);
+            await factory.pausePool("502");
 
-            const receipt = await (await factory.pausePools(["m1", "m2", "m3"])).wait();
+            const receipt = await (await factory.pausePools(["501", "502", "503"])).wait();
             const events = getEventArgs(receipt, "PoolPaused");
 
             expect(events).to.have.length(2);
-            expect(events.map(event => event.modelId)).to.deep.equal(["m1", "m3"]);
-            expect(await pools.m2.paused()).to.be.true;
+            expect(events.map(event => event.modelId)).to.deep.equal(["501", "503"]);
+            expect(await pools["502"].paused()).to.be.true;
         });
 
         it("reverts atomically when any model is unknown", async function () {
-            const pools = await createPools(["m1", "m2"]);
+            const pools = await createPools(["501", "502"]);
 
             await expect(
-                factory.pausePools(["m1", "missing", "m2"])
+                factory.pausePools(["501", "999", "502"])
             ).to.be.revertedWith("Pool not found");
 
-            expect(await pools.m1.paused()).to.be.false;
-            expect(await pools.m2.paused()).to.be.false;
+            expect(await pools["501"].paused()).to.be.false;
+            expect(await pools["502"].paused()).to.be.false;
         });
 
         it("rejects oversized batches", async function () {
-            await createPool("m1");
+            await createPool("501");
             await expect(
-                factory.pausePools(Array(51).fill("m1"))
+                factory.pausePools(Array(51).fill("501"))
             ).to.be.revertedWithCustomError(factory, "ArrayTooLarge");
         });
 
@@ -264,67 +264,67 @@ describe("Phase 4: Factory Emergency Pause", function () {
         });
 
         it("allows the pauser role to pause a batch", async function () {
-            const pools = await createPools(["m1", "m2"]);
+            const pools = await createPools(["501", "502"]);
             await factory.setPauser(pauser.address);
 
-            await factory.connect(pauser).pausePools(["m1", "m2"]);
+            await factory.connect(pauser).pausePools(["501", "502"]);
 
-            expect(await pools.m1.paused()).to.be.true;
-            expect(await pools.m2.paused()).to.be.true;
+            expect(await pools["501"].paused()).to.be.true;
+            expect(await pools["502"].paused()).to.be.true;
         });
 
         it("rejects non-owner non-pauser callers", async function () {
-            await createPools(["m1", "m2"]);
+            await createPools(["501", "502"]);
 
             await expect(
-                factory.connect(attacker).pausePools(["m1", "m2"])
+                factory.connect(attacker).pausePools(["501", "502"])
             ).to.be.revertedWith("Not owner or pauser");
         });
     });
 
     describe("unpausePools", function () {
         it("unpauses each paused pool in the list and emits one event per newly unpaused pool", async function () {
-            const pools = await createPools(["m1", "m2", "m3"]);
-            await factory.pausePools(["m1", "m2", "m3"]);
+            const pools = await createPools(["501", "502", "503"]);
+            await factory.pausePools(["501", "502", "503"]);
 
-            const receipt = await (await factory.unpausePools(["m1", "m2", "m3"])).wait();
+            const receipt = await (await factory.unpausePools(["501", "502", "503"])).wait();
             const events = getEventArgs(receipt, "PoolUnpaused");
 
             expect(events).to.have.length(3);
-            expect(events.map(event => event.modelId)).to.deep.equal(["m1", "m2", "m3"]);
-            expect(await pools.m1.paused()).to.be.false;
-            expect(await pools.m2.paused()).to.be.false;
-            expect(await pools.m3.paused()).to.be.false;
+            expect(events.map(event => event.modelId)).to.deep.equal(["501", "502", "503"]);
+            expect(await pools["501"].paused()).to.be.false;
+            expect(await pools["502"].paused()).to.be.false;
+            expect(await pools["503"].paused()).to.be.false;
         });
 
         it("skips pools that are already active", async function () {
-            const pools = await createPools(["m1", "m2", "m3"]);
-            await factory.pausePools(["m1", "m2"]);
+            const pools = await createPools(["501", "502", "503"]);
+            await factory.pausePools(["501", "502"]);
 
-            const receipt = await (await factory.unpausePools(["m1", "m2", "m3"])).wait();
+            const receipt = await (await factory.unpausePools(["501", "502", "503"])).wait();
             const events = getEventArgs(receipt, "PoolUnpaused");
 
             expect(events).to.have.length(2);
-            expect(events.map(event => event.modelId)).to.deep.equal(["m1", "m2"]);
-            expect(await pools.m3.paused()).to.be.false;
+            expect(events.map(event => event.modelId)).to.deep.equal(["501", "502"]);
+            expect(await pools["503"].paused()).to.be.false;
         });
 
         it("reverts atomically when any model is unknown", async function () {
-            const pools = await createPools(["m1", "m2"]);
-            await factory.pausePools(["m1", "m2"]);
+            const pools = await createPools(["501", "502"]);
+            await factory.pausePools(["501", "502"]);
 
             await expect(
-                factory.unpausePools(["m1", "missing", "m2"])
+                factory.unpausePools(["501", "999", "502"])
             ).to.be.revertedWith("Pool not found");
 
-            expect(await pools.m1.paused()).to.be.true;
-            expect(await pools.m2.paused()).to.be.true;
+            expect(await pools["501"].paused()).to.be.true;
+            expect(await pools["502"].paused()).to.be.true;
         });
 
         it("rejects oversized batches", async function () {
-            await createPool("m1");
+            await createPool("501");
             await expect(
-                factory.unpausePools(Array(51).fill("m1"))
+                factory.unpausePools(Array(51).fill("501"))
             ).to.be.revertedWithCustomError(factory, "ArrayTooLarge");
         });
 
@@ -335,48 +335,48 @@ describe("Phase 4: Factory Emergency Pause", function () {
         });
 
         it("does not allow the pauser role to unpause a batch", async function () {
-            await createPools(["m1", "m2"]);
+            await createPools(["501", "502"]);
             await factory.setPauser(pauser.address);
-            await factory.pausePools(["m1", "m2"]);
+            await factory.pausePools(["501", "502"]);
 
             await expect(
-                factory.connect(pauser).unpausePools(["m1", "m2"])
+                factory.connect(pauser).unpausePools(["501", "502"])
             ).to.be.revertedWith("Ownable: caller is not the owner");
         });
     });
 
     describe("pauseAllPools", function () {
         it("pauses pools across paginated calls", async function () {
-            const pools = await createPools(["m1", "m2", "m3", "m4", "m5"]);
+            const pools = await createPools(["501", "502", "503", "504", "505"]);
 
             const firstReceipt = await (await factory.pauseAllPools(0, 3)).wait();
             const secondReceipt = await (await factory.pauseAllPools(3, 3)).wait();
 
             expect(getEventArgs(firstReceipt, "PoolPaused")).to.have.length(3);
             expect(getEventArgs(secondReceipt, "PoolPaused")).to.have.length(2);
-            expect(await pools.m1.paused()).to.be.true;
-            expect(await pools.m2.paused()).to.be.true;
-            expect(await pools.m3.paused()).to.be.true;
-            expect(await pools.m4.paused()).to.be.true;
-            expect(await pools.m5.paused()).to.be.true;
+            expect(await pools["501"].paused()).to.be.true;
+            expect(await pools["502"].paused()).to.be.true;
+            expect(await pools["503"].paused()).to.be.true;
+            expect(await pools["504"].paused()).to.be.true;
+            expect(await pools["505"].paused()).to.be.true;
         });
 
         it("returns without reverting when start is past the end", async function () {
-            await createPools(["m1", "m2", "m3", "m4", "m5"]);
+            await createPools(["501", "502", "503", "504", "505"]);
 
             const receipt = await (await factory.pauseAllPools(10, 3)).wait();
             expect(getEventArgs(receipt, "PoolPaused")).to.have.length(0);
         });
 
         it("skips pools that are already paused within the page", async function () {
-            await createPools(["m1", "m2", "m3"]);
-            await factory.pausePool("m2");
+            await createPools(["501", "502", "503"]);
+            await factory.pausePool("502");
 
             const receipt = await (await factory.pauseAllPools(0, 3)).wait();
             const events = getEventArgs(receipt, "PoolPaused");
 
             expect(events).to.have.length(2);
-            expect(events.map(event => event.modelId)).to.deep.equal(["m1", "m3"]);
+            expect(events.map(event => event.modelId)).to.deep.equal(["501", "503"]);
         });
 
         it("rejects limits above the batch maximum", async function () {
@@ -386,17 +386,17 @@ describe("Phase 4: Factory Emergency Pause", function () {
         });
 
         it("allows the pauser role to pause a page", async function () {
-            const pools = await createPools(["m1", "m2"]);
+            const pools = await createPools(["501", "502"]);
             await factory.setPauser(pauser.address);
 
             await factory.connect(pauser).pauseAllPools(0, 2);
 
-            expect(await pools.m1.paused()).to.be.true;
-            expect(await pools.m2.paused()).to.be.true;
+            expect(await pools["501"].paused()).to.be.true;
+            expect(await pools["502"].paused()).to.be.true;
         });
 
         it("rejects non-owner non-pauser callers", async function () {
-            await createPools(["m1", "m2"]);
+            await createPools(["501", "502"]);
 
             await expect(
                 factory.connect(attacker).pauseAllPools(0, 2)
@@ -406,35 +406,35 @@ describe("Phase 4: Factory Emergency Pause", function () {
 
     describe("access control and ownership transfer", function () {
         it("keeps pool states unchanged for unauthorized callers across all new entrypoints", async function () {
-            const pools = await createPools(["m1", "m2"]);
+            const pools = await createPools(["501", "502"]);
             await factory.setPauser(pauser.address);
 
             await expect(
-                factory.connect(attacker).pausePool("m1")
+                factory.connect(attacker).pausePool("501")
             ).to.be.revertedWith("Not owner or pauser");
             await expect(
-                factory.connect(attacker).pausePools(["m1", "m2"])
+                factory.connect(attacker).pausePools(["501", "502"])
             ).to.be.revertedWith("Not owner or pauser");
             await expect(
                 factory.connect(attacker).pauseAllPools(0, 2)
             ).to.be.revertedWith("Not owner or pauser");
             await expect(
-                factory.connect(attacker).unpausePool("m1")
+                factory.connect(attacker).unpausePool("501")
             ).to.be.revertedWith("Ownable: caller is not the owner");
             await expect(
-                factory.connect(attacker).unpausePools(["m1", "m2"])
+                factory.connect(attacker).unpausePools(["501", "502"])
             ).to.be.revertedWith("Ownable: caller is not the owner");
             await expect(
                 factory.connect(attacker).setPauser(attacker.address)
             ).to.be.revertedWith("Ownable: caller is not the owner");
 
-            expect(await pools.m1.paused()).to.be.false;
-            expect(await pools.m2.paused()).to.be.false;
+            expect(await pools["501"].paused()).to.be.false;
+            expect(await pools["502"].paused()).to.be.false;
             expect(await factory.pauser()).to.equal(pauser.address);
         });
 
         it("moves owner-only permissions to the new owner after ownership transfer", async function () {
-            const pool = await createPool("model-alpha");
+            const pool = await createPool("401");
             await factory.transferOwnership(newOwner.address);
 
             await expect(
@@ -442,13 +442,13 @@ describe("Phase 4: Factory Emergency Pause", function () {
             ).to.be.revertedWith("Ownable: caller is not the owner");
 
             await factory.connect(newOwner).setPauser(pauser.address);
-            await factory.connect(pauser).pausePool("model-alpha");
+            await factory.connect(pauser).pausePool("401");
 
             await expect(
-                factory.unpausePool("model-alpha")
+                factory.unpausePool("401")
             ).to.be.revertedWith("Ownable: caller is not the owner");
 
-            await factory.connect(newOwner).unpausePool("model-alpha");
+            await factory.connect(newOwner).unpausePool("401");
             expect(await pool.paused()).to.be.false;
         });
     });

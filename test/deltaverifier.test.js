@@ -59,22 +59,6 @@ describe("DeltaVerifier", function () {
     const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
     modelRegistry = await ModelRegistry.deploy();
 
-    // Deploy HokusaiParams
-    const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
-    hokusaiParams = await HokusaiParams.deploy(
-      1000, // tokensPerDeltaOne
-      8000, // infrastructureAccrualBps (80%)
-      0, // initialOraclePricePerThousandUsd
-      ethers.ZeroHash,
-      "",
-      owner.address,
-      { enabled: false, immediateUnlockBps: 10000, vestingDurationSeconds: 0, cliffSeconds: 0 }
-    );
-
-    // Deploy HokusaiToken
-    const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, hokusaiParams.target, parseEther("10000"), 0, 0, 0, ZeroAddress);
-
     // Deploy TokenManager
     const TokenManager = await ethers.getContractFactory("TokenManager");
     tokenManager = await TokenManager.deploy(modelRegistry.target);
@@ -95,9 +79,11 @@ describe("DeltaVerifier", function () {
     );
 
     // Setup relationships
-    await hokusaiToken.setController(tokenManager.target);
     await deployTestToken(tokenManager, MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"), owner.address);
-    await modelRegistry.registerModel(MODEL_ID, hokusaiToken.target, "accuracy");
+    const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+    hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
+    hokusaiParams = await ethers.getContractAt("HokusaiParams", await hokusaiToken.params());
+    await modelRegistry.registerModel(MODEL_ID, tokenAddress, "accuracy");
     await tokenManager.setDeltaVerifier(deltaVerifier.target);
 
     // Grant RECORDER_ROLE to DeltaVerifier

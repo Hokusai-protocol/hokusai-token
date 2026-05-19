@@ -10,9 +10,9 @@ describe("Phase 4: Factory & Registry Integration", function () {
     let mockUSDC;
     let owner, treasury, deployer, user1;
 
-    const MODEL_ID_1 = "model-alpha";
-    const MODEL_ID_2 = "model-beta";
-    const MODEL_ID_3 = "model-gamma";
+    const MODEL_ID_1 = "401";
+    const MODEL_ID_2 = "402";
+    const MODEL_ID_3 = "403";
 
     beforeEach(async function () {
         [owner, treasury, deployer, user1] = await ethers.getSigners();
@@ -171,7 +171,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should revert if model not registered in ModelRegistry", async function () {
             await expect(
-                factory.createPool("non-existent-model", token1Address)
+                factory.createPool("999", token1Address)
             ).to.be.revertedWith("Model not registered in ModelRegistry");
         });
 
@@ -264,14 +264,14 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should isolate pools (different parameters)", async function () {
             // Create pool with different parameters
-            const token4Address = await deployTestTokenAddress(tokenManager, "model-delta", "Delta Token", "DELTA", parseEther("1"), owner.address);
-            await deployTestToken(tokenManager, "model-delta", "Delta Token", "DELTA", parseEther("1"), owner.address);
+            const token4Address = await deployTestTokenAddress(tokenManager, "404", "Delta Token", "DELTA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, "404", "Delta Token", "DELTA", parseEther("1"), owner.address);
 
             // Register model in ModelRegistry
-            await modelRegistry.registerStringModel("model-delta", token4Address, "Test metric");
+            await modelRegistry.registerStringModel("404", token4Address, "Test metric");
 
             const customPool = await factory.createPoolWithParams.staticCall(
-                "model-delta",
+                "404",
                 token4Address,
                 200000, // 20% CRR
                 50, // 0.5% trade fee
@@ -280,7 +280,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 parseUnits("0.005", 6) // Custom price
             );
             await factory.createPoolWithParams(
-                "model-delta",
+                "404",
                 token4Address,
                 200000,
                 50,
@@ -411,7 +411,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should revert getPoolInfo for non-existent pool", async function () {
             await expect(
-                factory.getPoolInfo("non-existent-model")
+                factory.getPoolInfo("999")
             ).to.be.revertedWith("Pool not found");
         });
     });

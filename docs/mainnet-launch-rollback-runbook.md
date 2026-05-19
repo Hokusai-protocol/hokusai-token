@@ -4,6 +4,8 @@ This runbook is the launch-day rollback companion to [Mainnet Custody And Role R
 
 Ethereum deployments cannot be deleted or reverted after confirmation. In this document, "rollback" means stopping user impact, preserving evidence, returning operational control to a known safe state, and deciding whether to continue with the deployed addresses, pause them, replace them, or abandon them.
 
+Canonical `ModelRegistry.registerModel(uint256, ...)` writes are additive. Reverting code or launch sequencing does not remove those registrations, and that is expected during rollback handling.
+
 ## Rollback Authority
 
 Do not improvise during launch. Before mainnet deployment starts, assign these names and confirm they are reachable.

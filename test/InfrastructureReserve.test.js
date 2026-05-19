@@ -19,8 +19,8 @@ describe("InfrastructureReserve", function () {
   let addrs;
 
   const INITIAL_USDC = ethers.parseUnits("1000000", 6); // 1M USDC
-  const MODEL_ID = "test-model-v1";
-  const MODEL_ID_2 = "test-model-v2";
+  const MODEL_ID = "601";
+  const MODEL_ID_2 = "602";
 
   beforeEach(async function () {
     [owner, depositor, payer, treasury, provider1, provider2, user1, ...addrs] = await ethers.getSigners();

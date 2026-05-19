@@ -14,6 +14,8 @@ import "./interfaces/IDataContributionRegistry.sol";
 contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
     bytes32 public constant SUBMITTER_ROLE = keccak256("SUBMITTER_ROLE");
 
+    error ModelTokenMismatch(uint256 modelId, address registryToken, address tokenManagerToken);
+
     struct Metrics {
         uint256 accuracy;
         uint256 precision;
@@ -172,6 +174,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
+        _assertCanonicalTokenMatch(modelId);
         
         return _processEvaluation(modelId, data);
     }
@@ -183,6 +186,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
+        _assertCanonicalTokenMatch(modelId);
         
         // Validate wallet address
         ValidationLib.requireNonZeroAddress(data.contributorInfo.walletAddress, "wallet address");
@@ -212,6 +216,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
+        _assertCanonicalTokenMatch(modelId);
         (address[] memory contributorAddresses, uint256[] memory rewardAmounts) = _validateContributors(contributors);
         require(data.totalSamples > 0, "Total samples must be positive");
 
@@ -284,6 +289,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
     ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
+        _assertCanonicalTokenMatch(modelId);
         require(payload.anchors.idempotencyKey != bytes32(0), "Idempotency key cannot be empty");
         require(!processedIdempotencyKeys[payload.anchors.idempotencyKey], "Idempotency key already processed");
         require(bytes(payload.pipelineRunId).length > 0, "Pipeline run ID cannot be empty");
@@ -460,9 +466,11 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         uint256 contributorWeight,
         uint256 /* contributedSamples */
     ) public view returns (uint256) {
-        // Get token address from TokenManager
-        address tokenAddress = tokenManager.getTokenAddress(modelId);
-        require(tokenAddress != address(0), "Token not found for model");
+        address tokenAddress = modelRegistry.getStringToken(modelId);
+        address tokenManagerAddress = tokenManager.getTokenAddress(modelId);
+        if (tokenManagerAddress != address(0) && tokenManagerAddress != tokenAddress) {
+            revert ModelTokenMismatch(_stringToUint(modelId), tokenAddress, tokenManagerAddress);
+        }
 
         // Get the token's params contract
         HokusaiToken token = HokusaiToken(tokenAddress);
@@ -700,6 +708,27 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
             rewardAmounts,
             pipelineRunId
         );
+    }
+
+    function _assertCanonicalTokenMatch(uint256 modelId) private view {
+        address registryToken = modelRegistry.getTokenAddress(modelId);
+        string memory modelIdStr = _uintToString(modelId);
+        address tokenManagerToken = tokenManager.getTokenAddress(modelIdStr);
+
+        if (tokenManagerToken != address(0) && tokenManagerToken != registryToken) {
+            revert ModelTokenMismatch(modelId, registryToken, tokenManagerToken);
+        }
+    }
+
+    function _stringToUint(string memory value) private pure returns (uint256 parsed) {
+        bytes memory buffer = bytes(value);
+        require(buffer.length > 0, "Model not registered");
+
+        for (uint256 i = 0; i < buffer.length; i++) {
+            uint8 charCode = uint8(buffer[i]);
+            require(charCode >= 48 && charCode <= 57, "Model not registered");
+            parsed = (parsed * 10) + (charCode - 48);
+        }
     }
 
     /**

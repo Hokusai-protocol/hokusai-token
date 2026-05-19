@@ -8,7 +8,7 @@ describe("Phase 4: Reentrancy Attack Security", function () {
     let owner, treasury, attacker;
 
     // AMM Parameters
-    const modelId = "reentrancy-test-model";
+    const modelId = "1208";
     const INITIAL_RESERVE = parseUnits("10000", 6); // $10k USDC
     const INITIAL_SUPPLY = parseUnits("100000", 18); // 100k tokens
     const CRR = 100000; // 10% reserve ratio

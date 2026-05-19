@@ -12,7 +12,7 @@ describe("TokenManager - Allocation Split", function () {
   let investor;
   let unauthorized;
 
-  const MODEL_ID = "test-model-1";
+  const MODEL_ID = "1101";
   const MODEL_SUPPLIER_ALLOCATION = parseEther("2500000"); // 2.5M tokens
   const INVESTOR_ALLOCATION = parseEther("10000000"); // 10M tokens (max cap, not immediately minted)
   const MAX_SUPPLY = MODEL_SUPPLIER_ALLOCATION + INVESTOR_ALLOCATION; // 12.5M tokens

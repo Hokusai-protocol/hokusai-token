@@ -11,7 +11,7 @@ describe("Phase 2: Power Function Security Analysis", function () {
   let modelRegistry;
   let owner, treasury, attacker;
 
-  const modelId = "security-test-model";
+  const modelId = "1206";
   const CRR = 100000; // 10%
   const TRADE_FEE = 30;
   const IBR_DURATION = 7 * 24 * 60 * 60;

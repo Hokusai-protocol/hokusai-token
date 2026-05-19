@@ -1,6 +1,7 @@
 const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
+const { validateNumericModelId } = require('./lib/launch-tokens');
 
 /**
  * Comprehensive Testnet Deployment Script V2 (with Infrastructure Cost Accrual)
@@ -353,7 +354,7 @@ async function main() {
 
       // Register model in ModelRegistry
       console.log(`   📋 Registering model in ModelRegistry...`);
-      const registerModelTx = await modelRegistry.registerStringModel(config.modelId, tokenAddress, "accuracy");
+      const registerModelTx = await modelRegistry.registerModel(validateNumericModelId(config.modelId), tokenAddress, "accuracy");
       await registerModelTx.wait();
       console.log(`   ✅ Model registered: ${config.modelId}`);
 

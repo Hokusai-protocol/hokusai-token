@@ -15,8 +15,8 @@ describe("FundingVault", function () {
   let user2;
   let user3;
 
-  const MODEL_ID_1 = "model-1";
-  const MODEL_ID_2 = "model-2";
+  const MODEL_ID_1 = "901";
+  const MODEL_ID_2 = "902";
   const USDC_DECIMALS = 6;
 
   function usd(amount) {

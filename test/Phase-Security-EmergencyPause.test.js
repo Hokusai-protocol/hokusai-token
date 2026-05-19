@@ -8,7 +8,7 @@ describe("Phase 8: Emergency Pause & Safety Mechanisms", function () {
     let owner, treasury, user1, user2, attacker;
 
     // AMM Parameters
-    const modelId = "emergency-pause-test-model";
+    const modelId = "1209";
     const INITIAL_RESERVE = parseUnits("10000", 6); // $10k USDC
     const INITIAL_SUPPLY = parseUnits("100000", 18); // 100k tokens
     const CRR = 100000; // 10% reserve ratio

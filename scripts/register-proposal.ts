@@ -1,4 +1,5 @@
 import { ethers } from "hardhat";
+import { validateNumericModelId } from "./lib/launch-tokens";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 /**
@@ -111,8 +112,8 @@ async function registerProposal(
     console.log(`Token address: ${tokenAddress}`);
 
     console.log("\nStep 2: Registering model in ModelRegistry...");
-    const registerTx = await modelRegistry.registerStringModel(
-      config.modelId,
+    const registerTx = await modelRegistry.registerModel(
+      validateNumericModelId(config.modelId),
       tokenAddress,
       performanceMetric
     );

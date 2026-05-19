@@ -378,6 +378,8 @@ describe("Full Integration: Params Module", function () {
         parseEther("1000000"),
         initialParams
       );
+      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_STR);
+      await modelRegistry.registerModel(MODEL_ID_UINT, tokenAddress, "f1");
 
       // Both old and new calculation methods should be available
       const oldReward = await deltaVerifier.calculateReward(500, 10000, 0);

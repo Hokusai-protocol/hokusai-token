@@ -4,7 +4,12 @@ const fs = require("fs");
 const path = require("path");
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-const MODEL_ID = process.env.E2E_MODEL_ID || "27";
+const MODEL_MAPPINGS = (process.env.E2E_TOKEN_MODELS || "HMESS:28,HLEAD:27,HTASK:30")
+  .split(",")
+  .map((entry) => {
+    const [symbol, modelId] = entry.split(":").map((part) => part.trim());
+    return { symbol, modelId };
+  });
 const DEPLOYMENT_FILE = process.env.E2E_DEPLOYMENT_FILE || "deployments/sepolia-latest.json";
 const RUN_READ_ONLY = process.env.SEPOLIA_E2E === "1" || process.env.SEPOLIA_E2E_READONLY === "1";
 
@@ -99,55 +104,55 @@ describeSepolia("Sepolia end-to-end launch preconditions", function () {
     ammFactory = new ethers.Contract(contracts.HokusaiAMMFactory, ABIS.ammFactory, signer);
   });
 
-  it("has model/token registered in every path required by DeltaVerifier and TokenManager", async function () {
-    const numericRegistered = await modelRegistry.isRegistered(MODEL_ID);
-    const numericActive = await modelRegistry.isModelActive(MODEL_ID);
-    const stringRegistered = await modelRegistry.isStringRegistered(MODEL_ID);
-    const stringActive = await modelRegistry.isStringActive(MODEL_ID);
-    const tokenManagerHasToken = await tokenManager.hasToken(MODEL_ID);
+  MODEL_MAPPINGS.forEach(({ symbol: expectedSymbol, modelId }) => {
+    it(`keeps canonical registration aligned for ${expectedSymbol} / ${modelId}`, async function () {
+      const numericRegistered = await modelRegistry.isRegistered(modelId);
+      const numericActive = await modelRegistry.isModelActive(modelId);
+      const stringRegistered = await modelRegistry.isStringRegistered(modelId);
+      const stringActive = await modelRegistry.isStringActive(modelId);
+      const tokenManagerHasToken = await tokenManager.hasToken(modelId);
 
-    expect(numericRegistered, "numeric ModelRegistry registration").to.equal(true);
-    expect(numericActive, "numeric ModelRegistry active flag").to.equal(true);
-    expect(stringRegistered, "string ModelRegistry registration").to.equal(true);
-    expect(stringActive, "string ModelRegistry active flag").to.equal(true);
-    expect(tokenManagerHasToken, "TokenManager token mapping").to.equal(true);
+      expect(numericRegistered, "numeric ModelRegistry registration").to.equal(true);
+      expect(numericActive, "numeric ModelRegistry active flag").to.equal(true);
+      expect(stringRegistered, "string ModelRegistry registration").to.equal(true);
+      expect(stringActive, "string ModelRegistry active flag").to.equal(true);
+      expect(tokenManagerHasToken, "TokenManager token mapping").to.equal(true);
 
-    const numericToken = await modelRegistry.getTokenAddress(MODEL_ID);
-    const stringToken = await modelRegistry.getStringToken(MODEL_ID);
-    const managerToken = await tokenManager.getTokenAddress(MODEL_ID);
+      const numericToken = await modelRegistry.getTokenAddress(modelId);
+      const stringToken = await modelRegistry.getStringToken(modelId);
+      const managerToken = await tokenManager.getTokenAddress(modelId);
 
-    expect(numericToken).to.not.equal(ZERO_ADDRESS);
-    expect(ethers.getAddress(numericToken)).to.equal(ethers.getAddress(managerToken));
-    expect(ethers.getAddress(stringToken)).to.equal(ethers.getAddress(managerToken));
-  });
+      expect(numericToken).to.not.equal(ZERO_ADDRESS);
+      expect(ethers.getAddress(numericToken)).to.equal(ethers.getAddress(managerToken));
+      expect(ethers.getAddress(stringToken)).to.equal(ethers.getAddress(managerToken));
+    });
 
-  it("accepts the current MintRequest calldata shape in a static call", async function () {
-    const fixture = buildMintRequestFixture(MODEL_ID, signer.address);
-    const processed = await deltaVerifier.processedIdempotencyKeys(fixture.idempotencyKey);
-    expect(processed).to.equal(false);
+    it(`accepts MintRequest static-call shape for ${expectedSymbol} / ${modelId}`, async function () {
+      const fixture = buildMintRequestFixture(modelId, signer.address);
+      const processed = await deltaVerifier.processedIdempotencyKeys(fixture.idempotencyKey);
+      expect(processed).to.equal(false);
 
-    const reward = await deltaVerifier.submitMintRequest.staticCall(
-      fixture.modelId,
-      fixture.payload,
-      fixture.contributors,
-    );
-    expect(reward).to.be.greaterThan(0n);
-  });
+      const reward = await deltaVerifier.submitMintRequest.staticCall(
+        fixture.modelId,
+        fixture.payload,
+        fixture.contributors,
+      );
+      expect(reward).to.be.greaterThan(0n);
+    });
 
-  it("has an AMM pool for the model once the full token launch flow is ready", async function () {
-    const pool = await ammFactory.getPool(MODEL_ID);
-    expect(pool, "AMM pool for model").to.not.equal(ZERO_ADDRESS);
+    it(`has an AMM pool and live token for ${expectedSymbol} / ${modelId}`, async function () {
+      const pool = await ammFactory.getPool(modelId);
+      expect(pool, "AMM pool for model").to.not.equal(ZERO_ADDRESS);
 
-    const poolCount = await ammFactory.poolCount();
-    expect(poolCount).to.be.greaterThan(0n);
-  });
+      const poolCount = await ammFactory.poolCount();
+      expect(poolCount).to.be.greaterThan(0n);
 
-  it("exposes a live ERC20 token with supply", async function () {
-    const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
-    const token = new ethers.Contract(tokenAddress, ABIS.erc20, signer);
-    const [symbol, totalSupply] = await Promise.all([token.symbol(), token.totalSupply()]);
+      const tokenAddress = await tokenManager.getTokenAddress(modelId);
+      const token = new ethers.Contract(tokenAddress, ABIS.erc20, signer);
+      const [symbol, totalSupply] = await Promise.all([token.symbol(), token.totalSupply()]);
 
-    expect(symbol).to.be.a("string").and.not.equal("");
-    expect(totalSupply).to.be.greaterThan(0n);
+      expect(symbol).to.be.a("string").and.not.equal("");
+      expect(totalSupply).to.be.greaterThan(0n);
+    });
   });
 });

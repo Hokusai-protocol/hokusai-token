@@ -26,6 +26,7 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
   npm run deploy:sepolia
   ```
 - [ ] `deployments/sepolia-latest.json` created or updated
+- [ ] [docs/canonical-model-registration.md](../docs/canonical-model-registration.md) reviewed
 - [ ] Artifact contains `contracts._tokenManagerImpl = "DeployableTokenManager"`
 - [ ] Artifact contains `TokenDeploymentFactory`
 - [ ] Artifact contains `RewardVestingVault`
@@ -56,8 +57,11 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
 - [ ] Params address recorded
 - [ ] Pool address recorded
 - [ ] `ModelRegistry.isStringRegistered(modelId)` returns `true`
+- [ ] `ModelRegistry.isRegistered(uint256(modelId))` returns `true`
 - [ ] `TokenManager.getTokenAddress(modelId)` returns token address
+- [ ] `ModelRegistry.getTokenAddress(uint256(modelId))` returns the same token address
 - [ ] `HokusaiAMMFactory.getPool(modelId)` returns pool address
+- [ ] `npm run smoke:sepolia` verifies canonical registration for models `27`, `28`, and `30`
 - [ ] Pool reserve/token balances match launch config
 - [ ] `pool.paused()` returns `false`
 - [ ] `pool.owner()` recorded

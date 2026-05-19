@@ -100,7 +100,6 @@ describe("Local mainnet readiness end-to-end suite", function () {
     token = HokusaiToken.attach(tokenAddress);
 
     await modelRegistry.registerModel(MODEL_ID, tokenAddress, "accuracy");
-    await modelRegistry.registerStringModel(MODEL_ID_STR, tokenAddress, "accuracy");
 
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     mockUSDC = await MockUSDC.deploy();
@@ -388,20 +387,20 @@ describe("Local mainnet readiness end-to-end suite", function () {
     await factory.unpausePool(MODEL_ID_STR);
 
     await expect(
-      factory.createPoolWithParams("bad-model", await token.getAddress(), 200000, 30, IBR_SECONDS, FLAT_CURVE_THRESHOLD, FLAT_CURVE_PRICE)
+      factory.createPoolWithParams("999", await token.getAddress(), 200000, 30, IBR_SECONDS, FLAT_CURVE_THRESHOLD, FLAT_CURVE_PRICE)
     ).to.be.revertedWith("Model not registered in ModelRegistry");
 
     const otherTokenAddress = await tokenManager.deployTokenWithParams.staticCall(
-      "other-model",
+      "2",
       "Other Token",
       "OTHER",
       parseEther("1000000"),
       buildInitialParams(owner.address),
     );
-    await tokenManager.deployTokenWithParams("other-model", "Other Token", "OTHER", parseEther("1000000"), buildInitialParams(owner.address));
-    await modelRegistry.registerStringModel("other-model", otherTokenAddress, "accuracy");
+    await tokenManager.deployTokenWithParams("2", "Other Token", "OTHER", parseEther("1000000"), buildInitialParams(owner.address));
+    await modelRegistry.registerModel(2, otherTokenAddress, "accuracy");
     await expect(
-      factory.createPoolWithParams("other-model", await token.getAddress(), 200000, 30, IBR_SECONDS, FLAT_CURVE_THRESHOLD, FLAT_CURVE_PRICE)
+      factory.createPoolWithParams("2", await token.getAddress(), 200000, 30, IBR_SECONDS, FLAT_CURVE_THRESHOLD, FLAT_CURVE_PRICE)
     ).to.be.revertedWith("Token address mismatch");
   });
 

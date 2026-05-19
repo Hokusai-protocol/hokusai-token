@@ -282,7 +282,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         // Burn tokens via TokenManager (requires user approval to this contract)
         IERC20(hokusaiToken).transferFrom(msg.sender, address(this), tokensIn);
         IERC20(hokusaiToken).approve(address(tokenManager), tokensIn);
-        tokenManager.burnTokens(modelId, address(this), tokensIn);
+        tokenManager.burnInvestorTokens(modelId, address(this), tokensIn);
 
         // Transfer USDC to seller (after fee)
         require(

@@ -128,6 +128,7 @@ describe("DeployableTokenManager Vesting", function () {
 
     expect(await token.balanceOf(contributor.address)).to.equal(immediateAmount);
     expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(vestedAmount);
+    expect(await token.investorMinted()).to.equal(0);
     expect(await vestingVault.getSchedulesByBeneficiary(contributor.address)).to.deep.equal([0n]);
   });
 
@@ -236,6 +237,7 @@ describe("DeployableTokenManager Vesting", function () {
     await tokenManager.mintReward("no-vesting", contributor.address, rewardAmount);
 
     expect(await token.balanceOf(contributor.address)).to.equal(rewardAmount);
+    expect(await token.investorMinted()).to.equal(0);
     expect(await vestingVault.getSchedulesByBeneficiary(contributor.address)).to.deep.equal([]);
   });
 

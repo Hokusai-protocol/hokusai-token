@@ -70,11 +70,17 @@ async function verifyDeployedToken({ tokenManager, tokenAddress, expected }) {
   const govRole = await params.GOV_ROLE();
   const maxSupply = await token.maxSupply();
   const supplierAllocation = await token.modelSupplierAllocation();
+  let investorAllocation;
+  try {
+    investorAllocation = await token.investorAllocation();
+  } catch (error) {
+    investorAllocation = maxSupply - supplierAllocation;
+  }
 
   const checks = [
     ["supplierRecipient", await token.modelSupplierRecipient(), ethers.getAddress(expected.supplierRecipient)],
     ["supplierAllocation", supplierAllocation, expected.supplierWei],
-    ["investorAllocation", maxSupply - supplierAllocation, expected.investorWei],
+    ["investorAllocation", investorAllocation, expected.investorWei],
     ["maxSupply", maxSupply, expected.maxSupplyWei],
     ["modelSupplierDistributed", await token.modelSupplierDistributed(), false],
     ["tokensPerDeltaOne", await params.tokensPerDeltaOne(), expected.tokensPerDeltaOneWei],

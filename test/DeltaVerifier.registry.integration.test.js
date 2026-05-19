@@ -63,6 +63,7 @@ describe("DeltaVerifier - DataContributionRegistry Integration", function () {
       parseEther("10000"),
       0,
       0,
+      0,
       ZeroAddress
     );
 

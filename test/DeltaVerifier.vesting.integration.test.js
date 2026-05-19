@@ -98,6 +98,9 @@ describe("DeltaVerifier Vesting Integration", function () {
       deltaVerifier,
       vestingVault,
       token,
+      tokenManager,
+      modelRegistry,
+      owner,
       contributor1,
       contributor2,
     };
@@ -108,6 +111,9 @@ describe("DeltaVerifier Vesting Integration", function () {
       let deltaVerifier;
       let vestingVault;
       let token;
+      let tokenManager;
+      let modelRegistry;
+      let owner;
       let contributor1;
       let contributor2;
 
@@ -116,6 +122,9 @@ describe("DeltaVerifier Vesting Integration", function () {
           deltaVerifier,
           vestingVault,
           token,
+          tokenManager,
+          modelRegistry,
+          owner,
           contributor1,
           contributor2,
         } = await deployFixture(managerContractName));
@@ -223,6 +232,62 @@ describe("DeltaVerifier Vesting Integration", function () {
         await vestingVault.connect(contributor1).claim(0);
 
         expect(await token.balanceOf(contributor1.address)).to.equal(rewardAmount);
+      });
+
+      it("keeps DeltaVerifier reward minting working after investor allocation exhaustion", async function () {
+        const capModelIdUint = 2;
+        const capModelIdStr = "2";
+        const investorAllocation = parseEther("10");
+        const supplierAllocation = parseEther("5");
+
+        await tokenManager.deployTokenWithAllocations(
+          capModelIdStr,
+          "Capped Delta Token",
+          "CDT",
+          supplierAllocation,
+          owner.address,
+          investorAllocation,
+          buildInitialParams(owner.address, {
+            vestingConfig: buildVestingConfig(),
+          })
+        );
+
+        const capTokenAddress = await tokenManager.getTokenAddress(capModelIdStr);
+        const capToken = await ethers.getContractAt("HokusaiToken", capTokenAddress);
+        await modelRegistry.registerModel(capModelIdUint, capTokenAddress, "accuracy");
+
+        await tokenManager.mintTokens(capModelIdStr, contributor2.address, investorAllocation);
+        await expect(
+          tokenManager.mintTokens(capModelIdStr, contributor2.address, 1)
+        ).to.be.revertedWith("Exceeds investor allocation");
+
+        const evaluationData = {
+          pipelineRunId: "vesting-cap-exhaustion",
+          baselineMetrics,
+          newMetrics: improvedMetrics,
+          contributor: contributor1.address,
+          contributorWeight: 10000,
+          contributedSamples: 5000,
+          totalSamples: 5000,
+          maxCostUsd: 0,
+          actualCostUsd: 0,
+        };
+
+        const rewardAmount = await deltaVerifier.calculateRewardDynamic(
+          capModelIdStr,
+          await deltaVerifier.calculateDeltaOneForModel(capModelIdUint, baselineMetrics, improvedMetrics),
+          10000,
+          5000
+        );
+        const immediateAmount = (rewardAmount * 1000n) / 10000n;
+        const vestedAmount = rewardAmount - immediateAmount;
+
+        await deltaVerifier.submitEvaluation(capModelIdUint, evaluationData);
+
+        expect(await capToken.investorMinted()).to.equal(investorAllocation);
+        expect(await capToken.rewardMinted()).to.equal(rewardAmount);
+        expect(await capToken.balanceOf(contributor1.address)).to.equal(immediateAmount);
+        expect(await capToken.balanceOf(await vestingVault.getAddress())).to.equal(vestedAmount);
       });
     });
   }

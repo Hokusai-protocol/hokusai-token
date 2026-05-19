@@ -21,6 +21,7 @@ interface ITokenDeploymentFactory {
         uint256 initialSupply,
         uint256 maxSupply,
         uint256 modelSupplierAllocation,
+        uint256 investorAllocation,
         address modelSupplierRecipient,
         InitialParams memory initialParams
     ) external returns (address tokenAddress, address paramsAddress);

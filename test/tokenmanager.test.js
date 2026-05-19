@@ -328,7 +328,7 @@ describe("TokenManager", function () {
 
       // Deploy new token directly without TokenManager
       const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-      const newToken = await HokusaiToken.deploy("New Token", "NEW", owner.address, await hokusaiParams.getAddress(), parseEther("10000"), 0, 0, ZeroAddress);
+      const newToken = await HokusaiToken.deploy("New Token", "NEW", owner.address, await hokusaiParams.getAddress(), parseEther("10000"), 0, 0, 0, ZeroAddress);
       await newToken.waitForDeployment();
 
       // Manually add to TokenManager's tracking (simulating a broken state)

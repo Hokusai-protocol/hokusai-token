@@ -80,6 +80,12 @@ address tokenAddress = tokenManager.deployTokenWithAllocations(
 );
 ```
 
+Cap-based deployments separate minting paths at the token level:
+
+- `TokenManager.mintTokens(...)` and AMM buys use `HokusaiToken.mintInvestor(...)` and are limited by `investorAllocation`.
+- `TokenManager.mintReward(...)` and vested reward deposits use `HokusaiToken.mintReward(...)` and do not consume investor sale headroom.
+- `HokusaiToken.maxSupply()` remains the design-time sum of supplier + investor allocations for compatibility, but it is not a global reward mint ceiling on cap-based tokens.
+
 **Step 2: Register Model**
 
 ```solidity

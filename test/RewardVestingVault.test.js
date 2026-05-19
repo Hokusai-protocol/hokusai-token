@@ -39,6 +39,7 @@ describe("RewardVestingVault", function () {
       parseEther("1000"),
       0,
       0,
+      0,
       ethers.ZeroAddress
     );
     await deployedToken.waitForDeployment();

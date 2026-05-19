@@ -73,7 +73,7 @@ describe("DeltaVerifier", function () {
 
     // Deploy HokusaiToken
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, hokusaiParams.target, parseEther("10000"), 0, 0, ZeroAddress);
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, hokusaiParams.target, parseEther("10000"), 0, 0, 0, ZeroAddress);
 
     // Deploy TokenManager
     const TokenManager = await ethers.getContractFactory("TokenManager");

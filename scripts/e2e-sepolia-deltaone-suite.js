@@ -38,6 +38,7 @@ const ABIS = {
     "function maxSupply() view returns (uint256)",
     "function params() view returns (address)",
     "function totalSupply() view returns (uint256)",
+    "function rewardRemaining() view returns (uint256)",
   ],
   tokenParams: [
     "function tokensPerDeltaOne() view returns (uint256)",
@@ -241,9 +242,14 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
   const ctx = await tokenContext({ contracts, signer, modelId: tokenInfo.modelId });
   const maxReward = await contracts.deltaVerifier.maxReward();
   const minImprovementBps = await contracts.deltaVerifier.minImprovementBps();
-  const maxSupply = await ctx.token.maxSupply();
-  const totalSupply = await ctx.token.totalSupply();
-  const remainingMintable = maxSupply > totalSupply ? maxSupply - totalSupply : 0n;
+  let remainingMintable;
+  try {
+    remainingMintable = await ctx.token.rewardRemaining();
+  } catch {
+    const maxSupply = await ctx.token.maxSupply();
+    const totalSupply = await ctx.token.totalSupply();
+    remainingMintable = maxSupply > totalSupply ? maxSupply - totalSupply : 0n;
+  }
   const baselineScoreBps = 7800;
   const candidateScoreBps = chooseCandidateScore({
     baselineScoreBps,
@@ -254,9 +260,7 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
     remainingMintable,
   });
   if (candidateScoreBps === null || candidateScoreBps > 10000) {
-    recorder.warn(`${label} happy path skipped because remaining mintable supply cannot cover minimum positive DeltaOne reward`, {
-      maxSupply,
-      totalSupply,
+    recorder.warn(`${label} happy path skipped because remaining reward headroom cannot cover minimum positive DeltaOne reward`, {
       remainingMintable,
       minImprovementBps,
       tokensPerDeltaOne: ctx.tokensPerDeltaOne,

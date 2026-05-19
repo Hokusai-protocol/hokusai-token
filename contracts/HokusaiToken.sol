@@ -16,7 +16,7 @@ contract HokusaiToken is ERC20, Ownable {
     /// @dev Immutable reference to the parameter contract for this token
     IHokusaiParams public immutable params;
 
-    /// @dev Maximum supply cap (modelSupplierAllocation + investorAllocation)
+    /// @dev Historical sum of modelSupplierAllocation + investorAllocation; no longer a hard enforcement boundary.
     uint256 public immutable maxSupply;
 
     /// @dev Model supplier allocation amount (not minted until distributeModelSupplierAllocation is called)
@@ -24,6 +24,18 @@ contract HokusaiToken is ERC20, Ownable {
 
     /// @dev Address to receive model supplier allocation
     address public immutable modelSupplierRecipient;
+
+    /// @dev Maximum tokens mintable through the investor (AMM) bucket
+    uint256 public immutable investorAllocation;
+
+    /// @dev Defense-in-depth cap on reward minting: 100 * tokensPerDeltaOne sampled at construction
+    uint256 public immutable rewardAllocation;
+
+    /// @dev Running sum of tokens minted through mintInvestor
+    uint256 public investorMinted;
+
+    /// @dev Running sum of tokens minted through mintReward
+    uint256 public rewardMinted;
 
     /// @dev Flag indicating if model supplier allocation has been distributed
     bool public modelSupplierDistributed;
@@ -38,23 +50,15 @@ contract HokusaiToken is ERC20, Ownable {
         address indexed modelSupplierRecipient
     );
     event ModelSupplierAllocationDistributed(address indexed recipient, uint256 amount);
+    event InvestorMinted(address indexed to, uint256 amount, uint256 newInvestorMinted);
+    event RewardMinted(address indexed to, uint256 amount, uint256 newRewardMinted);
+    event TokenAllocationsConfigured(uint256 maxSupply, uint256 modelSupplierAllocation, uint256 investorAllocation, uint256 rewardAllocation);
 
     modifier onlyController() {
         require(msg.sender == controller, "Only controller can call this function");
         _;
     }
 
-    /**
-     * @dev Constructor to initialize the token
-     * @param _name The name of the token (e.g., "Hokusai Model Token")
-     * @param _symbol The symbol of the token (e.g., "HMT")
-     * @param _controller The address that will have mint/burn privileges
-     * @param _params The address of the parameter contract for this token
-     * @param _initialSupply Initial supply to mint to controller (for legacy deployment), or 0 for cap-based deployment
-     * @param _maxSupply Maximum supply cap (0 for legacy mode = unlimited)
-     * @param _modelSupplierAllocation Amount allocated for model supplier (0 for legacy mode)
-     * @param _modelSupplierRecipient Address to receive model supplier allocation (address(0) for legacy mode)
-     */
     constructor(
         string memory _name,
         string memory _symbol,
@@ -70,7 +74,6 @@ contract HokusaiToken is ERC20, Ownable {
         require(_controller != address(0), "Controller cannot be zero address");
         require(_params != address(0), "Params cannot be zero address");
 
-        // Determine mode: cap-based if maxSupply > 0, legacy otherwise
         bool isCapBased = _maxSupply > 0;
 
         if (isCapBased) {
@@ -83,19 +86,20 @@ contract HokusaiToken is ERC20, Ownable {
         controller = _controller;
         params = IHokusaiParams(_params);
 
-        // Initialize immutables (must be assigned unconditionally)
         maxSupply = isCapBased ? _maxSupply : type(uint256).max;
         modelSupplierAllocation = isCapBased ? _modelSupplierAllocation : 0;
         modelSupplierRecipient = isCapBased ? _modelSupplierRecipient : address(0);
-        modelSupplierDistributed = !isCapBased; // True for legacy, false for cap-based
+        modelSupplierDistributed = !isCapBased;
+        investorAllocation = isCapBased ? _maxSupply - _modelSupplierAllocation : 0;
+        rewardAllocation = isCapBased ? 100 * IHokusaiParams(_params).tokensPerDeltaOne() : type(uint256).max;
 
-        // Mint initial supply for legacy mode
         if (!isCapBased) {
             _mint(_controller, _initialSupply);
             emit Minted(_controller, _initialSupply);
         }
 
         emit TokenSupplyConfigured(_initialSupply, maxSupply, modelSupplierAllocation, modelSupplierRecipient);
+        emit TokenAllocationsConfigured(maxSupply, modelSupplierAllocation, investorAllocation, rewardAllocation);
         emit ControllerUpdated(_controller);
     }
 
@@ -109,18 +113,32 @@ contract HokusaiToken is ERC20, Ownable {
         emit ControllerUpdated(_controller);
     }
 
-    /**
-     * @dev Mints tokens to a specified address
-     * @param to The address to mint tokens to
-     * @param amount The amount of tokens to mint
-     */
+    /// @dev Legacy mint — works only for legacy (unlimited) tokens. Cap-based tokens must use mintInvestor/mintReward.
     function mint(address to, uint256 amount) external onlyController {
-        // Enforce max supply cap (only for cap-based tokens)
-        if (maxSupply < type(uint256).max) {
-            require(totalSupply() + amount <= maxSupply, "Minting would exceed max supply");
-        }
-
+        require(maxSupply == type(uint256).max, "Use mintInvestor or mintReward for cap-based tokens");
         _mint(to, amount);
+        emit Minted(to, amount);
+    }
+
+    /// @dev Mints tokens charged against the investor allocation bucket (AMM purchases).
+    function mintInvestor(address to, uint256 amount) external onlyController {
+        if (maxSupply < type(uint256).max) {
+            require(investorMinted + amount <= investorAllocation, "Investor allocation exhausted");
+            investorMinted += amount;
+        }
+        _mint(to, amount);
+        emit InvestorMinted(to, amount, investorMinted);
+        emit Minted(to, amount);
+    }
+
+    /// @dev Mints tokens charged against the reward allocation bucket (DeltaOne rewards).
+    function mintReward(address to, uint256 amount) external onlyController {
+        if (maxSupply < type(uint256).max) {
+            require(rewardMinted + amount <= rewardAllocation, "Reward allocation exhausted");
+            rewardMinted += amount;
+        }
+        _mint(to, amount);
+        emit RewardMinted(to, amount, rewardMinted);
         emit Minted(to, amount);
     }
 
@@ -158,20 +176,19 @@ contract HokusaiToken is ERC20, Ownable {
         emit Burned(from, amount);
     }
 
-    /**
-     * @dev Returns the remaining mintable supply (for cap-based tokens)
-     * @return The amount of tokens that can still be minted
-     */
+    function investorRemaining() public view returns (uint256) {
+        if (maxSupply == type(uint256).max) return type(uint256).max;
+        return investorAllocation - investorMinted;
+    }
+
+    function rewardRemaining() public view returns (uint256) {
+        if (maxSupply == type(uint256).max) return type(uint256).max;
+        return rewardAllocation - rewardMinted;
+    }
+
     function getRemainingSupply() external view returns (uint256) {
-        if (maxSupply >= type(uint256).max) {
-            return type(uint256).max; // Legacy tokens have unlimited supply
-        }
-
-        uint256 currentSupply = totalSupply();
-        if (currentSupply >= maxSupply) {
-            return 0;
-        }
-
-        return maxSupply - currentSupply;
+        if (maxSupply == type(uint256).max) return type(uint256).max;
+        uint256 supplierRemaining = modelSupplierDistributed ? 0 : modelSupplierAllocation;
+        return investorRemaining() + rewardRemaining() + supplierRemaining;
     }
 }

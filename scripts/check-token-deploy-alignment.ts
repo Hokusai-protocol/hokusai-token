@@ -100,6 +100,13 @@ async function main(): Promise<void> {
   const modelSupplierRecipient = (await token.modelSupplierRecipient()) as string;
   const tokensPerDeltaOne = (await params.tokensPerDeltaOne()) as bigint;
 
+  let investorAllocationOnChain: bigint | undefined;
+  try {
+    investorAllocationOnChain = (await token.investorAllocation()) as bigint;
+  } catch {
+    // Pre-separation tokens don't have this field
+  }
+
   console.log(`Token: ${tokenAddress}`);
   console.log(`Params: ${paramsAddress}`);
   console.log(`Supplier recipient: ${modelSupplierRecipient}`);
@@ -108,6 +115,9 @@ async function main(): Promise<void> {
   console.log(`Total supply: ${formatWholeTokens(totalSupply)}`);
   console.log(`Max supply: ${formatWholeTokens(maxSupply)}`);
   console.log(`Tokens per DeltaOne: ${formatWholeTokens(tokensPerDeltaOne)}`);
+  if (investorAllocationOnChain !== undefined) {
+    console.log(`Investor allocation (on-chain): ${formatWholeTokens(investorAllocationOnChain)}`);
+  }
 
   if (tokenManagerAddress && modelId) {
     const tokenManager = new ethers.Contract(tokenManagerAddress, tokenManagerArtifact.abi, provider);
@@ -120,6 +130,9 @@ async function main(): Promise<void> {
 
   assertEqual("supplier allocation", modelSupplierAllocation, expectedSupplier);
   assertEqual("investor allocation", maxSupply - modelSupplierAllocation, expectedInvestor);
+  if (investorAllocationOnChain !== undefined && expectedInvestor !== undefined) {
+    assertEqual("investor allocation (immutable)", investorAllocationOnChain, expectedInvestor);
+  }
   assertEqual("total supply", totalSupply, expectedTotalSupply);
   assertEqual("tokensPerDeltaOne", tokensPerDeltaOne, expectedTokensPerDeltaOne);
 

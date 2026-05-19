@@ -563,7 +563,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       const receipt = await tx.wait();
 
       console.log(`      Gas used for buy(): ${receipt.gasUsed}`);
-      expect(receipt.gasUsed).to.be.lt(160000); // Allow small toolchain-dependent variance while keeping the benchmark tight
+      expect(receipt.gasUsed).to.be.lt(165000);
     });
 
     it("Should measure gas for sell()", async function () {

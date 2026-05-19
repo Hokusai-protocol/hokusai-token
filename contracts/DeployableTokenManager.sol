@@ -245,7 +245,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             "Model is deactivated"
         );
 
-        IManagedHokusaiToken(tokenAddress).mint(recipient, amount);
+        IManagedHokusaiToken(tokenAddress).mintInvestor(recipient, amount);
         emit TokensMinted(modelId, recipient, amount);
     }
 
@@ -279,7 +279,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
                 continue;
             }
 
-            token.mint(recipients[i], amounts[i]);
+            token.mintInvestor(recipients[i], amounts[i]);
             totalAmount += amounts[i];
         }
 
@@ -445,7 +445,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         IHokusaiParams params = token.params();
 
         if (!params.vestingEnabled()) {
-            token.mint(recipient, amount);
+            token.mintReward(recipient, amount);
             return;
         }
 
@@ -455,7 +455,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         );
 
         if (immediateAmount > 0) {
-            token.mint(recipient, immediateAmount);
+            token.mintReward(recipient, immediateAmount);
         }
 
         if (vestedAmount == 0) {
@@ -465,7 +465,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         require(address(vestingVault) != address(0), "Vesting vault not configured");
 
         uint64 duration = params.vestingDurationSeconds();
-        token.mint(address(vestingVault), vestedAmount);
+        token.mintReward(address(vestingVault), vestedAmount);
         vestingVault.createSchedule(
             modelId,
             tokenAddress,

@@ -231,6 +231,44 @@ describe("TokenManager Vesting", function () {
     expect(await vestingVault.getSchedulesByBeneficiary(contributor.address)).to.deep.equal([]);
   });
 
+  it("rewards succeed on cap-based token after investor exhaustion, and investorMinted is unchanged", async function () {
+    const MODEL_CAP = "cap-vesting-model";
+    const supplierAlloc = parseEther("100");
+    const investorAlloc = parseEther("100");
+
+    await tokenManager.deployTokenWithAllocations(
+      MODEL_CAP,
+      "Cap Vest Token",
+      "CVT",
+      supplierAlloc,
+      owner.address,
+      investorAlloc,
+      buildInitialParams(owner.address, { vestingConfig: buildVestingConfig() })
+    );
+
+    const tokenAddress = await tokenManager.getTokenAddress(MODEL_CAP);
+    const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
+    const capToken = HokusaiToken.attach(tokenAddress);
+
+    await tokenManager.mintTokens(MODEL_CAP, contributor.address, investorAlloc);
+    expect(await capToken.investorMinted()).to.equal(investorAlloc);
+
+    await expect(
+      tokenManager.mintTokens(MODEL_CAP, contributor.address, 1)
+    ).to.be.revertedWith("Investor allocation exhausted");
+
+    const rewardAmount = parseEther("10");
+    await tokenManager.mintReward(MODEL_CAP, contributor.address, rewardAmount);
+
+    expect(await capToken.investorMinted()).to.equal(investorAlloc);
+    expect(await capToken.rewardMinted()).to.equal(rewardAmount);
+
+    const immediateAmount = (rewardAmount * 1000n) / 10000n;
+    const vestedAmount = rewardAmount - immediateAmount;
+    expect(await capToken.balanceOf(contributor.address)).to.equal(investorAlloc + immediateAmount);
+    expect(await capToken.balanceOf(await vestingVault.getAddress())).to.equal(vestedAmount);
+  });
+
   it("prevents the AMM from draining unvested rewards because contributors do not hold them", async function () {
     const { token, tokenAddress } = await deployToken(MODEL_ID, buildVestingConfig());
     const rewardAmount = parseEther("1000");

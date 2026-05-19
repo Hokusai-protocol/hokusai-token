@@ -439,7 +439,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
     expect(await infraReserve.accrued(MODEL_ID_STR)).to.equal(parseUnits("200", 6));
   });
 
-  it("documents current global maxSupply behavior as a mainnet blocker", async function () {
+  it("separates investor and reward buckets — rewards succeed after investor exhaustion", async function () {
     const cappedModel = "capped-model";
     const supplierAllocation = parseEther("100");
     const investorAllocation = parseEther("100");
@@ -461,9 +461,17 @@ describe("Local mainnet readiness end-to-end suite", function () {
     await tokenManager.distributeModelSupplierAllocation(cappedModel);
 
     expect(await cappedToken.totalSupply()).to.equal(supplierAllocation + investorAllocation);
+
     await expect(
-      tokenManager.mintReward(cappedModel, contributor1.address, 1)
-    ).to.be.revertedWith("Minting would exceed max supply");
+      tokenManager.mintTokens(cappedModel, trader.address, 1)
+    ).to.be.revertedWith("Investor allocation exhausted");
+
+    const rewardAmount = parseEther("1");
+    await tokenManager.mintReward(cappedModel, contributor1.address, rewardAmount);
+
+    expect(await cappedToken.totalSupply()).to.equal(supplierAllocation + investorAllocation + rewardAmount);
+    expect(await cappedToken.investorMinted()).to.equal(investorAllocation);
+    expect(await cappedToken.rewardMinted()).to.equal(rewardAmount);
   });
 
   async function time() {

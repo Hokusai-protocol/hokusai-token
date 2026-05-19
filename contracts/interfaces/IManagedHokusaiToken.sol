@@ -6,6 +6,10 @@ import "./IHokusaiParams.sol";
 interface IManagedHokusaiToken {
     function mint(address to, uint256 amount) external;
 
+    function mintInvestor(address to, uint256 amount) external;
+
+    function mintReward(address to, uint256 amount) external;
+
     function burnFrom(address from, uint256 amount) external;
 
     function distributeModelSupplierAllocation() external;

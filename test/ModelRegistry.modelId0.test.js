@@ -39,6 +39,7 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
             1, // initialSupply
             0, // maxSupply
             0, // modelSupplierAllocation
+            0, // investorAllocation
             ethers.ZeroAddress // modelSupplierRecipient
         );
         await token0.waitForDeployment();
@@ -52,6 +53,7 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
             1,
             0,
             0,
+            0,
             ethers.ZeroAddress
         );
         await token1.waitForDeployment();
@@ -63,6 +65,7 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
             await modelRegistry.getAddress(),
             await params.getAddress(),
             1,
+            0,
             0,
             0,
             ethers.ZeroAddress

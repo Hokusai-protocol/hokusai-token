@@ -32,6 +32,15 @@ All Hokusai tokens share a standardized metadata format to ensure consistency, d
 - `auction_price`
 - `last_verified_deltaone`
 
+### Cap Semantics
+
+Cap-based launch tokens track investor and reward issuance separately:
+
+- `investorAllocation` is the cap for AMM-driven investor purchases.
+- `investorMinted` tracks net investor issuance and is reduced when AMM sells burn tokens.
+- DeltaOne rewards, including rewards minted into `RewardVestingVault`, use a separate reward-minting path and do not consume investor allocation headroom.
+- `maxSupply` remains the supplier allocation plus investor allocation for compatibility with older tooling, but it no longer acts as a global ceiling across all mint categories.
+
 These values are stored in a smart contract registry for transparency and immutability.
 
 ### Off-Chain Components

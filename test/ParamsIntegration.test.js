@@ -419,7 +419,7 @@ describe("Full Integration: Params Module", function () {
       const evalReceipt = await evalTx.wait();
 
       // Verify gas usage is reasonable
-      expect(deployReceipt.gasUsed).to.be.lt(3700000);
+      expect(deployReceipt.gasUsed).to.be.lt(4000000);
       expect(registerReceipt.gasUsed).to.be.lt(200000);  // Less than 200k gas for registration
       expect(evalReceipt.gasUsed).to.be.lt(600000);     // Less than 600k gas for evaluation (includes contribution recording)
     });

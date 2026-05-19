@@ -37,7 +37,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
 
     // Deploy HokusaiToken
     const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, await hokusaiParams.getAddress(), parseEther("10000"), 0, 0, ZeroAddress);
+    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, await hokusaiParams.getAddress(), parseEther("10000"), 0, 0, 0, ZeroAddress);
     await hokusaiToken.waitForDeployment();
 
     // Deploy TokenManager with ModelRegistry reference
@@ -113,6 +113,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
         owner.address,
         await hokusaiParams.getAddress(),
         parseEther("10000"),
+        0,
         0,
         0,
         ZeroAddress
@@ -492,6 +493,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
         parseEther("10000"),
         0,
         0,
+        0,
         ZeroAddress
       );
       await hokusaiToken2.waitForDeployment();
@@ -522,6 +524,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
         parseEther("10000"),
         0,
         0,
+        0,
         ZeroAddress
       );
       await hokusaiToken2.waitForDeployment();
@@ -545,6 +548,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
         parseEther("10000"),
         0,
         0,
+        0,
         ZeroAddress
       );
       await hokusaiToken2.waitForDeployment();
@@ -556,6 +560,7 @@ describe("TokenManager-ModelRegistry Integration", function () {
         owner.address,
         await hokusaiParams.getAddress(),
         parseEther("10000"),
+        0,
         0,
         0,
         ZeroAddress

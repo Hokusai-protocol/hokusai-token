@@ -35,6 +35,8 @@ const ABIS = {
     "function symbol() view returns (string)",
   ],
   hokusaiToken: [
+    "function investorAllocation() view returns (uint256)",
+    "function investorMinted() view returns (uint256)",
     "function maxSupply() view returns (uint256)",
     "function params() view returns (address)",
     "function totalSupply() view returns (uint256)",
@@ -243,7 +245,14 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
   const minImprovementBps = await contracts.deltaVerifier.minImprovementBps();
   const maxSupply = await ctx.token.maxSupply();
   const totalSupply = await ctx.token.totalSupply();
-  const remainingMintable = maxSupply > totalSupply ? maxSupply - totalSupply : 0n;
+  let remainingMintable = maxSupply > totalSupply ? maxSupply - totalSupply : 0n;
+  try {
+    const investorAllocation = await ctx.token.investorAllocation();
+    const investorMinted = await ctx.token.investorMinted();
+    remainingMintable = investorAllocation > investorMinted ? investorAllocation - investorMinted : 0n;
+  } catch (error) {
+    // Legacy tokens only expose the old maxSupply semantics.
+  }
   const baselineScoreBps = 7800;
   const candidateScoreBps = chooseCandidateScore({
     baselineScoreBps,

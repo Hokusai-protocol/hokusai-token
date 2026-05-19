@@ -19,7 +19,7 @@ describe("DeployableTokenManager Vesting", function () {
   let treasury;
   let outsider;
 
-  const MODEL_ID = "vesting-model";
+  const MODEL_ID = "1104";
   const DEFAULT_VESTING_SENTINEL = {
     enabled: false,
     immediateUnlockBps: 0,

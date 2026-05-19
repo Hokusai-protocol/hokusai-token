@@ -8,7 +8,7 @@ describe("Phase 5: Reserve Accounting Invariants", function () {
     let owner, treasury, user1, user2, user3;
 
     // AMM Parameters
-    const modelId = "reserve-invariant-test-model";
+    const modelId = "1205";
     const INITIAL_RESERVE = parseUnits("10000", 6); // $10k USDC
     const INITIAL_SUPPLY = parseUnits("100000", 18); // 100k tokens
     const CRR = 100000; // 10% reserve ratio

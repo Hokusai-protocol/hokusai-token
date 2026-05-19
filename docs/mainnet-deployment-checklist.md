@@ -38,6 +38,8 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Security audit completed (if applicable)
 - [ ] Testnet deployment successful (Sepolia)
 - [ ] Testnet functionality verified (buy/sell transactions)
+- [ ] [Canonical model registration doc](canonical-model-registration.md) reviewed
+- [ ] Canonical registration smoke verified for every launch model id
 
 ### Contract Verification Preparation
 - [ ] Etherscan API key configured in `.env`
@@ -509,3 +511,4 @@ ___________________________________________________________________________
 ___________________________________________________________________________
 ___________________________________________________________________________
 ___________________________________________________________________________
+See also: [docs/canonical-model-registration.md](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/remove-dual-modelregistry-ambiguity-across-deltaverifier-and-amm-flows/docs/canonical-model-registration.md)

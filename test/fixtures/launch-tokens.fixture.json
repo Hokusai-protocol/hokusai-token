@@ -3,7 +3,7 @@
   "tokens": [
     {
       "configKey": "conservative",
-      "modelId": "model-conservative-001",
+      "modelId": "1001",
       "name": "Hokusai Conservative",
       "symbol": "HKS-CON",
       "supplierRecipient": "__SUPPLIER_1__",
@@ -35,7 +35,7 @@
     },
     {
       "configKey": "aggressive",
-      "modelId": "model-aggressive-002",
+      "modelId": "1002",
       "name": "Hokusai Aggressive",
       "symbol": "HKS-AGG",
       "supplierRecipient": "__SUPPLIER_2__",
@@ -67,7 +67,7 @@
     },
     {
       "configKey": "balanced",
-      "modelId": "model-balanced-003",
+      "modelId": "1003",
       "name": "Hokusai Balanced",
       "symbol": "HKS-BAL",
       "supplierRecipient": "__SUPPLIER_3__",

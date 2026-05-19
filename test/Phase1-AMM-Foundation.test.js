@@ -30,7 +30,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
   });
 
   describe("ModelRegistry - String Model Registration", function () {
-    const modelId = "model-v1-abc123";
+    const modelId = "101";
     const performanceMetric = "accuracy";
     let tokenAddress;
 
@@ -66,7 +66,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
       await modelRegistry.registerStringModel(modelId, tokenAddress, performanceMetric);
 
       await expect(
-        modelRegistry.registerStringModel("different-model", tokenAddress, performanceMetric)
+        modelRegistry.registerStringModel("102", tokenAddress, performanceMetric)
       ).to.be.revertedWith("Token already registered");
     });
 
@@ -96,20 +96,20 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     it("Should reject models missing from TokenManager when validation is enabled", async function () {
       await expect(
-        modelRegistry.registerStringModel("untracked-model", tokenAddress, performanceMetric)
+        modelRegistry.registerStringModel("102", tokenAddress, performanceMetric)
       ).to.be.revertedWith("Token not registered in TokenManager");
     });
 
     it("Should reject token address mismatches against TokenManager", async function () {
-      await deployTestToken(tokenManager, "other-model", "Other Token", "OTHR", parseEther("1000000"), owner.address);
+      await deployTestToken(tokenManager, "103", "Other Token", "OTHR", parseEther("1000000"), owner.address);
 
       await expect(
-        modelRegistry.registerStringModel("other-model", tokenAddress, performanceMetric)
+        modelRegistry.registerStringModel("103", tokenAddress, performanceMetric)
       ).to.be.revertedWith("Token address mismatch with TokenManager");
     });
 
     it("Should update a string model token and clear old reverse mapping", async function () {
-      const newModelId = "model-v1-migrated";
+      const newModelId = "104";
       await deployTestToken(tokenManager, newModelId, "Migrated Token", "MIG", parseEther("1000000"), owner.address);
       const newTokenAddress = await tokenManager.getTokenAddress(newModelId);
 
@@ -133,7 +133,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     });
 
     it("Should reject updating a string model to an already-registered token", async function () {
-      const otherModelId = "other-model";
+      const otherModelId = "105";
       await deployTestToken(tokenManager, otherModelId, "Other Token", "OTHR", parseEther("1000000"), owner.address);
       const otherTokenAddress = await tokenManager.getTokenAddress(otherModelId);
 
@@ -177,7 +177,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     });
 
     it("Should only allow owner to manage registered string models", async function () {
-      const newModelId = "model-owner-check";
+      const newModelId = "106";
       await deployTestToken(tokenManager, newModelId, "Owner Check", "OWN", parseEther("1000000"), owner.address);
       const newTokenAddress = await tokenManager.getTokenAddress(newModelId);
 
@@ -198,7 +198,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
   });
 
   describe("ModelRegistry - AMM Pool Registration", function () {
-    const modelId = "model-v1-abc123";
+    const modelId = "201";
     const performanceMetric = "accuracy";
     let tokenAddress;
 
@@ -232,7 +232,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     });
 
     it("Should prevent registering the same pool for another model", async function () {
-      const modelId2 = "model-v2";
+      const modelId2 = "202";
       await deployTestToken(tokenManager, modelId2, "Test Token 2", "TEST2", parseEther("1000000"), owner.address);
       const tokenAddress2 = await tokenManager.getTokenAddress(modelId2);
       await modelRegistry.registerStringModel(modelId2, tokenAddress2, performanceMetric);
@@ -246,7 +246,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
 
     it("Should revert if model not registered", async function () {
       await expect(
-        modelRegistry.registerPool("non-existent-model", amm.address)
+        modelRegistry.registerPool("999", amm.address)
       ).to.be.revertedWith("Model not registered");
     });
 
@@ -286,7 +286,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     });
 
     it("Should return address(0) for model without pool", async function () {
-      const modelId2 = "model-v2";
+      const modelId2 = "202";
       await deployTestToken(tokenManager, modelId2, "Test Token 2", "TEST2", parseEther("1000000"), owner.address);
       const tokenAddress2 = await tokenManager.getTokenAddress(modelId2);
       await modelRegistry.registerStringModel(modelId2, tokenAddress2, performanceMetric);
@@ -334,7 +334,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
   });
 
   describe("TokenManager - MINTER_ROLE Burn Authorization", function () {
-    const modelId = "model-burn-test";
+    const modelId = "301";
     let tokenAddress;
 
     beforeEach(async function () {
@@ -435,7 +435,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
   });
 
   describe("Integration - Full Phase 1 Flow", function () {
-    const modelId = "integration-model-v1";
+    const modelId = "401";
     const performanceMetric = "accuracy";
     let tokenAddress;
 

@@ -16,6 +16,7 @@ const MAX_IBR_DURATION = 30 * 24 * 60 * 60;
 const DISTRIBUTION_TIMINGS = new Set(["pre-launch", "post-verification"]);
 const DECIMAL_STRING_RE = /^(0|[1-9]\d*)(\.\d+)?$/;
 const PLACEHOLDER_ADDRESS_RE = /^0xPLACEHOLDER/i;
+const MODEL_ID_DECIMAL_RE = /^\d+$/;
 
 class LaunchConfigError extends Error {
   constructor(message) {
@@ -53,6 +54,18 @@ function assertDecimalString(value, label) {
 function assertIntegerInBounds(value, min, max, label) {
   if (!Number.isInteger(value) || value < min || value > max) {
     throw new LaunchConfigError(`${label} out of bounds`);
+  }
+}
+
+function validateNumericModelId(value, label = "modelId") {
+  if (typeof value !== "string" || !MODEL_ID_DECIMAL_RE.test(value)) {
+    throw new LaunchConfigError(`${label} must be decimal uint256 string`);
+  }
+
+  try {
+    return BigInt(value);
+  } catch (error) {
+    throw new LaunchConfigError(`${label} must be decimal uint256 string`);
   }
 }
 
@@ -131,6 +144,7 @@ function validateTokenEntry(entry) {
   if (typeof entry.modelId !== "string" || entry.modelId.length === 0) {
     throw new LaunchConfigError("modelId is required");
   }
+  validateNumericModelId(entry.modelId, "modelId");
   if (typeof entry.name !== "string" || entry.name.length === 0) {
     throw new LaunchConfigError("name is required");
   }
@@ -233,4 +247,5 @@ module.exports = {
   assertChecksumAddress,
   loadLaunchTokensConfig,
   scaleTokenEntry,
+  validateNumericModelId,
 };

@@ -8,7 +8,7 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
     let owner, treasury, user1, user2;
 
     // AMM Parameters
-    const modelId = "edge-case-test-model";
+    const modelId = "1203";
     const INITIAL_RESERVE = parseUnits("10000", 6); // $10k USDC
     const INITIAL_SUPPLY = parseUnits("100000", 18); // 100k tokens
     const CRR = 100000; // 10% reserve ratio

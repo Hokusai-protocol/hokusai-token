@@ -11,7 +11,7 @@ describe("Phase 7: Analytics & View Functions", function () {
     let mockUSDC;
     let owner, treasury, buyer1;
 
-    const MODEL_ID = "test-model-v1";
+    const MODEL_ID = "1201";
     const TOKEN_NAME = "Test Model Token";
     const TOKEN_SYMBOL = "TMT";
     const INITIAL_SUPPLY = parseEther("1");

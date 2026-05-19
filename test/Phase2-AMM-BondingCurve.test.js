@@ -12,7 +12,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
   let modelRegistry;
   let owner, treasury, buyer, seller, other;
 
-  const modelId = "test-model-v1";
+  const modelId = "601";
   const CRR = 100000; // 10%
   const TRADE_FEE = 30; // 0.30%
   const IBR_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
@@ -563,7 +563,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       const receipt = await tx.wait();
 
       console.log(`      Gas used for buy(): ${receipt.gasUsed}`);
-      expect(receipt.gasUsed).to.be.lt(160000); // Allow small toolchain-dependent variance while keeping the benchmark tight
+      expect(receipt.gasUsed).to.be.lt(165000); // Canonical registry checks add a small constant overhead
     });
 
     it("Should measure gas for sell()", async function () {

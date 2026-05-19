@@ -4,6 +4,7 @@ const path = require("path");
 const {
   loadLaunchTokensConfig,
   scaleTokenEntry,
+  validateNumericModelId,
 } = require("./lib/launch-tokens");
 
 const { ethers } = hre;
@@ -102,7 +103,10 @@ async function verifyDeployedToken({ tokenManager, tokenAddress, expected }) {
 }
 
 async function verifyRegisteredModel({ modelRegistry, tokenAddress, expected }) {
+  const numericModelId = validateNumericModelId(expected.modelId, "modelId");
   const checks = [
+    ["modelRegistry.isRegistered", await modelRegistry.isRegistered(numericModelId), true],
+    ["modelRegistry.getTokenAddress", await modelRegistry.getTokenAddress(numericModelId), tokenAddress],
     ["modelRegistry.isStringRegistered", await modelRegistry.isStringRegistered(expected.modelId), true],
     ["modelRegistry.getStringToken", await modelRegistry.getStringToken(expected.modelId), tokenAddress],
   ];
@@ -284,8 +288,9 @@ async function runLaunchDeploy({
       console.log("   ✅ Token configuration verified");
 
       console.log("   📋 Registering model in ModelRegistry...");
-      const registerTx = await modelRegistry.registerStringModel(
-        config.modelId,
+      const numericModelId = validateNumericModelId(config.modelId, "modelId");
+      const registerTx = await modelRegistry.registerModel(
+        numericModelId,
         tokenAddress,
         config.pool.performanceMetric
       );

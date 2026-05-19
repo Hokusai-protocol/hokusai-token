@@ -16,8 +16,8 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
   let params1, params2;
   let owner, treasury, depositor, payer, provider1, provider2;
 
-  const MODEL_ID_1 = "gpt-4-turbo";
-  const MODEL_ID_2 = "claude-3-sonnet";
+  const MODEL_ID_1 = "701";
+  const MODEL_ID_2 = "702";
   const INITIAL_SUPPLY = parseEther("1000000");
   const INITIAL_GROSS_MARGIN_BPS = 2000;
 

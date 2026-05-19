@@ -13,7 +13,7 @@ describe("Proposal Registration Integration", function () {
   let investor1;
   let investor2;
 
-  const MODEL_ID = "sales-lead-scoring-v1";
+  const MODEL_ID = "801";
   const TOKEN_NAME = "Sales Lead Scoring Token";
   const TOKEN_SYMBOL = "SLST";
   const INITIAL_SUPPLY = parseEther("1000000");
@@ -238,7 +238,7 @@ describe("Proposal Registration Integration", function () {
 
       // Attempting to register a different model with same token should fail
       await expect(
-        modelRegistry.registerStringModel("different-model", tokenAddress, PERFORMANCE_METRIC)
+        modelRegistry.registerStringModel("802", tokenAddress, PERFORMANCE_METRIC)
       ).to.be.revertedWith("Token already registered");
 
       // Original model registration should still be valid
@@ -270,8 +270,8 @@ describe("Proposal Registration Integration", function () {
     });
 
     it("Should handle multiple proposals in parallel", async function () {
-      const model1 = "model-1";
-      const model2 = "model-2";
+      const model1 = "901";
+      const model2 = "902";
 
       const initialParams = makeInitialParams();
 

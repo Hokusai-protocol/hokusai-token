@@ -12,8 +12,8 @@ describe("TokenManager with Params", function () {
   let user2;
   let unauthorized;
 
-  const MODEL_ID_1 = "gpt-4";
-  const MODEL_ID_2 = "dalle-3";
+  const MODEL_ID_1 = "1102";
+  const MODEL_ID_2 = "1103";
 
   // Default initial params for testing
   const defaultInitialParams = {

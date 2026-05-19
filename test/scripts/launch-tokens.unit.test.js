@@ -18,7 +18,7 @@ function writeConfig(config) {
 function buildToken(index, overrides = {}) {
   return {
     configKey: `token-${index}`,
-    modelId: `model-${index}`,
+    modelId: String(index),
     name: `Token ${index}`,
     symbol: `TK${index}`,
     supplierRecipient: "0x00000000000000000000000000000000000000A1",
@@ -57,12 +57,12 @@ describe("launch-tokens helper", function () {
       version: 1,
       tokens: [buildToken(1), buildToken(2, {
         configKey: "token-2",
-        modelId: "model-2",
+        modelId: "2",
         supplierRecipient: "0x00000000000000000000000000000000000000A2",
         governor: "0x00000000000000000000000000000000000000B2",
       }), buildToken(3, {
         configKey: "token-3",
-        modelId: "model-3",
+        modelId: "3",
         supplierRecipient: "0x00000000000000000000000000000000000000A3",
         governor: "0x00000000000000000000000000000000000000B3",
       })],
@@ -89,8 +89,8 @@ describe("launch-tokens helper", function () {
       version: 1,
       tokens: [
         buildToken(1, { supplierRecipient: "0x0000000000000000000000000000000000000000" }),
-        buildToken(2, { configKey: "token-2", modelId: "model-2", supplierRecipient: "0x00000000000000000000000000000000000000A2", governor: "0x00000000000000000000000000000000000000B2" }),
-        buildToken(3, { configKey: "token-3", modelId: "model-3", supplierRecipient: "0x00000000000000000000000000000000000000A3", governor: "0x00000000000000000000000000000000000000B3" }),
+        buildToken(2, { configKey: "token-2", modelId: "2", supplierRecipient: "0x00000000000000000000000000000000000000A2", governor: "0x00000000000000000000000000000000000000B2" }),
+        buildToken(3, { configKey: "token-3", modelId: "3", supplierRecipient: "0x00000000000000000000000000000000000000A3", governor: "0x00000000000000000000000000000000000000B3" }),
       ],
     });
 
@@ -102,8 +102,8 @@ describe("launch-tokens helper", function () {
       version: 1,
       tokens: [
         buildToken(1, { tokensPerDeltaOne: "50" }),
-        buildToken(2, { configKey: "token-2", modelId: "model-2", supplierRecipient: "0x00000000000000000000000000000000000000A2", governor: "0x00000000000000000000000000000000000000B2" }),
-        buildToken(3, { configKey: "token-3", modelId: "model-3", supplierRecipient: "0x00000000000000000000000000000000000000A3", governor: "0x00000000000000000000000000000000000000B3" }),
+        buildToken(2, { configKey: "token-2", modelId: "2", supplierRecipient: "0x00000000000000000000000000000000000000A2", governor: "0x00000000000000000000000000000000000000B2" }),
+        buildToken(3, { configKey: "token-3", modelId: "3", supplierRecipient: "0x00000000000000000000000000000000000000A3", governor: "0x00000000000000000000000000000000000000B3" }),
       ],
     });
 
@@ -115,8 +115,8 @@ describe("launch-tokens helper", function () {
       version: 1,
       tokens: [
         buildToken(1, { infrastructureAccrualBps: 12000 }),
-        buildToken(2, { configKey: "token-2", modelId: "model-2", supplierRecipient: "0x00000000000000000000000000000000000000A2", governor: "0x00000000000000000000000000000000000000B2" }),
-        buildToken(3, { configKey: "token-3", modelId: "model-3", supplierRecipient: "0x00000000000000000000000000000000000000A3", governor: "0x00000000000000000000000000000000000000B3" }),
+        buildToken(2, { configKey: "token-2", modelId: "2", supplierRecipient: "0x00000000000000000000000000000000000000A2", governor: "0x00000000000000000000000000000000000000B2" }),
+        buildToken(3, { configKey: "token-3", modelId: "3", supplierRecipient: "0x00000000000000000000000000000000000000A3", governor: "0x00000000000000000000000000000000000000B3" }),
       ],
     });
 

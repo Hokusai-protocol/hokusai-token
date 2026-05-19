@@ -1,6 +1,7 @@
 const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
+const { validateNumericModelId } = require('./lib/launch-tokens');
 
 /**
  * Comprehensive Testnet Deployment Script
@@ -202,7 +203,7 @@ async function main() {
 
       // Register model in ModelRegistry
       console.log(`   📋 Registering model in ModelRegistry...`);
-      await modelRegistry.registerStringModel(config.modelId, tokenAddress, "accuracy");
+      await modelRegistry.registerModel(validateNumericModelId(config.modelId), tokenAddress, "accuracy");
       console.log(`   ✅ Model registered: ${config.modelId}`);
 
       // 7. Create pool via Factory

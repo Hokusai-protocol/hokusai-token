@@ -6,12 +6,19 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const DEFAULT_HEALTH_BASE_URL = "https://contracts.hokus.ai";
 const DEFAULT_DEPLOYMENT_FILE = "deployments/sepolia-latest.json";
 const DEFAULT_MIN_SIGNER_ETH = "0.01";
+const DEFAULT_TOKEN_MODELS = "HMESS:28,HLEAD:27,HTASK:30";
 const REQUEST_TIMEOUT_MS = 10_000;
 
 const ABIS = {
   modelRegistry: [
     "function owner() view returns (address)",
     "function stringModelTokenManager() view returns (address)",
+    "function isRegistered(uint256 modelId) view returns (bool)",
+    "function isModelActive(uint256 modelId) view returns (bool)",
+    "function getTokenAddress(uint256 modelId) view returns (address)",
+    "function isStringRegistered(string modelId) view returns (bool)",
+    "function isStringActive(string modelId) view returns (bool)",
+    "function getStringToken(string modelId) view returns (address)",
   ],
   tokenManager: [
     "function owner() view returns (address)",
@@ -19,6 +26,8 @@ const ABIS = {
     "function tokenDeploymentFactory() view returns (address)",
     "function deltaVerifier() view returns (address)",
     "function vestingVault() view returns (address)",
+    "function hasToken(string modelId) view returns (bool)",
+    "function getTokenAddress(string modelId) view returns (address)",
   ],
   deltaVerifier: [
     "function SUBMITTER_ROLE() view returns (bytes32)",
@@ -74,6 +83,7 @@ function parseArgs(argv) {
     deploymentFile: process.env.SMOKE_DEPLOYMENT_FILE || DEFAULT_DEPLOYMENT_FILE,
     healthBaseUrl: process.env.SMOKE_HEALTH_URL || DEFAULT_HEALTH_BASE_URL,
     minSignerEth: process.env.SMOKE_MIN_SIGNER_ETH || DEFAULT_MIN_SIGNER_ETH,
+    tokenModels: parseTokenModels(process.env.SMOKE_TOKEN_MODELS || DEFAULT_TOKEN_MODELS),
     requireEmptyQueues: process.env.SMOKE_REQUIRE_EMPTY_QUEUES === "1",
     json: process.env.SMOKE_JSON === "1",
   };
@@ -86,6 +96,8 @@ function parseArgs(argv) {
       options.healthBaseUrl = argv[++i];
     } else if (arg === "--min-signer-eth") {
       options.minSignerEth = argv[++i];
+    } else if (arg === "--token-models") {
+      options.tokenModels = parseTokenModels(argv[++i]);
     } else if (arg === "--require-empty-queues") {
       options.requireEmptyQueues = true;
     } else if (arg === "--json") {
@@ -111,6 +123,7 @@ CI/environment options:
   SMOKE_DEPLOYMENT_FILE=deployments/sepolia-latest.json
   SMOKE_HEALTH_URL=https://contracts.hokus.ai
   SMOKE_MIN_SIGNER_ETH=0.01
+  SMOKE_TOKEN_MODELS=HMESS:28,HLEAD:27,HTASK:30
   SMOKE_REQUIRE_EMPTY_QUEUES=1
   SMOKE_JSON=1
 
@@ -118,12 +131,23 @@ Options:
   --deployment-file <path>     Same as SMOKE_DEPLOYMENT_FILE.
   --health-url <url>           Same as SMOKE_HEALTH_URL.
   --min-signer-eth <eth>       Same as SMOKE_MIN_SIGNER_ETH.
+  --token-models <mapping>     Same as SMOKE_TOKEN_MODELS.
   --require-empty-queues       Same as SMOKE_REQUIRE_EMPTY_QUEUES=1.
   --json                       Same as SMOKE_JSON=1.
 
 Note: npm/Hardhat may consume appended flags. Prefer the SMOKE_* environment
 variables when running through npm.
 `);
+}
+
+function parseTokenModels(value) {
+  return value.split(",").map((entry) => {
+    const [symbol, modelId] = entry.split(":").map((part) => part.trim());
+    if (!symbol || !modelId || !/^\d+$/.test(modelId)) {
+      throw new Error(`Invalid token mapping "${entry}". Expected SYMBOL:numericModelId.`);
+    }
+    return { symbol: symbol.toUpperCase(), modelId };
+  });
 }
 
 function loadDeployment(file) {
@@ -524,6 +548,44 @@ async function main() {
     flatCurveThreshold: defaultFlatCurveThreshold,
     flatCurvePrice: defaultFlatCurvePrice,
   });
+
+  for (const { symbol, modelId } of options.tokenModels) {
+    const [
+      numericRegistered,
+      numericActive,
+      numericToken,
+      stringRegistered,
+      stringActive,
+      stringToken,
+      hasToken,
+      managerToken,
+      poolAddress,
+    ] = await Promise.all([
+      modelRegistry.isRegistered(modelId),
+      modelRegistry.isModelActive(modelId),
+      modelRegistry.getTokenAddress(modelId).catch(() => ZERO_ADDRESS),
+      modelRegistry.isStringRegistered(modelId),
+      modelRegistry.isStringActive(modelId),
+      modelRegistry.getStringToken(modelId).catch(() => ZERO_ADDRESS),
+      tokenManager.hasToken(modelId),
+      tokenManager.getTokenAddress(modelId).catch(() => ZERO_ADDRESS),
+      ammFactory.getPool(modelId).catch(() => ZERO_ADDRESS),
+    ]);
+
+    const label = `${symbol} / ${modelId}`;
+    recorder.assert(`${label} numeric registration exists`, numericRegistered === true, { modelId });
+    recorder.assert(`${label} numeric registration is active`, numericActive === true, { modelId });
+    recorder.assert(`${label} string registration exists`, stringRegistered === true, { modelId });
+    recorder.assert(`${label} string registration is active`, stringActive === true, { modelId });
+    recorder.assert(`${label} TokenManager mapping exists`, hasToken === true, { modelId });
+    recorder.assert(`${label} registry token is nonzero`, !sameAddress(numericToken, ZERO_ADDRESS), { numericToken });
+    recorder.assert(
+      `${label} registry and TokenManager tokens match`,
+      sameAddress(numericToken, stringToken) && sameAddress(stringToken, managerToken),
+      { numericToken, stringToken, managerToken },
+    );
+    recorder.assert(`${label} AMM pool exists`, !sameAddress(poolAddress, ZERO_ADDRESS), { poolAddress });
+  }
 
   const [
     routerFactory,

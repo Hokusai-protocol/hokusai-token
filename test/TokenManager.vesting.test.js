@@ -18,7 +18,7 @@ describe("TokenManager Vesting", function () {
   let contributor2;
   let treasury;
 
-  const MODEL_ID = "vesting-model";
+  const MODEL_ID = "1104";
   const DEFAULT_VESTING_SENTINEL = {
     enabled: false,
     immediateUnlockBps: 0,

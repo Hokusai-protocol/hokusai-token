@@ -123,7 +123,7 @@ describe("Property fuzz invariants", function () {
   async function deployAmmFixture() {
     const [owner, treasury, user1, user2, user3, outsider] = await ethers.getSigners();
     const users = [user1, user2, user3];
-    const modelId = "fuzz-amm-model";
+    const modelId = "1211";
 
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const mockUSDC = await MockUSDC.deploy();

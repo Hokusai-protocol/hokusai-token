@@ -1,6 +1,7 @@
 const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
+const { validateNumericModelId } = require('./lib/launch-tokens');
 
 // Helper to add delays between transactions (avoid rate limiting)
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -184,8 +185,8 @@ async function main() {
   console.log("-".repeat(70));
 
   console.log(`📋 Registering model in ModelRegistry...`);
-  const registerTx = await modelRegistry.registerStringModel(
-    MODEL_CONFIG.modelId,
+  const registerTx = await modelRegistry.registerModel(
+    validateNumericModelId(MODEL_CONFIG.modelId),
     tokenAddress,
     MODEL_CONFIG.primaryMetric
   );

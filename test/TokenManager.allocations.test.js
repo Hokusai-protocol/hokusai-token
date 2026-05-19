@@ -15,7 +15,7 @@ describe("TokenManager - Allocation Split", function () {
   const MODEL_ID = "1101";
   const MODEL_SUPPLIER_ALLOCATION = parseEther("2500000"); // 2.5M tokens
   const INVESTOR_ALLOCATION = parseEther("10000000"); // 10M tokens (max cap, not immediately minted)
-  const MAX_SUPPLY = MODEL_SUPPLIER_ALLOCATION + INVESTOR_ALLOCATION; // 12.5M tokens
+  const MAX_SUPPLY = MODEL_SUPPLIER_ALLOCATION + INVESTOR_ALLOCATION; // Structural cap; enforcement is split by mint path.
 
   // Default initial params for testing
   const defaultInitialParams = {
@@ -418,6 +418,10 @@ describe("TokenManager - Allocation Split", function () {
       expect(await token.balanceOf(unauthorized.address)).to.equal(INVESTOR_ALLOCATION);
       expect(await token.balanceOf(investor.address)).to.equal(rewardAmount);
       expect(await token.getRemainingSupply()).to.equal(0);
+      expect(await token.getRemainingInvestorAllocation()).to.equal(0);
+      expect(await token.getRemainingRewardAllocation()).to.equal(
+        (await token.getRewardMintingCap()) - rewardAmount
+      );
     });
 
     it("Should allow minting investor allocation after model supplier distribution", async function () {

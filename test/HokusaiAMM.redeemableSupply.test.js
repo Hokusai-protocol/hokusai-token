@@ -271,6 +271,31 @@ describe("HokusaiAMM redeemable supply pricing", function () {
     expect(await usdc.balanceOf(contributor.address)).to.be.gt(0n);
   });
 
+  it("allows supplier allocation holders to sell into the AMM after distribution", async function () {
+    const { MODEL_ID, SUPPLIER_ALLOCATION, tokenManager, token, usdc, amm } =
+      await deployCapCurveFixture();
+
+    // Buyer purchases tokens to fund AMM reserve first
+    await amm.connect(buyer).buy(
+      parseUnits("1000", 6),
+      parseEther("1"),
+      buyer.address,
+      (await time.latest()) + 3600
+    );
+
+    await tokenManager.distributeModelSupplierAllocation(MODEL_ID);
+    expect(await token.balanceOf(owner.address)).to.equal(SUPPLIER_ALLOCATION);
+
+    const sellAmount = parseEther("10");
+    await token.connect(owner).approve(await amm.getAddress(), sellAmount);
+
+    await expect(
+      amm.connect(owner).sell(sellAmount, 0n, owner.address, (await time.latest()) + 3600)
+    ).to.not.be.reverted;
+
+    expect(await token.balanceOf(owner.address)).to.equal(SUPPLIER_ALLOCATION - sellAmount);
+  });
+
   it("drops spot price when supplier allocation becomes redeemable", async function () {
     const { MODEL_ID, SUPPLIER_ALLOCATION, tokenManager, amm } = await deployCapCurveFixture();
 

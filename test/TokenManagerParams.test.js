@@ -335,7 +335,7 @@ describe("TokenManager with Params", function () {
 
       const receipt = await tx.wait();
       // Deployment now includes vesting config storage and oracle price governance state.
-      expect(receipt.gasUsed).to.be.lt(3700000);
+      expect(receipt.gasUsed).to.be.lt(4000000);
     });
   });
 

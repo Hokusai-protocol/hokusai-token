@@ -44,7 +44,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       const hokusaiToken = await HokusaiToken.deploy(
         "Gap Test Token", "GTT", owner.address,
         await hokusaiParams.getAddress(), parseEther("10000"),
-        0, 0, ZeroAddress
+        0, 0, 0, ZeroAddress
       );
       await hokusaiToken.waitForDeployment();
 

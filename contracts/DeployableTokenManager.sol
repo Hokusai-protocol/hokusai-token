@@ -128,6 +128,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             totalSupply,
             0,
             0,
+            0,
             address(0),
             _toFactoryParams(initialParams)
         );
@@ -166,6 +167,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             0,
             maxSupply,
             modelSupplierAllocation,
+            investorAllocation,
             modelSupplierRecipient,
             _toFactoryParams(initialParams)
         );
@@ -245,7 +247,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             "Model is deactivated"
         );
 
-        IManagedHokusaiToken(tokenAddress).mint(recipient, amount);
+        _mintInvestorToken(tokenAddress, recipient, amount);
         emit TokensMinted(modelId, recipient, amount);
     }
 
@@ -268,7 +270,6 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             "Model is deactivated"
         );
 
-        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
         uint256 totalAmount = 0;
 
         for (uint256 i = 0; i < recipients.length; i++) {
@@ -279,7 +280,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
                 continue;
             }
 
-            token.mint(recipients[i], amounts[i]);
+            _mintInvestorToken(tokenAddress, recipients[i], amounts[i]);
             totalAmount += amounts[i];
         }
 
@@ -354,6 +355,21 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
         IManagedHokusaiToken(tokenAddress).burnFrom(account, amount);
+        emit TokensBurned(modelId, account, amount);
+    }
+
+    function burnInvestorTokens(string memory modelId, address account, uint256 amount) external {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to burn"
+        );
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(account, "account");
+        ValidationLib.requirePositiveAmount(amount, "amount");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        _burnInvestorToken(tokenAddress, account, amount);
         emit TokensBurned(modelId, account, amount);
     }
 
@@ -445,7 +461,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         IHokusaiParams params = token.params();
 
         if (!params.vestingEnabled()) {
-            token.mint(recipient, amount);
+            _mintRewardToken(tokenAddress, recipient, amount);
             return;
         }
 
@@ -455,7 +471,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         );
 
         if (immediateAmount > 0) {
-            token.mint(recipient, immediateAmount);
+            _mintRewardToken(tokenAddress, recipient, immediateAmount);
         }
 
         if (vestedAmount == 0) {
@@ -465,7 +481,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         require(address(vestingVault) != address(0), "Vesting vault not configured");
 
         uint64 duration = params.vestingDurationSeconds();
-        token.mint(address(vestingVault), vestedAmount);
+        _mintRewardToken(tokenAddress, address(vestingVault), vestedAmount);
         vestingVault.createSchedule(
             modelId,
             tokenAddress,
@@ -484,5 +500,35 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             block.timestamp,
             block.timestamp + uint256(duration)
         );
+    }
+
+    function _mintInvestorToken(address tokenAddress, address recipient, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+        if (token.maxSupply() == type(uint256).max) {
+            token.mint(recipient, amount);
+            return;
+        }
+
+        token.mintInvestor(recipient, amount);
+    }
+
+    function _mintRewardToken(address tokenAddress, address recipient, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+        if (token.maxSupply() == type(uint256).max) {
+            token.mint(recipient, amount);
+            return;
+        }
+
+        token.mintReward(recipient, amount);
+    }
+
+    function _burnInvestorToken(address tokenAddress, address account, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+        if (token.maxSupply() == type(uint256).max) {
+            token.burnFrom(account, amount);
+            return;
+        }
+
+        token.burnInvestor(account, amount);
     }
 }

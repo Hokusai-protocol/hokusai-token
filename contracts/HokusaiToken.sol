@@ -11,6 +11,8 @@ import "./interfaces/IHokusaiParams.sol";
  * Each token has an immutable reference to its parameter contract for dynamic configuration
  */
 contract HokusaiToken is ERC20, Ownable {
+    uint256 public constant REWARD_CAP_MULTIPLIER = 100;
+
     address public controller;
 
     /// @dev Immutable reference to the parameter contract for this token
@@ -22,11 +24,20 @@ contract HokusaiToken is ERC20, Ownable {
     /// @dev Model supplier allocation amount (not minted until distributeModelSupplierAllocation is called)
     uint256 public immutable modelSupplierAllocation;
 
+    /// @dev Investor allocation reserved for AMM-driven mints
+    uint256 public immutable investorAllocation;
+
     /// @dev Address to receive model supplier allocation
     address public immutable modelSupplierRecipient;
 
     /// @dev Flag indicating if model supplier allocation has been distributed
     bool public modelSupplierDistributed;
+
+    /// @dev Net investor mints after investor-side burns
+    uint256 public investorMinted;
+
+    /// @dev Total rewards minted across immediate and vested flows
+    uint256 public rewardMinted;
 
     event ControllerUpdated(address indexed newController);
     event Minted(address indexed to, uint256 amount);
@@ -53,6 +64,7 @@ contract HokusaiToken is ERC20, Ownable {
      * @param _initialSupply Initial supply to mint to controller (for legacy deployment), or 0 for cap-based deployment
      * @param _maxSupply Maximum supply cap (0 for legacy mode = unlimited)
      * @param _modelSupplierAllocation Amount allocated for model supplier (0 for legacy mode)
+     * @param _investorAllocation Amount allocated for investor purchases (0 for legacy mode)
      * @param _modelSupplierRecipient Address to receive model supplier allocation (address(0) for legacy mode)
      */
     constructor(
@@ -63,6 +75,7 @@ contract HokusaiToken is ERC20, Ownable {
         uint256 _initialSupply,
         uint256 _maxSupply,
         uint256 _modelSupplierAllocation,
+        uint256 _investorAllocation,
         address _modelSupplierRecipient
     ) ERC20(_name, _symbol) Ownable() {
         require(bytes(_name).length > 0, "Token name cannot be empty");
@@ -74,10 +87,14 @@ contract HokusaiToken is ERC20, Ownable {
         bool isCapBased = _maxSupply > 0;
 
         if (isCapBased) {
-            require(_modelSupplierAllocation <= _maxSupply, "Model supplier allocation exceeds max supply");
+            require(
+                _modelSupplierAllocation + _investorAllocation == _maxSupply,
+                "Max supply must equal supplier + investor allocations"
+            );
             require(_modelSupplierRecipient != address(0), "Model supplier recipient cannot be zero address");
         } else {
             require(_initialSupply > 0, "Initial supply must be greater than zero");
+            require(_investorAllocation == 0, "Investor allocation only valid for cap-based tokens");
         }
 
         controller = _controller;
@@ -86,6 +103,7 @@ contract HokusaiToken is ERC20, Ownable {
         // Initialize immutables (must be assigned unconditionally)
         maxSupply = isCapBased ? _maxSupply : type(uint256).max;
         modelSupplierAllocation = isCapBased ? _modelSupplierAllocation : 0;
+        investorAllocation = isCapBased ? _investorAllocation : 0;
         modelSupplierRecipient = isCapBased ? _modelSupplierRecipient : address(0);
         modelSupplierDistributed = !isCapBased; // True for legacy, false for cap-based
 
@@ -115,9 +133,26 @@ contract HokusaiToken is ERC20, Ownable {
      * @param amount The amount of tokens to mint
      */
     function mint(address to, uint256 amount) external onlyController {
-        // Enforce max supply cap (only for cap-based tokens)
+        require(maxSupply == type(uint256).max, "Use mintInvestor or mintReward on cap-based tokens");
+        _mint(to, amount);
+        emit Minted(to, amount);
+    }
+
+    function mintInvestor(address to, uint256 amount) external onlyController {
         if (maxSupply < type(uint256).max) {
-            require(totalSupply() + amount <= maxSupply, "Minting would exceed max supply");
+            require(investorMinted + amount <= investorAllocation, "Exceeds investor allocation");
+            investorMinted += amount;
+        }
+
+        _mint(to, amount);
+        emit Minted(to, amount);
+    }
+
+    function mintReward(address to, uint256 amount) external onlyController {
+        if (maxSupply < type(uint256).max) {
+            uint256 rewardCap = getRewardMintingCap();
+            require(rewardMinted + amount <= rewardCap, "Exceeds reward mint cap");
+            rewardMinted += amount;
         }
 
         _mint(to, amount);
@@ -158,20 +193,61 @@ contract HokusaiToken is ERC20, Ownable {
         emit Burned(from, amount);
     }
 
+    function burnInvestor(address from, uint256 amount) external onlyController {
+        if (maxSupply < type(uint256).max) {
+            require(amount <= investorMinted, "Burn exceeds investor minted");
+            investorMinted -= amount;
+        }
+
+        _burn(from, amount);
+        emit Burned(from, amount);
+    }
+
     /**
-     * @dev Returns the remaining mintable supply (for cap-based tokens)
-     * @return The amount of tokens that can still be minted
+     * @dev Returns the remaining investor allocation for cap-based tokens.
      */
     function getRemainingSupply() external view returns (uint256) {
         if (maxSupply >= type(uint256).max) {
             return type(uint256).max; // Legacy tokens have unlimited supply
         }
 
-        uint256 currentSupply = totalSupply();
-        if (currentSupply >= maxSupply) {
+        if (investorMinted >= investorAllocation) {
             return 0;
         }
 
-        return maxSupply - currentSupply;
+        return investorAllocation - investorMinted;
+    }
+
+    function getRemainingInvestorAllocation() external view returns (uint256) {
+        if (maxSupply >= type(uint256).max) {
+            return type(uint256).max;
+        }
+
+        if (investorMinted >= investorAllocation) {
+            return 0;
+        }
+
+        return investorAllocation - investorMinted;
+    }
+
+    function getRewardMintingCap() public view returns (uint256) {
+        if (maxSupply >= type(uint256).max) {
+            return type(uint256).max;
+        }
+
+        return REWARD_CAP_MULTIPLIER * params.tokensPerDeltaOne();
+    }
+
+    function getRemainingRewardAllocation() external view returns (uint256) {
+        uint256 rewardCap = getRewardMintingCap();
+        if (rewardCap == type(uint256).max) {
+            return type(uint256).max;
+        }
+
+        if (rewardMinted >= rewardCap) {
+            return 0;
+        }
+
+        return rewardCap - rewardMinted;
     }
 }

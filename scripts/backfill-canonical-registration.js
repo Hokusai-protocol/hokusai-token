@@ -93,30 +93,16 @@ function normalizeAddress(value) {
   return hre.ethers.getAddress(value);
 }
 
-async function main() {
-  const options = parseArgs(process.argv.slice(2));
-  const deployment = loadDeployment(options.deploymentFile);
-  const contracts = deployment.contracts || {};
-  const [signer] = await hre.ethers.getSigners();
-
-  const modelRegistry = new hre.ethers.Contract(
-    requireAddress("ModelRegistry", contracts.ModelRegistry),
-    ABIS.modelRegistry,
-    signer,
-  );
-  const tokenManager = new hre.ethers.Contract(
-    requireAddress("TokenManager", contracts.TokenManager),
-    ABIS.tokenManager,
-    signer,
-  );
-
-  const owner = await modelRegistry.owner();
-  if (!options.dryRun && normalizeAddress(owner) !== normalizeAddress(signer.address)) {
-    throw new Error(`Signer ${signer.address} is not ModelRegistry owner ${owner}`);
+async function runBackfill({ modelIds, dryRun, modelRegistry, tokenManager, signer }) {
+  if (!dryRun) {
+    const owner = await modelRegistry.owner();
+    if (normalizeAddress(owner) !== normalizeAddress(signer.address)) {
+      throw new Error(`Signer ${signer.address} is not ModelRegistry owner ${owner}`);
+    }
   }
 
   const results = [];
-  for (const modelIdString of options.modelIds) {
+  for (const modelIdString of modelIds) {
     const modelId = BigInt(modelIdString);
     const [
       numericRegistered,
@@ -155,7 +141,7 @@ async function main() {
     if (numericRegistered) {
       if (canonicalToken !== managerToken) {
         throw new Error(
-          `Numeric registry drift for model ${modelIdString}: numeric=${canonicalToken}, expected=${managerToken}`,
+          `RegistrationConflict: numeric registry drift for model ${modelIdString}: numeric=${canonicalToken}, expected=${managerToken}`,
         );
       }
 
@@ -169,7 +155,7 @@ async function main() {
       continue;
     }
 
-    if (options.dryRun) {
+    if (dryRun) {
       results.push({
         modelId: modelIdString,
         action: "would_register",
@@ -190,6 +176,34 @@ async function main() {
       gasUsed: receipt.gasUsed.toString(),
     });
   }
+
+  return results;
+}
+
+async function main() {
+  const options = parseArgs(process.argv.slice(2));
+  const deployment = loadDeployment(options.deploymentFile);
+  const contracts = deployment.contracts || {};
+  const [signer] = await hre.ethers.getSigners();
+
+  const modelRegistry = new hre.ethers.Contract(
+    requireAddress("ModelRegistry", contracts.ModelRegistry),
+    ABIS.modelRegistry,
+    signer,
+  );
+  const tokenManager = new hre.ethers.Contract(
+    requireAddress("TokenManager", contracts.TokenManager),
+    ABIS.tokenManager,
+    signer,
+  );
+
+  const results = await runBackfill({
+    modelIds: options.modelIds,
+    dryRun: options.dryRun,
+    modelRegistry,
+    tokenManager,
+    signer,
+  });
 
   if (options.json) {
     console.log(JSON.stringify({
@@ -214,7 +228,16 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+module.exports = {
+  parseArgs,
+  parseModelIds,
+  loadDeployment,
+  runBackfill,
+};
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

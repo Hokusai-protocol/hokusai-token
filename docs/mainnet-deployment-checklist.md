@@ -511,4 +511,4 @@ ___________________________________________________________________________
 ___________________________________________________________________________
 ___________________________________________________________________________
 ___________________________________________________________________________
-See also: [docs/canonical-model-registration.md](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/remove-dual-modelregistry-ambiguity-across-deltaverifier-and-amm-flows/docs/canonical-model-registration.md)
+See also: [docs/canonical-model-registration.md](./canonical-model-registration.md)

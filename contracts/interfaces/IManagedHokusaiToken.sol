@@ -14,6 +14,8 @@ interface IManagedHokusaiToken {
 
     function burnInvestor(address from, uint256 amount) external;
 
+    function burnAMM(address from, uint256 amount) external;
+
     function distributeModelSupplierAllocation() external;
 
     function modelSupplierRecipient() external view returns (address);

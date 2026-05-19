@@ -563,7 +563,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       const receipt = await tx.wait();
 
       console.log(`      Gas used for buy(): ${receipt.gasUsed}`);
-      expect(receipt.gasUsed).to.be.lt(165000); // Canonical registry checks add a small constant overhead
+      expect(receipt.gasUsed).to.be.lt(175000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
     });
 
     it("Should measure gas for sell()", async function () {
@@ -590,7 +590,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
 
       const gasUsed = await hokusaiAMM.getBuyQuote.estimateGas(reserveIn);
       console.log(`      Gas used for getBuyQuote(): ${gasUsed}`);
-      expect(gasUsed).to.be.lt(50000); // Target < 5k (very lenient for now)
+      expect(gasUsed).to.be.lt(60000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
     });
   });
 
@@ -631,7 +631,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
     it("getReserves should return correct values", async function () {
       const [reserve, supply] = await hokusaiAMM.getReserves();
       expect(reserve).to.equal(await hokusaiAMM.reserveBalance());
-      expect(supply).to.equal(await hokusaiToken.totalSupply());
+      expect(supply).to.equal(await tokenManager.getRedeemableSupply(modelId));
     });
 
     it("isSellEnabled should return false during IBR", async function () {

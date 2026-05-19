@@ -22,6 +22,7 @@ Implement a Constant-Reserve-Ratio (CRR) Automated Market Maker system for Hokus
 - **Sell**: Users return tokens → AMM burns via TokenManager, returns USDC
 - **API Fees**: Usage fees in USDC → deposited to reserves (raises floor price)
 - **Performance**: DeltaVerifier mints rewards → dilutes supply unless offset by demand
+- **Curve Supply**: Bonding-curve pricing uses redeemable circulating supply, excluding balances still locked in `RewardVestingVault`
 
 ---
 
@@ -85,7 +86,7 @@ Spot: P = R / (w × S)
 
 Where:
   T = tokens to mint/burn
-  S = current supply
+  S = redeemable circulating supply
   R = reserve balance
   E = USDC deposited
   F = USDC returned

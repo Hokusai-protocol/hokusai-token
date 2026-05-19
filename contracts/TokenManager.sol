@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
@@ -371,6 +372,26 @@ contract TokenManager is Ownable, AccessControlBase {
     }
 
     /**
+     * @dev Returns the redeemable circulating supply used by AMM pricing.
+     * Excludes balances held in the vesting vault until contributors claim them.
+     */
+    function getRedeemableSupply(string memory modelId) external view returns (uint256) {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+
+        uint256 totalSupply = IERC20(tokenAddress).totalSupply();
+        address vault = address(vestingVault);
+        if (vault == address(0)) {
+            return totalSupply;
+        }
+
+        uint256 lockedSupply = IERC20(tokenAddress).balanceOf(vault);
+        return totalSupply > lockedSupply ? totalSupply - lockedSupply : 0;
+    }
+
+    /**
      * @dev Mints tokens for a specific model to a recipient (general-purpose, no vesting)
      * @param modelId The model identifier
      * @param recipient The address to receive the tokens
@@ -573,6 +594,30 @@ contract TokenManager is Ownable, AccessControlBase {
     }
 
     /**
+     * @dev Burns tokens from an AMM sell, restoring investor headroom first then reward.
+     * Allows both investor and reward token holders to sell into the AMM without reverting.
+     */
+    function burnAMMTokens(string memory modelId, address account, uint256 amount)
+        external
+    {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to burn"
+        );
+
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(account, "account");
+        ValidationLib.requirePositiveAmount(amount, "amount");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+
+        _burnAMMToken(tokenAddress, account, amount);
+
+        emit TokensBurned(modelId, account, amount);
+    }
+
+    /**
      * @dev Gets the token address for a specific model
      * @param modelId The model identifier
      * @return The token contract address
@@ -700,5 +745,16 @@ contract TokenManager is Ownable, AccessControlBase {
         }
 
         token.burnInvestor(account, amount);
+    }
+
+    function _burnAMMToken(address tokenAddress, address account, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+
+        if (token.maxSupply() == type(uint256).max) {
+            token.burnFrom(account, amount);
+            return;
+        }
+
+        token.burnAMM(account, amount);
     }
 }

@@ -372,7 +372,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
 
     const [reserve, supply] = await pool.getReserves();
     expect(reserve).to.equal(await pool.reserveBalance());
-    expect(supply).to.equal(await token.totalSupply());
+    expect(supply).to.equal(await tokenManager.getRedeemableSupply(MODEL_ID_STR));
     expect(await mockUSDC.balanceOf(await pool.getAddress())).to.equal(await pool.reserveBalance());
 
     const maxTradeSize = (await pool.reserveBalance() * await pool.maxTradeBps()) / 10000n;

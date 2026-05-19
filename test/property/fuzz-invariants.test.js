@@ -287,7 +287,7 @@ describe("Property fuzz invariants", function () {
 
   describe("AMM reserve and supply accounting", function () {
     it("fuzzes buy, sell, and fee-deposit sequences while preserving accounting invariants", async function () {
-      const { amm, token, mockUSDC, users } = await loadFixture(deployAmmFixture);
+      const { amm, tokenManager, token, mockUSDC, users, modelId } = await loadFixture(deployAmmFixture);
       const rng = makeRng(0xa11ce);
 
       for (let i = 0; i < 48; i += 1) {
@@ -339,7 +339,7 @@ describe("Property fuzz invariants", function () {
         const ammUsdc = await mockUSDC.balanceOf(await amm.getAddress());
         const [, reportedSupply] = await amm.getReserves();
         expect(reserve).to.be.lte(ammUsdc);
-        expect(reportedSupply).to.equal(await token.totalSupply());
+        expect(reportedSupply).to.equal(await tokenManager.getRedeemableSupply(modelId));
         expect(await amm.spotPrice()).to.be.gt(0);
       }
     });

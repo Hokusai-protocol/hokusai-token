@@ -302,4 +302,28 @@ describe("DeployableTokenManager Vesting", function () {
       amm.connect(contributor).sell(rewardAmount, 0, contributor.address, (await time.latest()) + 3600)
     ).to.be.reverted;
   });
+
+  it("falls back to totalSupply when no vesting vault is configured", async function () {
+    const TokenDeploymentFactory = await ethers.getContractFactory("TokenDeploymentFactory");
+    const DeployableTokenManager = await ethers.getContractFactory("DeployableTokenManager");
+
+    const freshFactory = await TokenDeploymentFactory.deploy();
+    await freshFactory.waitForDeployment();
+
+    const freshManager = await DeployableTokenManager.deploy(
+      await modelRegistry.getAddress(),
+      await freshFactory.getAddress()
+    );
+    await freshManager.waitForDeployment();
+
+    await freshManager.deployTokenWithParams(
+      "no-vault",
+      "No Vault Token",
+      "NVT",
+      parseEther("4321"),
+      buildInitialParams(owner.address, { vestingConfig: buildDisabledVestingConfig() })
+    );
+
+    expect(await freshManager.getRedeemableSupply("no-vault")).to.equal(parseEther("4321"));
+  });
 });

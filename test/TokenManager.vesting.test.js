@@ -244,4 +244,24 @@ describe("TokenManager Vesting", function () {
       amm.connect(contributor).sell(rewardAmount, 0, contributor.address, (await time.latest()) + 3600)
     ).to.be.reverted;
   });
+
+  it("falls back to totalSupply when no vesting vault is configured", async function () {
+    const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
+    const freshRegistry = await ModelRegistry.deploy();
+    await freshRegistry.waitForDeployment();
+
+    const TokenManager = await ethers.getContractFactory("TokenManager");
+    const freshManager = await TokenManager.deploy(await freshRegistry.getAddress());
+    await freshManager.waitForDeployment();
+
+    await freshManager.deployTokenWithParams(
+      "no-vault",
+      "No Vault Token",
+      "NVT",
+      parseEther("1234"),
+      buildInitialParams(owner.address, { vestingConfig: buildDisabledVestingConfig() })
+    );
+
+    expect(await freshManager.getRedeemableSupply("no-vault")).to.equal(parseEther("1234"));
+  });
 });

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
@@ -229,6 +230,26 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
 
     function revokeAMM(address amm) external onlyOwner {
         revokeRole(MINTER_ROLE, amm);
+    }
+
+    /**
+     * @dev Returns the redeemable circulating supply used by AMM pricing.
+     * Excludes balances held in the vesting vault until contributors claim them.
+     */
+    function getRedeemableSupply(string memory modelId) external view returns (uint256) {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+
+        uint256 totalSupply = IERC20(tokenAddress).totalSupply();
+        address vault = address(vestingVault);
+        if (vault == address(0)) {
+            return totalSupply;
+        }
+
+        uint256 lockedSupply = IERC20(tokenAddress).balanceOf(vault);
+        return totalSupply > lockedSupply ? totalSupply - lockedSupply : 0;
     }
 
     function mintTokens(string memory modelId, address recipient, uint256 amount) external {

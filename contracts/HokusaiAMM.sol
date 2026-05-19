@@ -306,6 +306,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     // ============================================================
 
     /**
+     * @dev Returns the redeemable circulating supply used by the AMM curve.
+     */
+    function _redeemableSupply() internal view returns (uint256) {
+        return tokenManager.getRedeemableSupply(modelId);
+    }
+
+    /**
      * @dev Calculate tokens out for a given USDC deposit
      * @param reserveIn Amount of USDC to deposit
      * @return tokensOut Tokens to be minted
@@ -318,7 +325,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     function getBuyQuote(uint256 reserveIn) public view returns (uint256 tokensOut) {
         if (reserveIn == 0) return 0;
 
-        uint256 supply = IERC20(hokusaiToken).totalSupply();
+        uint256 supply = _redeemableSupply();
         uint256 futureReserve = reserveBalance + reserveIn;
 
         // Case 1: Entirely in flat price phase
@@ -360,7 +367,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     function getSellQuote(uint256 tokensIn) public view returns (uint256 reserveOut) {
         if (tokensIn == 0) return 0;
 
-        uint256 supply = IERC20(hokusaiToken).totalSupply();
+        uint256 supply = _redeemableSupply();
         if (supply == 0 || tokensIn > supply) return 0;
         if (reserveBalance == 0) return 0;
 
@@ -381,13 +388,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Get current spot price
+     * @dev Get current spot price from redeemable circulating supply
      * @return Current price in USDC per token (6 decimals)
      *
      * Returns flat price during flat phase, bonding curve formula otherwise
      */
     function spotPrice() public view returns (uint256) {
-        uint256 supply = IERC20(hokusaiToken).totalSupply();
+        uint256 supply = _redeemableSupply();
 
         // During flat price phase, return fixed price
         if (reserveBalance < FLAT_CURVE_THRESHOLD) {
@@ -409,13 +416,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Get current reserves and supply
+     * @dev Get current reserves and redeemable circulating supply
      * @return reserve Current USDC reserve balance
-     * @return supply Current token supply
+     * @return supply Current redeemable circulating supply
      */
     function getReserves() external view returns (uint256 reserve, uint256 supply) {
         reserve = reserveBalance;
-        supply = IERC20(hokusaiToken).totalSupply();
+        supply = _redeemableSupply();
     }
 
     /**
@@ -433,7 +440,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     /**
      * @dev Get comprehensive pool state
      * @return reserve Current USDC reserve balance
-     * @return supply Current token supply
+     * @return supply Current redeemable circulating supply
      * @return price Current spot price (6 decimals)
      * @return reserveRatio CRR in PPM
      * @return tradeFeeRate Trade fee in bps
@@ -450,7 +457,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         )
     {
         reserve = reserveBalance;
-        supply = IERC20(hokusaiToken).totalSupply();
+        supply = _redeemableSupply();
         price = spotPrice();
         reserveRatio = crr;
         tradeFeeRate = tradeFee;
@@ -501,7 +508,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         // New reserve = current + reserveIn (after fee)
         uint256 feeAmount = (reserveIn * tradeFee) / 10000;
         uint256 newReserve = reserveBalance + (reserveIn - feeAmount);
-        uint256 newSupply = IERC20(hokusaiToken).totalSupply() + tokensOut;
+        uint256 newSupply = _redeemableSupply() + tokensOut;
 
         // P = (R * PPM * 1e18) / (crr * S)
         newSpotPrice = (newReserve * PPM * 1e18) / (crr * newSupply);
@@ -541,7 +548,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
 
         // Calculate new spot price after trade
         // New supply = current - tokensIn
-        uint256 newSupply = IERC20(hokusaiToken).totalSupply() - tokensIn;
+        uint256 newSupply = _redeemableSupply() - tokensIn;
         // New reserve = current - reserveOut
         uint256 newReserve = reserveBalance - reserveOut;
 

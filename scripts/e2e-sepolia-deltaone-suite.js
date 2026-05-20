@@ -260,7 +260,7 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
     investorMintedBefore = await ctx.token.investorMinted();
     rewardMintedBefore = await ctx.token.rewardMinted();
     rewardCap = await ctx.token.getRewardMintingCap();
-    remainingMintable = investorAllocation > investorMintedBefore ? investorAllocation - investorMintedBefore : 0n;
+    remainingMintable = rewardCap > rewardMintedBefore ? rewardCap - rewardMintedBefore : 0n;
   } catch (error) {
     // Legacy tokens only expose the old maxSupply semantics.
   }

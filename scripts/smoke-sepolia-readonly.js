@@ -58,6 +58,7 @@ const ABIS = {
     "function defaultIbrDuration() view returns (uint256)",
     "function defaultFlatCurveThreshold() view returns (uint256)",
     "function defaultFlatCurvePrice() view returns (uint256)",
+    "function getPool(string modelId) view returns (address)",
   ],
   usageFeeRouter: [
     "function FEE_DEPOSITOR_ROLE() view returns (bytes32)",

@@ -333,6 +333,12 @@ async function runLaunchDeploy({
       console.log(`   ✅ Pool created: ${poolAddress}`);
       console.log(`   🔗 View on Etherscan: ${etherscanBaseUrl}/address/${poolAddress}`);
 
+      console.log("   📋 Registering pool in ModelRegistry...");
+      const registerPoolTx = await modelRegistry.registerPool(config.modelId, poolAddress);
+      const registerPoolReceipt = await registerPoolTx.wait();
+      console.log("   ✅ Pool registered in ModelRegistry");
+      console.log(`   ⛽ Gas used: ${registerPoolReceipt.gasUsed.toString()}`);
+
       console.log("   🔐 Authorizing AMM to mint tokens...");
       const authorizeTx = await tokenManager.authorizeAMM(poolAddress);
       await authorizeTx.wait();

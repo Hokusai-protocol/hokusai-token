@@ -779,6 +779,7 @@ async function checkToken({ tokenInfo, contracts, signer, recorder, options }) {
   }
 
   let liveGraduate = null;
+  let postGraduateBuy = null;
   if (options.liveGraduate) {
     const latestState = await pool.getPoolState();
     const latestReserve = latestState.reserve ?? latestState[0];
@@ -816,6 +817,33 @@ async function checkToken({ tokenInfo, contracts, signer, recorder, options }) {
           ...liveGraduate,
           threshold,
         });
+      }
+    }
+
+    const graduatedAfter = await pool.hasGraduated();
+    if (graduatedAfter) {
+      const postGraduationBuyAmount = buyAmount;
+      const usdcBalance = await usdc.balanceOf(signer.address);
+      recorder.assert(`${label} signer has enough MockUSDC for post-graduation AMM buy`, usdcBalance >= postGraduationBuyAmount, {
+        signer: signer.address,
+        usdcBalance,
+        postGraduationBuyAmount,
+      });
+      if (usdcBalance >= postGraduationBuyAmount) {
+        postGraduateBuy = await executeAmmBuy({
+          pool,
+          usdc,
+          token,
+          signer,
+          amount: postGraduationBuyAmount,
+        });
+        recorder.assert(`${label} post-graduation AMM buy executes in bonding curve phase`, (
+          postGraduateBuy.tokenDelta > 0n &&
+          postGraduateBuy.beforeGraduated === true &&
+          postGraduateBuy.afterGraduated === true &&
+          Number(postGraduateBuy.beforePhase) === 1 &&
+          Number(postGraduateBuy.afterPhase) === 1
+        ), postGraduateBuy);
       }
     }
   }
@@ -876,6 +904,7 @@ async function checkToken({ tokenInfo, contracts, signer, recorder, options }) {
     liveAmmBuy,
     liveTokenTargetBuy,
     liveGraduate,
+    postGraduateBuy,
     liveSell,
   };
 }
@@ -899,6 +928,7 @@ function printSummary(result) {
       if (token.liveAmmBuy) console.log(`  Buy tx:  ${token.liveAmmBuy.txHash}`);
       if (token.liveTokenTargetBuy) console.log(`  Target buy tx: ${token.liveTokenTargetBuy.txHash}`);
       if (token.liveGraduate) console.log(`  Graduate tx: ${token.liveGraduate.txHash}`);
+      if (token.postGraduateBuy) console.log(`  Post-graduation buy tx: ${token.postGraduateBuy.txHash}`);
       if (token.liveSell) console.log(`  Sell tx: ${token.liveSell.txHash}`);
     }
   }

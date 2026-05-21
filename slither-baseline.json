@@ -490,6 +490,69 @@
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
       "followUp": "n/a"
+    },
+    {
+      "id": "22fce17afbe6d41c258bfc1e5c5855a5c733728987e05dc36b6e544ca02b60a1",
+      "check": "incorrect-equality",
+      "justification": "FundingVault source mapping changed under HOK-1816; same pre-existing dust equality finding remains outside ready-check scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "e2107d37ab06b0f8e057909f958545655e5acfcbf70fadde352d91c6e9c5f51d",
+      "check": "reentrancy-no-eth",
+      "justification": "FundingVault source mapping changed under HOK-1816; same pre-existing graduation reentrancy finding remains outside ready-check scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "492c20ea9035135b22fcd1eeac17bab3ec77b0b61813abddb326ff0801230aa2",
+      "check": "unused-return",
+      "justification": "FundingVault source mapping changed under HOK-1816; same pre-existing graduation unused-return finding remains outside ready-check scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "3392279727407b5710022930804e92bc56693f21b10f15733ccbe6f674b35e0f",
+      "check": "reentrancy-events",
+      "justification": "HOK-1816 source mapping surfaced the existing factory pause event-after-external-call pattern; remediation is outside ready-check scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "4a9f4da8c71f7ed6bebc25477edddab650e6267bb975261d2d6c1095a522d3c5",
+      "check": "reentrancy-events",
+      "justification": "HOK-1816 source mapping surfaced the existing factory pause event-after-external-call pattern; remediation is outside ready-check scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "4b64388ecbbb612a21a9fb76849d1baf89b0ac7eeee86fe35718a569455768d9",
+      "check": "reentrancy-events",
+      "justification": "HOK-1816 source mapping surfaced the existing factory pause event-after-external-call pattern; remediation is outside ready-check scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "7c821e121d91b78eb2a0142c2d1a62f97884c72a66f04a39a5ed90e3ff7e5c80",
+      "check": "reentrancy-events",
+      "justification": "HOK-1816 adds canonical registry registration during pool creation; the event and registry write revert atomically on failure.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "a92769fd8faa1a2f9443737091a498f0411274d3b5dc05c1deecfb02c6c94f19",
+      "check": "reentrancy-events",
+      "justification": "HOK-1816 source mapping surfaced the existing factory pause event-after-external-call pattern; remediation is outside ready-check scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "bb24f6b7dbbbbd2c5dc90790292803c20935db77f6ce2b2cfb0421381a36e19f",
+      "check": "reentrancy-events",
+      "justification": "HOK-1816 source mapping surfaced the existing factory pause event-after-external-call pattern; remediation is outside ready-check scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
     }
   ]
 }

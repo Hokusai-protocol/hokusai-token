@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
@@ -17,7 +18,7 @@ import "./interfaces/IRewardVestingVault.sol";
  * @dev Manages token deployment and operations for models
  * Users can deploy tokens directly and pay gas fees themselves
  */
-contract TokenManager is Ownable, AccessControlBase {
+contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
     ModelRegistry public registry;
     address public deltaVerifier;
 
@@ -89,6 +90,7 @@ contract TokenManager is Ownable, AccessControlBase {
         uint256 vestingStart,
         uint256 vestingEnd
     );
+    event DeploymentFeesWithdrawn(address indexed recipient, uint256 amount);
 
 
     constructor(address registryAddress)
@@ -121,7 +123,7 @@ contract TokenManager is Ownable, AccessControlBase {
         string memory symbol,
         uint256 totalSupply,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         // Validate inputs using ValidationLib
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
@@ -132,19 +134,8 @@ contract TokenManager is Ownable, AccessControlBase {
         // Check if model already has a token
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
 
-        // Check deployment fee if configured
-        if (deploymentFee > 0) {
-            require(msg.value >= deploymentFee, "Insufficient deployment fee");
-            // Transfer fee to recipient
-            (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
-            require(sent, "Failed to send deployment fee");
-
-            // Refund excess payment
-            if (msg.value > deploymentFee) {
-                (bool refunded, ) = msg.sender.call{value: msg.value - deploymentFee}("");
-                require(refunded, "Failed to refund excess payment");
-            }
-        }
+        // Validate deployment fee (pull-payment: fee stays in contract)
+        _collectDeploymentFee();
 
         // Deploy HokusaiParams first
         HokusaiParams newParams = new HokusaiParams(
@@ -190,6 +181,9 @@ contract TokenManager is Ownable, AccessControlBase {
         );
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
 
+        // Refund excess payment (CEI: last step, after all state changes and events)
+        _refundExcess();
+
         return tokenAddress;
     }
 
@@ -214,7 +208,7 @@ contract TokenManager is Ownable, AccessControlBase {
         address modelSupplierRecipient,
         uint256 investorAllocation,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         // Validate inputs
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
@@ -227,19 +221,8 @@ contract TokenManager is Ownable, AccessControlBase {
         // Check if model already has a token
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
 
-        // Check deployment fee if configured
-        if (deploymentFee > 0) {
-            require(msg.value >= deploymentFee, "Insufficient deployment fee");
-            // Transfer fee to recipient
-            (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
-            require(sent, "Failed to send deployment fee");
-
-            // Refund excess payment
-            if (msg.value > deploymentFee) {
-                (bool refunded, ) = msg.sender.call{value: msg.value - deploymentFee}("");
-                require(refunded, "Failed to refund excess payment");
-            }
-        }
+        // Validate deployment fee (pull-payment: fee stays in contract)
+        _collectDeploymentFee();
 
         // Deploy HokusaiParams first
         HokusaiParams newParams = new HokusaiParams(
@@ -291,6 +274,9 @@ contract TokenManager is Ownable, AccessControlBase {
             address(0), // No immediate investor recipient (minted via AMM)
             investorAllocation
         );
+
+        // Refund excess payment (CEI: last step, after all state changes and events)
+        _refundExcess();
 
         return tokenAddress;
     }
@@ -756,5 +742,41 @@ contract TokenManager is Ownable, AccessControlBase {
         }
 
         token.burnAMM(account, amount);
+    }
+
+    /**
+     * @dev Validates and retains deployment fee (pull-payment model)
+     * Fee remains in contract until withdrawn via withdrawDeploymentFees()
+     */
+    function _collectDeploymentFee() private {
+        if (deploymentFee > 0) {
+            require(msg.value >= deploymentFee, "Insufficient deployment fee");
+        }
+    }
+
+    /**
+     * @dev Refunds excess payment to msg.sender (CEI-compliant: call last)
+     * Only called after all state changes and event emissions
+     */
+    function _refundExcess() private {
+        if (msg.value > deploymentFee) {
+            uint256 excess = msg.value - deploymentFee;
+            (bool refunded, ) = msg.sender.call{value: excess}("");
+            require(refunded, "Failed to refund excess payment");
+        }
+    }
+
+    /**
+     * @dev Withdraws accrued deployment fees to feeRecipient (owner only, pull-payment)
+     * Because this function is onlyOwner, Slither's arbitrary-send-eth does not flag it
+     */
+    function withdrawDeploymentFees() external onlyOwner nonReentrant {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No fees to withdraw");
+
+        (bool sent, ) = feeRecipient.call{value: balance}("");
+        require(sent, "Failed to send deployment fees");
+
+        emit DeploymentFeesWithdrawn(feeRecipient, balance);
     }
 }

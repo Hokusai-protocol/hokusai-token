@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
@@ -17,7 +18,7 @@ import "./libraries/RewardSplitLib.sol";
  * Token and params creation is delegated to TokenDeploymentFactory so this
  * contract stays below the EIP-170 runtime bytecode limit.
  */
-contract DeployableTokenManager is Ownable, AccessControlBase {
+contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
     ModelRegistry public registry;
     ITokenDeploymentFactory public tokenDeploymentFactory;
     address public deltaVerifier;
@@ -87,6 +88,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         uint256 vestingStart,
         uint256 vestingEnd
     );
+    event DeploymentFeesWithdrawn(address indexed recipient, uint256 amount);
 
     constructor(address registryAddress, address tokenDeploymentFactoryAddress)
         Ownable()
@@ -111,7 +113,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         string memory symbol,
         uint256 totalSupply,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
         ValidationLib.requireNonEmptyString(symbol, "token symbol");
@@ -137,6 +139,9 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         _storeDeployment(modelId, tokenAddress, paramsAddress);
         _emitParamsDeployed(modelId, paramsAddress, initialParams);
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
+
+        // Refund excess payment (CEI: last step, after all state changes and events)
+        _refundExcess();
     }
 
     function deployTokenWithAllocations(
@@ -147,7 +152,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         address modelSupplierRecipient,
         uint256 investorAllocation,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
         ValidationLib.requireNonEmptyString(symbol, "token symbol");
@@ -183,6 +188,9 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             address(0),
             investorAllocation
         );
+
+        // Refund excess payment (CEI: last step, after all state changes and events)
+        _refundExcess();
     }
 
     function distributeModelSupplierAllocation(string memory modelId) external onlyOwner {
@@ -416,19 +424,40 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         return modelParams[modelId] != address(0);
     }
 
+    /**
+     * @dev Validates and retains deployment fee (pull-payment model)
+     * Fee remains in contract until withdrawn via withdrawDeploymentFees()
+     */
     function _collectDeploymentFee() private {
-        if (deploymentFee == 0) {
-            return;
+        if (deploymentFee > 0) {
+            require(msg.value >= deploymentFee, "Insufficient deployment fee");
         }
+    }
 
-        require(msg.value >= deploymentFee, "Insufficient deployment fee");
-        (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
-        require(sent, "Failed to send deployment fee");
-
+    /**
+     * @dev Refunds excess payment to msg.sender (CEI-compliant: call last)
+     * Only called after all state changes and event emissions
+     */
+    function _refundExcess() private {
         if (msg.value > deploymentFee) {
-            (bool refunded, ) = msg.sender.call{value: msg.value - deploymentFee}("");
+            uint256 excess = msg.value - deploymentFee;
+            (bool refunded, ) = msg.sender.call{value: excess}("");
             require(refunded, "Failed to refund excess payment");
         }
+    }
+
+    /**
+     * @dev Withdraws accrued deployment fees to feeRecipient (owner only, pull-payment)
+     * Because this function is onlyOwner, Slither's arbitrary-send-eth does not flag it
+     */
+    function withdrawDeploymentFees() external onlyOwner nonReentrant {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No fees to withdraw");
+
+        (bool sent, ) = feeRecipient.call{value: balance}("");
+        require(sent, "Failed to send deployment fees");
+
+        emit DeploymentFeesWithdrawn(feeRecipient, balance);
     }
 
     function _storeDeployment(

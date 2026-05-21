@@ -1,0 +1,13 @@
+{
+  "stage": "planning",
+  "status": "completed",
+  "startedAt": "2026-05-21T18:30:30Z",
+  "finishedAt": "2026-05-21T18:56:54.388Z",
+  "agent": "claude",
+  "model": "claude-opus-4-7",
+  "notes": "Plan approved by user",
+  "artifacts": {
+    "type": "planning",
+    "planFile": "plan.md"
+  }
+}

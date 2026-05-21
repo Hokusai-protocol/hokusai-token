@@ -1,0 +1,64 @@
+{
+  "planner": "claude-opus-4-7",
+  "coder": "gpt-5.4",
+  "reviewer": "claude-sonnet-4-6",
+  "planDepth": "deep",
+  "codeDepth": "deep",
+  "reviewMode": "static+llm",
+  "reviewRecommended": "static+llm",
+  "provenance": {
+    "source": "expanded",
+    "inputKind": "task-packet",
+    "inputPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/../worktrees/remediate-pre-existing-slither-high-medium-findings-baselined-in-hok-1734-challenger/features/remediate-pre-existing-slither-high-medium-findings-baselined-in-hok-1734-challenger/task-packet.md",
+    "inputHash": "78dca4edba2fc88218f102c0ae33fe0ecc620dc6359042b579fc59935585a03c",
+    "routedAt": "2026-05-21T18:56:56.979Z",
+    "routerMode": "normal",
+    "appliedFrom": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/../worktrees/remediate-pre-existing-slither-high-medium-findings-baselined-in-hok-1734-challenger/features/remediate-pre-existing-slither-high-medium-findings-baselined-in-hok-1734-challenger/.post-expansion-route.json",
+    "appliedAt": "2026-05-21T18:56:57Z"
+  },
+  "maxCostUsd": 25,
+  "expectedSuccess": 0.35,
+  "confidence": 0.33,
+  "expectedCostPlan": 1.8,
+  "expectedCostCode": 12.19,
+  "expectedCostReview": 0.92,
+  "reasoning": [
+    "Task classified as bugfix with long prompt length.",
+    "Risk score 21 from complexity, scope, and repo-surface keywords.",
+    "Coder baseline uses gpt-5.4 from heuristic eval routing.",
+    "Review mode static+llm chosen to match expected change risk.",
+    "DeepSeek models were ignored because providers.deepseek.enabled is not true."
+  ],
+  "signals": {
+    "taskType": "bugfix",
+    "promptLength": "long",
+    "complexityScore": 8,
+    "fileTypes": [
+      ".json",
+      ".js",
+      ".md",
+      ".yml"
+    ],
+    "riskScore": 21
+  },
+  "constraints": {
+    "maxCostUsd": 25
+  },
+  "routingMode": "heuristic-fallback",
+  "neighborCount": 0,
+  "neighborSimilarityRange": [
+    0,
+    0
+  ],
+  "expectedCost": 14.91,
+  "challengeRecommendation": {
+    "shouldChallenge": true,
+    "reason": "low-confidence",
+    "defaultModel": "gpt-5.4",
+    "challengerModel": "claude-sonnet-4-5-20250929",
+    "priority": 300
+  },
+  "cache_hit": false,
+  "route_source": "single",
+  "packet_hash": "927896e173b94f4e6c0b0fdc088d8b6225bbe0c65eb1549d7b76c91736301f1d"
+}

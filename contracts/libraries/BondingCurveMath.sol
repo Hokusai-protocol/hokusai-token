@@ -130,15 +130,15 @@ library BondingCurveMath {
         int256 k = 0;
         uint256 scaled = x;
 
-        // Scale down if x > 3
+        // Scale down if x > 3 (simplified: division by 3 preserves exact value)
         while (scaled > 3 * PRECISION) {
-            scaled = (scaled * PRECISION) / (3 * PRECISION);
+            scaled = scaled / 3;
             k++;
         }
 
-        // Scale up if x < 1/3
+        // Scale up if x < 1/3 (simplified: multiplication by 3 preserves exact value)
         while (scaled < PRECISION / 3) {
-            scaled = (scaled * 3 * PRECISION) / PRECISION;
+            scaled = scaled * 3;
             k--;
         }
 

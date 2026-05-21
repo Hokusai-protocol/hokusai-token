@@ -90,35 +90,35 @@
       "check": "reentrancy-no-eth",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "92015b589f70a3cd8c0e402d4d329d42a45dd944db8b79d12da86444ceca06fa",
       "check": "reentrancy-no-eth",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "ca5db420417af85ae5f2233fd863d14d2245ef7c951aebea32949a5047582cb8",
       "check": "reentrancy-no-eth",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "cce90c099329fdfb4711802aa058ecdddd21ed128c38813076d6b459e7d1d115",
       "check": "reentrancy-no-eth",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "f07ff1b33bc01551de687de165589849f6087c4a538f030d6e3c3319c643fac7",
       "check": "reentrancy-no-eth",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "280a18781c963415a02751607593092110e6903518fd350827f0f54b48d5d44c",

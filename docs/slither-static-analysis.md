@@ -85,5 +85,6 @@ The following pre-existing High and Medium findings were discovered during the i
 | `divide-before-multiply` | Medium | 1 | HOK-1823 |
 | `incorrect-equality` | Medium | 3 | HOK-1823 |
 | `unused-return` | Medium | 12 | HOK-1823 |
+| `reentrancy-no-eth` | Medium | 5 | HOK-1823 |
 
 Any new finding matching these detectors on new or modified code is **not** suppressed by the existing baseline entries (baseline entries are keyed by finding hash, not by detector name) and will fail the gate.

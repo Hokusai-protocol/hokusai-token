@@ -182,8 +182,14 @@ function runSlither() {
     );
   }
 
-  const parsed = readJson(outputPath, "Slither JSON report");
-  fs.unlinkSync(outputPath);
+  let parsed;
+  try {
+    parsed = readJson(outputPath, "Slither JSON report");
+  } finally {
+    if (fs.existsSync(outputPath)) {
+      fs.unlinkSync(outputPath);
+    }
+  }
   return { parsed, result };
 }
 

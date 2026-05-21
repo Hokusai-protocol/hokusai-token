@@ -217,6 +217,188 @@
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
       "followUp": "n/a"
+    },
+    {
+      "id": "3e03e3cef9fd01838323eebdeca26a616e3e1ddf6776b1d921144e375114b0eb",
+      "check": "unused-return",
+      "justification": "Out of scope for HOK-1823 (which addressed specific High/Medium findings). Pre-existing unused-return findings to be addressed in a separate issue.",
+      "reviewedBy": "codex",
+      "followUp": "TBD"
+    },
+    {
+      "id": "6fef91c996ca45a6198876c042bd7cf08634ee81ecebfbd4e1d3cb8f168269fc",
+      "check": "unused-return",
+      "justification": "Out of scope for HOK-1823 (which addressed specific High/Medium findings). Pre-existing unused-return findings to be addressed in a separate issue.",
+      "reviewedBy": "codex",
+      "followUp": "TBD"
+    },
+    {
+      "id": "9dc1bcea61e7a395566bcc8e40bce63d15fddaa94787a5ecffaa1ed18bffca4f",
+      "check": "unused-return",
+      "justification": "Out of scope for HOK-1823 (which addressed specific High/Medium findings). Pre-existing unused-return findings to be addressed in a separate issue.",
+      "reviewedBy": "codex",
+      "followUp": "TBD"
+    },
+    {
+      "id": "b477ee8fb645ecd6bc04cdc719add9eaf302c46310d9a461fc9d7d45cde6b0f2",
+      "check": "unused-return",
+      "justification": "Out of scope for HOK-1823 (which addressed specific High/Medium findings). Pre-existing unused-return findings to be addressed in a separate issue.",
+      "reviewedBy": "codex",
+      "followUp": "TBD"
+    },
+    {
+      "id": "f95f21a049e7357bcb144a1768368108b55660aa4a2214dc8ec3602fe48f8a4a",
+      "check": "unused-return",
+      "justification": "Out of scope for HOK-1823 (which addressed specific High/Medium findings). Pre-existing unused-return findings to be addressed in a separate issue.",
+      "reviewedBy": "codex",
+      "followUp": "TBD"
+    },
+    {
+      "id": "02b22e0912f0a5db0b2ef864a0291fdb8bf0e4023c3a55bf6f302fc33ec5e0a0",
+      "check": "reentrancy-benign",
+      "justification": "False positive: deployTokenWithParams() has nonReentrant modifier added in HOK-1823. Slither's reentrancy-benign detector does not recognize the reentrancy protection.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "7cdeaf3733d36061a4283a9eea066c8556df50167529850ac69e69bce8b36bd1",
+      "check": "reentrancy-benign",
+      "justification": "False positive: deployTokenWithAllocations() has nonReentrant modifier added in HOK-1823. Slither's reentrancy-benign detector does not recognize the reentrancy protection.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "d17401e65c585f3796283826a0a172cf6732cdd529cb0734658e142383719908",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing reentrancy-benign finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "165e93d3d1286922cd4642b8c0c11d4654d11a321a45f0848507b6954b0721a6",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "1858850cf1f0171fca44287e84f13352d7e5c8ac76ddd8ded86f3434dfd7a210",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "28100c51fa3060643fad5d6197051aa3e09c3c6fe44af1c4718c2f9bb97d5a0c",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "2aea14373971c32d6d37efab03d475aa70953dac4b6328285ccd67533e30b14c",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "34e8edd09cdd779a00d1f69074dcaf5a3d5ee5d1e908e1955f2ade99d3dae802",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "43eb2e0afa3c6e6949adf19d3869dac6118680cb7347b9b2a6aafa8879c5712d",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "4e6035b4e309b81f17328775e2adff81a836dfe5b32c3e861ec2c83e89c1f1df",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "598f26e877c770de3898d966dcc68fbcc2db60cef6eb7c7f78ef6e9b36ec0796",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "5e3ac0aa262a027272ee916a85e7d9583d87aaecd2be03990bedf2ec35f372be",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "9b0149ee901a36b5d5bc172f4dc0d0c7ba93a4bca1c6dd0e473f53667039a197",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "b6159b41c86dcffb59c677955bf2db4ec7f06d449b81e5d8d2c5fdd38fd214d8",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "be6eed3be7704beb2fb49a6b79d748b6c9492f43ad92c62cd8368446fb58957e",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "c25c8a95489fd80af3fcc6e24ddb4653a3372ccc9699a0b60c91c16b64563f61",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "cc74f39e7ba49486fbc6abd7d1b6bed19d4dac60439b8a20ff64dc8f7fb17089",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "d43efa475cbee742d66247a616a1eb83459a8da7747532bf3fa4846786f05eb5",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "e695ab97031f5d0e9877c7e907b01dc7afde800127f78620c585d92a5a39bb06",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "ed20dedf60a713960210dd552aa951d6d6207d2111beaaf5886600d309c42212",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "fb306f7fd952094da15da44fad83ec2084fce11d75837e3973168bf05c4ea26c",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing reentrancy-events finding outside HOK-1823 scope. To be triaged in a future security review.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
     }
   ]
 }

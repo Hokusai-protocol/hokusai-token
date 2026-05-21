@@ -34,7 +34,7 @@ jobs:
         with:
           target: "."
           slither-config: slither.config.json
-          slither-version: "0.11.5"
+          slither-version: "0.11.4"
           fail-on: medium
           sarif: results.sarif
 

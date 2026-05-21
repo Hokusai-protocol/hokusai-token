@@ -35,7 +35,7 @@ Low-severity detectors (`shadowing-local`, `shadowing-builtin`, `reentrancy-beni
 Install Slither (one-time):
 
 ```bash
-pip install slither-analyzer==0.11.5
+pip install slither-analyzer==0.11.4
 ```
 
 Ensure contracts compile:

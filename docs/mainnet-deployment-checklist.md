@@ -106,6 +106,7 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 
 ### Configuration Verification
 - [ ] ModelRegistry.tokenManager = TokenManager address
+- [ ] ModelRegistry.poolRegistrars(factory) = true
 - [ ] TokenManager.deltaVerifier = DeltaVerifier address
 - [ ] Factory.modelRegistry = ModelRegistry address
 - [ ] Factory.tokenManager = TokenManager address
@@ -229,6 +230,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token deployed: `___________`
 - [ ] Model registered
 - [ ] Pool created: `___________`
+- [ ] `ModelRegistry.getPool(modelId)` matches `HokusaiAMMFactory.getPool(modelId)`
 - [ ] Initial liquidity added
 - [ ] Reserve balance verified: $10,000
 - [ ] Spot price checked: $___________
@@ -237,6 +239,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token deployed: `___________`
 - [ ] Model registered
 - [ ] Pool created: `___________`
+- [ ] `ModelRegistry.getPool(modelId)` matches `HokusaiAMMFactory.getPool(modelId)`
 - [ ] Initial liquidity added
 - [ ] Reserve balance verified: $50,000
 - [ ] Spot price checked: $___________
@@ -245,6 +248,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token deployed: `___________`
 - [ ] Model registered
 - [ ] Pool created: `___________`
+- [ ] `ModelRegistry.getPool(modelId)` matches `HokusaiAMMFactory.getPool(modelId)`
 - [ ] Initial liquidity added
 - [ ] Reserve balance verified: $25,000
 - [ ] Spot price checked: $___________

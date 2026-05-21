@@ -209,6 +209,13 @@ async function deployFullStack(networkConfig, runtime) {
       "factorySetDefaults"
     )
   );
+  recordReceipt(
+    await waitForTx(
+      modelRegistry.setPoolRegistrar(contracts.HokusaiAMMFactory, true),
+      gasUsed.wiring,
+      "factoryPoolRegistrar"
+    )
+  );
 
   logger.log("Phase 3: infrastructure and fee routing");
   const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
@@ -339,6 +346,9 @@ async function deployFullStack(networkConfig, runtime) {
     BigInt(networkConfig.factoryDefaults.flatCurvePrice),
     "HokusaiAMMFactory.defaultFlatCurvePrice"
   );
+  if (!(await modelRegistry.poolRegistrars(contracts.HokusaiAMMFactory))) {
+    throw new Error("ModelRegistry pool registrar role missing on HokusaiAMMFactory");
+  }
 
   if (!(await contributionRegistry.hasRole(recorderRole, contracts.DeltaVerifier))) {
     throw new Error("DataContributionRegistry recorder role missing on DeltaVerifier");
@@ -371,6 +381,7 @@ async function deployFullStack(networkConfig, runtime) {
   roles.ModelRegistry = {
     owner: await modelRegistry.owner(),
     stringModelTokenManager: contracts.TokenManager,
+    poolRegistrar: contracts.HokusaiAMMFactory,
   };
   roles.TokenManager = {
     owner: await tokenManager.owner(),

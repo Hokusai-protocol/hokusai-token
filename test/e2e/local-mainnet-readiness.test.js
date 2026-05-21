@@ -113,6 +113,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
       treasury.address,
     );
     await factory.waitForDeployment();
+    await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
     const poolAddress = await factory.createPoolWithParams.staticCall(
       MODEL_ID_STR,

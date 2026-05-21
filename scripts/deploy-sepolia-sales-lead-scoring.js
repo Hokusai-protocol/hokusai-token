@@ -60,6 +60,25 @@ async function loadExistingDeployment() {
   return JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
 }
 
+async function ensureFactoryPoolRegistrar({ modelRegistry, factoryAddress, signerAddress }) {
+  if (await modelRegistry.poolRegistrars(factoryAddress)) {
+    console.log("✅ Factory already authorized as ModelRegistry pool registrar");
+    return;
+  }
+
+  const ownerAddress = await modelRegistry.owner();
+  if (ownerAddress.toLowerCase() !== signerAddress.toLowerCase()) {
+    throw new Error(
+      `Factory ${factoryAddress} is not authorized as a ModelRegistry pool registrar, and signer ${signerAddress} is not the registry owner ${ownerAddress}`
+    );
+  }
+
+  console.log("🔐 Authorizing factory as ModelRegistry pool registrar...");
+  const tx = await modelRegistry.setPoolRegistrar(factoryAddress, true);
+  await tx.wait();
+  console.log("✅ Factory authorized as ModelRegistry pool registrar");
+}
+
 async function main() {
   console.log("🚀 Deploying Sales Lead Scoring Model to Sepolia...\n");
   console.log("=".repeat(70));
@@ -100,6 +119,11 @@ async function main() {
   const modelRegistry = await ethers.getContractAt("ModelRegistry", registryAddress);
   const tokenManager = await ethers.getContractAt("TokenManager", managerAddress);
   const factory = await ethers.getContractAt("HokusaiAMMFactory", factoryAddress);
+  await ensureFactoryPoolRegistrar({
+    modelRegistry,
+    factoryAddress,
+    signerAddress: deployer.address,
+  });
 
   // Check balances
   const usdcBalance = await usdc.balanceOf(deployer.address);

@@ -144,7 +144,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
 
     constructor(
         address _modelRegistry,
-        address _tokenManager,
+        address payable _tokenManager,
         address _contributionRegistry,
         uint256 _baseRewardRate,
         uint256 _minImprovementBps,

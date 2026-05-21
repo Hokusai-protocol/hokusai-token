@@ -136,7 +136,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     constructor(
         address _reserveToken,
         address _hokusaiToken,
-        address _tokenManager,
+        address payable _tokenManager,
         string memory _modelId,
         address _treasury,
         uint256 _crr,

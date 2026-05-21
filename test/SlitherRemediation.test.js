@@ -54,153 +54,77 @@ describe("Slither remediations", function () {
     return tokenManager;
   }
 
-  async function expectReentryBlocked({
-    tokenManager,
-    outerCall,
-    innerCallData,
-    outerModelId,
-    innerModelId,
-  }) {
-    const ReentrantFeeRecipient = await ethers.getContractFactory("ReentrantFeeRecipient");
-    const feeRecipient = await ReentrantFeeRecipient.deploy();
-    await feeRecipient.waitForDeployment();
+  // With pull-payment, deployToken* no longer pushes ETH to feeRecipient during execution.
+  // Fees accumulate in the contract and are withdrawn by the owner via withdrawDeploymentFees().
+  // Reentrancy on withdrawDeploymentFees is blocked by nonReentrant.
 
+  async function expectDeploymentRetainsFee(outerCall, tokenManager, outerModelId) {
     await tokenManager.setDeploymentFee(DEPLOYMENT_FEE);
-    await tokenManager.setFeeRecipient(await feeRecipient.getAddress());
-    await feeRecipient.configure(await tokenManager.getAddress(), innerCallData);
-
-    await expect(outerCall(await feeRecipient.getAddress())).to.not.be.reverted;
-    expect(await feeRecipient.reentryBlocked()).to.equal(true);
+    await expect(outerCall()).to.not.be.reverted;
     expect(await tokenManager.hasToken(outerModelId)).to.equal(true);
-    expect(await tokenManager.hasToken(innerModelId)).to.equal(false);
+    // Fee is held in the contract, not pushed to feeRecipient
+    const balance = await ethers.provider.getBalance(await tokenManager.getAddress());
+    expect(balance).to.equal(DEPLOYMENT_FEE);
   }
 
-  it("blocks fee-recipient reentrancy on TokenManager.deployTokenWithParams", async function () {
+  it("deployment retains fee in contract (pull-payment) on TokenManager.deployTokenWithParams", async function () {
     const tokenManager = await deployTokenManager();
     const params = buildParams();
     const outerModelId = "outer-params";
-    const innerModelId = "inner-params";
 
-    const innerCallData = tokenManager.interface.encodeFunctionData("deployTokenWithParams", [
-      innerModelId,
-      "Inner Token",
-      "INR",
-      parseEther("1000"),
-      params,
-    ]);
-
-    await expectReentryBlocked({
-      tokenManager,
-      innerCallData,
-      outerModelId,
-      innerModelId,
-      outerCall: () => tokenManager.deployTokenWithParams(
-        outerModelId,
-        "Outer Token",
-        "OUT",
-        parseEther("1000"),
-        params,
-        { value: DEPLOYMENT_FEE }
+    await expectDeploymentRetainsFee(
+      () => tokenManager.deployTokenWithParams(
+        outerModelId, "Outer Token", "OUT", parseEther("1000"), params, { value: DEPLOYMENT_FEE }
       ),
-    });
+      tokenManager,
+      outerModelId
+    );
   });
 
-  it("blocks fee-recipient reentrancy on TokenManager.deployTokenWithAllocations", async function () {
+  it("deployment retains fee in contract (pull-payment) on TokenManager.deployTokenWithAllocations", async function () {
     const tokenManager = await deployTokenManager();
     const params = buildParams();
     const outerModelId = "outer-allocations";
-    const innerModelId = "inner-allocations";
 
-    const innerCallData = tokenManager.interface.encodeFunctionData("deployTokenWithAllocations", [
-      innerModelId,
-      "Inner Allocation Token",
-      "IAT",
-      MODEL_SUPPLIER_ALLOCATION,
-      modelSupplier.address,
-      INVESTOR_ALLOCATION,
-      params,
-    ]);
-
-    await expectReentryBlocked({
-      tokenManager,
-      innerCallData,
-      outerModelId,
-      innerModelId,
-      outerCall: () => tokenManager.deployTokenWithAllocations(
-        outerModelId,
-        "Outer Allocation Token",
-        "OAT",
-        MODEL_SUPPLIER_ALLOCATION,
-        modelSupplier.address,
-        INVESTOR_ALLOCATION,
-        params,
-        { value: DEPLOYMENT_FEE }
+    await expectDeploymentRetainsFee(
+      () => tokenManager.deployTokenWithAllocations(
+        outerModelId, "Outer Allocation Token", "OAT",
+        MODEL_SUPPLIER_ALLOCATION, modelSupplier.address, INVESTOR_ALLOCATION,
+        params, { value: DEPLOYMENT_FEE }
       ),
-    });
+      tokenManager,
+      outerModelId
+    );
   });
 
-  it("blocks fee-recipient reentrancy on DeployableTokenManager.deployTokenWithParams", async function () {
+  it("deployment retains fee in contract (pull-payment) on DeployableTokenManager.deployTokenWithParams", async function () {
     const tokenManager = await deployDeployableTokenManager();
     const params = buildParams();
     const outerModelId = "deployable-outer-params";
-    const innerModelId = "deployable-inner-params";
 
-    const innerCallData = tokenManager.interface.encodeFunctionData("deployTokenWithParams", [
-      innerModelId,
-      "Deployable Inner",
-      "DIN",
-      parseEther("1000"),
-      params,
-    ]);
-
-    await expectReentryBlocked({
-      tokenManager,
-      innerCallData,
-      outerModelId,
-      innerModelId,
-      outerCall: () => tokenManager.deployTokenWithParams(
-        outerModelId,
-        "Deployable Outer",
-        "DOT",
-        parseEther("1000"),
-        params,
-        { value: DEPLOYMENT_FEE }
+    await expectDeploymentRetainsFee(
+      () => tokenManager.deployTokenWithParams(
+        outerModelId, "Deployable Outer", "DOT", parseEther("1000"), params, { value: DEPLOYMENT_FEE }
       ),
-    });
+      tokenManager,
+      outerModelId
+    );
   });
 
-  it("blocks fee-recipient reentrancy on DeployableTokenManager.deployTokenWithAllocations", async function () {
+  it("deployment retains fee in contract (pull-payment) on DeployableTokenManager.deployTokenWithAllocations", async function () {
     const tokenManager = await deployDeployableTokenManager();
     const params = buildParams();
     const outerModelId = "deployable-outer-allocations";
-    const innerModelId = "deployable-inner-allocations";
 
-    const innerCallData = tokenManager.interface.encodeFunctionData("deployTokenWithAllocations", [
-      innerModelId,
-      "Deployable Inner Allocation",
-      "DIA",
-      MODEL_SUPPLIER_ALLOCATION,
-      modelSupplier.address,
-      INVESTOR_ALLOCATION,
-      params,
-    ]);
-
-    await expectReentryBlocked({
-      tokenManager,
-      innerCallData,
-      outerModelId,
-      innerModelId,
-      outerCall: () => tokenManager.deployTokenWithAllocations(
-        outerModelId,
-        "Deployable Outer Allocation",
-        "DOA",
-        MODEL_SUPPLIER_ALLOCATION,
-        modelSupplier.address,
-        INVESTOR_ALLOCATION,
-        params,
-        { value: DEPLOYMENT_FEE }
+    await expectDeploymentRetainsFee(
+      () => tokenManager.deployTokenWithAllocations(
+        outerModelId, "Deployable Outer Allocation", "DOA",
+        MODEL_SUPPLIER_ALLOCATION, modelSupplier.address, INVESTOR_ALLOCATION,
+        params, { value: DEPLOYMENT_FEE }
       ),
-    });
+      tokenManager,
+      outerModelId
+    );
   });
 
   it("reverts AMM sells when the token transferFrom returns false", async function () {

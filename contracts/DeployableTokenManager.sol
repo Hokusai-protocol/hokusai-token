@@ -79,6 +79,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         address indexed recipient,
         uint256 amount
     );
+    event DeploymentFeesWithdrawn(address indexed recipient, uint256 amount);
     event RewardVestingCreated(
         string indexed modelId,
         address indexed contributor,
@@ -120,7 +121,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         ValidationLib.requireNonZeroAddress(initialParams.governor, "governor");
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
 
-        _validateDeploymentFee();
+        _collectDeploymentFee();
 
         address paramsAddress;
         (tokenAddress, paramsAddress) = tokenDeploymentFactory.deployTokenAndParams(
@@ -136,9 +137,9 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         );
 
         _storeDeployment(modelId, tokenAddress, paramsAddress);
-        _collectDeploymentFee();
         _emitParamsDeployed(modelId, paramsAddress, initialParams);
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
+        _refundExcess();
     }
 
     function deployTokenWithAllocations(
@@ -159,7 +160,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         ValidationLib.requireNonZeroAddress(initialParams.governor, "governor");
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
 
-        _validateDeploymentFee();
+        _collectDeploymentFee();
 
         uint256 maxSupply = modelSupplierAllocation + investorAllocation;
         address paramsAddress;
@@ -176,7 +177,6 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         );
 
         _storeDeployment(modelId, tokenAddress, paramsAddress);
-        _collectDeploymentFee();
         _emitParamsDeployed(modelId, paramsAddress, initialParams);
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, maxSupply);
         emit AllocationDistributed(
@@ -186,6 +186,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
             address(0),
             investorAllocation
         );
+        _refundExcess();
     }
 
     function distributeModelSupplierAllocation(string memory modelId) external onlyOwner {
@@ -419,23 +420,29 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         return modelParams[modelId] != address(0);
     }
 
-    function _validateDeploymentFee() private view {
-        require(msg.value >= deploymentFee, "Insufficient deployment fee");
+    function _collectDeploymentFee() private {
+        if (deploymentFee > 0) {
+            require(msg.value >= deploymentFee, "Insufficient deployment fee");
+        }
     }
 
-    function _collectDeploymentFee() private {
-        if (deploymentFee == 0) {
-            return;
-        }
-
-        (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
-        require(sent, "Failed to send deployment fee");
-
+    function _refundExcess() private {
         if (msg.value > deploymentFee) {
-            (bool refunded, ) = msg.sender.call{value: msg.value - deploymentFee}("");
+            uint256 excess = msg.value - deploymentFee;
+            (bool refunded, ) = msg.sender.call{value: excess}("");
             require(refunded, "Failed to refund excess payment");
         }
     }
+
+    function withdrawDeploymentFees() external onlyOwner nonReentrant {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No fees to withdraw");
+        (bool sent, ) = feeRecipient.call{value: balance}("");
+        require(sent, "Failed to send deployment fees");
+        emit DeploymentFeesWithdrawn(feeRecipient, balance);
+    }
+
+    receive() external payable {}
 
     function _storeDeployment(
         string memory modelId,

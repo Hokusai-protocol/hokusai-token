@@ -140,7 +140,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     constructor(
         address _usdc,
         address _ammFactory,
-        address _tokenManager,
+        address payable _tokenManager,
         address _modelRegistry,
         address _admin
     ) AccessControlBase(_admin) {

@@ -2,27 +2,6 @@
   "_comment": "Accepted or triaged Slither findings. Each entry must include a justification and review metadata. See docs/slither-static-analysis.md.",
   "accepted": [
     {
-      "id": "737c1893d0a6867c5a4dc540570cba696606df581d3c8eb24ba3ffeb110c6890",
-      "check": "arbitrary-send-eth",
-      "justification": "Accepted false positive: the ETH destination is the owner-configured, non-zero-checked feeRecipient, so this transfer is the intended deployment-fee payout rather than an arbitrary caller-controlled send.",
-      "reviewedBy": "codex",
-      "followUp": "n/a"
-    },
-    {
-      "id": "7820cd81060ded25cb079e0150ec5a808c87cb1bdb8c82736b2e1b2772d9b87c",
-      "check": "arbitrary-send-eth",
-      "justification": "Accepted false positive: the ETH destination is the owner-configured, non-zero-checked feeRecipient, so this transfer is the intended deployment-fee payout rather than an arbitrary caller-controlled send.",
-      "reviewedBy": "codex",
-      "followUp": "n/a"
-    },
-    {
-      "id": "c522bc5759587057c9a1eb01443a5f14abf9e9d2ee40f05b6f9d626b521eec0b",
-      "check": "divide-before-multiply",
-      "justification": "Accepted false positive: this fixed-point divide-before-multiply sequence is intentional and frozen for compatibility with the already-deployed AMM math, so changing the rounding behavior would create pricing drift.",
-      "reviewedBy": "codex",
-      "followUp": "n/a"
-    },
-    {
       "id": "1d7ad28cad4e8097946a98348cad9ba5573af5b8c2c21093f73f9662a88325cf",
       "check": "incorrect-equality",
       "justification": "Accepted false positive: this equality check is on deterministic contribution state and claimant identity, not a manipulable balance or timestamp value.",
@@ -602,6 +581,167 @@
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
       "followUp": "n/a"
+    },
+    {
+      "id": "4bc0f1ce5cf9b6c2e72e5b0eda8059b7b8dc4428569cc13e22675efc8c982b76",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual reentrancy-no-eth finding re-surfaced after pull-payment refactor in HOK-1734; the pre-storage external call is to the constructor-configured tokenDeploymentFactory, which is trusted deployment infrastructure, and nonReentrant guards are in place.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "fbe4b208b1ed2e2dfbd5c3469c8cf6a51f0e5a48d966095c67a394a9327d83fa",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual reentrancy-no-eth finding re-surfaced after pull-payment refactor in HOK-1734; the pre-storage external call is to the constructor-configured tokenDeploymentFactory, which is trusted deployment infrastructure, and nonReentrant guards are in place.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "4f87fccc66753903da43fa6eae10ee2c76e6dc0576fe196d4fb442a2d368ed20",
+      "check": "unused-return",
+      "justification": "Residual unused-return finding re-surfaced after pull-payment refactor in HOK-1734; same pre-existing pattern as other accepted unused-return entries in this contract.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "6a9f90b53746dd3f398cd92ab85747c10dc94047b5ae8baf65016d2f050c7b66",
+      "check": "unused-return",
+      "justification": "Residual unused-return finding re-surfaced after pull-payment refactor in HOK-1734; same pre-existing pattern as other accepted unused-return entries in this contract.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "085dc8832f5aeb40df1934610fe8ea3f8dadbde43084a4260cab7d5ae3f9c413",
+      "check": "reentrancy-benign",
+      "justification": "Residual reentrancy-benign finding re-surfaced after pull-payment refactor in HOK-1734; the flagged code path has no state changes after the external call that could affect fund safety.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "957e3e0673ffe526321ee92f8ce9444e1bcd10f1ef6193de4d260f334ef10b40",
+      "check": "reentrancy-benign",
+      "justification": "Residual reentrancy-benign finding re-surfaced after pull-payment refactor in HOK-1734; the flagged code path has no state changes after the external call that could affect fund safety.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "0104028036972a578298d5e76555d78f13e5de5f8a9ae2f5915f4d2095a570ae",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "16d5ac59efb6283fa915584553a9049fc16c3690cbcc4408778e5609d3cf3b6d",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "26c7ad8a1b6fa356869bd3f08c86a3c16cf2a00855066d761bd663a2df71fa75",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "2ebbf9f41a27469abd1f3dd600fec625f92c1f799b8dd82c3a4561defda7d900",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "3121ff60c8b3a9f5ca1fbfe08fcb4b612aca93ebcc2851047639540ed073ef3f",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "3834320c471d9daba6bf9b44ed6af77a9efec4c9147e680a945899710dd7f8cb",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "4c4ef26180e6e8dc4d66773a48bc851d000fb10c8fde48e58e9ccc2606fd1a63",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "57031462271f605272703136988c1fb682524f780929a6918f9ef2dcaf232914",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "63fd801b3c35b980c118611afd63da1e4ce613c668cef1b05006ce8e25e03e32",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "6b17a10990f963cb8bae6e6a058ccf6f99892d436fa2f671a36da30fcb056e16",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "966e5004fbb9c71736b47c136905cdb4a08e0a220879bda277e33740753ed5c3",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "9d5cdbf956497d33553328c6ec4a76b8f59d1ca1021014781e521d019bdb4a21",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "a67f190cc833d168b7505eb118654bf48c3a10267df74a24a8034f50fd39b92b",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "b645c5d862e87100a90d0191056488c18192f2eb6ba84fd46ccc76a9f1161bc1",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "b7544245617806a90d5404bebaca31c39a56e0285089ed374d584eca5f43aa57",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "b816576719cf879bb067c473e1d08efac0297a296b4f9fc317b9e1496f07f7cc",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "dd9fe29007c948212b2182717b594b3dc3c78f54500f282a936816b1c3e98533",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
     }
   ]
 }

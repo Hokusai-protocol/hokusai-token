@@ -15,7 +15,9 @@
     "test:e2e:local": "npx hardhat test test/e2e/local-mainnet-readiness.test.js",
     "test:property": "npx hardhat test test/property/fuzz-invariants.test.js",
     "test:e2e:sepolia": "SEPOLIA_E2E_READONLY=1 npx hardhat test test/e2e/sepolia-end-to-end.test.js --network sepolia",
-    "test-queue": "npx ts-node scripts/test-queue.ts"
+    "test-queue": "npx ts-node scripts/test-queue.ts",
+    "slither": "slither .",
+    "slither:ci": "slither . --fail-medium --sarif slither-report.sarif"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",

@@ -35,6 +35,11 @@ deployments/*.backup.json
 *.swp
 *.swo
 
+# Slither generated reports
+slither-report.sarif
+slither-report.json
+results.sarif
+
 # Misc
 .DS_Store
 .wavemill/

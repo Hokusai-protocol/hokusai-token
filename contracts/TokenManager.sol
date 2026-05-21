@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
@@ -17,7 +18,7 @@ import "./interfaces/IRewardVestingVault.sol";
  * @dev Manages token deployment and operations for models
  * Users can deploy tokens directly and pay gas fees themselves
  */
-contract TokenManager is Ownable, AccessControlBase {
+contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
     ModelRegistry public registry;
     address public deltaVerifier;
 
@@ -80,6 +81,7 @@ contract TokenManager is Ownable, AccessControlBase {
         address indexed recipient,
         uint256 amount
     );
+    event DeploymentFeesWithdrawn(address indexed recipient, uint256 amount);
     event RewardVestingCreated(
         string indexed modelId,
         address indexed contributor,
@@ -121,7 +123,7 @@ contract TokenManager is Ownable, AccessControlBase {
         string memory symbol,
         uint256 totalSupply,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         // Validate inputs using ValidationLib
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
@@ -132,19 +134,7 @@ contract TokenManager is Ownable, AccessControlBase {
         // Check if model already has a token
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
 
-        // Check deployment fee if configured
-        if (deploymentFee > 0) {
-            require(msg.value >= deploymentFee, "Insufficient deployment fee");
-            // Transfer fee to recipient
-            (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
-            require(sent, "Failed to send deployment fee");
-
-            // Refund excess payment
-            if (msg.value > deploymentFee) {
-                (bool refunded, ) = msg.sender.call{value: msg.value - deploymentFee}("");
-                require(refunded, "Failed to refund excess payment");
-            }
-        }
+        _collectDeploymentFee();
 
         // Deploy HokusaiParams first
         HokusaiParams newParams = new HokusaiParams(
@@ -190,6 +180,7 @@ contract TokenManager is Ownable, AccessControlBase {
         );
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
 
+        _refundExcess();
         return tokenAddress;
     }
 
@@ -214,7 +205,7 @@ contract TokenManager is Ownable, AccessControlBase {
         address modelSupplierRecipient,
         uint256 investorAllocation,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         // Validate inputs
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
@@ -227,19 +218,7 @@ contract TokenManager is Ownable, AccessControlBase {
         // Check if model already has a token
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
 
-        // Check deployment fee if configured
-        if (deploymentFee > 0) {
-            require(msg.value >= deploymentFee, "Insufficient deployment fee");
-            // Transfer fee to recipient
-            (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
-            require(sent, "Failed to send deployment fee");
-
-            // Refund excess payment
-            if (msg.value > deploymentFee) {
-                (bool refunded, ) = msg.sender.call{value: msg.value - deploymentFee}("");
-                require(refunded, "Failed to refund excess payment");
-            }
-        }
+        _collectDeploymentFee();
 
         // Deploy HokusaiParams first
         HokusaiParams newParams = new HokusaiParams(
@@ -292,6 +271,7 @@ contract TokenManager is Ownable, AccessControlBase {
             investorAllocation
         );
 
+        _refundExcess();
         return tokenAddress;
     }
 
@@ -663,6 +643,30 @@ contract TokenManager is Ownable, AccessControlBase {
     function hasParams(string memory modelId) external view returns (bool) {
         return modelParams[modelId] != address(0);
     }
+
+    function _collectDeploymentFee() private {
+        if (deploymentFee > 0) {
+            require(msg.value >= deploymentFee, "Insufficient deployment fee");
+        }
+    }
+
+    function _refundExcess() private {
+        if (msg.value > deploymentFee) {
+            uint256 excess = msg.value - deploymentFee;
+            (bool refunded, ) = msg.sender.call{value: excess}("");
+            require(refunded, "Failed to refund excess payment");
+        }
+    }
+
+    function withdrawDeploymentFees() external onlyOwner nonReentrant {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No fees to withdraw");
+        (bool sent, ) = feeRecipient.call{value: balance}("");
+        require(sent, "Failed to send deployment fees");
+        emit DeploymentFeesWithdrawn(feeRecipient, balance);
+    }
+
+    receive() external payable {}
 
     function _mintRewardWithVesting(
         string memory modelId,

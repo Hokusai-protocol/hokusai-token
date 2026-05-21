@@ -369,10 +369,11 @@ describe("TokenManager with Params", function () {
       ).to.not.be.reverted;
 
       expect(await tokenManager.hasToken(MODEL_ID_1)).to.be.true;
+      // Fee is retained in the contract (pull-payment model)
+      expect(await ethers.provider.getBalance(tokenManager.target)).to.equal(parseEther("0.1"));
     });
 
     it("Should refund excess payment", async function () {
-      // Test that deployment succeeds with excess payment
       await expect(
         tokenManager.deployTokenWithParams(
           MODEL_ID_1,
@@ -385,9 +386,20 @@ describe("TokenManager with Params", function () {
       ).to.not.be.reverted;
 
       expect(await tokenManager.hasToken(MODEL_ID_1)).to.be.true;
+      // Only the deployment fee (0.1 ETH) is retained; the 0.1 ETH excess is refunded
+      expect(await ethers.provider.getBalance(tokenManager.target)).to.equal(parseEther("0.1"));
+    });
 
-      // Note: Exact balance testing is complex due to gas variations,
-      // but the key is that the transaction succeeds and refunds excess
+    it("owner can withdraw accumulated fees", async function () {
+      await tokenManager.deployTokenWithParams(MODEL_ID_1, "GPT-4 Token", "GPT4", parseEther("10000"), defaultInitialParams, { value: parseEther("0.1") });
+      const before = await ethers.provider.getBalance(owner.address);
+      const tx = await tokenManager.withdrawDeploymentFees();
+      const receipt = await tx.wait();
+      const gasUsed = receipt.gasUsed * receipt.gasPrice;
+      const after = await ethers.provider.getBalance(owner.address);
+      // After withdrawal, fee recipient (owner) received the 0.1 ETH minus gas
+      expect(after + gasUsed - before).to.be.closeTo(parseEther("0.1"), parseEther("0.001"));
+      expect(await ethers.provider.getBalance(tokenManager.target)).to.equal(0n);
     });
   });
 

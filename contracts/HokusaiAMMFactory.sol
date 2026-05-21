@@ -90,7 +90,7 @@ contract HokusaiAMMFactory is Ownable {
      */
     constructor(
         address _modelRegistry,
-        address _tokenManager,
+        address payable _tokenManager,
         address _reserveToken,
         address _treasury
     ) Ownable() {
@@ -203,7 +203,7 @@ contract HokusaiAMMFactory is Ownable {
         HokusaiAMM newPool = new HokusaiAMM(
             reserveToken,
             tokenAddress,
-            address(tokenManager),
+            payable(address(tokenManager)),
             modelId,
             treasury,
             crr,

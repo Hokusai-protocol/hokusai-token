@@ -72,3 +72,17 @@ Do not use the baseline to hide newly introduced vulnerabilities without a docum
 - HOK-1734 adds tooling only. It does not change contract logic or existing behavioral tests.
 - Existing runtime security coverage remains in `test/Phase-Security-*.test.js`; Slither is the complementary static-analysis layer.
 - After merge, add the `Slither` GitHub Actions check to `main` branch protection so it becomes a required status check.
+
+## Baselined High / Medium Findings
+
+The following pre-existing High and Medium findings were discovered during the initial rollout (HOK-1734) and accepted into `slither-baseline.json` with `followUp: HOK-1823`. They are tracked for remediation in that issue and must **not** be used as precedent to baseline new findings of the same type.
+
+| Detector | Severity | Count | Tracked in |
+| --- | --- | --- | --- |
+| `arbitrary-send-eth` | High | 3 | HOK-1823 |
+| `reentrancy-eth` | High | 4 | HOK-1823 |
+| `unchecked-transfer` | High | 1 | HOK-1823 |
+| `divide-before-multiply` | Medium | 1 | HOK-1823 |
+| `incorrect-equality` | Medium | 3 | HOK-1823 |
+
+Any new finding matching these detectors on new or modified code is **not** suppressed by the existing baseline entries (baseline entries are keyed by finding hash, not by detector name) and will fail the gate.

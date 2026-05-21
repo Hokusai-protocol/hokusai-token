@@ -28,13 +28,30 @@ Launch scripts now register models canonically before pool creation:
 1. Deploy token through `TokenManager`
 2. Register via `ModelRegistry.registerModel(uint256, token, metric)`
 3. Verify numeric and string-compatible reads
-4. Create the AMM pool
+4. Create the AMM pool (factory atomically registers `ModelRegistry.modelPools`)
 
 This prevents creating a token + pool without satisfying DeltaVerifier registration requirements.
 
+## Canonical pool registration
+
+`HokusaiAMMFactory.createPoolWithParams` now writes the pool mapping to `ModelRegistry`
+inside the same transaction via `ModelRegistry.registerPool(modelId, poolAddress)`.
+
+- `ModelRegistry.getPool(modelId)` is the canonical pool discovery read path.
+- `HokusaiAMMFactory.getPool(modelId)` and `ModelRegistry.getPool(modelId)` are kept
+  in sync atomically by contract behavior.
+- Deployment wiring grants the factory registrar permission with
+  `ModelRegistry.setPoolRegistrar(factory, true)`.
+
 ## Sepolia backfill
 
-Use the idempotent script in this order:
+The following scripts are one-time remediation for the **May 20, 2026 Sepolia test
+deployment** and are not the long-term mechanism for new launches:
+
+- `scripts/backfill-canonical-registration.js`
+- `scripts/backfill-model-registry-pools.js`
+
+Use the idempotent canonical backfill script in this order:
 
 1. `node scripts/backfill-canonical-registration.js --dry-run --network sepolia`
 2. Verify the planned writes for models `27`, `28`, and `30`

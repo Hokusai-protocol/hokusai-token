@@ -101,6 +101,22 @@ async function main() {
   const tokenManager = await ethers.getContractAt("TokenManager", managerAddress);
   const factory = await ethers.getContractAt("HokusaiAMMFactory", factoryAddress);
 
+  const factoryAuthorized = await modelRegistry.poolRegistrars(factoryAddress);
+  if (!factoryAuthorized) {
+    const registryOwner = await modelRegistry.owner();
+    if (registryOwner.toLowerCase() !== deployer.address.toLowerCase()) {
+      throw new Error(
+        `Factory ${factoryAddress} is not an authorized pool registrar, and signer ${deployer.address} is not ModelRegistry owner ${registryOwner}. ` +
+        "Run ModelRegistry.setPoolRegistrar(factory, true) as owner before creating pools."
+      );
+    }
+    console.log("\n🔐 Authorizing factory as ModelRegistry pool registrar...");
+    const registrarTx = await modelRegistry.setPoolRegistrar(factoryAddress, true);
+    await registrarTx.wait();
+    console.log("✅ Factory authorized as pool registrar");
+    await delay(TX_DELAY);
+  }
+
   // Check balances
   const usdcBalance = await usdc.balanceOf(deployer.address);
   const ethBalance = await ethers.provider.getBalance(deployer.address);

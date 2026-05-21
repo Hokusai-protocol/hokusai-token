@@ -153,6 +153,10 @@ async function main() {
     const factoryAddress = await factory.getAddress();
     deployment.contracts.HokusaiAMMFactory = factoryAddress;
     console.log("   ✅ HokusaiAMMFactory:", factoryAddress);
+    console.log("   🔐 Authorizing factory as ModelRegistry pool registrar...");
+    const setPoolRegistrarTx = await modelRegistry.setPoolRegistrar(factoryAddress, true);
+    await setPoolRegistrarTx.wait();
+    console.log("   ✅ Factory authorized as pool registrar");
 
     // Set default pool parameters
     console.log("   ⚙️  Setting factory defaults...");

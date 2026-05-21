@@ -73,6 +73,7 @@ describe("FundingVault", function () {
     await tokenManager.grantRole(DEFAULT_ADMIN_ROLE, await fundingVault.getAddress());
 
     await ammFactory.transferOwnership(await fundingVault.getAddress());
+    await modelRegistry.setPoolRegistrar(await ammFactory.getAddress(), true);
     await modelRegistry.setPoolRegistrar(await fundingVault.getAddress(), true);
 
     await usdc.mint(user1.address, usd(100000));

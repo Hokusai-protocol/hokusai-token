@@ -217,6 +217,9 @@ contract HokusaiAMMFactory is Ownable {
         isPool[poolAddress] = true;
         allPools.push(poolAddress);
 
+        // Canonical registry write; reverts atomically on failure.
+        modelRegistry.registerPool(modelId, poolAddress);
+
         emit PoolCreated(
             modelId,
             poolAddress,

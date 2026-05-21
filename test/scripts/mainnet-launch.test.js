@@ -73,6 +73,7 @@ describe("mainnet launch deploy flow", function () {
       owner.address
     );
     await factory.waitForDeployment();
+    await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
     await usdc.mint(owner.address, ethers.parseUnits("200000", 6));
   });
@@ -130,10 +131,12 @@ describe("mainnet launch deploy flow", function () {
       const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
       const params = await ethers.getContractAt("HokusaiParams", await token.params());
       const poolAddress = await factory.getPool(config.modelId);
+      const registryPoolAddress = await modelRegistry.getPool(config.modelId);
 
       expect(await modelRegistry.isStringRegistered(config.modelId)).to.equal(true);
       expect(await modelRegistry.getStringToken(config.modelId)).to.equal(tokenAddress);
       expect(poolAddress).to.not.equal(ethers.ZeroAddress);
+      expect(registryPoolAddress).to.equal(poolAddress);
 
       const supplierWei = ethers.parseUnits(config.supplierAllocation, 18);
       const investorWei = ethers.parseUnits(config.investorAllocation, 18);

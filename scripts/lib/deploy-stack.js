@@ -209,6 +209,13 @@ async function deployFullStack(networkConfig, runtime) {
       "factorySetDefaults"
     )
   );
+  recordReceipt(
+    await waitForTx(
+      modelRegistry.setPoolRegistrar(contracts.HokusaiAMMFactory, true),
+      gasUsed.wiring,
+      "factoryPoolRegistrar"
+    )
+  );
 
   logger.log("Phase 3: infrastructure and fee routing");
   const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
@@ -319,6 +326,11 @@ async function deployFullStack(networkConfig, runtime) {
   expectAddress(await factory.modelRegistry(), contracts.ModelRegistry, "HokusaiAMMFactory.modelRegistry");
   expectAddress(await factory.tokenManager(), contracts.TokenManager, "HokusaiAMMFactory.tokenManager");
   expectAddress(await factory.reserveToken(), reserveTokenAddress, "HokusaiAMMFactory.reserveToken");
+  expectEqual(
+    await modelRegistry.poolRegistrars(contracts.HokusaiAMMFactory),
+    true,
+    "ModelRegistry.poolRegistrars[HokusaiAMMFactory]"
+  );
   expectAddress(await usageFeeRouter.factory(), contracts.HokusaiAMMFactory, "UsageFeeRouter.factory");
   expectAddress(await usageFeeRouter.reserveToken(), reserveTokenAddress, "UsageFeeRouter.reserveToken");
   expectAddress(await usageFeeRouter.infraReserve(), contracts.InfrastructureReserve, "UsageFeeRouter.infraReserve");

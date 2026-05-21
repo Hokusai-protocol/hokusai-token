@@ -196,6 +196,21 @@ async function runLaunchDeploy({
   const tokenManager = await ethers.getContractAt("TokenManager", managerAddress);
   const factory = await ethers.getContractAt("HokusaiAMMFactory", factoryAddress);
 
+  const factoryAuthorized = await modelRegistry.poolRegistrars(factoryAddress);
+  if (!factoryAuthorized) {
+    const registryOwner = await modelRegistry.owner();
+    if (ethers.getAddress(registryOwner) !== ethers.getAddress(deployer.address)) {
+      throw new Error(
+        `Factory ${factoryAddress} is not an authorized pool registrar, and signer ${deployer.address} is not ModelRegistry owner ${registryOwner}. ` +
+        "Run ModelRegistry.setPoolRegistrar(factory, true) as owner before creating pools."
+      );
+    }
+    console.log("\n🔐 Authorizing factory as ModelRegistry pool registrar...");
+    const registrarTx = await modelRegistry.setPoolRegistrar(factoryAddress, true);
+    await registrarTx.wait();
+    console.log("✅ Factory authorized as pool registrar");
+  }
+
   const scaledEntries = launchConfig.tokens
     .filter((entry) => POOLS_TO_CREATE.includes(entry.configKey))
     .map(scaleTokenEntry);
@@ -333,11 +348,15 @@ async function runLaunchDeploy({
       console.log(`   ✅ Pool created: ${poolAddress}`);
       console.log(`   🔗 View on Etherscan: ${etherscanBaseUrl}/address/${poolAddress}`);
 
-      console.log("   📋 Registering pool in ModelRegistry...");
-      const registerPoolTx = await modelRegistry.registerPool(config.modelId, poolAddress);
-      const registerPoolReceipt = await registerPoolTx.wait();
-      console.log("   ✅ Pool registered in ModelRegistry");
-      console.log(`   ⛽ Gas used: ${registerPoolReceipt.gasUsed.toString()}`);
+      console.log("   🔍 Verifying canonical pool registration in ModelRegistry...");
+      const registryPool = await modelRegistry.getPool(config.modelId);
+      if (ethers.getAddress(registryPool) !== ethers.getAddress(poolAddress)) {
+        throw new Error(
+          `ModelRegistry.getPool(${config.modelId}) = ${registryPool}, expected ${poolAddress}. ` +
+          "Factory did not register the pool — check that the factory is an authorized pool registrar."
+        );
+      }
+      console.log("   ✅ ModelRegistry.getPool matches factory pool");
 
       console.log("   🔐 Authorizing AMM to mint tokens...");
       const authorizeTx = await tokenManager.authorizeAMM(poolAddress);

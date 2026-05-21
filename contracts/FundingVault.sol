@@ -372,8 +372,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
             modelId,
             proposal.tokenAddress
         );
-
-        modelRegistry.registerPool(modelId, poolAddress);
+        require(modelRegistry.getPool(modelId) == poolAddress, "Pool registry mismatch");
 
         // Authorize pool to mint tokens (grant MINTER_ROLE)
         bytes32 MINTER_ROLE = tokenManager.MINTER_ROLE();

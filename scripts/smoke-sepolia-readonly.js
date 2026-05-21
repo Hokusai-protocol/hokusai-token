@@ -19,6 +19,7 @@ const ABIS = {
     "function isStringRegistered(string modelId) view returns (bool)",
     "function isStringActive(string modelId) view returns (bool)",
     "function getStringToken(string modelId) view returns (address)",
+    "function getPool(string modelId) view returns (address)",
   ],
   tokenManager: [
     "function owner() view returns (address)",
@@ -561,6 +562,7 @@ async function main() {
       hasToken,
       managerToken,
       poolAddress,
+      registryPoolAddress,
     ] = await Promise.all([
       modelRegistry.isRegistered(modelId),
       modelRegistry.isModelActive(modelId),
@@ -571,6 +573,7 @@ async function main() {
       tokenManager.hasToken(modelId),
       tokenManager.getTokenAddress(modelId).catch(() => ZERO_ADDRESS),
       ammFactory.getPool(modelId).catch(() => ZERO_ADDRESS),
+      modelRegistry.getPool(modelId).catch(() => ZERO_ADDRESS),
     ]);
 
     const label = `${symbol} / ${modelId}`;
@@ -586,6 +589,13 @@ async function main() {
       { numericToken, stringToken, managerToken },
     );
     recorder.assert(`${label} AMM pool exists`, !sameAddress(poolAddress, ZERO_ADDRESS), { poolAddress });
+    recorder.assert(`${label} ModelRegistry pool exists`, !sameAddress(registryPoolAddress, ZERO_ADDRESS), {
+      registryPoolAddress,
+    });
+    recorder.assert(`${label} registry and factory pools match`, sameAddress(registryPoolAddress, poolAddress), {
+      registryPoolAddress,
+      poolAddress,
+    });
   }
 
   const [

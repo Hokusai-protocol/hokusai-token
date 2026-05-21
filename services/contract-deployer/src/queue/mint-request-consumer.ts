@@ -1,6 +1,12 @@
 import { EventEmitter } from 'events';
 import { RedisClientType } from 'redis';
-import { MintRequestMessage, validateMintRequestMessage } from '../schemas/mint-request-schema';
+import {
+  MintRequestMessage,
+  MintRequestSettlement,
+  validateMintRequestMessage,
+} from '../schemas/mint-request-schema';
+import { MintRecordStore } from './mint-record-store';
+import { classifyError, computeBackoffMs, FailureClass } from './retry-policy';
 import { logger } from '../utils/logger';
 
 export interface MintRequestConsumerConfig {
@@ -9,11 +15,17 @@ export interface MintRequestConsumerConfig {
   processingQueue: string;
   deadLetterQueue: string;
   processedSetKey: string;
+  retryQueue: string;
   maxRetries: number;
   blockingTimeout: number;
+  backoffBaseMs: number;
+  backoffMaxMs: number;
+  backoffMultiplier: number;
+  recordStore: MintRecordStore;
 }
 
 export class MintRequestConsumer extends EventEmitter {
+  private static readonly RETRY_PROMOTION_BATCH_SIZE = 25;
   private readonly redis: RedisClientType;
   private readonly config: MintRequestConsumerConfig;
   private running = false;
@@ -25,7 +37,9 @@ export class MintRequestConsumer extends EventEmitter {
     this.config = config;
   }
 
-  async processMessage(handler: (message: MintRequestMessage) => Promise<void>): Promise<void> {
+  async processMessage(
+    handler: (message: MintRequestMessage) => Promise<MintRequestSettlement>,
+  ): Promise<void> {
     const messageStr = await this.redis.brPopLPush(
       this.config.inboundQueue,
       this.config.processingQueue,
@@ -36,74 +50,68 @@ export class MintRequestConsumer extends EventEmitter {
       return;
     }
 
+    let parsedMessage: MintRequestMessage;
     try {
-      let parsedMessage: MintRequestMessage;
-      try {
-        parsedMessage = JSON.parse(messageStr) as MintRequestMessage;
-      } catch (error) {
-        logger.error('Failed to parse MintRequest JSON', { error, messageStr });
-        await this.moveToDeadLetterQueue(messageStr, 'Invalid JSON');
-        return;
-      }
+      parsedMessage = JSON.parse(messageStr) as MintRequestMessage;
+    } catch (error) {
+      logger.error('Failed to parse MintRequest JSON', { error, messageStr });
+      await this.moveToDeadLetterQueue(messageStr, undefined, 'Invalid JSON');
+      return;
+    }
 
-      const validation = validateMintRequestMessage(parsedMessage);
-      if (validation.error) {
-        logger.error('MintRequest validation failed', {
-          error: validation.error.message,
-          message: parsedMessage,
-        });
-        await this.moveToDeadLetterQueue(messageStr, validation.error.message);
-        return;
-      }
+    const validation = validateMintRequestMessage(parsedMessage);
+    if (validation.error) {
+      logger.error('MintRequest validation failed', {
+        error: validation.error.message,
+        message: parsedMessage,
+      });
+      await this.moveToDeadLetterQueue(messageStr, undefined, validation.error.message);
+      return;
+    }
 
-      const message = validation.value;
-      const alreadyProcessed = await this.redis.sIsMember(
-        this.config.processedSetKey,
-        message.idempotency_key,
+    const message = validation.value;
+    const alreadyProcessed = await this.redis.sIsMember(
+      this.config.processedSetKey,
+      message.idempotency_key,
+    );
+    if (alreadyProcessed) {
+      await this.redis.lRem(this.config.processingQueue, 1, messageStr);
+      logger.info('Skipping already processed MintRequest', {
+        idempotencyKey: message.idempotency_key,
+      });
+      return;
+    }
+
+    this.processingCount++;
+    try {
+      const settlement = await handler(message);
+      const multi = this.redis.multi();
+      multi.sAdd(this.config.processedSetKey, message.idempotency_key);
+      multi.lRem(this.config.processingQueue, 1, messageStr);
+      multi.set(
+        this.config.recordStore.getKey(message.idempotency_key),
+        JSON.stringify(this.config.recordStore.serializeSettled(settlement)),
+        { EX: this.config.recordStore.getTtlSeconds() },
       );
-      if (alreadyProcessed) {
-        await this.redis.lRem(this.config.processingQueue, 1, messageStr);
-        logger.info('Skipping already processed MintRequest', {
-          idempotencyKey: message.idempotency_key,
-        });
-        return;
-      }
-
-      this.processingCount++;
-      try {
-        await handler(message);
-        await this.redis.sAdd(this.config.processedSetKey, message.idempotency_key);
-        await this.redis.lRem(this.config.processingQueue, 1, messageStr);
-      } finally {
-        this.processingCount--;
-      }
+      await multi.exec();
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('MintRequest processing failed', { error: errorMessage });
-
-      const message = JSON.parse(messageStr) as MintRequestMessage;
-      const retryCount = message._retryCount ?? 0;
-
-      if (retryCount < this.config.maxRetries) {
-        message._retryCount = retryCount + 1;
-        await this.redis.lRem(this.config.processingQueue, 1, messageStr);
-        await this.redis.lPush(this.config.inboundQueue, JSON.stringify(message));
-      } else {
-        await this.redis.lRem(this.config.processingQueue, 1, messageStr);
-        await this.moveToDeadLetterQueue(messageStr, errorMessage);
-      }
-
+      await this.handleProcessingFailure(messageStr, message, error);
       this.emit('error', error);
       throw error;
+    } finally {
+      this.processingCount--;
     }
   }
 
-  async start(handler: (message: MintRequestMessage) => Promise<void>): Promise<void> {
+  async start(
+    handler: (message: MintRequestMessage) => Promise<MintRequestSettlement>,
+  ): Promise<void> {
     this.running = true;
     logger.info('MintRequest consumer started');
 
     while (this.running) {
       try {
+        await this.promoteDueRetries();
         await this.processMessage(handler);
       } catch {
         // Continue processing after per-message failures.
@@ -123,17 +131,97 @@ export class MintRequestConsumer extends EventEmitter {
     return this.running;
   }
 
-  private async moveToDeadLetterQueue(messageStr: string, reason: string): Promise<void> {
+  private async promoteDueRetries(): Promise<void> {
+    const dueRetries = await this.redis.zRangeByScore(this.config.retryQueue, 0, Date.now(), {
+      LIMIT: {
+        offset: 0,
+        count: MintRequestConsumer.RETRY_PROMOTION_BATCH_SIZE,
+      },
+    });
+
+    for (const retryMessage of dueRetries) {
+      const multi = this.redis.multi();
+      multi.lPush(this.config.inboundQueue, retryMessage);
+      multi.zRem(this.config.retryQueue, retryMessage);
+      await multi.exec();
+    }
+  }
+
+  private async handleProcessingFailure(
+    messageStr: string,
+    message: MintRequestMessage,
+    error: unknown,
+  ): Promise<void> {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const failureClass = classifyError(error);
+    const retryCount = message._retryCount ?? 0;
+
+    logger.error('MintRequest processing failed', {
+      error: errorMessage,
+      failureClass,
+      idempotencyKey: message.idempotency_key,
+      retryCount,
+    });
+
+    if (failureClass === 'permanent') {
+      await this.moveToDeadLetterQueue(
+        messageStr,
+        message,
+        `permanent: ${errorMessage}`,
+        failureClass,
+      );
+      return;
+    }
+
+    if (retryCount < this.config.maxRetries) {
+      const nextRetryCount = retryCount + 1;
+      const retryMessage = JSON.stringify({ ...message, _retryCount: nextRetryCount });
+      const delayMs = computeBackoffMs(nextRetryCount, {
+        baseMs: this.config.backoffBaseMs,
+        maxMs: this.config.backoffMaxMs,
+        multiplier: this.config.backoffMultiplier,
+      });
+
+      const multi = this.redis.multi();
+      multi.lRem(this.config.processingQueue, 1, messageStr);
+      multi.zAdd(this.config.retryQueue, {
+        score: Date.now() + delayMs,
+        value: retryMessage,
+      });
+      await multi.exec();
+      return;
+    }
+
+    await this.moveToDeadLetterQueue(
+      messageStr,
+      message,
+      `exhausted (retries=${retryCount}): ${errorMessage}`,
+      failureClass,
+    );
+  }
+
+  private async moveToDeadLetterQueue(
+    messageStr: string,
+    message: MintRequestMessage | undefined,
+    reason: string,
+    failureClass: FailureClass = 'permanent',
+  ): Promise<void> {
     const originalMessage = this.safeJsonParse(messageStr);
     const dlqEntry = {
       originalMessage,
       error: reason,
+      reason,
+      failureClass,
       timestamp: new Date().toISOString(),
       queue: this.config.inboundQueue,
     };
 
     await this.redis.lPush(this.config.deadLetterQueue, JSON.stringify(dlqEntry));
     await this.redis.lRem(this.config.processingQueue, 1, messageStr);
+
+    if (typeof message?.idempotency_key === 'string') {
+      await this.config.recordStore.recordError(message.idempotency_key, message.model_id, reason);
+    }
   }
 
   private safeJsonParse(messageStr: string): unknown {

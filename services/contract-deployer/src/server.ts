@@ -22,6 +22,7 @@ import { createLogger } from './utils/logger';
 import { validateEnv, type Config } from './config/env.validation';
 import { AMMMonitor } from './monitoring/amm-monitor';
 import { createMonitoringConfig } from './config/monitoring-config';
+import { MintRequestListener } from './mint-request-listener';
 
 // Load environment variables
 dotenv.config();
@@ -32,34 +33,38 @@ console.log('[STARTUP] Logger created');
 
 async function createServer(): Promise<express.Application> {
   console.log('[STARTUP] createServer() called');
-  
+
   // Validate environment variables (including SSM parameters if enabled)
   console.log('[STARTUP] Validating environment...');
   const config: Config = await validateEnv();
-  console.log('[STARTUP] Environment validated successfully')
-  
+  console.log('[STARTUP] Environment validated successfully');
+
   // Initialize services
   console.log('[STARTUP] Creating Redis client...');
   console.log('[STARTUP] Redis host:', config.REDIS_HOST);
   console.log('[STARTUP] Redis port:', config.REDIS_PORT);
-  
-  const redisClient = createClient(config.REDIS_URL ? {
-    url: config.REDIS_URL,
-  } : {
-    socket: {
-      host: config.REDIS_HOST,
-      port: config.REDIS_PORT,
-    },
-  });
+
+  const redisClient = createClient(
+    config.REDIS_URL
+      ? {
+          url: config.REDIS_URL,
+        }
+      : {
+          socket: {
+            host: config.REDIS_HOST,
+            port: config.REDIS_PORT,
+          },
+        },
+  );
 
   console.log('[STARTUP] Connecting to Redis...');
   try {
     // Set a timeout for Redis connection
     const connectPromise = redisClient.connect();
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Redis connection timeout')), 5000)
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Redis connection timeout')), 5000),
     );
-    
+
     await Promise.race([connectPromise, timeoutPromise]);
     console.log('[STARTUP] Redis connected successfully');
     logger.info('Connected to Redis');
@@ -73,15 +78,12 @@ async function createServer(): Promise<express.Application> {
   // Initialize queue service (optional)
   let queueService: QueueService | null = null;
   try {
-    queueService = new QueueService(
-      config.REDIS_HOST,
-      config.REDIS_PORT,
-      logger,
-      config.REDIS_URL
-    );
+    queueService = new QueueService(config.REDIS_HOST, config.REDIS_PORT, logger, config.REDIS_URL);
     await Promise.race([
       queueService.connect(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Queue connection timeout')), 5000))
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Queue connection timeout')), 5000),
+      ),
     ]);
     console.log('[STARTUP] Queue service connected');
   } catch (error) {
@@ -94,7 +96,7 @@ async function createServer(): Promise<express.Application> {
   const blockchainService = new BlockchainService(
     config.RPC_URL,
     config.DEPLOYER_PRIVATE_KEY,
-    logger
+    logger,
   );
 
   // Initialize contract deployer
@@ -105,13 +107,13 @@ async function createServer(): Promise<express.Application> {
     modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
     gasMultiplier: config.GAS_PRICE_MULTIPLIER,
     maxGasPrice: (config.MAX_GAS_PRICE_GWEI * 1e9).toString(), // Convert Gwei to Wei
-    confirmations: config.CONFIRMATION_BLOCKS
+    confirmations: config.CONFIRMATION_BLOCKS,
   });
 
   // Initialize deployment service (only if queue is available)
   let deploymentService: DeploymentService | null = null;
   let deploymentProcessor: DeploymentProcessor | null = null;
-  
+
   if (queueService) {
     deploymentService = new DeploymentService(
       {
@@ -120,23 +122,23 @@ async function createServer(): Promise<express.Application> {
         redisUrl: config.REDIS_URL,
         queueName: config.QUEUE_NAME,
         statusTtlSeconds: 86400, // 24 hours
-        maxConcurrentDeployments: 10 // Default value
+        maxConcurrentDeployments: 10, // Default value
       },
       queueService,
-      contractDeployer
+      contractDeployer,
     );
-    
+
     try {
       await deploymentService.initialize();
       console.log('[STARTUP] Deployment service initialized');
-      
+
       // Initialize deployment processor
       deploymentProcessor = new DeploymentProcessor(
         queueService,
         blockchainService,
         deploymentService,
         logger,
-        config
+        config,
       );
 
       // Start background processing
@@ -176,10 +178,12 @@ async function createServer(): Promise<express.Application> {
 
   // Security middleware
   app.use(helmet());
-  app.use(cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-    credentials: true
-  }));
+  app.use(
+    cors({
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+      credentials: true,
+    }),
+  );
 
   // Rate limiting - 100 requests per 15 minutes
   app.use(rateLimiter(15 * 60 * 1000, 100));
@@ -193,18 +197,17 @@ async function createServer(): Promise<express.Application> {
     logger.info(`${req.method} ${req.path}`, {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
-      correlationId: req.headers['x-correlation-id']
+      correlationId: req.headers['x-correlation-id'],
     });
     next();
   });
 
   // API routes - only enable deployment routes if queue is available
   if (queueService && deploymentService) {
-    app.use('/api/deployments', deploymentRouter(
-      queueService,
-      blockchainService,
-      deploymentService
-    ));
+    app.use(
+      '/api/deployments',
+      deploymentRouter(queueService, blockchainService, deploymentService),
+    );
   } else {
     app.use('/api/deployments', (_req, res) => {
       res.status(503).json({
@@ -212,12 +215,12 @@ async function createServer(): Promise<express.Application> {
         error: {
           code: 'SERVICE_UNAVAILABLE',
           message: 'Deployment service is not available (Redis connection required)',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     });
   }
-  
+
   app.use('/health', healthRouter());
 
   // Monitoring routes (only if monitoring is enabled)
@@ -230,8 +233,8 @@ async function createServer(): Promise<express.Application> {
         error: {
           code: 'SERVICE_UNAVAILABLE',
           message: 'AMM monitoring is not enabled',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     });
   }
@@ -246,8 +249,8 @@ async function createServer(): Promise<express.Application> {
       endpoints: {
         deployments: '/api/deployments',
         monitoring: '/api/monitoring',
-        health: '/health'
-      }
+        health: '/health',
+      },
     });
   });
 
@@ -258,8 +261,8 @@ async function createServer(): Promise<express.Application> {
       error: {
         code: 'NOT_FOUND',
         message: `Route ${req.method} ${req.path} not found`,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
   });
 
@@ -293,6 +296,51 @@ async function startServer(): Promise<void> {
       logger.info(`Health checks available at http://${host}:${port}/health`);
     });
 
+    let mintListener: MintRequestListener | null = null;
+    let mintProcessingPromise: Promise<void> | null = null;
+    if (serverConfig.DELTA_VERIFIER_ADDRESS) {
+      try {
+        mintListener = new MintRequestListener({
+          redis: {
+            url:
+              serverConfig.REDIS_URL ||
+              `redis://${serverConfig.REDIS_HOST}:${serverConfig.REDIS_PORT}`,
+          },
+          blockchain: {
+            rpcUrls: serverConfig.RPC_URL.split(','),
+            privateKey: serverConfig.DEPLOYER_PRIVATE_KEY,
+            deltaVerifierAddress: serverConfig.DELTA_VERIFIER_ADDRESS,
+            modelRegistryAddress: serverConfig.MODEL_REGISTRY_ADDRESS,
+            confirmations: serverConfig.CONFIRMATION_BLOCKS,
+            gasMultiplier: serverConfig.GAS_PRICE_MULTIPLIER,
+            maxGasPrice: (serverConfig.MAX_GAS_PRICE_GWEI * 1e9).toString(),
+          },
+          queues: {
+            inbound: serverConfig.MINT_REQUEST_QUEUE,
+            processing: serverConfig.MINT_REQUEST_PROCESSING_QUEUE,
+            deadLetter: serverConfig.MINT_REQUEST_DLQ,
+            processedSet: serverConfig.MINT_REQUEST_PROCESSED_SET,
+            retry: serverConfig.MINT_REQUEST_RETRY_QUEUE,
+            settlements: serverConfig.MINT_REQUEST_SETTLEMENT_QUEUE,
+            maxRetries: serverConfig.MINT_REQUEST_MAX_RETRIES,
+            backoffBaseMs: serverConfig.MINT_BACKOFF_BASE_MS,
+            backoffMaxMs: serverConfig.MINT_BACKOFF_MAX_MS,
+            backoffMultiplier: serverConfig.MINT_BACKOFF_MULTIPLIER,
+            recordKeyPrefix: serverConfig.MINT_RECORD_KEY_PREFIX,
+            recordTtlSeconds: serverConfig.MINT_RECORD_TTL_SECONDS,
+          },
+        });
+
+        await mintListener.initialize();
+        mintProcessingPromise = mintListener.start();
+        logger.info('MintRequest listener started');
+      } catch (error) {
+        logger.warn('MintRequest listener failed to initialize', { error });
+        mintListener = null;
+        mintProcessingPromise = null;
+      }
+    }
+
     // Store monitor reference for shutdown
     let monitorRef: AMMMonitor | null = null;
     if (process.env.MONITORING_ENABLED === 'true') {
@@ -322,7 +370,23 @@ async function startServer(): Promise<void> {
         }
       }
 
-      // TODO: Stop deployment processor and clean up services
+      if (mintListener) {
+        mintListener.stop();
+      }
+      if (mintProcessingPromise) {
+        try {
+          await mintProcessingPromise;
+        } catch (error) {
+          logger.warn('MintRequest listener exited during shutdown', { error });
+        }
+      }
+      if (mintListener) {
+        try {
+          await mintListener.cleanup();
+        } catch (error) {
+          logger.warn('Error cleaning up MintRequest listener', { error });
+        }
+      }
 
       logger.info('Graceful shutdown completed');
       process.exit(0);
@@ -330,7 +394,6 @@ async function startServer(): Promise<void> {
 
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
   } catch (error) {
     logger.error('Failed to start server', { error });
     process.exit(1);

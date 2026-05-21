@@ -8,40 +8,38 @@ const logger = createLogger('config');
 // Environment variable schema
 const envSchema = Joi.object({
   // Node environment
-  NODE_ENV: Joi.string()
-    .valid('development', 'test', 'production')
-    .default('development'),
-  
+  NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
+
   // Server configuration
   PORT: Joi.number().default(8002),
-  
+
   // Redis configuration
   REDIS_HOST: Joi.string().default('localhost'),
   REDIS_PORT: Joi.number().default(6379),
   REDIS_URL: Joi.string().optional(),
-  
+
   // Blockchain configuration
   RPC_URL: Joi.string().required(),
   CHAIN_ID: Joi.number().default(137), // Polygon mainnet
   NETWORK_NAME: Joi.string().default('polygon-mainnet'),
-  
+
   // Contract addresses
   MODEL_REGISTRY_ADDRESS: Joi.string().required(),
   TOKEN_MANAGER_ADDRESS: Joi.string().required(),
   DELTA_VERIFIER_ADDRESS: Joi.string().optional(),
-  
+
   // Deployer configuration
   DEPLOYER_PRIVATE_KEY: Joi.string().required(),
-  
+
   // Gas configuration
   GAS_PRICE_MULTIPLIER: Joi.number().min(1).max(5).default(1.2),
   MAX_GAS_PRICE_GWEI: Joi.number().default(500), // 500 Gwei
   DEFAULT_GAS_LIMIT: Joi.number().default(5000000),
-  
+
   // Transaction configuration
   CONFIRMATION_BLOCKS: Joi.number().min(1).max(50).default(2),
   CONFIRMATION_TIMEOUT_MS: Joi.number().default(300000), // 5 minutes
-  
+
   // Queue configuration
   QUEUE_NAME: Joi.string().default('contract-deployments'),
   QUEUE_PREFIX: Joi.string().default('hokusai'),
@@ -51,61 +49,61 @@ const envSchema = Joi.object({
   MINT_REQUEST_PROCESSED_SET: Joi.string().default('hokusai:mint_requests:processed'),
   MINT_REQUEST_SETTLEMENT_QUEUE: Joi.string().default('hokusai:mint_request_settlements'),
   MINT_REQUEST_MAX_RETRIES: Joi.number().integer().min(0).default(3),
-  
+  MINT_REQUEST_RETRY_QUEUE: Joi.string().default('hokusai:mint_requests:retry'),
+  MINT_BACKOFF_BASE_MS: Joi.number().integer().min(0).default(1000),
+  MINT_BACKOFF_MAX_MS: Joi.number().integer().min(0).default(60000),
+  MINT_BACKOFF_MULTIPLIER: Joi.number().min(1).default(2),
+  MINT_RECORD_KEY_PREFIX: Joi.string().default('hokusai:mint_record:'),
+  MINT_RECORD_TTL_SECONDS: Joi.number().integer().min(1).default(2592000),
+
   // API configuration
   RATE_LIMIT_WINDOW_MS: Joi.number().default(900000), // 15 minutes
   RATE_LIMIT_MAX_REQUESTS: Joi.number().default(100),
   CORS_ORIGINS: Joi.string().default('*'),
-  
+
   // Monitoring
-  METRICS_ENABLED: Joi.alternatives().try(
-    Joi.boolean(),
-    Joi.string().valid('true', 'false')
-  ).default(false),
+  METRICS_ENABLED: Joi.alternatives()
+    .try(Joi.boolean(), Joi.string().valid('true', 'false'))
+    .default(false),
   METRICS_PORT: Joi.number().default(9091),
-  
+
   // AWS configuration (optional)
   AWS_REGION: Joi.string().default('us-east-1'),
   AWS_ACCESS_KEY_ID: Joi.string().optional(),
   AWS_SECRET_ACCESS_KEY: Joi.string().optional(),
-  USE_SSM: Joi.alternatives().try(
-    Joi.boolean(),
-    Joi.string().valid('true', 'false')
-  ).default(false),
-  
+  USE_SSM: Joi.alternatives()
+    .try(Joi.boolean(), Joi.string().valid('true', 'false'))
+    .default(false),
+
   // Deployment environment (for SSM path resolution)
   DEPLOY_ENV: Joi.string().optional(),
-  
+
   // Service identification
   SERVICE_NAME: Joi.string().default('contract-deployer'),
-  
+
   // Health check configuration
   HEALTH_CHECK_INTERVAL: Joi.number().default(30000),
   HEALTH_CHECK_TIMEOUT: Joi.number().default(5000),
-  
+
   // Feature flags
   ENABLE_AUTH: Joi.boolean().default(false),
   RATE_LIMIT_ENABLED: Joi.boolean().default(true),
   CORS_ENABLED: Joi.boolean().default(true),
-  
+
   // Webhook configuration (optional)
   WEBHOOK_URL: Joi.string().uri().optional(),
   WEBHOOK_SECRET: Joi.string().optional(),
-  
+
   // API keys (comma-separated list)
   API_KEYS: Joi.string().optional(),
-  
+
   // JWT configuration (optional)
   JWT_SECRET: Joi.string().optional(),
   JWT_EXPIRY: Joi.string().default('24h'),
-  
+
   // Logging
-  LOG_LEVEL: Joi.string()
-    .valid('error', 'warn', 'info', 'debug')
-    .default('info'),
-  LOG_FORMAT: Joi.string()
-    .valid('json', 'simple')
-    .default('json'),
+  LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
+  LOG_FORMAT: Joi.string().valid('json', 'simple').default('json'),
 }).unknown(true); // Allow additional environment variables
 
 // Configuration interface
@@ -135,6 +133,12 @@ export interface Config {
   MINT_REQUEST_PROCESSED_SET: string;
   MINT_REQUEST_SETTLEMENT_QUEUE: string;
   MINT_REQUEST_MAX_RETRIES: number;
+  MINT_REQUEST_RETRY_QUEUE: string;
+  MINT_BACKOFF_BASE_MS: number;
+  MINT_BACKOFF_MAX_MS: number;
+  MINT_BACKOFF_MULTIPLIER: number;
+  MINT_RECORD_KEY_PREFIX: string;
+  MINT_RECORD_TTL_SECONDS: number;
   RATE_LIMIT_WINDOW_MS: number;
   RATE_LIMIT_MAX_REQUESTS: number;
   CORS_ORIGINS: string;
@@ -184,23 +188,35 @@ function parseRedisUrl(redisUrl: string): { REDIS_HOST: string; REDIS_PORT: stri
  */
 function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
   const mapping: Record<string, string> = {};
-  
+
   if (ssmParams.redis_url) mapping.REDIS_URL = ssmParams.redis_url;
   if (ssmParams.rpc_endpoint) mapping.RPC_URL = ssmParams.rpc_endpoint;
-  if (ssmParams.model_registry_address) mapping.MODEL_REGISTRY_ADDRESS = ssmParams.model_registry_address;
-  if (ssmParams.token_manager_address) mapping.TOKEN_MANAGER_ADDRESS = ssmParams.token_manager_address;
+  if (ssmParams.model_registry_address)
+    mapping.MODEL_REGISTRY_ADDRESS = ssmParams.model_registry_address;
+  if (ssmParams.token_manager_address)
+    mapping.TOKEN_MANAGER_ADDRESS = ssmParams.token_manager_address;
   if (ssmParams.deployer_key) mapping.DEPLOYER_PRIVATE_KEY = ssmParams.deployer_key;
   if (ssmParams.api_keys) mapping.API_KEYS = ssmParams.api_keys;
   if (ssmParams.jwt_secret) mapping.JWT_SECRET = ssmParams.jwt_secret;
   if (ssmParams.webhook_url) mapping.WEBHOOK_URL = ssmParams.webhook_url;
   if (ssmParams.webhook_secret) mapping.WEBHOOK_SECRET = ssmParams.webhook_secret;
-  
+
   // Map any additional parameters
-  const additionalParams = Object.entries(ssmParams)
-    .filter(([key]) => !['redis_url', 'rpc_endpoint', 'model_registry_address', 
-                        'token_manager_address', 'deployer_key', 'api_keys', 
-                        'jwt_secret', 'webhook_url', 'webhook_secret'].includes(key));
-  
+  const additionalParams = Object.entries(ssmParams).filter(
+    ([key]) =>
+      ![
+        'redis_url',
+        'rpc_endpoint',
+        'model_registry_address',
+        'token_manager_address',
+        'deployer_key',
+        'api_keys',
+        'jwt_secret',
+        'webhook_url',
+        'webhook_secret',
+      ].includes(key),
+  );
+
   for (const [key, value] of additionalParams) {
     // Convert snake_case to UPPER_SNAKE_CASE
     const envKey = key.toUpperCase();
@@ -208,7 +224,7 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
       mapping[envKey] = value;
     }
   }
-  
+
   return mapping;
 }
 
@@ -217,7 +233,7 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
  */
 export async function validateEnv(): Promise<Config> {
   console.log('[STARTUP] validateEnv() called');
-  
+
   // First validate the basic environment schema
   console.log('[STARTUP] Validating basic environment schema...');
   const { error, value } = envSchema.validate(process.env, {
@@ -237,20 +253,20 @@ export async function validateEnv(): Promise<Config> {
   try {
     const ssmParams = await loadSSMConfiguration();
     console.log('[STARTUP] SSM configuration loaded:', ssmParams ? 'success' : 'no params');
-    
+
     if (ssmParams) {
       // Map SSM parameters to environment variables
       const envOverrides = mapSSMToEnvVars(ssmParams);
-      
+
       // Apply overrides
       const mergedEnv = { ...process.env, ...envOverrides };
-      
+
       // Parse Redis URL if provided
       if (ssmParams.redis_url) {
         const redisConfig = parseRedisUrl(ssmParams.redis_url);
         Object.assign(mergedEnv, redisConfig);
       }
-      
+
       // Re-validate with SSM parameters
       const { error: ssmError, value: ssmValue } = envSchema.validate(mergedEnv, {
         abortEarly: false,
@@ -265,12 +281,14 @@ export async function validateEnv(): Promise<Config> {
     }
   } catch (error) {
     logger.error('Failed to load SSM configuration:', error);
-    
+
     // In production, SSM failure should be fatal
     if (config.NODE_ENV === 'production') {
-      throw new Error(`SSM configuration required in production: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `SSM configuration required in production: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
-    
+
     // In development, warn but continue
     logger.warn('Continuing with environment variables (SSM load failed)');
   }
@@ -278,13 +296,13 @@ export async function validateEnv(): Promise<Config> {
   // Final validation for required fields
   const requiredFields = [
     'RPC_URL',
-    'MODEL_REGISTRY_ADDRESS', 
+    'MODEL_REGISTRY_ADDRESS',
     'TOKEN_MANAGER_ADDRESS',
-    'DEPLOYER_PRIVATE_KEY'
+    'DEPLOYER_PRIVATE_KEY',
   ];
 
-  const missingFields = requiredFields.filter(field => !config[field as keyof Config]);
-  
+  const missingFields = requiredFields.filter((field) => !config[field as keyof Config]);
+
   if (missingFields.length > 0) {
     throw new Error(`Missing required configuration fields: ${missingFields.join(', ')}`);
   }
@@ -315,7 +333,7 @@ export function validateEnvSync(): Config {
   }
 
   const config = value as Config;
-  
+
   // Convert string booleans
   if (typeof config.USE_SSM === 'string') {
     config.USE_SSM = config.USE_SSM === 'true';

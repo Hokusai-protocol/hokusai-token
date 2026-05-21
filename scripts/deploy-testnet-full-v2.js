@@ -35,6 +35,15 @@ function parseOptionalUsd(value) {
   return ethers.parseUnits(value, 6);
 }
 
+async function ensureFactoryPoolRegistrar(modelRegistry, factoryAddress) {
+  if (await modelRegistry.poolRegistrars(factoryAddress)) {
+    return;
+  }
+
+  const authorizeTx = await modelRegistry.setPoolRegistrar(factoryAddress, true);
+  await authorizeTx.wait();
+}
+
 // Pool configurations
 const POOL_CONFIGS = {
   hlead: {
@@ -190,6 +199,10 @@ async function main() {
     const factoryAddress = await factory.getAddress();
     deployment.contracts.HokusaiAMMFactory = factoryAddress;
     console.log("   ✅ HokusaiAMMFactory:", factoryAddress);
+
+    console.log("   🔗 Authorizing factory as ModelRegistry pool registrar...");
+    await ensureFactoryPoolRegistrar(modelRegistry, factoryAddress);
+    console.log("   ✅ Factory authorized for canonical pool registration");
 
     // ============================================================
     // PHASE 4: Infrastructure Cost Accrual System (NEW)

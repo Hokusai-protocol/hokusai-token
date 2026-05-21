@@ -86,6 +86,13 @@
       "followUp": "HOK-1823"
     },
     {
+      "id": "06d4d9b128da369661da11aa4cf1042ccc88654c49c662daccfb8ea8f4de7b19",
+      "check": "incorrect-equality",
+      "justification": "Pre-existing FundingVault dust-sweep equality pattern; ID changed after line shifts in HOK-1816 without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
       "id": "8005a511929c507ab8713c0459ed93dc0e63b06a46359c55329b1050b03d68d2",
       "check": "reentrancy-no-eth",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
@@ -110,6 +117,13 @@
       "id": "cce90c099329fdfb4711802aa058ecdddd21ed128c38813076d6b459e7d1d115",
       "check": "reentrancy-no-eth",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "f69051a29e03ee4bca8880627f699c880a6ffb7c85f5c2d494abf8f0bf4c2cf8",
+      "check": "reentrancy-no-eth",
+      "justification": "Pre-existing FundingVault graduation-path finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
@@ -201,6 +215,13 @@
       "id": "f963167fec038a582662bb1179b2968ff7879b020d8e74bfba81c4fe22f2dfa8",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "7ef0d55caa3b0b5e7a38df800cda034fdb1ed71c9b635e01eb1349c66e051b52",
+      "check": "unused-return",
+      "justification": "Pre-existing FundingVault graduation-path finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
@@ -373,6 +394,13 @@
       "followUp": "n/a"
     },
     {
+      "id": "1506bac413b6d41c90853ae535d2029be86ff193b523b8bd75618e88a1ecc928",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory pause-path event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
       "id": "4d3764f4222846dfc781089a65e307424b85da79d7509ed2a6f933fc0cec638a",
       "check": "reentrancy-events",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
@@ -397,6 +425,13 @@
       "id": "68b94c88ea6905ef37095df1b764fd36499de20fc7e6ea2b9a6ba1e7ab3ce573",
       "check": "reentrancy-events",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "446b99e267fe3600086e01cb721ba3a6dfe32606f7ba36664be93f7fb9ce2e3c",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory createPoolWithParams event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
       "reviewedBy": "codex",
       "followUp": "n/a"
     },
@@ -436,9 +471,37 @@
       "followUp": "n/a"
     },
     {
+      "id": "575caa87533a9b80912f53c960c09daa9955e908f859ac26ffd5c9d04c0ca36a",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory pauseAllPools event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
       "id": "998ad94c28c54d4b1a223f3fb0784e311600c8b895544f1f9a4686924c002175",
       "check": "reentrancy-events",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "6d0a84d51dd9f6f789f5cc2b5481f0f1ac35d8c9c818e0378771ed6f3629be0f",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory pausePools event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "720d27a5559847dbd84fe2dac1acb81298546d3876362d04d9b8e8affea1f3a0",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory unpausePool event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "896dfcbfbc982b20fa0113012c8431703b73d08bec9e70922b015f0e48adce16",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory unpausePools event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
       "reviewedBy": "codex",
       "followUp": "n/a"
     },

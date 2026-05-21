@@ -40,6 +40,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
             treasury.address
         );
         await factory.waitForDeployment();
+        await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
     });
 
     // ============================================================
@@ -99,6 +100,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
             expect(await factory.hasPool(MODEL_ID_1)).to.be.true;
             expect(await factory.getPool(MODEL_ID_1)).to.equal(poolAddress);
             expect(await factory.poolCount()).to.equal(1);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
         });
 
         it("Should create pool with custom parameters", async function () {
@@ -133,14 +135,12 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
             expect(await pool.crr()).to.equal(customCrr);
             expect(await pool.tradeFee()).to.equal(customTradeFee);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
         });
 
-        it("Should allow manual registration in ModelRegistry", async function () {
+        it("Should register pool in ModelRegistry automatically", async function () {
             const poolAddress = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
             await factory.createPool(MODEL_ID_1, token1Address);
-
-            // Register pool manually (model already registered in beforeEach)
-            await modelRegistry.registerPool(MODEL_ID_1, poolAddress);
 
             expect(await modelRegistry.hasPool(MODEL_ID_1)).to.be.true;
             expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
@@ -159,11 +159,13 @@ describe("Phase 4: Factory & Registry Integration", function () {
         });
 
         it("Should revert if pool already exists", async function () {
+            const originalPool = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
             await factory.createPool(MODEL_ID_1, token1Address);
 
             await expect(
                 factory.createPool(MODEL_ID_1, token1Address)
             ).to.be.revertedWith("Pool already exists");
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(originalPool);
         });
 
         // Validation tests removed - covered by ValidationLib.test.js
@@ -185,6 +187,99 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         // Removed: CRR, trade fee, and IBR duration validation tests
         // These are covered by ValidationLib.test.js and FeeLib.test.js
+
+        it("Should update factory and registry mappings canonically for multiple models", async function () {
+            const token2Address = await deployTestTokenAddress(tokenManager, MODEL_ID_2, "Beta Token", "BETA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, MODEL_ID_2, "Beta Token", "BETA", parseEther("1"), owner.address);
+            await modelRegistry.registerStringModel(MODEL_ID_2, token2Address, "Test metric");
+
+            const pool1 = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
+            await factory.createPool(MODEL_ID_1, token1Address);
+
+            const pool2 = await factory.createPoolWithParams.staticCall(
+                MODEL_ID_2,
+                token2Address,
+                150000,
+                50,
+                14 * 24 * 60 * 60,
+                parseUnits("50000", 6),
+                parseUnits("0.02", 6)
+            );
+            await factory.createPoolWithParams(
+                MODEL_ID_2,
+                token2Address,
+                150000,
+                50,
+                14 * 24 * 60 * 60,
+                parseUnits("50000", 6),
+                parseUnits("0.02", 6)
+            );
+
+            expect(pool1).to.not.equal(ZeroAddress);
+            expect(pool2).to.not.equal(ZeroAddress);
+            expect(pool1).to.not.equal(pool2);
+            expect(await factory.getPool(MODEL_ID_1)).to.equal(pool1);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(pool1);
+            expect(await factory.getPool(MODEL_ID_2)).to.equal(pool2);
+            expect(await modelRegistry.getPool(MODEL_ID_2)).to.equal(pool2);
+        });
+
+        it("Should revert atomically when factory is not an authorized pool registrar", async function () {
+            const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
+            const unauthorizedFactory = await HokusaiAMMFactory.deploy(
+                await modelRegistry.getAddress(),
+                await tokenManager.getAddress(),
+                await mockUSDC.getAddress(),
+                treasury.address
+            );
+            await unauthorizedFactory.waitForDeployment();
+
+            await expect(
+                unauthorizedFactory.createPoolWithParams(
+                    MODEL_ID_1,
+                    token1Address,
+                    200000,
+                    30,
+                    7 * 24 * 60 * 60,
+                    parseUnits("25000", 6),
+                    parseUnits("0.01", 6)
+                )
+            ).to.be.revertedWith("Caller is not authorized to register pools");
+
+            expect(await unauthorizedFactory.getPool(MODEL_ID_1)).to.equal(ZeroAddress);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(ZeroAddress);
+
+            await modelRegistry.setPoolRegistrar(await unauthorizedFactory.getAddress(), true);
+
+            const poolAddress = await unauthorizedFactory.createPoolWithParams.staticCall(
+                MODEL_ID_1,
+                token1Address,
+                200000,
+                30,
+                7 * 24 * 60 * 60,
+                parseUnits("25000", 6),
+                parseUnits("0.01", 6)
+            );
+            await unauthorizedFactory.createPoolWithParams(
+                MODEL_ID_1,
+                token1Address,
+                200000,
+                30,
+                7 * 24 * 60 * 60,
+                parseUnits("25000", 6),
+                parseUnits("0.01", 6)
+            );
+
+            expect(await unauthorizedFactory.getPool(MODEL_ID_1)).to.equal(poolAddress);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
+        });
+
+        it("Should reject unauthorized direct ModelRegistry pool registration", async function () {
+            await expect(
+                modelRegistry.connect(user1).registerPool(MODEL_ID_1, user1.address)
+            ).to.be.revertedWith("Caller is not authorized to register pools");
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(ZeroAddress);
+        });
     });
 
     // ============================================================

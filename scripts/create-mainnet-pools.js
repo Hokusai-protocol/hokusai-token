@@ -150,6 +150,25 @@ function writePendingActions(basePath, pendingActions) {
   return outputPath;
 }
 
+async function ensureFactoryPoolRegistrar({ modelRegistry, factoryAddress, signerAddress }) {
+  if (await modelRegistry.poolRegistrars(factoryAddress)) {
+    console.log("✅ Factory authorized as ModelRegistry pool registrar");
+    return;
+  }
+
+  const ownerAddress = await modelRegistry.owner();
+  if (ownerAddress.toLowerCase() !== signerAddress.toLowerCase()) {
+    throw new Error(
+      `Factory ${factoryAddress} is not authorized as a ModelRegistry pool registrar, and signer ${signerAddress} is not the registry owner ${ownerAddress}`
+    );
+  }
+
+  console.log("🔐 Authorizing factory as ModelRegistry pool registrar...");
+  const tx = await modelRegistry.setPoolRegistrar(factoryAddress, true);
+  await tx.wait();
+  console.log("✅ Factory authorized as ModelRegistry pool registrar");
+}
+
 async function runLaunchDeploy({
   deployment,
   launchConfig,
@@ -195,6 +214,11 @@ async function runLaunchDeploy({
   const modelRegistry = await ethers.getContractAt("ModelRegistry", registryAddress);
   const tokenManager = await ethers.getContractAt("TokenManager", managerAddress);
   const factory = await ethers.getContractAt("HokusaiAMMFactory", factoryAddress);
+  await ensureFactoryPoolRegistrar({
+    modelRegistry,
+    factoryAddress,
+    signerAddress: deployer.address,
+  });
 
   const scaledEntries = launchConfig.tokens
     .filter((entry) => POOLS_TO_CREATE.includes(entry.configKey))
@@ -333,11 +357,21 @@ async function runLaunchDeploy({
       console.log(`   ✅ Pool created: ${poolAddress}`);
       console.log(`   🔗 View on Etherscan: ${etherscanBaseUrl}/address/${poolAddress}`);
 
-      console.log("   📋 Registering pool in ModelRegistry...");
-      const registerPoolTx = await modelRegistry.registerPool(config.modelId, poolAddress);
-      const registerPoolReceipt = await registerPoolTx.wait();
-      console.log("   ✅ Pool registered in ModelRegistry");
-      console.log(`   ⛽ Gas used: ${registerPoolReceipt.gasUsed.toString()}`);
+      console.log("   🔍 Verifying canonical ModelRegistry pool mapping...");
+      const registryPool = await modelRegistry.getPool(config.modelId);
+      if (registryPool === hre.ethers.ZeroAddress) {
+        console.log("   ⚠️  Registry mapping missing after factory create; applying legacy fallback");
+        const registerPoolTx = await modelRegistry.registerPool(config.modelId, poolAddress);
+        const registerPoolReceipt = await registerPoolTx.wait();
+        console.log("   ✅ Pool registered in ModelRegistry via fallback");
+        console.log(`   ⛽ Gas used: ${registerPoolReceipt.gasUsed.toString()}`);
+      } else if (hre.ethers.getAddress(registryPool) === hre.ethers.getAddress(poolAddress)) {
+        console.log("   ✅ Pool already registered canonically by factory");
+      } else {
+        throw new Error(
+          `ModelRegistry.getPool(${config.modelId}) returned ${registryPool}, expected ${poolAddress}`
+        );
+      }
 
       console.log("   🔐 Authorizing AMM to mint tokens...");
       const authorizeTx = await tokenManager.authorizeAMM(poolAddress);

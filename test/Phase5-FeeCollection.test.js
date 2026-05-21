@@ -43,6 +43,7 @@ describe("Phase 5: Fee Collection System", function () {
             treasury.address
         );
         await factory.waitForDeployment();
+        await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
         // Deploy tokens and pools
         const token1Address = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);

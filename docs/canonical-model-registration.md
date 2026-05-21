@@ -32,7 +32,19 @@ Launch scripts now register models canonically before pool creation:
 
 This prevents creating a token + pool without satisfying DeltaVerifier registration requirements.
 
+## Canonical pool registration
+
+AMM pool registration is now canonical at the contract layer:
+
+- `HokusaiAMMFactory.createPoolWithParams(...)` writes the deployed pool into `ModelRegistry.modelPools`
+- stack deployment authorizes `HokusaiAMMFactory` as a `ModelRegistry` pool registrar
+- pool creation is atomic: if registry registration fails, the entire pool creation reverts
+
+Launch scripts may still perform an idempotent verification/fallback check, but they are no longer the source of truth for `ModelRegistry.getPool(modelId)`.
+
 ## Sepolia backfill
+
+This remains a one-time remediation for the May 20, 2026 Sepolia deployment before canonical pool registration was enforced during pool creation.
 
 Use the idempotent script in this order:
 

@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const hre = require("hardhat");
 
 const { deployFullStack } = require("../../scripts/lib/deploy-stack");
+const { deployTestToken, deployTestTokenAddress } = require("../helpers/tokenDeployment");
 
 describe("deployFullStack", function () {
   const baseConfig = {
@@ -86,6 +87,7 @@ describe("deployFullStack", function () {
     expect(await usageFeeRouter.reserveToken()).to.equal(result.config.reserveToken);
     expect(await usageFeeRouter.infraReserve()).to.equal(result.contracts.InfrastructureReserve);
     expect(await usageFeeRouter.costOracle()).to.equal(result.contracts.InfrastructureCostOracle);
+    expect(await modelRegistry.poolRegistrars(result.contracts.HokusaiAMMFactory)).to.equal(true);
 
     const recorderRole = await contributionRegistry.RECORDER_ROLE();
     const verifierRole = await contributionRegistry.VERIFIER_ROLE();
@@ -99,12 +101,54 @@ describe("deployFullStack", function () {
     expect(await infraReserve.hasRole(payerRole, treasury.address)).to.equal(true);
     expect(await usageFeeRouter.hasRole(feeDepositorRole, backendService.address)).to.equal(true);
 
+    const tokenAddress = await deployTestTokenAddress(
+      tokenManager,
+      "501",
+      "Deploy Stack Token",
+      "DSTK",
+      hre.ethers.parseEther("1"),
+      deployer.address
+    );
+    await deployTestToken(
+      tokenManager,
+      "501",
+      "Deploy Stack Token",
+      "DSTK",
+      hre.ethers.parseEther("1"),
+      deployer.address
+    );
+    expect(tokenAddress).to.properAddress;
+
+    await modelRegistry.registerStringModel("501", tokenAddress, "accuracy");
+    const factory = await hre.ethers.getContractAt("HokusaiAMMFactory", result.contracts.HokusaiAMMFactory);
+    const poolAddress = await factory.createPoolWithParams.staticCall(
+      "501",
+      tokenAddress,
+      200000,
+      30,
+      7 * 24 * 60 * 60,
+      25000n * 10n ** 6n,
+      10000
+    );
+    await factory.createPoolWithParams(
+      "501",
+      tokenAddress,
+      200000,
+      30,
+      7 * 24 * 60 * 60,
+      25000n * 10n ** 6n,
+      10000
+    );
+    expect(await factory.getPool("501")).to.equal(poolAddress);
+    expect(await modelRegistry.getPool("501")).to.equal(poolAddress);
+
     const artifact = await result.artifact({ timestamp: "2026-05-13T15:00:00.000Z" });
     expect(artifact.network).to.equal("sepolia");
     expect(artifact.chainId).to.equal("31337");
     expect(artifact.dryRun).to.equal(true);
     expect(artifact.contracts.DeltaVerifier).to.equal(result.contracts.DeltaVerifier);
     expect(artifact.roles.InfrastructureReserve.PAYER_ROLE).to.deep.equal([treasury.address]);
+    expect(artifact.roles.ModelRegistry.poolRegistrar).to.equal(result.contracts.HokusaiAMMFactory);
     expect(artifact.config.expectedChainId).to.equal("11155111");
     expect(artifact.gasUsed.ModelRegistry).to.match(/^\d+$/);
     expect(artifact.gasUsed.wiring.setDeltaVerifier).to.match(/^\d+$/);

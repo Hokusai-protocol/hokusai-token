@@ -1,3 +1,8 @@
+/**
+ * One-time remediation for the May 20, 2026 Sepolia deployment where pools
+ * existed in HokusaiAMMFactory before canonical ModelRegistry registration was
+ * enforced during pool creation.
+ */
 const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");

@@ -75,16 +75,16 @@ Do not use the baseline to hide newly introduced vulnerabilities without a docum
 
 ## Baselined High / Medium Findings
 
-The following pre-existing High and Medium findings were discovered during the initial rollout (HOK-1734) and accepted into `slither-baseline.json` with `followUp: HOK-1823`. They are tracked for remediation in that issue and must **not** be used as precedent to baseline new findings of the same type.
+The following pre-existing High and Medium findings remain baselined after the HOK-1823 remediation pass. They must **not** be used as precedent to baseline new findings of the same type.
 
 | Detector | Severity | Count | Tracked in |
 | --- | --- | --- | --- |
-| `arbitrary-send-eth` | High | 3 | HOK-1823 |
-| `reentrancy-eth` | High | 4 | HOK-1823 |
-| `unchecked-transfer` | High | 1 | HOK-1823 |
+| `arbitrary-send-eth` | High | 2 | HOK-1823 |
 | `divide-before-multiply` | Medium | 1 | HOK-1823 |
 | `incorrect-equality` | Medium | 3 | HOK-1823 |
-| `unused-return` | Medium | 12 | HOK-1823 |
-| `reentrancy-no-eth` | Medium | 5 | HOK-1823 |
+| `unused-return` | Medium | 11 | HOK-1823 |
+| `reentrancy-no-eth` | Medium | 7 | HOK-1823 |
+
+HOK-1823 fixed the prior `reentrancy-eth` and `unchecked-transfer` findings. The remaining `arbitrary-send-eth`, `divide-before-multiply`, and `incorrect-equality` entries were reviewed in HOK-1823 and retained as documented false positives in `slither-baseline.json`.
 
 Any new finding matching these detectors on new or modified code is **not** suppressed by the existing baseline entries (baseline entries are keyed by finding hash, not by detector name) and will fail the gate.

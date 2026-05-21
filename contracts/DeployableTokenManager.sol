@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
@@ -17,7 +18,7 @@ import "./libraries/RewardSplitLib.sol";
  * Token and params creation is delegated to TokenDeploymentFactory so this
  * contract stays below the EIP-170 runtime bytecode limit.
  */
-contract DeployableTokenManager is Ownable, AccessControlBase {
+contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
     ModelRegistry public registry;
     ITokenDeploymentFactory public tokenDeploymentFactory;
     address public deltaVerifier;
@@ -111,7 +112,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         string memory symbol,
         uint256 totalSupply,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
         ValidationLib.requireNonEmptyString(symbol, "token symbol");
@@ -119,7 +120,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         ValidationLib.requireNonZeroAddress(initialParams.governor, "governor");
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
 
-        _collectDeploymentFee();
+        _validateDeploymentFee();
 
         address paramsAddress;
         (tokenAddress, paramsAddress) = tokenDeploymentFactory.deployTokenAndParams(
@@ -135,6 +136,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         );
 
         _storeDeployment(modelId, tokenAddress, paramsAddress);
+        _collectDeploymentFee();
         _emitParamsDeployed(modelId, paramsAddress, initialParams);
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
     }
@@ -147,7 +149,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         address modelSupplierRecipient,
         uint256 investorAllocation,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
         ValidationLib.requireNonEmptyString(symbol, "token symbol");
@@ -157,7 +159,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         ValidationLib.requireNonZeroAddress(initialParams.governor, "governor");
         require(modelTokens[modelId] == address(0), "Token already deployed for this model");
 
-        _collectDeploymentFee();
+        _validateDeploymentFee();
 
         uint256 maxSupply = modelSupplierAllocation + investorAllocation;
         address paramsAddress;
@@ -174,6 +176,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         );
 
         _storeDeployment(modelId, tokenAddress, paramsAddress);
+        _collectDeploymentFee();
         _emitParamsDeployed(modelId, paramsAddress, initialParams);
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, maxSupply);
         emit AllocationDistributed(
@@ -416,12 +419,15 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         return modelParams[modelId] != address(0);
     }
 
+    function _validateDeploymentFee() private view {
+        require(msg.value >= deploymentFee, "Insufficient deployment fee");
+    }
+
     function _collectDeploymentFee() private {
         if (deploymentFee == 0) {
             return;
         }
 
-        require(msg.value >= deploymentFee, "Insufficient deployment fee");
         (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
         require(sent, "Failed to send deployment fee");
 

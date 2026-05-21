@@ -125,84 +125,84 @@
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "300f7cd1862d9de5c1f3530723a9f157bac40b693658b6888e8b96861abf36d3",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "33d23c28bba365a11b375b3b14bc38dc69754234e48566f2e9fee2b84859fd14",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "706f9280cc7d779c075ba4b4e7c14c686602db867930444fde2161c1af186471",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "7c42940f1ac3033a9cecd02d6ffc25fb45ac7f6b64b9cc3dba0318bf26821aa3",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "8026bbd52b7a640e907ff303ca8358641a08c699f55761785ea31c2cf3d2dc6b",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "bb9c94cff16b0bdfc372a2e35fb9acdabea3a0dc0048efaddea460e8a71cbf8f",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "cf7bf3e39963f885f94d9822cf50cf079c8f52a777faff8c7dbbaff78d2dedca",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "dab8936df75245dade6a8abb11ed2b4ffcac91d0bfa6e90e34147dee3191a3c1",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "eb023b9c30ea828c74bd06c653a26a6af565232b2302c55ce3778814d02c09bf",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "edf1476c4967804d7608565b8556e509dc376428110c4981f019c8b1c4ace5de",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "f963167fec038a582662bb1179b2968ff7879b020d8e74bfba81c4fe22f2dfa8",
       "check": "unused-return",
       "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
       "reviewedBy": "codex",
-      "followUp": "n/a"
+      "followUp": "HOK-1823"
     },
     {
       "id": "2f9ce64f1fb88f150759baeef5d709f5affb52c3dc1db2f7dd6a3d3f1d944558",

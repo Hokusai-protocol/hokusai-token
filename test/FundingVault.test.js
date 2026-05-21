@@ -52,6 +52,7 @@ describe("FundingVault", function () {
       owner.address
     );
     await ammFactory.waitForDeployment();
+    await modelRegistry.setPoolRegistrar(await ammFactory.getAddress(), true);
 
     const FundingVault = await ethers.getContractFactory("FundingVault");
     fundingVault = await FundingVault.deploy(
@@ -73,8 +74,6 @@ describe("FundingVault", function () {
     await tokenManager.grantRole(DEFAULT_ADMIN_ROLE, await fundingVault.getAddress());
 
     await ammFactory.transferOwnership(await fundingVault.getAddress());
-    await modelRegistry.setPoolRegistrar(await fundingVault.getAddress(), true);
-
     await usdc.mint(user1.address, usd(100000));
     await usdc.mint(user2.address, usd(100000));
     await usdc.mint(user3.address, usd(100000));

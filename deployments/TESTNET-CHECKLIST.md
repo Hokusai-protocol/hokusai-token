@@ -42,6 +42,7 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
 - [ ] `InfrastructureReserve.treasury()` matches expected treasury/Safe
 - [ ] `UsageFeeRouter.factory()` matches factory
 - [ ] `UsageFeeRouter.infraReserve()` matches reserve
+- [ ] `ModelRegistry.poolRegistrars(factory)` returns `true`
 - [ ] `TokenManager.deltaVerifier()` matches `DeltaVerifier`
 - [ ] `TokenManager.vestingVault()` matches `RewardVestingVault`
 - [ ] `DataContributionRegistry.RECORDER_ROLE` granted to `DeltaVerifier`
@@ -61,6 +62,7 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
 - [ ] `TokenManager.getTokenAddress(modelId)` returns token address
 - [ ] `ModelRegistry.getTokenAddress(uint256(modelId))` returns the same token address
 - [ ] `HokusaiAMMFactory.getPool(modelId)` returns pool address
+- [ ] `ModelRegistry.getPool(modelId)` returns the same pool address
 - [ ] `npm run smoke:sepolia` verifies canonical registration for models `27`, `28`, and `30`
 - [ ] Pool reserve/token balances match launch config
 - [ ] `pool.paused()` returns `false`

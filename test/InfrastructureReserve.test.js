@@ -51,6 +51,7 @@ describe("InfrastructureReserve", function () {
       treasury.address
     );
     await factory.waitForDeployment();
+    await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
     // Deploy InfrastructureReserve
     InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");

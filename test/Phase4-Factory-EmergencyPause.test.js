@@ -41,6 +41,7 @@ describe("Phase 4: Factory Emergency Pause", function () {
             treasury.address
         );
         await factory.waitForDeployment();
+        await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
     }
 
     async function createPool(modelId) {

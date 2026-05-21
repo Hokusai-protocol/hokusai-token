@@ -69,6 +69,7 @@ describe("Proposal Registration Integration", function () {
       owner.address
     );
     await ammFactory.waitForDeployment();
+    await modelRegistry.setPoolRegistrar(await ammFactory.getAddress(), true);
 
     // Deploy FundingVault with real constructor
     const FundingVault = await ethers.getContractFactory("FundingVault");

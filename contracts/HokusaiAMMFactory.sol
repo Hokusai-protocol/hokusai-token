@@ -148,6 +148,9 @@ contract HokusaiAMMFactory is Ownable {
 
     /**
      * @dev Create a new AMM pool with custom parameters
+     * Also registers the deployed pool in ModelRegistry so registry and factory
+     * discovery remain canonical within the same transaction. The factory must
+     * be an authorized ModelRegistry pool registrar for this call to succeed.
      * @param modelId String model identifier
      * @param tokenAddress Token address for this model
      * @param crr Reserve ratio in ppm
@@ -216,6 +219,10 @@ contract HokusaiAMMFactory is Ownable {
         poolToModel[poolAddress] = modelId;
         isPool[poolAddress] = true;
         allPools.push(poolAddress);
+
+        // Keep the canonical ModelRegistry mapping in sync atomically with
+        // factory creation. Any registry failure reverts the full transaction.
+        modelRegistry.registerPool(modelId, poolAddress);
 
         emit PoolCreated(
             modelId,

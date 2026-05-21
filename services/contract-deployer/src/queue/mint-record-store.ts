@@ -22,6 +22,8 @@ export interface MintRecord {
 export class MintRecordStore {
   constructor(private readonly config: MintRecordStoreConfig) {}
 
+  // Standalone convenience for tests. Production writes use getKey/serializeSettled/getTtlSeconds
+  // inside a Redis MULTI to atomically record with processedSet membership.
   async recordSettled(settlement: MintRequestSettlement): Promise<void> {
     const record = this.serializeSettled(settlement);
     await this.config.redis.set(this.getKey(settlement.idempotency_key), JSON.stringify(record), {

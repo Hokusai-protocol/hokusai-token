@@ -53,14 +53,14 @@
     {
       "id": "8005a511929c507ab8713c0459ed93dc0e63b06a46359c55329b1050b03d68d2",
       "check": "reentrancy-no-eth",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "92015b589f70a3cd8c0e402d4d329d42a45dd944db8b79d12da86444ceca06fa",
       "check": "reentrancy-no-eth",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
@@ -74,21 +74,21 @@
     {
       "id": "ca5db420417af85ae5f2233fd863d14d2245ef7c951aebea32949a5047582cb8",
       "check": "reentrancy-no-eth",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "cce90c099329fdfb4711802aa058ecdddd21ed128c38813076d6b459e7d1d115",
       "check": "reentrancy-no-eth",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "f07ff1b33bc01551de687de165589849f6087c4a538f030d6e3c3319c643fac7",
       "check": "reentrancy-no-eth",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
@@ -172,147 +172,147 @@
     {
       "id": "321990ccea93bcb113a1cc95583b506639fdc1701fc64f471afea7922e8da595",
       "check": "reentrancy-benign",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-benign finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the flagged code path has no state changes after the external call that could affect fund safety.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "3a0205c05d88895e3b07ce6e02d10d261d4327587cc92cfe0cf25815c29dad9d",
       "check": "reentrancy-benign",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-benign finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the flagged code path has no state changes after the external call that could affect fund safety.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "7843d0f344f78fdf3b8f2443bd3bf1d640914b6d4fc3c2ea4b3760ded9efce21",
       "check": "reentrancy-benign",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-benign finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the flagged code path has no state changes after the external call that could affect fund safety.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "0004c8d60996a038bfaa7f951e4e78aeb5a6321228d60cc4d2e8d4c008f97293",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "18e69809c5527cd04f2560d0b5f32ed2112316a5164d9de5ac5526bb6d2e384c",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "1a1b55f1e03c68f898ce7984db27ef801a85bb4e3f4981acc918cd7b7d75fa66",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "1c6c336e2acaebd05968854a274acf762f3f662e65f61f7dcb21ca5c087fa9fb",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "2e11d44d8b2d71eb21e13194ba15200108b9b6222482e791b12c3a554624d10d",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "32c945f35465ce9139ee4d34c8722a15c58b41abb1c26898034baee361aa4245",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "5725248afffda83e89b67297266bdf1aa817547ffea12d369adec7ba0565c2bf",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "71bbf52a41abad0934e9b44ad7b51a950bbf1b2a70d46cc571063cf7e6c03593",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "811a24c5da30ce86360e1be69606ed5832c1f065837062c4948b94ab3b538491",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "9ad96d48d20441f5814908b8bce44fb304aff8f210d0f4da3a76b6a3e4625506",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "a985e182e9393cedd8e3e7158aaaceea424985ec2754983550e01f702f1dc278",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "c5759c5323b5a785d52287022f9dca2ab5f05f4dafa92f4380dff6a661d8172d",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "c60f99afdf140f1c2e95f2b8808824073971f7daf31ebd5b54bb6a445074fd73",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "cda40ba9a2d8b8a41e9221015eb4e208513640372ad2d2c062158c3c873447e4",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "ce85240d7f829e22f504deb7fb0e9568f960239b3f9d2945e4d4443e9fb3d67b",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "e0e936584356d683a1e14159c716aaeb6f0d8283419421b4c0880a097da2da84",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "e1b0541f5366876ac01fb8d1d3900bdab5637fc38d77f2d7a010cb0d12aa1aaf",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
       "id": "e69f121b4b669f69b2a8394bb7f7216f4d75061b5628622dcab44e8f1538f83b",
       "check": "reentrancy-events",
-      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },

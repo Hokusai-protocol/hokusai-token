@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "test": "hardhat test",
+    "slither": "node scripts/slither-gate.js",
+    "slither:report": "node scripts/slither-gate.js --report",
     "size-contracts": "node scripts/size-contracts.js",
     "deploy:mainnet": "npx hardhat run scripts/deploy-mainnet.js --network mainnet",
     "deploy:sepolia": "npx hardhat run scripts/deploy-sepolia.js --network sepolia",

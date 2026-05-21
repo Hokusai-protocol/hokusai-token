@@ -66,6 +66,10 @@ Choose your integration path:
   - On-chain vs. off-chain anti-gaming controls (replay, fake evals, contributor weighting, benchmark gaming, cost caps)
   - What `attestation_hash` commits to and what remains off-chain
   - Residual trust assumptions and v1 scope limitations
+- [Slither Static Analysis](slither-static-analysis.md)
+  - CI-gating static-analysis baseline for smart contracts
+  - Detector coverage for reentrancy, delegatecall, tx.origin, shadowing, upgradeability, and access control
+  - Baseline workflow for accepted findings
 
 ### Troubleshooting
 

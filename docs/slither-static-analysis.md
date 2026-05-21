@@ -73,18 +73,24 @@ Do not use the baseline to hide newly introduced vulnerabilities without a docum
 - Existing runtime security coverage remains in `test/Phase-Security-*.test.js`; Slither is the complementary static-analysis layer.
 - After merge, add the `Slither` GitHub Actions check to `main` branch protection so it becomes a required status check.
 
-## Baselined High / Medium Findings
+## Baselined Findings
 
-The following pre-existing High and Medium findings were discovered during the initial rollout (HOK-1734) and accepted into `slither-baseline.json` with `followUp: HOK-1823`. They are tracked for remediation in that issue and must **not** be used as precedent to baseline new findings of the same type.
+The following findings remain in `slither-baseline.json` as confirmed false positives.
+They were reviewed and documented during HOK-1823.
 
-| Detector | Severity | Count | Tracked in |
+| Detector | Severity | Count | Status | Notes |
+| --- | --- | --- | --- | --- |
+| `incorrect-equality` | Medium | 3 | False positive | Confirmed: comparisons are on access-controlled accounting variables, not manipulable balances. See `slither-baseline.json` for per-entry justification. |
+| `reentrancy-no-eth` | Medium | 2 | False positive | Introduced by `nonReentrant` suppressing `reentrancy-benign`; Slither reclassifies as `reentrancy-no-eth`. All re-entry paths are guarded by `nonReentrant`. See baseline for details. |
+| `unused-return` | Medium | 12 | False positive | Return values are intentionally ignored where the called function is trusted in-house or the return value is redundant. See baseline for per-entry justification. |
+
+The following findings were **fixed** in HOK-1823 and their baseline entries removed:
+
+| Detector | Severity | Count | Resolution |
 | --- | --- | --- | --- |
-| `arbitrary-send-eth` | High | 3 | HOK-1823 |
-| `reentrancy-eth` | High | 4 | HOK-1823 |
-| `unchecked-transfer` | High | 1 | HOK-1823 |
-| `divide-before-multiply` | Medium | 1 | HOK-1823 |
-| `incorrect-equality` | Medium | 3 | HOK-1823 |
-| `unused-return` | Medium | 12 | HOK-1823 |
-| `reentrancy-no-eth` | Medium | 5 | HOK-1823 |
+| `arbitrary-send-eth` | High | 3 | Converted to pull-payment (`withdrawDeploymentFees`) + `nonReentrant` |
+| `reentrancy-eth` | High | 4 | CEI ordering + `nonReentrant` on all ETH-moving entry points |
+| `unchecked-transfer` | High | 1 | `transferFrom` return value wrapped in `require(...)` in `HokusaiAMM.sell()` |
+| `divide-before-multiply` | Medium | 1 | Arithmetic reordered to multiply-before-divide in `BondingCurveMath` |
 
-Any new finding matching these detectors on new or modified code is **not** suppressed by the existing baseline entries (baseline entries are keyed by finding hash, not by detector name) and will fail the gate.
+Any new finding matching these detector classes on new or modified code is **not** suppressed by remaining baseline entries (entries are keyed by finding hash, not detector name) and will fail the gate.

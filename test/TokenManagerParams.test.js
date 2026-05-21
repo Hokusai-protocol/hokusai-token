@@ -371,23 +371,48 @@ describe("TokenManager with Params", function () {
       expect(await tokenManager.hasToken(MODEL_ID_1)).to.be.true;
     });
 
+    it("Should retain fee in contract (pull-payment model, not pushed to feeRecipient)", async function () {
+      // HOK-1823: fees are now held in the contract until withdrawDeploymentFees() is called
+      const contractBefore = await ethers.provider.getBalance(await tokenManager.getAddress());
+
+      await tokenManager.deployTokenWithParams(
+        MODEL_ID_1,
+        "GPT-4 Token",
+        "GPT4",
+        parseEther("10000"),
+        defaultInitialParams,
+        { value: parseEther("0.1") }
+      );
+
+      const contractAfter = await ethers.provider.getBalance(await tokenManager.getAddress());
+      // Fee is held in contract (not pushed to feeRecipient)
+      expect(contractAfter - contractBefore).to.equal(parseEther("0.1"));
+    });
+
     it("Should refund excess payment", async function () {
       // Test that deployment succeeds with excess payment
-      await expect(
-        tokenManager.deployTokenWithParams(
-          MODEL_ID_1,
-          "GPT-4 Token",
-          "GPT4",
-          parseEther("10000"),
-          defaultInitialParams,
-          { value: parseEther("0.2") } // Send more than required
-        )
-      ).to.not.be.reverted;
+      const senderBefore = await ethers.provider.getBalance(owner.address);
+
+      const tx = await tokenManager.deployTokenWithParams(
+        MODEL_ID_1,
+        "GPT-4 Token",
+        "GPT4",
+        parseEther("10000"),
+        defaultInitialParams,
+        { value: parseEther("0.2") } // Send 0.2, fee is 0.1 → 0.1 refunded
+      );
+      const receipt = await tx.wait();
+      const gasCost = receipt.gasUsed * receipt.gasPrice;
 
       expect(await tokenManager.hasToken(MODEL_ID_1)).to.be.true;
 
-      // Note: Exact balance testing is complex due to gas variations,
-      // but the key is that the transaction succeeds and refunds excess
+      // Contract holds only the fee (0.1 ETH), not the excess
+      expect(await ethers.provider.getBalance(await tokenManager.getAddress())).to.equal(parseEther("0.1"));
+
+      // Sender balance decreased by fee + gas (excess was refunded)
+      const senderAfter = await ethers.provider.getBalance(owner.address);
+      const totalDeducted = senderBefore - senderAfter;
+      expect(totalDeducted).to.equal(parseEther("0.1") + gasCost);
     });
   });
 

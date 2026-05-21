@@ -497,6 +497,25 @@ describe("TokenManager - Allocation Split", function () {
       ).to.not.be.reverted;
     });
 
+    it("Should retain fee in contract after deployTokenWithAllocations (pull-payment, HOK-1823)", async function () {
+      const contractBefore = await ethers.provider.getBalance(await tokenManager.getAddress());
+
+      await tokenManager.deployTokenWithAllocations(
+        MODEL_ID,
+        "Test Model Token",
+        "TMT",
+        MODEL_SUPPLIER_ALLOCATION,
+        modelSupplier.address,
+        INVESTOR_ALLOCATION,
+        defaultInitialParams,
+        { value: parseEther("0.1") }
+      );
+
+      const contractAfter = await ethers.provider.getBalance(await tokenManager.getAddress());
+      // Fee must remain in contract (not pushed to feeRecipient) until withdrawDeploymentFees()
+      expect(contractAfter - contractBefore).to.equal(parseEther("0.1"));
+    });
+
     it("Should reject insufficient deployment fee", async function () {
       await expect(
         tokenManager.deployTokenWithAllocations(

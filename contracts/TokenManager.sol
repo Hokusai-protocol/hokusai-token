@@ -232,7 +232,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         );
         address paramsAddress = address(newParams);
 
-        // Calculate max supply (model supplier + investor allocations)
+        // Calculate launch allocation cap (model supplier + investor allocations)
         uint256 maxSupply = modelSupplierAllocation + investorAllocation;
 
         // Deploy HokusaiToken with cap-based model (no initial minting)
@@ -277,7 +277,9 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
 
     /**
      * @dev Distributes model supplier allocation when model is verified
-     * This should be called after model registration is complete and verified
+     * This should be called after model registration is complete and verified.
+     * Distribution mints into the supplier wallet, increases redeemable AMM supply,
+     * and can move spot price and bonding-curve behavior.
      * @param modelId The model identifier
      */
     function distributeModelSupplierAllocation(string memory modelId) external onlyOwner {
@@ -354,6 +356,9 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
     /**
      * @dev Returns the redeemable circulating supply used by AMM pricing.
      * Excludes balances held in the vesting vault until contributors claim them.
+     * Supplier-allocation tokens count as redeemable circulating supply once distributed
+     * because only vesting-vault balances are excluded, so supplier distribution timing
+     * can affect AMM spot price and bonding-curve behavior.
      */
     function getRedeemableSupply(string memory modelId) external view returns (uint256) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");

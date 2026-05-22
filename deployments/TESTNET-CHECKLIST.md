@@ -65,6 +65,7 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
 - [ ] `ModelRegistry.getPool(modelId)` returns the same pool address
 - [ ] `npm run smoke:sepolia` verifies canonical registration for models `27`, `28`, and `30`
 - [ ] Pool reserve/token balances match launch config
+- [ ] Supplier distribution timing reviewed and expected AMM spot-price impact recorded before pool launch
 - [ ] `pool.paused()` returns `false`
 - [ ] `pool.owner()` recorded
 - [ ] Pool owner has an executable pause/unpause path

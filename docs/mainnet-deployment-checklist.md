@@ -185,12 +185,18 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 
 ### Pool Configuration Review
 
+### Token Supply Model
+
+- `maxSupply` is the launch allocation cap for supplier allocation + investor allocation, not the total ERC20 supply cap.
+- Reward tokens mint outside investor allocation through the reward bucket. Track live reward issuance with `rewardMinted()` and the cap with `getRewardMintingCap()`, so `totalSupply()` can exceed `maxSupply()` without being anomalous.
+- Supplier allocation distribution mints into the supplier wallet. Those tokens become redeemable AMM supply immediately unless they are separately escrowed, so distribution timing can move spot price and bonding-curve behavior.
+
 **Conservative Pool:**
 - [ ] Model ID: `model-conservative-001`
 - [ ] Token: Hokusai Conservative (HKS-CON)
 - [ ] Supplier Allocation: `___________`
 - [ ] Investor Allocation: `___________`
-- [ ] Max Supply: `___________`
+- [ ] Launch Allocation Cap: `___________`
 - [ ] Tokens Per DeltaOne: `___________`
 - [ ] Initial Reserve: $10,000 USDC
 - [ ] CRR: 30%
@@ -202,7 +208,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token: Hokusai Aggressive (HKS-AGG)
 - [ ] Supplier Allocation: `___________`
 - [ ] Investor Allocation: `___________`
-- [ ] Max Supply: `___________`
+- [ ] Launch Allocation Cap: `___________`
 - [ ] Tokens Per DeltaOne: `___________`
 - [ ] Initial Reserve: $50,000 USDC
 - [ ] CRR: 10%
@@ -214,7 +220,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token: Hokusai Balanced (HKS-BAL)
 - [ ] Supplier Allocation: `___________`
 - [ ] Investor Allocation: `___________`
-- [ ] Max Supply: `___________`
+- [ ] Launch Allocation Cap: `___________`
 - [ ] Tokens Per DeltaOne: `___________`
 - [ ] Initial Reserve: $25,000 USDC
 - [ ] CRR: 20%
@@ -255,6 +261,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 
 ### Supplier Allocation Distribution
 - [ ] Review `scripts/configs/mainnet-launch-tokens.json` for each token's `distributionTiming`
+- [ ] For each token, verify supplier distribution timing and record the expected AMM spot-price impact before launch
 - [ ] Conservative timing: `pre-launch` or `post-verification` = `___________`
 - [ ] Conservative signer (`TokenManager.owner()` / multisig): `___________`
 - [ ] Conservative distribution tx hash: `___________`

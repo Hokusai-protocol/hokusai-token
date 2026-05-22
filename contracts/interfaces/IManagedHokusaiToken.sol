@@ -28,8 +28,10 @@ interface IManagedHokusaiToken {
 
     function rewardMinted() external view returns (uint256);
 
+    /// @dev Launch allocation cap for supplier + investor allocation, not the total ERC20 supply cap once reward minting is enabled.
     function maxSupply() external view returns (uint256);
 
+    /// @dev Reward-bucket cap that separately bounds reward minting tracked by rewardMinted.
     function getRewardMintingCap() external view returns (uint256);
 
     function params() external view returns (IHokusaiParams);

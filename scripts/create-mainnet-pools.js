@@ -63,6 +63,18 @@ function formatMismatchValue(value) {
   return value.toString();
 }
 
+function splitSupplierAllocation(supplierWei, vestingConfig) {
+  if (!vestingConfig.enabled) {
+    return { immediateAmount: supplierWei, vestedAmount: 0n };
+  }
+
+  const immediateAmount = (supplierWei * BigInt(vestingConfig.immediateUnlockBps)) / 10000n;
+  return {
+    immediateAmount,
+    vestedAmount: supplierWei - immediateAmount,
+  };
+}
+
 async function verifyDeployedToken({ tokenManager, tokenAddress, expected }) {
   const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
   const paramsAddress = await token.params();
@@ -411,15 +423,38 @@ async function runLaunchDeploy({
       console.log(`      Flat Curve Price: $${ethers.formatUnits(flatCurvePrice, 6)}`);
 
       let modelSupplierDistributed = await token.modelSupplierDistributed();
+      const { immediateAmount, vestedAmount } = splitSupplierAllocation(
+        config.supplierWei,
+        config.vestingConfig
+      );
       if (config.distributionTiming === "pre-launch") {
         console.log("   🪙 Distributing supplier allocation pre-launch...");
         const distributeTx = await tokenManager.distributeModelSupplierAllocation(config.modelId);
         await distributeTx.wait();
         modelSupplierDistributed = await token.modelSupplierDistributed();
         const supplierBalance = await token.balanceOf(config.supplierRecipient);
-        if (!modelSupplierDistributed || supplierBalance !== config.supplierWei) {
+        if (!modelSupplierDistributed || supplierBalance !== immediateAmount) {
           throw new Error(`Supplier allocation verification failed for ${config.modelId}`);
         }
+
+        if (vestedAmount > 0n) {
+          const vestingVaultAddress = await tokenManager.vestingVault();
+          if (vestingVaultAddress === ethers.ZeroAddress) {
+            throw new Error(`Vesting vault not configured for ${config.modelId}`);
+          }
+
+          const vestingVault = await ethers.getContractAt("RewardVestingVault", vestingVaultAddress);
+          const vaultBalance = await token.balanceOf(vestingVaultAddress);
+          if (vaultBalance < vestedAmount) {
+            throw new Error(`Supplier vesting vault balance verification failed for ${config.modelId}`);
+          }
+
+          const scheduleIds = await vestingVault.getSchedulesByBeneficiary(config.supplierRecipient);
+          if (scheduleIds.length === 0) {
+            throw new Error(`Supplier vesting schedule missing for ${config.modelId}`);
+          }
+        }
+
         console.log("   ✅ Supplier allocation distributed");
       } else {
         pendingActions.push({
@@ -447,6 +482,8 @@ async function runLaunchDeploy({
         paramsAddress,
         vestingConfig: config.vestingConfig,
         modelSupplierDistributed,
+        supplierImmediateAmount: immediateAmount.toString(),
+        supplierVestedAmount: vestedAmount.toString(),
       });
 
       deployment.pools.push({

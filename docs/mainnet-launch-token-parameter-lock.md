@@ -36,7 +36,8 @@ Notes:
 - `infrastructureAccrualBps = 8000` means 80% infrastructure accrual and 20% AMM/profit share under the current parameter interpretation.
 - `tokensPerDeltaOne` is a whole-token display value; on-chain it is stored with 18 decimals.
 - `oracle cost per 1000 calls` is stored with the platform's 6-decimal USD convention.
-- Current Sepolia supplier allocations are already distributed for all three tokens.
+- Supplier allocation now follows the same `HokusaiParams.vestingConfig()` as DeltaOne contributor rewards. Immediate unlock bps, duration, and cliff must match the token params for both flows.
+- Current Sepolia supplier allocations were distributed before this vesting change and should be treated as superseded rehearsal state.
 
 ## Approved AMM Parameters
 
@@ -75,4 +76,5 @@ The current Sepolia state has already been exercised by test buys. Do not treat 
 - [ ] Confirm production oracle cost per 1000 calls. Sepolia uses `0`.
 - [ ] Confirm production initial USDC reserves. Sepolia uses `100` USDC per pool for rehearsal.
 - [ ] Re-run live parameter verification after the `HROUT` redeploy.
+- [ ] Re-run the direct Sepolia rehearsal after this change and verify each supplier allocation split between the supplier wallet and `RewardVestingVault` using the configured immediate unlock, cliff, and duration.
 - [ ] Do not begin final rehearsal until this document and `scripts/configs/sepolia-launch-tokens.json` agree.

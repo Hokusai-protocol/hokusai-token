@@ -24,7 +24,7 @@ contract HokusaiToken is ERC20, Ownable {
     /// Reward issuance is tracked by rewardMinted and capped separately by getRewardMintingCap().
     uint256 public immutable maxSupply;
 
-    /// @dev Model supplier allocation amount (not minted until distributeModelSupplierAllocation is called)
+    /// @dev Model supplier allocation amount (not minted until distributeModelSupplierAllocation is called and split between immediate/vault recipients)
     uint256 public immutable modelSupplierAllocation;
 
     /// @dev Investor allocation reserved for AMM-driven mints
@@ -33,7 +33,7 @@ contract HokusaiToken is ERC20, Ownable {
     /// @dev Address to receive model supplier allocation
     address public immutable modelSupplierRecipient;
 
-    /// @dev Flag indicating if model supplier allocation has been distributed
+    /// @dev Flag indicating if model supplier allocation has been distributed through the single-use split-mint path
     bool public modelSupplierDistributed;
 
     /// @dev Net investor mints after investor-side burns
@@ -163,18 +163,32 @@ contract HokusaiToken is ERC20, Ownable {
     }
 
     /**
-     * @dev Distributes model supplier allocation (only callable once by controller)
-     * This should be called when the model has been registered and verified
+     * @dev Distributes model supplier allocation once by minting the immediate portion to
+     * the supplier recipient and the vested portion to the vesting vault.
+     * @param vault Vesting vault recipient for the vested portion, or zero when fully immediate
+     * @param vestedAmount Portion of the supplier allocation to mint to the vesting vault
      */
-    function distributeModelSupplierAllocation() external onlyController {
+    function distributeModelSupplierAllocation(address vault, uint256 vestedAmount) external onlyController {
         require(!modelSupplierDistributed, "Model supplier allocation already distributed");
         require(modelSupplierAllocation > 0, "No model supplier allocation set");
+        require(vestedAmount <= modelSupplierAllocation, "Vested exceeds supplier allocation");
 
         modelSupplierDistributed = true;
 
-        _mint(modelSupplierRecipient, modelSupplierAllocation);
+        uint256 immediateAmount = modelSupplierAllocation - vestedAmount;
+
+        if (immediateAmount > 0) {
+            _mint(modelSupplierRecipient, immediateAmount);
+            emit Minted(modelSupplierRecipient, immediateAmount);
+        }
+
+        if (vestedAmount > 0) {
+            require(vault != address(0), "Vault required for vested portion");
+            _mint(vault, vestedAmount);
+            emit Minted(vault, vestedAmount);
+        }
+
         emit ModelSupplierAllocationDistributed(modelSupplierRecipient, modelSupplierAllocation);
-        emit Minted(modelSupplierRecipient, modelSupplierAllocation);
     }
 
     /**

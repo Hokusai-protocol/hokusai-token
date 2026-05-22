@@ -558,11 +558,40 @@ describe("HokusaiToken", function () {
 
     it("does not let supplier distribution consume investor allocation", async function () {
       await capToken.connect(controller).mintInvestor(user1.address, parseEther("100"));
-      await capToken.connect(controller).distributeModelSupplierAllocation();
+      await capToken.connect(controller).distributeModelSupplierAllocation(ZeroAddress, 0);
 
       expect(await capToken.balanceOf(user2.address)).to.equal(parseEther("50"));
       expect(await capToken.investorMinted()).to.equal(parseEther("100"));
       expect(await capToken.totalSupply()).to.equal(parseEther("150"));
+    });
+
+    it("supports split supplier distribution between the supplier and a vault", async function () {
+      await capToken.connect(controller).distributeModelSupplierAllocation(user1.address, parseEther("30"));
+
+      expect(await capToken.balanceOf(user2.address)).to.equal(parseEther("20"));
+      expect(await capToken.balanceOf(user1.address)).to.equal(parseEther("30"));
+      expect(await capToken.totalSupply()).to.equal(parseEther("50"));
+      expect(await capToken.modelSupplierDistributed()).to.equal(true);
+    });
+
+    it("reverts when the vested amount exceeds the supplier allocation", async function () {
+      await expect(
+        capToken.connect(controller).distributeModelSupplierAllocation(user1.address, parseEther("51"))
+      ).to.be.revertedWith("Vested exceeds supplier allocation");
+    });
+
+    it("reverts when a vested portion is requested without a vault", async function () {
+      await expect(
+        capToken.connect(controller).distributeModelSupplierAllocation(ZeroAddress, parseEther("1"))
+      ).to.be.revertedWith("Vault required for vested portion");
+    });
+
+    it("keeps supplier distribution single-use across split mints", async function () {
+      await capToken.connect(controller).distributeModelSupplierAllocation(user1.address, parseEther("30"));
+
+      await expect(
+        capToken.connect(controller).distributeModelSupplierAllocation(user1.address, parseEther("30"))
+      ).to.be.revertedWith("Model supplier allocation already distributed");
     });
   });
 

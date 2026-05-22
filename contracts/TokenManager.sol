@@ -91,6 +91,15 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         uint256 vestingStart,
         uint256 vestingEnd
     );
+    event SupplierAllocationVested(
+        string indexed modelId,
+        address indexed supplierRecipient,
+        uint256 totalAllocation,
+        uint256 immediateAmount,
+        uint256 vestedAmount,
+        uint256 vestingStart,
+        uint256 vestingEnd
+    );
 
 
     constructor(address registryAddress)
@@ -282,21 +291,60 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * and can move spot price and bonding-curve behavior.
      * @param modelId The model identifier
      */
-    function distributeModelSupplierAllocation(string memory modelId) external onlyOwner {
+    function distributeModelSupplierAllocation(string memory modelId) external onlyOwner nonReentrant {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
 
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
 
+        _distributeSupplierWithVesting(modelId, tokenAddress);
+    }
+
+    function _distributeSupplierWithVesting(string memory modelId, address tokenAddress) private {
         HokusaiToken token = HokusaiToken(tokenAddress);
+        IHokusaiParams params = token.params();
+        address supplierRecipient = token.modelSupplierRecipient();
+        uint256 totalAllocation = token.modelSupplierAllocation();
 
-        // Trigger the distribution on the token contract
-        token.distributeModelSupplierAllocation();
+        if (!params.vestingEnabled()) {
+            token.distributeModelSupplierAllocation(address(0), 0);
+            emit ModelSupplierAllocationDistributed(modelId, supplierRecipient, totalAllocation);
+            return;
+        }
 
-        emit ModelSupplierAllocationDistributed(
+        uint16 unlockBps = params.immediateUnlockBps();
+        uint256 immediateAmount = (totalAllocation * unlockBps) / 10000;
+        uint256 vestedAmount = totalAllocation - immediateAmount;
+
+        if (vestedAmount == 0) {
+            token.distributeModelSupplierAllocation(address(0), 0);
+            emit ModelSupplierAllocationDistributed(modelId, supplierRecipient, totalAllocation);
+            return;
+        }
+
+        require(address(vestingVault) != address(0), "Vesting vault not configured");
+
+        uint64 duration = params.vestingDurationSeconds();
+        token.distributeModelSupplierAllocation(address(vestingVault), vestedAmount);
+        // slither-disable-next-line unused-return
+        vestingVault.createSchedule(
             modelId,
-            token.modelSupplierRecipient(),
-            token.modelSupplierAllocation()
+            tokenAddress,
+            supplierRecipient,
+            vestedAmount,
+            params.cliffSeconds(),
+            duration
+        );
+
+        emit ModelSupplierAllocationDistributed(modelId, supplierRecipient, totalAllocation);
+        emit SupplierAllocationVested(
+            modelId,
+            supplierRecipient,
+            totalAllocation,
+            immediateAmount,
+            vestedAmount,
+            block.timestamp,
+            block.timestamp + uint256(duration)
         );
     }
 
@@ -382,6 +430,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * @param recipient The address to receive the tokens
      * @param amount The amount of tokens to mint
      */
+    // slither-disable-next-line reentrancy-events
     function mintTokens(string memory modelId, address recipient, uint256 amount)
         external
     {
@@ -412,6 +461,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * @param recipients Array of addresses to receive tokens
      * @param amounts Array of token amounts corresponding to each recipient
      */
+    // slither-disable-next-line reentrancy-events
     function batchMintTokens(
         string memory modelId,
         address[] calldata recipients,
@@ -458,6 +508,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * @param recipient The contributor address to receive the reward
      * @param amount The total reward amount
      */
+    // slither-disable-next-line reentrancy-events
     function mintReward(string memory modelId, address recipient, uint256 amount)
         external
     {
@@ -487,6 +538,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * @param recipients Array of contributor addresses to receive rewards
      * @param amounts Array of reward amounts corresponding to each recipient
      */
+    // slither-disable-next-line reentrancy-events
     function batchMintReward(
         string memory modelId,
         address[] calldata recipients,
@@ -533,6 +585,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * @param amount The amount of tokens to burn
      * Note: Can be called by owner, MINTER_ROLE holders (e.g., AMM contracts), or deltaVerifier
      */
+    // slither-disable-next-line reentrancy-events
     function burnTokens(string memory modelId, address account, uint256 amount)
         external
     {
@@ -558,6 +611,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * @dev Burns investor-minted tokens from a specific account for a model.
      * Used by AMM sell flows so investor allocation headroom is restored.
      */
+    // slither-disable-next-line reentrancy-events
     function burnInvestorTokens(string memory modelId, address account, uint256 amount)
         external
     {
@@ -582,6 +636,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * @dev Burns tokens from an AMM sell, restoring investor headroom first then reward.
      * Allows both investor and reward token holders to sell into the AMM without reverting.
      */
+    // slither-disable-next-line reentrancy-events
     function burnAMMTokens(string memory modelId, address account, uint256 amount)
         external
     {
@@ -673,6 +728,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
 
     receive() external payable {}
 
+    // slither-disable-next-line reentrancy-events
     function _mintRewardWithVesting(
         string memory modelId,
         address tokenAddress,
@@ -703,6 +759,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
 
         uint64 duration = params.vestingDurationSeconds();
         _mintRewardToken(tokenAddress, address(vestingVault), vestedAmount);
+        // slither-disable-next-line unused-return
         vestingVault.createSchedule(
             modelId,
             tokenAddress,

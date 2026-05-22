@@ -40,6 +40,7 @@ describe("mainnet launch deploy flow", function () {
   let modelRegistry;
   let tokenManager;
   let factory;
+  let vestingVault;
 
   beforeEach(async function () {
     [
@@ -64,6 +65,11 @@ describe("mainnet launch deploy flow", function () {
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
     await modelRegistry.setStringModelTokenManager(await tokenManager.getAddress());
+
+    const RewardVestingVault = await ethers.getContractFactory("RewardVestingVault");
+    vestingVault = await RewardVestingVault.deploy(await tokenManager.getAddress());
+    await vestingVault.waitForDeployment();
+    await tokenManager.setVestingVault(await vestingVault.getAddress());
 
     const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
     factory = await HokusaiAMMFactory.deploy(
@@ -150,8 +156,14 @@ describe("mainnet launch deploy flow", function () {
       expect(vestingConfig.cliffSeconds).to.equal(BigInt(config.vestingConfig.cliffSeconds));
 
       if (config.distributionTiming === "pre-launch") {
+        const immediateAmount = config.vestingConfig.enabled
+          ? (supplierWei * BigInt(config.vestingConfig.immediateUnlockBps)) / 10000n
+          : supplierWei;
+        const vestedAmount = supplierWei - immediateAmount;
+
         expect(await token.modelSupplierDistributed()).to.equal(true);
-        expect(await token.balanceOf(config.supplierRecipient)).to.equal(supplierWei);
+        expect(await token.balanceOf(config.supplierRecipient)).to.equal(immediateAmount);
+        expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(vestedAmount);
       } else {
         expect(await token.modelSupplierDistributed()).to.equal(false);
         expect(await token.balanceOf(config.supplierRecipient)).to.equal(0n);
@@ -163,7 +175,76 @@ describe("mainnet launch deploy flow", function () {
           ))
         ).to.equal(true);
       }
+
+      const deploymentToken = result.deployment.tokens.find((entry) => entry.modelId === config.modelId);
+      expect(deploymentToken.supplierImmediateAmount).to.equal(
+        (config.vestingConfig.enabled
+          ? (supplierWei * BigInt(config.vestingConfig.immediateUnlockBps)) / 10000n
+          : supplierWei
+        ).toString()
+      );
+      expect(deploymentToken.supplierVestedAmount).to.equal(
+        (supplierWei - BigInt(deploymentToken.supplierImmediateAmount)).toString()
+      );
     }
+  });
+
+  it("verifies pre-launch supplier vesting splits through the vault", async function () {
+    const { configPath, tempDir } = loadFixtureWithAddresses({
+      "__SUPPLIER_1__": supplier1.address,
+      "__SUPPLIER_2__": supplier2.address,
+      "__SUPPLIER_3__": supplier3.address,
+      "__GOVERNOR_1__": governor1.address,
+      "__GOVERNOR_2__": governor2.address,
+      "__GOVERNOR_3__": governor3.address,
+    });
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    config.tokens[0].vestingConfig = {
+      enabled: true,
+      immediateUnlockBps: 2000,
+      vestingDurationSeconds: 2592000,
+      cliffSeconds: 0,
+    };
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+    const launchConfig = loadLaunchTokensConfig(configPath);
+    const deployment = {
+      timestamp: "2026-05-13T00:00:00.000Z",
+      config: {
+        reserveToken: await usdc.getAddress(),
+      },
+      contracts: {
+        ModelRegistry: await modelRegistry.getAddress(),
+        TokenManager: await tokenManager.getAddress(),
+        HokusaiAMMFactory: await factory.getAddress(),
+      },
+    };
+
+    await runLaunchDeploy({
+      deployment,
+      launchConfig,
+      expectedChainId: 31337n,
+      confirmationDelayMs: 0,
+      datedDeploymentPath: path.join(tempDir, "mainnet-2026-05-13.json"),
+      latestDeploymentPath: path.join(tempDir, "mainnet-latest.json"),
+      pendingActionsPath: path.join(tempDir, "mainnet-pending-actions.json"),
+    });
+
+    const preLaunchConfig = launchConfig.tokens[0];
+    const tokenAddress = await tokenManager.getTokenAddress(preLaunchConfig.modelId);
+    const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
+    const supplierWei = ethers.parseUnits(preLaunchConfig.supplierAllocation, 18);
+    const immediateAmount = (supplierWei * 2000n) / 10000n;
+    const vestedAmount = supplierWei - immediateAmount;
+
+    expect(await token.balanceOf(preLaunchConfig.supplierRecipient)).to.equal(immediateAmount);
+    expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(vestedAmount);
+
+    const scheduleIds = await vestingVault.getSchedulesByBeneficiary(preLaunchConfig.supplierRecipient);
+    expect(scheduleIds).to.deep.equal([0n]);
+    const schedule = await vestingVault.getSchedule(0);
+    expect(schedule.totalAmount).to.equal(vestedAmount);
+    expect(schedule.duration).to.equal(2592000);
   });
 
   it("rejects invalid config before sending transactions", async function () {

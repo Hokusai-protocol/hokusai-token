@@ -833,6 +833,104 @@
       "justification": "Residual deployment-factory finding after adding nonReentrant guards to DeployableTokenManager external mutation paths; deployment state writes occur after the trusted tokenDeploymentFactory returns.",
       "reviewedBy": "codex",
       "followUp": "HOK-1827"
+    },
+    {
+      "id": "5c5662f78d7ea22848c687323eeb5d25226f54c665ab149ec241e6071692e43b",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual deployment-factory finding after HOK-1828 documentation and terminology line shifts; the pre-storage external call is to the constructor-configured tokenDeploymentFactory.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "aee563a659e20719a4951b06389692cf1616941297ab168862d67dce020e54ef",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual deployment-factory finding after HOK-1828 documentation and terminology line shifts; the pre-storage external call is to the constructor-configured tokenDeploymentFactory.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "0b452a2aed37c33e69194b47be9329b9e273e89d7d3c360caa991ad8f7d31eb1",
+      "check": "unused-return",
+      "justification": "Residual unused-return finding after HOK-1828 documentation and terminology line shifts; same pre-existing pattern as other accepted unused-return entries in this contract.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "837a451a93c3d7ea5d540ff67a7f02828631a3fbc4387f5c3edd5d0e4347efa5",
+      "check": "reentrancy-benign",
+      "justification": "Residual deployment-factory finding after HOK-1828 documentation and terminology line shifts; deployment state writes occur after the trusted tokenDeploymentFactory returns.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "c30c0ede6ad5f0387c6190d0c5838b98858a7167f0f72469c6c198f95650a6a0",
+      "check": "reentrancy-benign",
+      "justification": "Residual deployment-factory finding after HOK-1828 documentation and terminology line shifts; deployment state writes occur after the trusted tokenDeploymentFactory returns.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "3d53a01096222386f0920176804625c37ee9438ce79a9d5254573857db3bf554",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "459e62344540cdc655fa380f918a5763b7ba0e4431d27dfb8b310812368da69a",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "4b4e212dc7271d46b5fba635828842aca8f3fe10e1b25ce87b5f4ecf162acbea",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "6778e649f2e69b39199531f056118c3657c023491df956e11443a402ba0c5c8a",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "6a73bb29534bd60ad44568d3f75bbab1c6fcd81439ce09928c56b09fc3c797c3",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "aa48258796bf28c5c71b1cf4824cdb01288662852968811a35ca7d7889b33113",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "c136f4151a5a3dfd638ca8f4ea5fff78d72339141dc8e3c5388e3fc9333e170c",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "dc38ccc630d119280abd5537942ae3fe690eeb427af283e14932ca8baf88029d",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "e0ab4057c3f154f7a9e62f1898b2dceb2841c0b22082d4e9b01cb37e68e0e385",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
     }
   ]
 }

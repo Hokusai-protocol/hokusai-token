@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const { resolveArtifactPaths } = require("../lib/deployment-artifact");
 
 const DEFAULT_POLICY_PATH = path.resolve(__dirname, "governance-policy.json");
 const DEFAULT_ADMIN_SAFE = "0x158B985CC667b4E022AD05B99E89007790da66E2";

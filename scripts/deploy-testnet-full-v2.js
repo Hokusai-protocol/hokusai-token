@@ -2,6 +2,7 @@ const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
 const { validateNumericModelId } = require('./lib/launch-tokens');
+const { ensureFactoryPoolRegistrar } = require('./lib/pool-registrar');
 
 /**
  * Comprehensive Testnet Deployment Script V2 (with Infrastructure Cost Accrual)
@@ -33,15 +34,6 @@ function parseOptionalUsd(value) {
     return 0n;
   }
   return ethers.parseUnits(value, 6);
-}
-
-async function ensureFactoryPoolRegistrar(modelRegistry, factoryAddress) {
-  if (await modelRegistry.poolRegistrars(factoryAddress)) {
-    return;
-  }
-
-  const authorizeTx = await modelRegistry.setPoolRegistrar(factoryAddress, true);
-  await authorizeTx.wait();
 }
 
 // Pool configurations
@@ -201,7 +193,11 @@ async function main() {
     console.log("   ✅ HokusaiAMMFactory:", factoryAddress);
 
     console.log("   🔗 Authorizing factory as ModelRegistry pool registrar...");
-    await ensureFactoryPoolRegistrar(modelRegistry, factoryAddress);
+    await ensureFactoryPoolRegistrar({
+      modelRegistry,
+      factoryAddress,
+      signerAddress: deployer.address,
+    });
     console.log("   ✅ Factory authorized for canonical pool registration");
 
     // ============================================================

@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./libraries/AccessControlBase.sol";
+import "./libraries/RewardSplitLib.sol";
 import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
 import "./HokusaiToken.sol";
@@ -312,9 +313,8 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
             return;
         }
 
-        uint16 unlockBps = params.immediateUnlockBps();
-        uint256 immediateAmount = (totalAllocation * unlockBps) / 10000;
-        uint256 vestedAmount = totalAllocation - immediateAmount;
+        (uint256 immediateAmount, uint256 vestedAmount) =
+            RewardSplitLib.split(totalAllocation, params.immediateUnlockBps());
 
         if (vestedAmount == 0) {
             token.distributeModelSupplierAllocation(address(0), 0);
@@ -743,9 +743,8 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
             return;
         }
 
-        uint16 unlockBps = params.immediateUnlockBps();
-        uint256 immediateAmount = (amount * unlockBps) / 10000;
-        uint256 vestedAmount = amount - immediateAmount;
+        (uint256 immediateAmount, uint256 vestedAmount) =
+            RewardSplitLib.split(amount, params.immediateUnlockBps());
 
         if (immediateAmount > 0) {
             _mintRewardToken(tokenAddress, recipient, immediateAmount);

@@ -24,6 +24,14 @@ Implement a Constant-Reserve-Ratio (CRR) Automated Market Maker system for Hokus
 - **Performance**: DeltaVerifier mints rewards → dilutes supply unless offset by demand
 - **Curve Supply**: Bonding-curve pricing uses redeemable circulating supply, excluding balances still locked in `RewardVestingVault`
 
+### Purchaser Whitelist (HOK-1835)
+- Buy path can be gated per pool by setting `purchaserWhitelist` to a whitelist contract address.
+- When enabled (`purchaserWhitelist != address(0)`), `buy()` requires `isWhitelisted(msg.sender) == true`.
+- Sell path is explicitly unrestricted even when buy gating is enabled.
+- ERC20 transfers and burns remain unrestricted by whitelist status.
+- Whitelist gating is optional and per pool; `address(0)` disables gating.
+- Whitelist ownership is `Ownable` and can be transferred to governance timelock/Safe multisig.
+
 ---
 
 ## Contract Architecture

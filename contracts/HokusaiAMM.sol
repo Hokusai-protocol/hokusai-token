@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "./TokenManager.sol";
+import "./interfaces/IPurchaserWhitelist.sol";
 import "./libraries/ValidationLib.sol";
 import "./libraries/FeeLib.sol";
 import "./libraries/BondingCurveMath.sol";
@@ -33,6 +34,8 @@ import "./libraries/BondingCurveMath.sol";
  *   w = CRR (reserve ratio)
  */
 contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
+    error NotWhitelisted(address buyer);
+
     // ============================================================
     // STATE VARIABLES
     // ============================================================
@@ -48,6 +51,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     uint256 public tradeFee; // Trade fee in bps (basis points), default 30 = 0.30%
     uint256 public buyOnlyUntil; // Timestamp when sells become enabled (IBR end)
     uint256 public maxTradeBps; // Maximum trade size as % of reserve in bps, default 2000 = 20%
+    IPurchaserWhitelist public purchaserWhitelist;
 
     // Two-phase pricing parameters (immutable)
     uint256 public immutable FLAT_CURVE_THRESHOLD; // Reserve amount where bonding curve activates (6 decimals)
@@ -115,6 +119,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     );
 
     event MaxTradeBpsUpdated(uint256 oldBps, uint256 newBps);
+    event PurchaserWhitelistUpdated(address indexed oldWhitelist, address indexed newWhitelist);
 
     // ============================================================
     // CONSTRUCTOR
@@ -190,6 +195,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         address to,
         uint256 deadline
     ) external nonReentrant whenNotPaused returns (uint256 tokensOut) {
+        if (
+            address(purchaserWhitelist) != address(0) &&
+            !purchaserWhitelist.isWhitelisted(msg.sender)
+        ) {
+            revert NotWhitelisted(msg.sender);
+        }
+
         require(block.timestamp <= deadline, "Transaction expired");
         require(reserveIn > 0, "Reserve amount must be > 0");
         require(to != address(0), "Invalid recipient");
@@ -663,6 +675,12 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
 
         emit MaxTradeBpsUpdated(maxTradeBps, newMaxTradeBps);
         maxTradeBps = newMaxTradeBps;
+    }
+
+    function setPurchaserWhitelist(address whitelist) external onlyOwner {
+        address oldWhitelist = address(purchaserWhitelist);
+        purchaserWhitelist = IPurchaserWhitelist(whitelist);
+        emit PurchaserWhitelistUpdated(oldWhitelist, whitelist);
     }
 
     /**

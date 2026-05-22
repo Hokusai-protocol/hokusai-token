@@ -398,6 +398,25 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         emit TokensBurned(modelId, account, amount);
     }
 
+    /**
+     * @dev Burns tokens from an AMM sell flow for a specific account and model.
+     * Restores investor headroom first, then reward headroom for capped tokens.
+     */
+    function burnAMMTokens(string memory modelId, address account, uint256 amount) external {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to burn"
+        );
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(account, "account");
+        ValidationLib.requirePositiveAmount(amount, "amount");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        _burnAMMToken(tokenAddress, account, amount);
+        emit TokensBurned(modelId, account, amount);
+    }
+
     function getTokenAddress(string memory modelId) external view returns (address) {
         return modelTokens[modelId];
     }
@@ -564,5 +583,15 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         }
 
         token.burnInvestor(account, amount);
+    }
+
+    function _burnAMMToken(address tokenAddress, address account, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+        if (token.maxSupply() == type(uint256).max) {
+            token.burnFrom(account, amount);
+            return;
+        }
+
+        token.burnAMM(account, amount);
     }
 }

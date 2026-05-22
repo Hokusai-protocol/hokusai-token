@@ -84,7 +84,7 @@ Cap-based deployments separate minting paths at the token level:
 
 - `TokenManager.mintTokens(...)` and AMM buys use `HokusaiToken.mintInvestor(...)` and are limited by `investorAllocation`.
 - `TokenManager.mintReward(...)` and vested reward deposits use `HokusaiToken.mintReward(...)` and do not consume investor sale headroom.
-- `HokusaiToken.maxSupply()` remains the design-time sum of supplier + investor allocations for compatibility, but it is not a global reward mint ceiling on cap-based tokens.
+- `HokusaiToken.maxSupply()` remains the design-time launch allocation cap for supplier + investor allocations for compatibility, but it is not a global reward mint ceiling on cap-based tokens.
 
 **Step 2: Register Model**
 
@@ -132,6 +132,8 @@ Launch tokens created through `deployTokenWithAllocations(...)` do not mint the 
 - `post-verification`: the deploy script writes a deferred action to `deployments/mainnet-pending-actions.json` and leaves the supplier allocation undistributed until off-chain model verification is complete.
 
 For the three launch tokens, the default config is `post-verification`. The signing account for the distribution transaction is `TokenManager.owner()`. If ownership has been transferred to a multisig before launch, that multisig signs the transaction; otherwise the deployer EOA does. Record the signer and transaction hash for each token in the mainnet deployment checklist.
+
+Distributed supplier tokens mint directly into the supplier wallet. They are not vesting-vault-locked, count as redeemable circulating supply, and therefore affect AMM spot price and bonding-curve behavior as soon as distribution executes. Treat `distributionTiming` as a pricing decision, not just an accounting or operational toggle.
 
 ## Role-Based Access Control
 

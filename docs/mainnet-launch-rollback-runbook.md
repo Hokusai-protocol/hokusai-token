@@ -223,6 +223,8 @@ Required reads:
 - [ ] `totalSupply()`, `maxSupply()`, `modelSupplierDistributed()`, and `modelSupplierRecipient()` for every launch token.
 - [ ] Artifact git SHA and script SHA match the approved release.
 
+Interpret token supply reads using the launch allocation model: `maxSupply()` is the launch allocation cap for supplier + investor allocation, not the total ERC20 supply cap. Reward tokens mint outside that cap through the reward bucket, so verify `rewardMinted()` against `getRewardMintingCap()`; `totalSupply()` exceeding `maxSupply()` is not, by itself, an anomaly.
+
 ## Resume Criteria
 
 Resume launch only after all items are true.

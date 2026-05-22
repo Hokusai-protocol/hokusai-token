@@ -39,7 +39,7 @@ Cap-based launch tokens track investor and reward issuance separately:
 - `investorAllocation` is the cap for AMM-driven investor purchases.
 - `investorMinted` tracks net investor issuance and is reduced when AMM sells burn tokens.
 - DeltaOne rewards, including rewards minted into `RewardVestingVault`, use a separate reward-minting path and do not consume investor allocation headroom.
-- `maxSupply` remains the supplier allocation plus investor allocation for compatibility with older tooling, but it no longer acts as a global ceiling across all mint categories.
+- `maxSupply` remains the launch allocation cap for supplier allocation plus investor allocation for compatibility with older tooling, but it no longer acts as a global ceiling across all mint categories.
 - AMM curve pricing uses redeemable circulating supply, not raw ERC20 `totalSupply()`. Tokens held in `RewardVestingVault` are excluded until claimed, so locked emissions do not immediately reprice the market.
 
 These values are stored in a smart contract registry for transparency and immutability.

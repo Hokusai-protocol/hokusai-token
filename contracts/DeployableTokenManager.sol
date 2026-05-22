@@ -162,6 +162,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
 
         _collectDeploymentFee();
 
+        // Calculate launch allocation cap (model supplier + investor allocations).
         uint256 maxSupply = modelSupplierAllocation + investorAllocation;
         address paramsAddress;
         (tokenAddress, paramsAddress) = tokenDeploymentFactory.deployTokenAndParams(
@@ -189,6 +190,11 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         _refundExcess();
     }
 
+    /**
+     * @dev Distributes model supplier allocation after model verification or at the chosen launch step.
+     * Distribution mints into the supplier wallet, increases redeemable AMM supply,
+     * and can move spot price and bonding-curve behavior.
+     */
     function distributeModelSupplierAllocation(string memory modelId) external onlyOwner nonReentrant {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         address tokenAddress = modelTokens[modelId];
@@ -239,6 +245,9 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
     /**
      * @dev Returns the redeemable circulating supply used by AMM pricing.
      * Excludes balances held in the vesting vault until contributors claim them.
+     * Supplier-allocation tokens count as redeemable circulating supply once distributed
+     * because only vesting-vault balances are excluded, so supplier distribution timing
+     * can affect AMM spot price and bonding-curve behavior.
      */
     function getRedeemableSupply(string memory modelId) external view returns (uint256) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");

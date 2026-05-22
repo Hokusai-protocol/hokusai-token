@@ -8,6 +8,8 @@ import "./interfaces/IHokusaiParams.sol";
 /**
  * @title HokusaiToken
  * @dev ERC20 token with controller-based minting and burning
+ * Cap-based launch tokens separate launch allocation accounting from the reward bucket,
+ * so totalSupply() can exceed maxSupply once reward minting is enabled.
  * Each token has an immutable reference to its parameter contract for dynamic configuration
  */
 contract HokusaiToken is ERC20, Ownable {
@@ -18,7 +20,8 @@ contract HokusaiToken is ERC20, Ownable {
     /// @dev Immutable reference to the parameter contract for this token
     IHokusaiParams public immutable params;
 
-    /// @dev Maximum supply cap (modelSupplierAllocation + investorAllocation)
+    /// @dev Launch allocation cap = supplier allocation + investor allocation, not the total ERC20 supply cap once reward minting is enabled.
+    /// Reward issuance is tracked by rewardMinted and capped separately by getRewardMintingCap().
     uint256 public immutable maxSupply;
 
     /// @dev Model supplier allocation amount (not minted until distributeModelSupplierAllocation is called)
@@ -62,7 +65,7 @@ contract HokusaiToken is ERC20, Ownable {
      * @param _controller The address that will have mint/burn privileges
      * @param _params The address of the parameter contract for this token
      * @param _initialSupply Initial supply to mint to controller (for legacy deployment), or 0 for cap-based deployment
-     * @param _maxSupply Maximum supply cap (0 for legacy mode = unlimited)
+     * @param _maxSupply Launch allocation cap for supplier + investor allocation; not the total ERC20 supply cap once reward minting is enabled (0 for legacy mode = unlimited)
      * @param _modelSupplierAllocation Amount allocated for model supplier (0 for legacy mode)
      * @param _investorAllocation Amount allocated for investor purchases (0 for legacy mode)
      * @param _modelSupplierRecipient Address to receive model supplier allocation (address(0) for legacy mode)

@@ -805,6 +805,34 @@
       "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1734"
+    },
+    {
+      "id": "1ad97fdb98add19b4578c78c1d9350d38f4db2bf257938f500adc7266436fd2c",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual deployment-factory finding after adding nonReentrant guards to DeployableTokenManager external mutation paths; the pre-storage external call is to the constructor-configured tokenDeploymentFactory.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "f0cd872a263599643069154ab84cd19fe889325e7182679c8f6d2f66f5fb49fd",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual deployment-factory finding after adding nonReentrant guards to DeployableTokenManager external mutation paths; the pre-storage external call is to the constructor-configured tokenDeploymentFactory.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "32f0160fde7b9d38a757ffe551519cfe03d5cb33ce0da091b996334125ee8c6b",
+      "check": "reentrancy-benign",
+      "justification": "Residual deployment-factory finding after adding nonReentrant guards to DeployableTokenManager external mutation paths; deployment state writes occur after the trusted tokenDeploymentFactory returns.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "b58fad60389a6b6ba6355c73603c2ca49f9fc73b9caa5a61f5ec62370b9c9353",
+      "check": "reentrancy-benign",
+      "justification": "Residual deployment-factory finding after adding nonReentrant guards to DeployableTokenManager external mutation paths; deployment state writes occur after the trusted tokenDeploymentFactory returns.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
     }
   ]
 }

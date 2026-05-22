@@ -26,6 +26,7 @@ const ABIS = {
   tokenManager: [
     "function hasToken(string modelId) view returns (bool)",
     "function getTokenAddress(string modelId) view returns (address)",
+    "function burnAMMTokens(string modelId, address account, uint256 amount)",
   ],
   deltaVerifier: [
     "function processedIdempotencyKeys(bytes32 idempotencyKey) view returns (bool)",

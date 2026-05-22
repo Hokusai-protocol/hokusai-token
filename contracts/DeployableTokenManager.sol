@@ -189,7 +189,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         _refundExcess();
     }
 
-    function distributeModelSupplierAllocation(string memory modelId) external onlyOwner {
+    function distributeModelSupplierAllocation(string memory modelId) external onlyOwner nonReentrant {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
@@ -256,7 +256,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         return totalSupply > lockedSupply ? totalSupply - lockedSupply : 0;
     }
 
-    function mintTokens(string memory modelId, address recipient, uint256 amount) external {
+    function mintTokens(string memory modelId, address recipient, uint256 amount) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to mint"
@@ -280,7 +280,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         string memory modelId,
         address[] calldata recipients,
         uint256[] calldata amounts
-    ) external {
+    ) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Unauthorized"
@@ -312,7 +312,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         emit BatchMinted(modelId, recipients, amounts, totalAmount);
     }
 
-    function mintReward(string memory modelId, address recipient, uint256 amount) external {
+    function mintReward(string memory modelId, address recipient, uint256 amount) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to mint"
@@ -336,7 +336,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         string memory modelId,
         address[] calldata recipients,
         uint256[] calldata amounts
-    ) external {
+    ) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Unauthorized"
@@ -368,7 +368,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         emit BatchMinted(modelId, recipients, amounts, totalAmount);
     }
 
-    function burnTokens(string memory modelId, address account, uint256 amount) external {
+    function burnTokens(string memory modelId, address account, uint256 amount) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to burn"
@@ -383,7 +383,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         emit TokensBurned(modelId, account, amount);
     }
 
-    function burnInvestorTokens(string memory modelId, address account, uint256 amount) external {
+    function burnInvestorTokens(string memory modelId, address account, uint256 amount) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to burn"
@@ -402,7 +402,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * @dev Burns tokens from an AMM sell flow for a specific account and model.
      * Restores investor headroom first, then reward headroom for capped tokens.
      */
-    function burnAMMTokens(string memory modelId, address account, uint256 amount) external {
+    function burnAMMTokens(string memory modelId, address account, uint256 amount) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to burn"
@@ -535,6 +535,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
 
         uint64 duration = params.vestingDurationSeconds();
         _mintRewardToken(tokenAddress, address(vestingVault), vestedAmount);
+        // slither-disable-next-line unused-return
         vestingVault.createSchedule(
             modelId,
             tokenAddress,

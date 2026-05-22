@@ -3,7 +3,6 @@
 Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 
 **Date:** ___________
-**Deployer:** ___________
 **Network:** Ethereum Mainnet (Chain ID: 1)
 
 ---
@@ -18,8 +17,8 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Backup RPC provider configured
 
 ### Wallet Preparation
-- [ ] Deployer wallet address verified: `___________`
-- [ ] ETH balance sufficient (minimum 0.5 ETH): `_____` ETH
+- [ ] Deployer wallet address verified: `0x3937A9B521298D4c6D9d438cEFF396eD18DD7Bb6`
+- [ ] ETH balance sufficient (minimum 0.5 ETH): `0.99` ETH
 - [ ] USDC balance sufficient for initial reserves: `$_____` USDC
 - [ ] Test transaction sent to verify wallet access
 - [ ] Backup wallet configured (for emergency)
@@ -40,6 +39,8 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Testnet functionality verified (buy/sell transactions)
 - [ ] [Canonical model registration doc](canonical-model-registration.md) reviewed
 - [ ] Canonical registration smoke verified for every launch model id
+- [ ] [Mainnet launch token parameter lock](mainnet-launch-token-parameter-lock.md) reviewed and signed off
+- [ ] Launch token identity, supplier allocation, reward params, AMM params, and initial reserve values match the approved token parameter lock
 
 ### Contract Verification Preparation
 - [ ] Etherscan API key configured in `.env`
@@ -48,8 +49,8 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Flattened contracts generated (if needed)
 
 ### Treasury & Admin Configuration
-- [ ] Treasury address decided: `___________`
-- [ ] Multi-sig setup (if using): `___________`
+- [ ] Treasury address decided: `0xac2BEb4377a897dC25FFaD13562bd6ce632F3970`
+- [ ] Multi-sig setup (if using): `0x158B985CC667b4E022AD05B99E89007790da66E2`
 - [ ] Admin roles documented
 - [ ] Ownership transfer plan documented
 - [ ] [Mainnet custody and role rehearsal runbook](mainnet-custody-runbook.md) completed

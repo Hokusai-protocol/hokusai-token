@@ -69,7 +69,7 @@
       "configKey": "balanced",
       "modelId": "30",
       "name": "Hokusai Task Routing",
-      "symbol": "HTASK",
+      "symbol": "HROUT",
       "supplierRecipient": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
       "supplierAllocation": "1000000",
       "investorAllocation": "10000000",
@@ -87,7 +87,7 @@
       },
       "distributionTiming": "pre-launch",
       "pool": {
-        "name": "HTASK Sepolia Pool",
+        "name": "HROUT Sepolia Pool",
         "performanceMetric": "task_routing_score",
         "initialReserveUsdc": "100",
         "crr": 200000,

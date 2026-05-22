@@ -1,0 +1,59 @@
+{
+  "planner": "claude-opus-4-7",
+  "coder": "gpt-5.4",
+  "reviewer": "claude-sonnet-4-6",
+  "planDepth": "deep",
+  "codeDepth": "deep",
+  "reviewRecommended": "static+llm",
+  "expectedSuccess": 0.68,
+  "confidence": 0.57,
+  "expectedCostPlan": 1.8,
+  "expectedCostCode": 12.19,
+  "expectedCostReview": 0.92,
+  "reasoning": [
+    "Task classified as bugfix with long prompt length.",
+    "Risk score 9 from complexity, scope, and repo-surface keywords.",
+    "Coder baseline uses gpt-5.4 from heuristic eval routing.",
+    "Review mode static+llm chosen to match expected change risk.",
+    "DeepSeek models were ignored because providers.deepseek.enabled is not true."
+  ],
+  "signals": {
+    "taskType": "bugfix",
+    "promptLength": "long",
+    "complexityScore": 2,
+    "fileTypes": [
+      ".ts",
+      ".json"
+    ],
+    "riskScore": 9
+  },
+  "constraints": {
+    "maxCostUsd": 25
+  },
+  "routingMode": "heuristic-fallback",
+  "neighborCount": 0,
+  "neighborSimilarityRange": [
+    0,
+    0
+  ],
+  "expectedCost": 14.91,
+  "challengeRecommendation": {
+    "shouldChallenge": true,
+    "reason": "low-confidence",
+    "defaultModel": "gpt-5.4",
+    "challengerModel": "claude-sonnet-4-5-20250929",
+    "priority": 300
+  },
+  "maxCostUsd": 25,
+  "provenance": {
+    "source": "expanded",
+    "inputKind": "task-packet",
+    "inputPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/../worktrees/add-burnammtokens-support-to-deployabletokenmanager-and-prove-amm-sell-path-challenger/features/add-burnammtokens-support-to-deployabletokenmanager-and-prove-amm-sell-path-challenger/task-packet.md",
+    "inputHash": "55d0e6a6f12c26353c09d79418ad250fc2f0b1fea57d1ba64d1fd42914941414",
+    "routedAt": "2026-05-22T12:36:26.038Z",
+    "routerMode": "normal"
+  },
+  "cache_hit": false,
+  "route_source": "single",
+  "packet_hash": "279459b48de3d6b1ebf386d0737c0bde9f0e393c1ce3e835c131a7b2f0ea5090"
+}

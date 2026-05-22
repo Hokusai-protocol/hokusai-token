@@ -190,7 +190,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 
 - `maxSupply` is the launch allocation cap for supplier allocation + investor allocation, not the total ERC20 supply cap.
 - Reward tokens mint outside investor allocation through the reward bucket. Track live reward issuance with `rewardMinted()` and the cap with `getRewardMintingCap()`, so `totalSupply()` can exceed `maxSupply()` without being anomalous.
-- Supplier allocation distribution mints into the supplier wallet. Those tokens become redeemable AMM supply immediately unless they are separately escrowed, so distribution timing can move spot price and bonding-curve behavior.
+- Supplier allocation distribution now uses the token's contributor reward vesting policy. The immediate portion mints to the supplier wallet, and any vested portion mints to `RewardVestingVault`, where it is excluded from redeemable AMM supply until claimed.
 
 **Conservative Pool:**
 - [ ] Model ID: `model-conservative-001`
@@ -263,6 +263,10 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 ### Supplier Allocation Distribution
 - [ ] Review `scripts/configs/mainnet-launch-tokens.json` for each token's `distributionTiming`
 - [ ] For each token, verify supplier distribution timing and record the expected AMM spot-price impact before launch
+- [ ] For each distributed token, record the expected immediate amount and vested amount from `vestingConfig.immediateUnlockBps`
+- [ ] Verify the supplier recipient received only the immediate portion at distribution time
+- [ ] If a vested portion exists, verify `RewardVestingVault` received the remainder and that a schedule exists with the correct beneficiary, cliff, duration, and start time
+- [ ] Record the vesting start timestamp; `pre-launch` distribution starts the supplier vesting clock before the pool is live
 - [ ] Conservative timing: `pre-launch` or `post-verification` = `___________`
 - [ ] Conservative signer (`TokenManager.owner()` / multisig): `___________`
 - [ ] Conservative distribution tx hash: `___________`

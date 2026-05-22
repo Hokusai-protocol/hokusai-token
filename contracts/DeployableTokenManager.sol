@@ -89,6 +89,15 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         uint256 vestingStart,
         uint256 vestingEnd
     );
+    event SupplierAllocationVested(
+        string indexed modelId,
+        address indexed supplierRecipient,
+        uint256 totalAllocation,
+        uint256 immediateAmount,
+        uint256 vestedAmount,
+        uint256 vestingStart,
+        uint256 vestingEnd
+    );
 
     constructor(address registryAddress, address tokenDeploymentFactoryAddress)
         Ownable()
@@ -107,6 +116,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         _grantRoles(roles, msg.sender);
     }
 
+    // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
     function deployTokenWithParams(
         string memory modelId,
         string memory name,
@@ -142,6 +152,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         _refundExcess();
     }
 
+    // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
     function deployTokenWithAllocations(
         string memory modelId,
         string memory name,
@@ -200,13 +211,59 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
 
+        _distributeSupplierWithVesting(modelId, tokenAddress);
+    }
+
+    function _distributeSupplierWithVesting(string memory modelId, address tokenAddress) private {
         IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
-        token.distributeModelSupplierAllocation();
+        IHokusaiParams params = token.params();
+        address supplierRecipient = token.modelSupplierRecipient();
+        uint256 totalAllocation = token.modelSupplierAllocation();
+
+        if (!params.vestingEnabled()) {
+            token.distributeModelSupplierAllocation(address(0), 0);
+            emit ModelSupplierAllocationDistributed(modelId, supplierRecipient, totalAllocation);
+            return;
+        }
+
+        (uint256 immediateAmount, uint256 vestedAmount) = RewardSplitLib.split(
+            totalAllocation,
+            params.immediateUnlockBps()
+        );
+
+        if (vestedAmount == 0) {
+            token.distributeModelSupplierAllocation(address(0), 0);
+            emit ModelSupplierAllocationDistributed(modelId, supplierRecipient, totalAllocation);
+            return;
+        }
+
+        require(address(vestingVault) != address(0), "Vesting vault not configured");
+
+        uint64 duration = params.vestingDurationSeconds();
+        token.distributeModelSupplierAllocation(address(vestingVault), vestedAmount);
+        // slither-disable-next-line unused-return
+        vestingVault.createSchedule(
+            modelId,
+            tokenAddress,
+            supplierRecipient,
+            vestedAmount,
+            params.cliffSeconds(),
+            duration
+        );
 
         emit ModelSupplierAllocationDistributed(
             modelId,
-            token.modelSupplierRecipient(),
-            token.modelSupplierAllocation()
+            supplierRecipient,
+            totalAllocation
+        );
+        emit SupplierAllocationVested(
+            modelId,
+            supplierRecipient,
+            totalAllocation,
+            immediateAmount,
+            vestedAmount,
+            block.timestamp,
+            block.timestamp + uint256(duration)
         );
     }
 

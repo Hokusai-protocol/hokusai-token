@@ -128,10 +128,16 @@ export BURN_AUCTION_ADDRESS="<DEPLOYED>"
 - [ ] All contracts deployed to Sepolia
 - [ ] Service processes queue messages successfully
 - [ ] Tokens created for test models
+- [ ] Supplier allocation distribution matches the token vesting policy: immediate amount to supplier, vested amount to `RewardVestingVault`
+- [ ] Supplier vesting schedules are verified on-chain for beneficiary, cliff, duration, and start time
 - [ ] Health checks report healthy with contract connectivity
 - [ ] No errors in CloudWatch logs
 - [ ] Webhook notifications received
 - [ ] Dead letter queue remains empty for valid messages
+
+## Launch Rehearsal Note
+
+When a launch token uses `distributionTiming: pre-launch`, the supplier vesting clock starts when the distribution transaction executes, not when the pool later becomes live. Re-run the direct Sepolia rehearsal after deploying this change and verify the supplier wallet and vesting vault balances for each token.
 
 ## Monitoring & Validation
 1. **CloudWatch Logs**: Monitor `/ecs/hokusai-contracts-task`

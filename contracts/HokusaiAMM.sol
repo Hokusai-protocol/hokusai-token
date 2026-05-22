@@ -756,7 +756,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      */
     function _calculateFlatPriceTokens(uint256 reserveIn) internal view returns (uint256) {
         // Deduct trade fee using FeeLib
-        (uint256 reserveAfterFee, ) = FeeLib.applyFee(reserveIn, tradeFee);
+        uint256 reserveAfterFee = reserveIn - FeeLib.calculateFee(reserveIn, tradeFee);
 
         // Simple fixed price calculation
         // USDC is 6 decimals, token is 18 decimals
@@ -788,7 +788,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         }
 
         // Deduct trade fee using FeeLib
-        (uint256 reserveAfterFee, ) = FeeLib.applyFee(reserveIn, tradeFee);
+        uint256 reserveAfterFee = reserveIn - FeeLib.calculateFee(reserveIn, tradeFee);
 
         // Use BondingCurveMath library for bonding curve calculation
         return BondingCurveMath.calculateBuy(

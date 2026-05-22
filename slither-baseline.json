@@ -931,6 +931,62 @@
       "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1734"
+    },
+    {
+      "id": "61f43cc17aca05b54df3e17fe64782938fd410139ef4349050c4bb682f73d02c",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual InfrastructureReserve batch payment finding after HOK-1829 role line shifts; accounting is updated before the ERC20 transfer and the function is protected by nonReentrant.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "80b5d7ddf6a1d37acf592be780e70b891e413d47516ab4fd3646099e7eb8ebf2",
+      "check": "unused-return",
+      "justification": "Residual DeltaVerifier registry-call finding after HOK-1829 role line shifts; contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "bdd37650817454ba075d81ed906cf3cd7c9c8d42f2172fdb99c179008dbdc5ca",
+      "check": "unused-return",
+      "justification": "Residual DeltaVerifier batch registry-call finding after HOK-1829 role line shifts; contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "0ab5dc87846a40abf6a93e19c4cf93813369a1a11cc21829cbfedfe7ec389b62",
+      "check": "reentrancy-benign",
+      "justification": "Residual InfrastructureReserve batch payment finding after HOK-1829 role line shifts; the function uses CEI accounting and nonReentrant before provider token transfers.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "b0a27cdde8dd9800db8a33da2a1c60a3d787ab1d57c966253934cc58e4645656",
+      "check": "reentrancy-benign",
+      "justification": "Residual InfrastructureReserve batch deposit finding after HOK-1829 role line shifts; the only post-transfer global accounting is cumulative statistics and the function is nonReentrant.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "b4bc0a69fa1f3da2161c4bf098ebe38a38638318f7f4c20266ece1f7432f1052",
+      "check": "reentrancy-benign",
+      "justification": "Residual InfrastructureReserve single deposit finding after HOK-1829 role line shifts; the function is nonReentrant and the flagged external call is the expected ERC20 transferFrom.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "717e3dab4d92ac4fb05b7690bdedebcdd80206e9b9d75abf26da325328f9a978",
+      "check": "reentrancy-events",
+      "justification": "TokenDeploymentFactory emits after configuring freshly deployed HokusaiToken and HokusaiParams contracts; the only theoretical risk is event ordering and no mutable factory state is exposed.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "c55fbfa188f46e89674c403217945c4535e344fea612fc87e1e54da43c673a5d",
+      "check": "reentrancy-events",
+      "justification": "InfrastructureReserve emergency withdrawal transfers to the configured treasury and then emits; the only theoretical risk is event ordering and no reserve accounting is updated after transfer.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
     }
   ]
 }

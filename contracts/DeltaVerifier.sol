@@ -12,6 +12,7 @@ import "./interfaces/IHokusaiParams.sol";
 import "./interfaces/IDataContributionRegistry.sol";
 
 contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant SUBMITTER_ROLE = keccak256("SUBMITTER_ROLE");
 
     error ModelTokenMismatch(uint256 modelId, address registryToken, address tokenManagerToken);
@@ -164,6 +165,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         maxReward = _maxReward;
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(PAUSER_ROLE, msg.sender);
         _grantRole(SUBMITTER_ROLE, msg.sender);
     }
 
@@ -608,7 +610,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         emit RewardParametersUpdated(baseRewardRate, minImprovementBps, maxReward);
     }
     
-    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
     

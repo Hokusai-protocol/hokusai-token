@@ -85,6 +85,9 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
     /// @dev Role for paying infrastructure costs (Treasury multisig)
     bytes32 public constant PAYER_ROLE = keccak256("PAYER_ROLE");
 
+    /// @dev Role for emergency pause operations
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+
     // ============================================================
     // STRUCTS
     // ============================================================
@@ -214,6 +217,7 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
 
         // Grant DEFAULT_ADMIN_ROLE to deployer
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(PAUSER_ROLE, msg.sender);
     }
 
     // ============================================================
@@ -501,7 +505,7 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
     /**
      * @dev Pause deposits and payments (emergency only)
      */
-    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 

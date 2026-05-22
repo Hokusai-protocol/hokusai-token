@@ -805,6 +805,90 @@
       "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
       "reviewedBy": "codex",
       "followUp": "HOK-1734"
+    },
+    {
+      "id": "edd3f482b86203529047edef052efbc886a008aa8dd347745e98ed9d587a7c5a",
+      "check": "reentrancy-no-eth",
+      "justification": "Accepted false positive: the pre-storage external call in deployTokenWithParams is to the constructor-configured tokenDeploymentFactory, which is trusted deployment infrastructure rather than caller-controlled execution, and the deploy entrypoint is nonReentrant. Finding ID changed after HOK-1827 added burnAMMTokens (line shifts and an added cross-function reentrancy reference) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "a76eb34f1867b4ffca04b4313be3c3e379b97292dadf4cf3cc69fd8ce81da7bb",
+      "check": "reentrancy-no-eth",
+      "justification": "Accepted false positive: the pre-storage external call in deployTokenWithAllocations is to the constructor-configured tokenDeploymentFactory, which is trusted deployment infrastructure rather than caller-controlled execution, and the deploy entrypoint is nonReentrant. Finding ID changed after HOK-1827 added burnAMMTokens (line shifts and an added cross-function reentrancy reference) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "1890d7bc4e1fa51ce65c34c0658f5bec6f0beb88b460cc368e3e5c916fda49f1",
+      "check": "unused-return",
+      "justification": "Pre-existing unused-return on vestingVault.createSchedule in _mintRewardWithVesting; matches other accepted unused-return entries for this contract. Finding ID changed after HOK-1827 line shifts without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "32f0160fde7b9d38a757ffe551519cfe03d5cb33ce0da091b996334125ee8c6b",
+      "check": "reentrancy-benign",
+      "justification": "Accepted false positive: benign mapping writes (modelParams/tokenToModel) follow the trusted tokenDeploymentFactory call inside the nonReentrant deployTokenWithParams entrypoint; no fund-safety impact. Finding ID changed after HOK-1827 line shifts without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "b58fad60389a6b6ba6355c73603c2ca49f9fc73b9caa5a61f5ec62370b9c9353",
+      "check": "reentrancy-benign",
+      "justification": "Accepted false positive: benign mapping writes (modelParams/tokenToModel) follow the trusted tokenDeploymentFactory call inside the nonReentrant deployTokenWithAllocations entrypoint; no fund-safety impact. Finding ID changed after HOK-1827 line shifts without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "0f9c78131005a5f99065622df3bc33887fff388b4637d0e8fe4149aeac17764a",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding in burnInvestorTokens; the only theoretical risk is out-of-order event emission against the protocol-owned HokusaiToken, which does not affect fund safety or correctness. Finding ID changed after HOK-1827 line shifts without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "3b56c9e716111b481df3a7a726720802da2d5c40f3f1c7e40cb4d879895dfc7a",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding in mintReward; the only theoretical risk is out-of-order event emission against the protocol-owned HokusaiToken, which does not affect fund safety or correctness. Finding ID changed after HOK-1827 line shifts without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "476088097556dcae5c90ec3f3ac032ca45a61ec7885c977c2871e069780fcb6a",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding in batchMintReward; the only theoretical risk is out-of-order event emission against the protocol-owned HokusaiToken, which does not affect fund safety or correctness. Finding ID changed after HOK-1827 line shifts without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "73f308769893225ee98a87f7f668e5fdcfa8460ce46dc52452b5918be12d6eab",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding in batchMintTokens; the only theoretical risk is out-of-order event emission against the protocol-owned HokusaiToken, which does not affect fund safety or correctness. Finding ID changed after HOK-1827 line shifts without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "c5b9697a91a874569bf1c6d753f479b34e0d56292ff561206083d17038cf39f4",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding in mintTokens; the only theoretical risk is out-of-order event emission against the protocol-owned HokusaiToken, which does not affect fund safety or correctness. Finding ID changed after HOK-1827 line shifts without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "cb05a0c1277fe9f296013cc4560f94417a8eadcf0719032754834de2f4cb18e6",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding in _mintRewardWithVesting; the only theoretical risk is out-of-order event emission against protocol-owned contracts, which does not affect fund safety or correctness. Finding ID changed after HOK-1827 line shifts without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "e5008ef686f83936bc04f1c85a0d8be508cad71b42efe66571158938bf7db810",
+      "check": "reentrancy-events",
+      "justification": "burnAMMTokens (added in HOK-1827) emits TokensBurned after burning via the protocol-owned HokusaiToken (burnFrom/burnAMM); the only theoretical risk is out-of-order event emission, structurally identical to the accepted burnInvestorTokens and burnTokens patterns. No fund-safety or correctness impact.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-1827"
     }
   ]
 }

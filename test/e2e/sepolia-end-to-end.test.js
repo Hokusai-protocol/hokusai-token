@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-const MODEL_MAPPINGS = (process.env.E2E_TOKEN_MODELS || "HMESS:28,HLEAD:27,HTASK:30")
+const MODEL_MAPPINGS = (process.env.E2E_TOKEN_MODELS || "HMESS:28,HLEAD:27,HROUT:30")
   .split(",")
   .map((entry) => {
     const [symbol, modelId] = entry.split(":").map((part) => part.trim());

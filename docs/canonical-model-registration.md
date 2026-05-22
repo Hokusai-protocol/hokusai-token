@@ -64,7 +64,7 @@ The script aborts if the string registry and `TokenManager` disagree about the t
 
 ## Model 30 symbol note
 
-Model `30` is the launch slot referenced in issue HOK-1776. Current Sepolia observations indicate the deployed token at that slot reports symbol `HTASK`. Treat that as an operational discrepancy to verify during smoke checks and document alongside the backfill transaction hashes.
+Model `30` is the launch slot referenced in issue HOK-1776 and should use symbol `HROUT` going forward. Current Sepolia observations indicate the deployed token at that slot reports symbol `HTASK`; treat that token as a superseded rehearsal artifact and replace it before final rehearsal signoff.
 
 ## Mainnet implications
 

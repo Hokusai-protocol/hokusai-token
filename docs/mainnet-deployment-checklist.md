@@ -50,13 +50,19 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 
 ### Treasury & Admin Configuration
 - [ ] Treasury address decided: `0xac2BEb4377a897dC25FFaD13562bd6ce632F3970`
-- [ ] Multi-sig setup (if using): `0x158B985CC667b4E022AD05B99E89007790da66E2`
+- [ ] Governance Safe confirmed: `0x158B985CC667b4E022AD05B99E89007790da66E2`
+- [ ] Safe threshold confirmed: `2-of-3`
+- [ ] Emergency Safe policy confirmed (`EMERGENCY_SAFE_ADDRESS` documented if different from governance Safe)
+- [ ] Timelock delay approved for mainnet: `172800` seconds
+- [ ] [Governance Runbook](governance-runbook.md) reviewed
 - [ ] Admin roles documented
-- [ ] Ownership transfer plan documented
+- [ ] Ownership and role transfer plan documented
 - [ ] [Mainnet custody and role rehearsal runbook](mainnet-custody-runbook.md) completed
 - [ ] [Mainnet launch day rollback runbook](mainnet-launch-rollback-runbook.md) completed through operator assignment and tabletop rehearsal
 - [ ] Sepolia ownership-transfer and deployer-role revocation rehearsal completed
 - [ ] Sepolia emergency pause/unpause rehearsal completed
+- [ ] Sepolia timelock proposal, delay, and execute rehearsal completed
+- [ ] Sepolia governance verification report archived
 - [ ] Frontend/backend write-disable rollback drill completed
 
 ---
@@ -170,6 +176,14 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY_ADDRESS>"
 # Factory (takes multiple args)
 npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC>" "0x<TREASURY>"
 ```
+
+### Governance Deployment And Verification
+- [ ] `HokusaiTimelockController` verified
+  - Link: https://etherscan.io/address/___________#code
+- [ ] `deployments/mainnet-latest.json` includes `governance.timelock`
+- [ ] `deployments/mainnet-timelock-<timestamp>.json` archived
+- [ ] Timelock proposer/executor/canceller roles confirmed for Safe
+- [ ] Deployer does not retain `TIMELOCK_ADMIN_ROLE`
 
 ---
 
@@ -361,6 +375,34 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Health endpoint showing all pools
 - [ ] No errors in monitoring logs
 
+### Governance Verification
+- [ ] Governance transfer dry-run reviewed:
+
+```bash
+DRY_RUN=true npx hardhat run scripts/governance/transfer-governance.js --network mainnet
+```
+
+- [ ] Governance transfer executed:
+
+```bash
+npx hardhat run scripts/governance/transfer-governance.js --network mainnet
+```
+
+- [ ] Governance verification report passes:
+
+```bash
+npx hardhat run scripts/governance/verify-governance.js --network mainnet
+```
+
+- [ ] Report archived: `deployments/governance-verification-mainnet-latest.json`
+- [ ] `ModelRegistry.owner()` = timelock
+- [ ] `TokenManager.owner()` = timelock
+- [ ] `HokusaiAMMFactory.owner()` = timelock
+- [ ] Each `HokusaiToken.owner()` = timelock
+- [ ] Each `HokusaiParams` `DEFAULT_ADMIN_ROLE` and `GOV_ROLE` = timelock
+- [ ] Emergency Safe can pause but cannot unpause `DeltaVerifier` and `InfrastructureReserve`
+- [ ] Emergency Safe can call factory pool pause functions but cannot perform timelocked admin changes
+
 ### IBR Verification
 - [ ] Sell transactions disabled (should revert during IBR)
 - [ ] IBR end times calculated correctly
@@ -375,6 +417,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] API documentation updated (if applicable)
 - [ ] Monitoring dashboard URLs shared with team
 - [ ] Emergency procedures documented
+- [ ] Governance runbook updated with final mainnet addresses
 - [ ] Owner function documentation updated
 
 ### Team Communication
@@ -396,9 +439,12 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 
 ### Access Control Review
 - [ ] All owner addresses documented
-- [ ] Multi-sig configuration verified (if using)
+- [ ] Safe configuration verified
+- [ ] Timelock configuration verified
 - [ ] Role assignments documented:
   - [ ] DEFAULT_ADMIN_ROLE holders
+  - [ ] GOV_ROLE holders
+  - [ ] PAUSER_ROLE holders
   - [ ] MINTER_ROLE holders
   - [ ] FEE_DEPOSITOR_ROLE holders
   - [ ] RECORDER_ROLE holders
@@ -483,10 +529,11 @@ Use [Mainnet Custody And Role Rehearsal Runbook](mainnet-custody-runbook.md) as 
 ### Emergency Pause Procedure
 ```solidity
 // Only if absolutely necessary (exploit, critical bug)
-// Call pause() on affected pool(s)
+// Emergency Safe pauses through the approved narrow path
 
-HokusaiAMM pool = HokusaiAMM(poolAddress);
-pool.pause();  // Only owner can call
+HokusaiAMMFactory(factoryAddress).pausePool(poolAddress);
+DeltaVerifier(deltaVerifierAddress).pause();
+InfrastructureReserve(infrastructureReserveAddress).pause();
 ```
 
 ### Contact Information

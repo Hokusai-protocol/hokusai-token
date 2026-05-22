@@ -50,6 +50,12 @@ contract TokenDeploymentFactory is ITokenDeploymentFactory {
         );
         tokenAddress = address(newToken);
 
+        if (initialParams.governor != address(this)) {
+            newParams.grantRole(newParams.DEFAULT_ADMIN_ROLE(), initialParams.governor);
+            newParams.renounceRole(newParams.DEFAULT_ADMIN_ROLE(), address(this));
+            newToken.transferOwnership(initialParams.governor);
+        }
+
         emit TokenAndParamsDeployed(tokenAddress, paramsAddress, controller);
     }
 }

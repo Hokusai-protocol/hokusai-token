@@ -334,8 +334,8 @@ describe("TokenManager with Params", function () {
       );
 
       const receipt = await tx.wait();
-      // Deployment now includes vesting config storage and oracle price governance state.
-      expect(receipt.gasUsed).to.be.lt(4000000);
+      // Deployment now also hands token ownership and params admin to the configured governor.
+      expect(receipt.gasUsed).to.be.lt(4100000);
     });
   });
 

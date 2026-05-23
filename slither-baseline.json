@@ -987,6 +987,83 @@
       "justification": "InfrastructureReserve emergency withdrawal transfers to the configured treasury and then emits; the only theoretical risk is event ordering and no reserve accounting is updated after transfer.",
       "reviewedBy": "codex",
       "followUp": "n/a"
+    },
+    {
+      "id": "2a9902c0dd85f6d08cea3450ee89723ab268d162113895540586e810c28bf57d",
+      "check": "reentrancy-no-eth",
+      "justification": "HokusaiAMM buy is guarded by nonReentrant; the flagged external calls are ERC20 transfers and TokenManager minting with no ETH transfer and reserve accounting updated before mint emission.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "f999bc3582e930492d6c23a52d1f8892f4bcffb674c73b183e5fb25a507a4af6",
+      "check": "reentrancy-benign",
+      "justification": "HokusaiAMM fee deposit is guarded by nonReentrant; the external call is the expected ERC20 transferFrom and post-transfer state only records reserve accounting and graduation state.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "ba0cd6a907f96ff20eeb92dc8d0ae153ca5da1c061d2c2af7bb1537981efa08b",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMM treasury withdrawal transfers to the configured treasury and then emits; the only theoretical risk is event ordering and no reserve accounting is updated after transfer.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "2dc2363735e009d06ae330a26b5166b26bc1bd10acb83a12c0af52488ca30f13",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory createPoolWithParams records pool state before registering the pool and emitting; registry failure reverts the transaction and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "b3fde5084eabb78d50dd6abb4aef07376621e5a89078792c2df233b1019bcabd",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory createPoolWithWhitelist emits after successful pool creation and whitelist attachment; the only theoretical risk is event ordering after trusted pool configuration.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "62c805625969527cf2f666fa3b61c6025484efa1da9748d222aa4b556cac5340",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory createPoolWithParamsAndWhitelist emits after successful pool creation and whitelist attachment; the only theoretical risk is event ordering after trusted pool configuration.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "45c4627d09e3efacb680361bec51d4f3d08a3e100126187de1a0020b77f3516f",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory pausePool emits only after the target pool pause succeeds; the external call is owner/pauser-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "d45a68f383b363bfe47b94d3adb6ebdd4693317f6e1d73a5776dc5b435ae2c96",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory unpausePool emits only after the target pool unpause succeeds; the external call is owner-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "f268ea41b41fa2804b3781a20bbfd390fe91a77ba6e457a6b22c02d9d0403654",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory pausePools emits after each successful bounded pool pause; calls are owner/pauser-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "a42a747ca9fc0c16d8c81607989d18b4a70270140bf15252a2d7fff35c7f912e",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory unpausePools emits after each successful bounded pool unpause; calls are owner-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "11fa4469ed501f9e140ce8ad053c5fe3903acc8c915172b9a51e944bdd7e9d73",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory pauseAllPools emits after each successful bounded pool pause; calls are owner/pauser-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
     }
   ]
 }

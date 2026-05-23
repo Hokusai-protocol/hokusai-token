@@ -65,6 +65,11 @@ contract HokusaiAMMFactory is Ownable {
         uint256 tradeFee,
         uint256 ibrDuration
     );
+    event PoolCreatedWithWhitelist(
+        string indexed modelId,
+        address indexed poolAddress,
+        address indexed whitelistAddress
+    );
 
     event DefaultsUpdated(
         uint256 newCrr,
@@ -234,6 +239,56 @@ contract HokusaiAMMFactory is Ownable {
         );
 
         return poolAddress;
+    }
+
+    function createPoolWithWhitelist(
+        string memory modelId,
+        address tokenAddress,
+        address purchaserWhitelist
+    ) external onlyOwner returns (address poolAddress) {
+        poolAddress = createPoolWithParams(
+            modelId,
+            tokenAddress,
+            defaultCrr,
+            defaultTradeFee,
+            defaultIbrDuration,
+            defaultFlatCurveThreshold,
+            defaultFlatCurvePrice
+        );
+        _attachWhitelist(poolAddress, purchaserWhitelist);
+        emit PoolCreatedWithWhitelist(modelId, poolAddress, purchaserWhitelist);
+        return poolAddress;
+    }
+
+    function createPoolWithParamsAndWhitelist(
+        string memory modelId,
+        address tokenAddress,
+        uint256 crr,
+        uint256 tradeFee,
+        uint256 ibrDuration,
+        uint256 flatCurveThreshold,
+        uint256 flatCurvePrice,
+        address purchaserWhitelist
+    ) external onlyOwner returns (address poolAddress) {
+        poolAddress = createPoolWithParams(
+            modelId,
+            tokenAddress,
+            crr,
+            tradeFee,
+            ibrDuration,
+            flatCurveThreshold,
+            flatCurvePrice
+        );
+        _attachWhitelist(poolAddress, purchaserWhitelist);
+        emit PoolCreatedWithWhitelist(modelId, poolAddress, purchaserWhitelist);
+        return poolAddress;
+    }
+
+    function _attachWhitelist(address pool, address whitelist) internal {
+        if (whitelist == address(0)) {
+            return;
+        }
+        HokusaiAMM(pool).setPurchaserWhitelist(whitelist);
     }
 
     // ============================================================

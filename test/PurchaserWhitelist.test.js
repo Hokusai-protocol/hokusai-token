@@ -25,11 +25,11 @@ describe("PurchaserWhitelist", function () {
 
   it("addToWhitelist emits once and is idempotent", async function () {
     await expect(whitelist.addToWhitelist(a1.address))
-      .to.emit(whitelist, "WhitelistAdded")
-      .withArgs(a1.address, owner.address);
+      .to.emit(whitelist, "WalletWhitelisted")
+      .withArgs(a1.address);
 
     await expect(whitelist.addToWhitelist(a1.address))
-      .to.not.emit(whitelist, "WhitelistAdded");
+      .to.not.emit(whitelist, "WalletWhitelisted");
   });
 
   it("addToWhitelist reverts on zero address", async function () {
@@ -41,11 +41,11 @@ describe("PurchaserWhitelist", function () {
     await whitelist.addToWhitelist(a1.address);
 
     await expect(whitelist.removeFromWhitelist(a1.address))
-      .to.emit(whitelist, "WhitelistRemoved")
-      .withArgs(a1.address, owner.address);
+      .to.emit(whitelist, "WalletRemovedFromWhitelist")
+      .withArgs(a1.address);
 
     await expect(whitelist.removeFromWhitelist(a1.address))
-      .to.not.emit(whitelist, "WhitelistRemoved");
+      .to.not.emit(whitelist, "WalletRemovedFromWhitelist");
   });
 
   it("addBatch adds multiple and enforces max batch", async function () {
@@ -65,17 +65,17 @@ describe("PurchaserWhitelist", function () {
       .to.be.revertedWithCustomError(whitelist, "ZeroAddress");
   });
 
-  it("addBatch emits WhitelistAdded with actor for each new entry", async function () {
+  it("addBatch emits WalletWhitelisted for each new entry", async function () {
     const tx = whitelist.addBatch([a1.address, a2.address]);
-    await expect(tx).to.emit(whitelist, "WhitelistAdded").withArgs(a1.address, owner.address);
-    await expect(tx).to.emit(whitelist, "WhitelistAdded").withArgs(a2.address, owner.address);
+    await expect(tx).to.emit(whitelist, "WalletWhitelisted").withArgs(a1.address);
+    await expect(tx).to.emit(whitelist, "WalletWhitelisted").withArgs(a2.address);
   });
 
-  it("removeBatch emits WhitelistRemoved with actor for each removed entry", async function () {
+  it("removeBatch emits WalletRemovedFromWhitelist for each removed entry", async function () {
     await whitelist.addBatch([a1.address, a2.address]);
     const tx = whitelist.removeBatch([a1.address, a2.address]);
-    await expect(tx).to.emit(whitelist, "WhitelistRemoved").withArgs(a1.address, owner.address);
-    await expect(tx).to.emit(whitelist, "WhitelistRemoved").withArgs(a2.address, owner.address);
+    await expect(tx).to.emit(whitelist, "WalletRemovedFromWhitelist").withArgs(a1.address);
+    await expect(tx).to.emit(whitelist, "WalletRemovedFromWhitelist").withArgs(a2.address);
   });
 
   it("removeBatch removes multiple and enforces max batch", async function () {
@@ -140,5 +140,34 @@ describe("PurchaserWhitelist", function () {
 
     await whitelist.revokeRole(whitelistAdminRole, other.address);
     expect(await whitelist.hasRole(whitelistAdminRole, other.address)).to.equal(false);
+  });
+
+  it("queryFilter returns WalletWhitelisted logs filtered by wallet", async function () {
+    await whitelist.addToWhitelist(a1.address);
+    await whitelist.addToWhitelist(a2.address);
+    await whitelist.removeFromWhitelist(a1.address);
+
+    const logsA1 = await whitelist.queryFilter(whitelist.filters.WalletWhitelisted(a1.address));
+    const logsA2 = await whitelist.queryFilter(whitelist.filters.WalletWhitelisted(a2.address));
+
+    expect(logsA1.length).to.equal(1);
+    expect(logsA1[0].args.wallet).to.equal(a1.address);
+
+    expect(logsA2.length).to.equal(1);
+    expect(logsA2[0].args.wallet).to.equal(a2.address);
+  });
+
+  it("queryFilter returns WalletRemovedFromWhitelist logs filtered by wallet", async function () {
+    await whitelist.addToWhitelist(a1.address);
+    await whitelist.addToWhitelist(a2.address);
+    await whitelist.removeFromWhitelist(a1.address);
+
+    const logsRemoved = await whitelist.queryFilter(whitelist.filters.WalletRemovedFromWhitelist(a1.address));
+    const logsA2Removed = await whitelist.queryFilter(whitelist.filters.WalletRemovedFromWhitelist(a2.address));
+
+    expect(logsRemoved.length).to.equal(1);
+    expect(logsRemoved[0].args.wallet).to.equal(a1.address);
+
+    expect(logsA2Removed.length).to.equal(0);
   });
 });

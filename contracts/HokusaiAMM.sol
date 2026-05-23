@@ -89,6 +89,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         uint256 spotPrice
     );
 
+    // Compliance-focused purchase event with stable, export-friendly fields.
+    event InvestorPurchase(
+        address indexed wallet,
+        uint256 usdcAmount,
+        uint256 tokenAmount
+    );
+
     event Sell(
         address indexed seller,
         uint256 tokensIn,
@@ -256,6 +263,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         }
 
         emit Buy(msg.sender, reserveIn, tokensOut, feeAmount, spotPrice());
+        emit InvestorPurchase(msg.sender, reserveIn, tokensOut);
     }
 
     /**

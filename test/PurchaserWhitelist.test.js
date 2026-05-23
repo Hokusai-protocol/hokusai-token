@@ -25,11 +25,11 @@ describe("PurchaserWhitelist", function () {
 
   it("addToWhitelist emits once and is idempotent", async function () {
     await expect(whitelist.addToWhitelist(a1.address))
-      .to.emit(whitelist, "AddressWhitelisted")
-      .withArgs(a1.address);
+      .to.emit(whitelist, "WhitelistAdded")
+      .withArgs(a1.address, owner.address);
 
     await expect(whitelist.addToWhitelist(a1.address))
-      .to.not.emit(whitelist, "AddressWhitelisted");
+      .to.not.emit(whitelist, "WhitelistAdded");
   });
 
   it("addToWhitelist reverts on zero address", async function () {
@@ -41,11 +41,11 @@ describe("PurchaserWhitelist", function () {
     await whitelist.addToWhitelist(a1.address);
 
     await expect(whitelist.removeFromWhitelist(a1.address))
-      .to.emit(whitelist, "AddressRemoved")
-      .withArgs(a1.address);
+      .to.emit(whitelist, "WhitelistRemoved")
+      .withArgs(a1.address, owner.address);
 
     await expect(whitelist.removeFromWhitelist(a1.address))
-      .to.not.emit(whitelist, "AddressRemoved");
+      .to.not.emit(whitelist, "WhitelistRemoved");
   });
 
   it("addBatch adds multiple and enforces max batch", async function () {

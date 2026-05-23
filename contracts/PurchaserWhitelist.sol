@@ -13,8 +13,8 @@ contract PurchaserWhitelist is AccessControlBase, IPurchaserWhitelist {
 
     mapping(address => bool) private _whitelisted;
 
-    event AddressWhitelisted(address indexed account);
-    event AddressRemoved(address indexed account);
+    event WhitelistAdded(address indexed account, address indexed actor);
+    event WhitelistRemoved(address indexed account, address indexed actor);
 
     constructor(address admin) AccessControlBase(admin) {
         _grantRole(WHITELIST_ADMIN_ROLE, admin);
@@ -29,14 +29,14 @@ contract PurchaserWhitelist is AccessControlBase, IPurchaserWhitelist {
         if (_whitelisted[account]) return;
 
         _whitelisted[account] = true;
-        emit AddressWhitelisted(account);
+        emit WhitelistAdded(account, msg.sender);
     }
 
     function removeFromWhitelist(address account) external onlyRole(WHITELIST_ADMIN_ROLE) {
         if (!_whitelisted[account]) return;
 
         _whitelisted[account] = false;
-        emit AddressRemoved(account);
+        emit WhitelistRemoved(account, msg.sender);
     }
 
     function addBatch(address[] calldata accounts) external onlyRole(WHITELIST_ADMIN_ROLE) {
@@ -49,7 +49,7 @@ contract PurchaserWhitelist is AccessControlBase, IPurchaserWhitelist {
             if (_whitelisted[account]) continue;
 
             _whitelisted[account] = true;
-            emit AddressWhitelisted(account);
+            emit WhitelistAdded(account, msg.sender);
         }
     }
 
@@ -62,7 +62,7 @@ contract PurchaserWhitelist is AccessControlBase, IPurchaserWhitelist {
             if (!_whitelisted[account]) continue;
 
             _whitelisted[account] = false;
-            emit AddressRemoved(account);
+            emit WhitelistRemoved(account, msg.sender);
         }
     }
 }

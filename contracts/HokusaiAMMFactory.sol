@@ -7,6 +7,7 @@ import "./libraries/FeeLib.sol";
 import "./HokusaiAMM.sol";
 import "./ModelRegistry.sol";
 import "./TokenManager.sol";
+import "./interfaces/IHokusaiAMMPoolDeployer.sol";
 
 /**
  * @title HokusaiAMMFactory
@@ -34,6 +35,7 @@ contract HokusaiAMMFactory is Ownable {
     uint256 public defaultIbrDuration; // Default IBR duration in seconds
     uint256 public defaultFlatCurveThreshold; // Default flat curve threshold (6 decimals)
     uint256 public defaultFlatCurvePrice; // Default flat curve price (6 decimals)
+    address public poolDeployer;
 
     // Pool tracking
     mapping(string => address) public pools; // modelId => pool address
@@ -78,6 +80,7 @@ contract HokusaiAMMFactory is Ownable {
     );
 
     event TreasuryUpdated(address indexed newTreasury);
+    event PoolDeployerUpdated(address indexed poolDeployer);
     event PoolPaused(string modelId, address indexed pool, address indexed caller);
     event PoolUnpaused(string modelId, address indexed pool, address indexed caller);
     event PauserUpdated(address indexed previousPauser, address indexed newPauser);
@@ -183,6 +186,7 @@ contract HokusaiAMMFactory is Ownable {
         ValidationLib.requireInBounds(ibrDuration, MIN_IBR_DURATION, MAX_IBR_DURATION);
         ValidationLib.requirePositiveAmount(flatCurveThreshold, "flat curve threshold");
         ValidationLib.requirePositiveAmount(flatCurvePrice, "flat curve price");
+        require(poolDeployer != address(0), "PoolDeployerNotSet");
 
         // Verify model is registered in ModelRegistry
         require(
@@ -204,8 +208,9 @@ contract HokusaiAMMFactory is Ownable {
             "Token address mismatch"
         );
 
-        // Deploy new AMM
-        HokusaiAMM newPool = new HokusaiAMM(
+        // Delegate initcode-heavy AMM deployment to the satellite deployer to
+        // keep the factory runtime below the EVM contract size limit.
+        poolAddress = IHokusaiAMMPoolDeployer(poolDeployer).deployPool(
             reserveToken,
             tokenAddress,
             payable(address(tokenManager)),
@@ -217,7 +222,6 @@ contract HokusaiAMMFactory is Ownable {
             flatCurveThreshold,
             flatCurvePrice
         );
-        poolAddress = address(newPool);
 
         // Track pool
         pools[modelId] = poolAddress;
@@ -383,6 +387,13 @@ contract HokusaiAMMFactory is Ownable {
         ValidationLib.requireNonZeroAddress(newTreasury, "treasury");
         treasury = newTreasury;
         emit TreasuryUpdated(newTreasury);
+    }
+
+    function setPoolDeployer(address _poolDeployer) external onlyOwner {
+        require(poolDeployer == address(0), "PoolDeployerAlreadySet");
+        ValidationLib.requireNonZeroAddress(_poolDeployer, "pool deployer");
+        poolDeployer = _poolDeployer;
+        emit PoolDeployerUpdated(_poolDeployer);
     }
 
     // ============================================================

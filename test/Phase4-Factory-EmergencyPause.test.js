@@ -5,6 +5,7 @@ const {
     deployTestToken,
     deployTestTokenAddress,
 } = require("./helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
 
 describe("Phase 4: Factory Emergency Pause", function () {
     let modelRegistry;
@@ -33,14 +34,12 @@ describe("Phase 4: Factory Emergency Pause", function () {
         mockUSDC = await MockUSDC.deploy();
         await mockUSDC.waitForDeployment();
 
-        const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-        factory = await HokusaiAMMFactory.deploy(
-            await modelRegistry.getAddress(),
-            await tokenManager.getAddress(),
-            await mockUSDC.getAddress(),
-            treasury.address
-        );
-        await factory.waitForDeployment();
+        ({ factory } = await deployFactoryWithPoolDeployer(
+            modelRegistry,
+            tokenManager,
+            mockUSDC,
+            treasury
+        ));
         await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
     }
 

@@ -61,6 +61,7 @@ describe("deployFullStack", function () {
     expect(result.contracts.RewardVestingVault).to.properAddress;
     expect(result.contracts.DataContributionRegistry).to.properAddress;
     expect(result.contracts.HokusaiAMMFactory).to.properAddress;
+    expect(result.contracts.HokusaiAMMPoolDeployer).to.properAddress;
     expect(result.contracts.InfrastructureReserve).to.properAddress;
     expect(result.contracts.InfrastructureCostOracle).to.properAddress;
     expect(result.contracts.UsageFeeRouter).to.properAddress;
@@ -83,6 +84,8 @@ describe("deployFullStack", function () {
     expect(await modelRegistry.stringModelTokenManager()).to.equal(result.contracts.TokenManager);
     expect(await tokenManager.deltaVerifier()).to.equal(result.contracts.DeltaVerifier);
     expect(await tokenManager.vestingVault()).to.equal(result.contracts.RewardVestingVault);
+    expect(await (await hre.ethers.getContractAt("HokusaiAMMFactory", result.contracts.HokusaiAMMFactory)).poolDeployer())
+      .to.equal(result.contracts.HokusaiAMMPoolDeployer);
     expect(await usageFeeRouter.factory()).to.equal(result.contracts.HokusaiAMMFactory);
     expect(await usageFeeRouter.reserveToken()).to.equal(result.config.reserveToken);
     expect(await usageFeeRouter.infraReserve()).to.equal(result.contracts.InfrastructureReserve);
@@ -152,6 +155,7 @@ describe("deployFullStack", function () {
     expect(artifact.config.expectedChainId).to.equal("11155111");
     expect(artifact.gasUsed.ModelRegistry).to.match(/^\d+$/);
     expect(artifact.gasUsed.wiring.setDeltaVerifier).to.match(/^\d+$/);
+    expect(artifact.gasUsed.wiring.factorySetPoolDeployer).to.match(/^\d+$/);
     expect(artifact.gasUsed.totalCostEth).to.not.equal("0.0");
     expect(artifact.git.sha === "unknown" || /^[a-f0-9]{40}$/.test(artifact.git.sha)).to.equal(true);
     expect(artifact.scriptSha).to.match(/^[a-f0-9]{64}$/);

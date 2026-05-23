@@ -4,6 +4,7 @@ const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 
 const { buildInitialParams, buildVestingConfig } = require("../helpers/tokenDeployment");
 const { buildMintRequestPayload } = require("../helpers/mintRequest");
+const { deployFactoryWithPoolDeployer } = require("../helpers/factoryDeployment");
 
 describe("Local mainnet readiness end-to-end suite", function () {
   const MODEL_ID = 1;
@@ -105,14 +106,12 @@ describe("Local mainnet readiness end-to-end suite", function () {
     mockUSDC = await MockUSDC.deploy();
     await mockUSDC.waitForDeployment();
 
-    const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-    factory = await HokusaiAMMFactory.deploy(
-      await modelRegistry.getAddress(),
-      await tokenManager.getAddress(),
-      await mockUSDC.getAddress(),
-      treasury.address,
-    );
-    await factory.waitForDeployment();
+    ({ factory } = await deployFactoryWithPoolDeployer(
+      modelRegistry,
+      tokenManager,
+      mockUSDC,
+      treasury
+    ));
     await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
     const poolAddress = await factory.createPoolWithParams.staticCall(

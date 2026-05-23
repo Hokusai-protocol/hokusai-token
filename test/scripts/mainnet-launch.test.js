@@ -3,6 +3,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { ethers } = require("hardhat");
+const { deployFactoryWithPoolDeployer } = require("../helpers/factoryDeployment");
 
 const {
   loadLaunchTokensConfig,
@@ -71,14 +72,13 @@ describe("mainnet launch deploy flow", function () {
     await vestingVault.waitForDeployment();
     await tokenManager.setVestingVault(await vestingVault.getAddress());
 
-    const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-    factory = await HokusaiAMMFactory.deploy(
-      await modelRegistry.getAddress(),
-      await tokenManager.getAddress(),
-      await usdc.getAddress(),
-      owner.address
-    );
-    await factory.waitForDeployment();
+    ({ factory } = await deployFactoryWithPoolDeployer(
+      modelRegistry,
+      tokenManager,
+      usdc,
+      owner
+    ));
+    await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
     await usdc.mint(owner.address, ethers.parseUnits("200000", 6));
   });

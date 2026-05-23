@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
 
 describe("Phase 4: Factory & Registry Integration", function () {
     let modelRegistry;
@@ -32,14 +33,12 @@ describe("Phase 4: Factory & Registry Integration", function () {
         await mockUSDC.waitForDeployment();
 
         // Deploy factory
-        const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-        factory = await HokusaiAMMFactory.deploy(
-            await modelRegistry.getAddress(),
-            await tokenManager.getAddress(),
-            await mockUSDC.getAddress(),
-            treasury.address
-        );
-        await factory.waitForDeployment();
+        ({ factory } = await deployFactoryWithPoolDeployer(
+            modelRegistry,
+            tokenManager,
+            mockUSDC,
+            treasury
+        ));
         await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
     });
 
@@ -53,6 +52,10 @@ describe("Phase 4: Factory & Registry Integration", function () {
             expect(await factory.tokenManager()).to.equal(await tokenManager.getAddress());
             expect(await factory.reserveToken()).to.equal(await mockUSDC.getAddress());
             expect(await factory.treasury()).to.equal(treasury.address);
+        });
+
+        it("Should initialize with a configured pool deployer", async function () {
+            expect(await factory.poolDeployer()).to.properAddress;
         });
 
         it("Should set correct default parameters", async function () {
@@ -225,14 +228,12 @@ describe("Phase 4: Factory & Registry Integration", function () {
         });
 
         it("Should revert atomically when factory is not an authorized pool registrar", async function () {
-            const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-            const unauthorizedFactory = await HokusaiAMMFactory.deploy(
-                await modelRegistry.getAddress(),
-                await tokenManager.getAddress(),
-                await mockUSDC.getAddress(),
-                treasury.address
+            const { factory: unauthorizedFactory } = await deployFactoryWithPoolDeployer(
+                modelRegistry,
+                tokenManager,
+                mockUSDC,
+                treasury
             );
-            await unauthorizedFactory.waitForDeployment();
 
             await expect(
                 unauthorizedFactory.createPoolWithParams(

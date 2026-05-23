@@ -65,6 +65,19 @@ describe("PurchaserWhitelist", function () {
       .to.be.revertedWithCustomError(whitelist, "ZeroAddress");
   });
 
+  it("addBatch emits WhitelistAdded with actor for each new entry", async function () {
+    const tx = whitelist.addBatch([a1.address, a2.address]);
+    await expect(tx).to.emit(whitelist, "WhitelistAdded").withArgs(a1.address, owner.address);
+    await expect(tx).to.emit(whitelist, "WhitelistAdded").withArgs(a2.address, owner.address);
+  });
+
+  it("removeBatch emits WhitelistRemoved with actor for each removed entry", async function () {
+    await whitelist.addBatch([a1.address, a2.address]);
+    const tx = whitelist.removeBatch([a1.address, a2.address]);
+    await expect(tx).to.emit(whitelist, "WhitelistRemoved").withArgs(a1.address, owner.address);
+    await expect(tx).to.emit(whitelist, "WhitelistRemoved").withArgs(a2.address, owner.address);
+  });
+
   it("removeBatch removes multiple and enforces max batch", async function () {
     await whitelist.addBatch([a1.address, a2.address, a3.address]);
     await whitelist.removeBatch([a1.address, a3.address]);

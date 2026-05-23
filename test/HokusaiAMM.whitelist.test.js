@@ -35,7 +35,7 @@ describe("HokusaiAMM Purchaser Whitelist Integration", function () {
     await mockUSDC.waitForDeployment();
 
     const PurchaserWhitelist = await ethers.getContractFactory("PurchaserWhitelist");
-    whitelist = await PurchaserWhitelist.deploy();
+    whitelist = await PurchaserWhitelist.deploy(owner.address);
     await whitelist.waitForDeployment();
 
     const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
@@ -133,7 +133,7 @@ describe("HokusaiAMM Purchaser Whitelist Integration", function () {
 
   it("setPurchaserWhitelist emits and enforces owner-only", async function () {
     const PurchaserWhitelist = await ethers.getContractFactory("PurchaserWhitelist");
-    const newWhitelist = await PurchaserWhitelist.deploy();
+    const newWhitelist = await PurchaserWhitelist.deploy(owner.address);
     await newWhitelist.waitForDeployment();
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");

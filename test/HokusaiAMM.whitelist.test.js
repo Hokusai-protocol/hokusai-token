@@ -134,6 +134,19 @@ describe("HokusaiAMM Purchaser Whitelist Integration", function () {
     expect(await pool.reserveBalance()).to.equal(reserveBefore);
   });
 
+  it("removed wallet can no longer buy", async function () {
+    await whitelist.addToWhitelist(buyer.address);
+
+    const buyAmount = parseUnits("1000", 6);
+    await pool.connect(buyer).buy(buyAmount, 0, buyer.address, (await time.latest()) + 3600);
+
+    await whitelist.removeFromWhitelist(buyer.address);
+
+    await expect(
+      pool.connect(buyer).buy(buyAmount, 0, buyer.address, (await time.latest()) + 3600)
+    ).to.be.revertedWithCustomError(pool, "NotWhitelisted").withArgs(buyer.address);
+  });
+
   it("ungated pool allows any buyer", async function () {
     expect(await poolNoWhitelist.purchaserWhitelist()).to.equal(ethers.ZeroAddress);
 

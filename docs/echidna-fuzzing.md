@@ -46,6 +46,28 @@ The npm scripts invoke `echidna .` from the repo root so `crytic-compile` can us
 - `EchidnaAMMPhase` depends on Echidna's automatic `block.timestamp` advancement to cross the IBR window.
 - Owner-only mutators are intentionally exercised in harnesses because the harness deployer is AMM owner; production access remains `onlyOwner`.
 
+### Economic-attack assumptions
+
+`EchidnaAMMEconomic` uses explicit harness bounds so the fuzz campaign spends time on plausible attack paths instead of pathological dust or unlimited-liquidity scenarios.
+
+| Constant | Value | Rationale |
+|---|---:|---|
+| `MAX_TRADE` | `2_500_000e6` | Caps attacker and victim trade sizing to a large but bounded USDC range. |
+| `MIN_LIQUIDITY` | `1_000e6` | Skips cycle and sandwich probes that are too small to add signal beyond dust behavior. |
+| `MAX_CYCLES` | `5` | Bounds repeated-cycle accumulation so Echidna can explore the sequence deeply without exploding runtime. |
+| `ROUND_TOLERANCE_USDC` | `100` | Allows only 0.0001 USDC of cumulative rounding dust per check, well below fee losses. |
+| `VICTIM_INITIAL_USDC` | `10_000_000e6` | Pre-funds the helper victim so sandwich legs are approval-ready and liquidity-independent. |
+
+- The harness leaves `purchaserWhitelist = address(0)`, so both the attacker harness and the victim helper can buy without whitelist gating.
+- The AMM is deployed with `_ibrDuration = 0`, so sells are enabled immediately here; IBR timing behavior is covered separately by `EchidnaAMMPhase`.
+- The harness intentionally crosses the flat-price threshold quickly because `_bound()` always returns at least `1` and successful buys steadily advance reserve toward the `25,000e6` flat threshold.
+- Buy-side price movement is checked directly after successful buys.
+- Sell-side impact is represented by a stronger executable-quote invariant: after a successful sell, the AMM must not offer a better `getSellQuote()` for selling that same token amount again from the new state.
+- The harness does not assert absolute sandwich profitability because a victim buy can legitimately move price in the attacker's favor in any path-dependent AMM; instead it asserts that attacker exit and total supply reconcile exactly after the attacker round-trips around the victim trade.
+- Dust sells that would return zero reserve are expected to revert or behave as no-op accounting paths; the harness treats those as skipped paths rather than profitable counterexamples.
+- Sandwich legs that hit the AMM's `maxTradeBps` cap revert and are swallowed by the harness, which documents that boundary instead of flagging it as attacker profit.
+- The repeated-cycle property allows cumulative attacker delta up to `ROUND_TOLERANCE_USDC * MAX_CYCLES` to cover bounded rounding dust without masking fee-sized profits.
+
 ## CI Behavior
 
 - `fuzz-short` runs on push and pull requests against `main`.

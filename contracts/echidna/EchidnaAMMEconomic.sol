@@ -134,8 +134,8 @@ contract EchidnaAMMEconomic {
         return !sellReserveViolation;
     }
 
-    function echidna_reserve_never_negative() external view returns (bool) {
-        return amm.reserveBalance() >= 0;
+    function echidna_reserve_not_exceeds_usdc_balance() external view returns (bool) {
+        return amm.reserveBalance() <= usdc.balanceOf(address(amm));
     }
 
     function _deployModel() internal {

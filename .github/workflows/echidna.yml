@@ -70,20 +70,23 @@ jobs:
         run: |
           rm -rf echidna-artifacts
           mkdir -p echidna-artifacts
+          overall_exit=0
           for target in \
             "contracts/echidna/EchidnaSanity.sol EchidnaSanity" \
             "contracts/echidna/EchidnaHokusaiToken.sol EchidnaHokusaiToken" \
             "contracts/echidna/EchidnaTokenManager.sol EchidnaTokenManager" \
             "contracts/echidna/EchidnaAMMReserve.sol EchidnaAMMReserve" \
+            "contracts/echidna/EchidnaAMMPhase.sol EchidnaAMMPhase" \
             "contracts/echidna/EchidnaAMMEconomic.sol EchidnaAMMEconomic" \
             "contracts/echidna/EchidnaInfrastructureReserve.sol EchidnaInfrastructureReserve"
           do
             set -- $target
             rm -rf echidna-corpus
             docker run --rm --platform linux/amd64 -v "$PWD:/code" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 \
-              echidna . --contract "$2" --config echidna.long.config.yaml
-            mv echidna-corpus "echidna-artifacts/$2"
+              echidna . --contract "$2" --config echidna.long.config.yaml || overall_exit=1
+            [ -d echidna-corpus ] && mv echidna-corpus "echidna-artifacts/$2" || true
           done
+          exit $overall_exit
 
       - name: Upload corpus
         if: always()

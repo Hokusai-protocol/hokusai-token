@@ -11,7 +11,7 @@
     "echidna:amm": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaAMMReserve --config echidna.config.yaml",
     "echidna:amm-econ": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaAMMEconomic --config echidna.config.yaml",
     "echidna:reserve": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaInfrastructureReserve --config echidna.config.yaml",
-    "echidna:all": "npx hardhat compile && rm -rf echidna-corpus && npm run echidna:sanity && rm -rf echidna-corpus && npm run echidna:token && rm -rf echidna-corpus && npm run echidna:manager && rm -rf echidna-corpus && npm run echidna:amm && rm -rf echidna-corpus && npm run echidna:amm-econ && rm -rf echidna-corpus && npm run echidna:reserve",
+    "echidna:all": "npx hardhat compile && rm -rf echidna-corpus && npm run echidna:sanity && rm -rf echidna-corpus && npm run echidna:token && rm -rf echidna-corpus && npm run echidna:manager && rm -rf echidna-corpus && npm run echidna:amm && rm -rf echidna-corpus && npm run echidna:phase && rm -rf echidna-corpus && npm run echidna:amm-econ && rm -rf echidna-corpus && npm run echidna:reserve",
     "size-contracts": "node scripts/size-contracts.js",
     "deploy:mainnet": "npx hardhat run scripts/deploy-mainnet.js --network mainnet",
     "deploy:sepolia": "npx hardhat run scripts/deploy-sepolia.js --network sepolia",
@@ -27,7 +27,8 @@
     "test:e2e:local": "npx hardhat test test/e2e/local-mainnet-readiness.test.js",
     "test:property": "npx hardhat test test/property/fuzz-invariants.test.js",
     "test:e2e:sepolia": "SEPOLIA_E2E_READONLY=1 npx hardhat test test/e2e/sepolia-end-to-end.test.js --network sepolia",
-    "test-queue": "npx ts-node scripts/test-queue.ts"
+    "test-queue": "npx ts-node scripts/test-queue.ts",
+    "echidna:phase": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaAMMPhase --config echidna.config.yaml"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",

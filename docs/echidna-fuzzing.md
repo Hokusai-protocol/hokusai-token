@@ -11,6 +11,7 @@ npm run echidna:sanity
 npm run echidna:token
 npm run echidna:manager
 npm run echidna:amm
+npm run echidna:phase
 npm run echidna:amm-econ
 npm run echidna:reserve
 ```
@@ -28,6 +29,22 @@ The baseline config lives in `echidna.config.yaml` and is tuned for CI short run
 - `workers: 1`
 
 The npm scripts invoke `echidna .` from the repo root so `crytic-compile` can use the Hardhat project layout directly. This avoids relying on the container's standalone `solc` toolchain bootstrap.
+
+## Harness Map
+
+- `EchidnaSanity`: compiler/runtime sanity checks and basic Echidna health.
+- `EchidnaHokusaiToken`: token-level authorization and accounting invariants.
+- `EchidnaTokenManager`: mint/burn/deploy lifecycle and role boundaries.
+- `EchidnaAMMReserve`: reserve delta, quote consistency, fee accounting, pause gating, and owner parameter fuzzing.
+- `EchidnaAMMPhase`: IBR sell gating, sell-enable monotonicity, and graduation one-way behavior under mixed actions.
+- `EchidnaAMMEconomic`: economic/price behavior and broader AMM stress paths.
+- `EchidnaInfrastructureReserve`: infrastructure reserve-specific invariants.
+
+## Assumptions And Bounds
+
+- `MAX_USDC_INPUT` bounds in AMM harnesses are precision guards to keep fuzzing productive; they are not invariants.
+- `EchidnaAMMPhase` depends on Echidna's automatic `block.timestamp` advancement to cross the IBR window.
+- Owner-only mutators are intentionally exercised in harnesses because the harness deployer is AMM owner; production access remains `onlyOwner`.
 
 ## CI Behavior
 

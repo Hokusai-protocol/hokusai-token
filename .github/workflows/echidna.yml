@@ -75,6 +75,7 @@ jobs:
             "contracts/echidna/EchidnaHokusaiToken.sol EchidnaHokusaiToken" \
             "contracts/echidna/EchidnaTokenManager.sol EchidnaTokenManager" \
             "contracts/echidna/EchidnaAMMReserve.sol EchidnaAMMReserve" \
+            "contracts/echidna/EchidnaAMMPhase.sol EchidnaAMMPhase" \
             "contracts/echidna/EchidnaAMMEconomic.sol EchidnaAMMEconomic" \
             "contracts/echidna/EchidnaInfrastructureReserve.sol EchidnaInfrastructureReserve"
           do

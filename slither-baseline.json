@@ -1085,6 +1085,83 @@
       "justification": "HokusaiAMM withdrawTreasury is owner-gated and unchanged by this PR; the remaining theoretical risk is event ordering after a successful treasury transfer.",
       "reviewedBy": "codex",
       "followUp": "n/a"
+    },
+    {
+      "id": "6365b84765941a2ce464655e7db4d9c36097b425231ce40c6d295110b958f30c",
+      "check": "reentrancy-no-eth",
+      "justification": "Factory pool creation now delegates deployment to the constructor-pinned HokusaiAMMPoolDeployer and then performs canonical ModelRegistry registration; both external hops are trusted infrastructure and no ETH is transferred in this path.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "e6c4a4feca0b472eb8ab74ac256489cc0692fccf5e22bb1e2e2e7a7e09f75520",
+      "check": "reentrancy-benign",
+      "justification": "Factory pool creation performs trusted deployment and canonical registration before emitting events; the detector flags event ordering, but the owner-only path does not create a fund safety issue.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "ee70ec9f7df4a6501b3c1a81e82782e0bfee0e3dc1502467dd5587c8a5e3a1f8",
+      "check": "reentrancy-events",
+      "justification": "Factory pool creation emits after trusted deployer and registry calls; the flagged risk is limited to event ordering on an owner-only path and does not change canonical tracking or fund balances.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "29bb9fedead61cabeeb41d790b02e0903b8e913113397061948b5c9329dabeb1",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMPoolDeployer deploys a new pool and immediately transfers ownership back to the factory before emitting; the detector only identifies possible event reordering, not a state safety issue.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "4e827ade4056e3ec4f6296d1ce40a40e47becf1fe4eadfd183125f6ecac169d6",
+      "check": "reentrancy-events",
+      "justification": "Whitelist attachment runs only after factory ownership has been restored to the factory, and the detector is flagging owner-only post-call event ordering rather than an exploitable state transition.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "ea7dee375ed2143e4fa5b993012f4360b3c03cc7578e793b6efacaefed24f45b",
+      "check": "reentrancy-events",
+      "justification": "Custom-params whitelist creation follows the same owner-only pattern as standard pool creation; the only flagged effect is event ordering after trusted internal infrastructure calls.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "9e994580cc791b4e8c3d9f8e213435f3c368be519ca4bb4f257bd7199f555fc5",
+      "check": "reentrancy-events",
+      "justification": "Single-pool pause is owner-or-pauser gated and forwards to a known pool before emitting; the detector reports theoretical event ordering only, with no unsafe post-call accounting.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "5b35e7f9546c540c9d96e18f0d1fd372e902888c6f7ec3c3f5e151413b476e63",
+      "check": "reentrancy-events",
+      "justification": "Single-pool unpause is owner-only and only emits after forwarding to the known pool; this is an accepted event-ordering false positive, not a fund or authorization issue.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "7bd432879d737826452019c3ad4fcfb0ea1722b9f33107467ec9ea1c9d68dc35",
+      "check": "reentrancy-events",
+      "justification": "Batch pause loops over factory-tracked pools and emits after each pause; the detector flags event ordering on a governance-only path with no mutable accounting after the call.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "f3b3494064047bab802351a31ef0843d4f998b259af0035fcf7f2e9950c896a2",
+      "check": "reentrancy-events",
+      "justification": "Paginated pauseAllPools iterates over factory-tracked pools and emits after each pause; this is the same governance-only event-ordering pattern already accepted elsewhere in the repo.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "1cf5862d571a440e7c75f3b7ab504b8c0c01a412e99313a47ee2a2530b20b002",
+      "check": "reentrancy-events",
+      "justification": "Paginated unpauseAllPools is owner-only and touches only factory-tracked pools; the detector is identifying possible event ordering, not an exploitable reentrancy condition.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
     }
   ]
 }

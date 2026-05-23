@@ -154,6 +154,18 @@ async function main() {
     deployment.contracts.HokusaiAMMFactory = factoryAddress;
     console.log("   ✅ HokusaiAMMFactory:", factoryAddress);
 
+    console.log("   5a️⃣ Deploying HokusaiAMMPoolDeployer...");
+    const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
+    const poolDeployer = await HokusaiAMMPoolDeployer.deploy(factoryAddress);
+    await poolDeployer.waitForDeployment();
+    const poolDeployerAddress = await poolDeployer.getAddress();
+    deployment.contracts.HokusaiAMMPoolDeployer = poolDeployerAddress;
+    console.log("   ✅ HokusaiAMMPoolDeployer:", poolDeployerAddress);
+
+    console.log("   🔗 Wiring pool deployer to factory...");
+    await (await factory.setPoolDeployer(poolDeployerAddress)).wait();
+    console.log("   ✅ Factory pool deployer configured");
+
     // Set default pool parameters
     console.log("   ⚙️  Setting factory defaults...");
     await factory.setDefaults(

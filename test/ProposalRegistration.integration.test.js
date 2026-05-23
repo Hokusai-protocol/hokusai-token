@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther } = require("ethers");
 const { buildDisabledVestingConfig } = require("./helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
 
 describe("Proposal Registration Integration", function () {
   let tokenManager;
@@ -61,14 +62,12 @@ describe("Proposal Registration Integration", function () {
     await modelRegistry.setStringModelTokenManager(await tokenManager.getAddress());
 
     // Deploy HokusaiAMMFactory
-    const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-    ammFactory = await HokusaiAMMFactory.deploy(
-      await modelRegistry.getAddress(),
-      await tokenManager.getAddress(),
-      await usdc.getAddress(),
-      owner.address
-    );
-    await ammFactory.waitForDeployment();
+    ({ factory: ammFactory } = await deployFactoryWithPoolDeployer(
+      modelRegistry,
+      tokenManager,
+      usdc,
+      owner
+    ));
     await modelRegistry.setPoolRegistrar(await ammFactory.getAddress(), true);
 
     // Deploy FundingVault with real constructor

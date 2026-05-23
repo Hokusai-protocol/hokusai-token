@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
 const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
 
 describe("InfrastructureReserve", function () {
   let InfrastructureReserve;
@@ -44,13 +45,12 @@ describe("InfrastructureReserve", function () {
 
     // Deploy factory with all required parameters
     HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-    factory = await HokusaiAMMFactory.deploy(
-      await modelRegistry.getAddress(),
-      await tokenManager.getAddress(),
-      await usdc.getAddress(),
-      treasury.address
-    );
-    await factory.waitForDeployment();
+    ({ factory } = await deployFactoryWithPoolDeployer(
+      modelRegistry,
+      tokenManager,
+      usdc,
+      treasury
+    ));
     await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
     // Deploy InfrastructureReserve

@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress, keccak256, toUtf8Bytes } = require("ethers");
 const { deployTestToken, deployTestTokenAddress } = require("../helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("../helpers/factoryDeployment");
 
 describe("Integration: Infrastructure Cost Accrual Flow", function () {
   let modelRegistry;
@@ -37,14 +38,12 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
     mockUSDC = await MockUSDC.deploy();
     await mockUSDC.waitForDeployment();
 
-    const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-    factory = await HokusaiAMMFactory.deploy(
-      await modelRegistry.getAddress(),
-      await tokenManager.getAddress(),
-      await mockUSDC.getAddress(),
-      treasury.address
-    );
-    await factory.waitForDeployment();
+    ({ factory } = await deployFactoryWithPoolDeployer(
+      modelRegistry,
+      tokenManager,
+      mockUSDC,
+      treasury
+    ));
     await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
     // Deploy InfrastructureReserve

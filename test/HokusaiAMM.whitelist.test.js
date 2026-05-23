@@ -196,4 +196,22 @@ describe("HokusaiAMM Purchaser Whitelist Integration", function () {
     expect(await pool.purchaserWhitelist()).to.equal(await whitelist.getAddress());
     expect(await poolNoWhitelist.purchaserWhitelist()).to.equal(ethers.ZeroAddress);
   });
+
+  it("queryFilter returns InvestorPurchase logs filtered by buyer wallet", async function () {
+    await whitelist.addToWhitelist(buyer.address);
+
+    const buyAmount = parseUnits("1000", 6);
+    const expectedTokensOut = await pool.getBuyQuote(buyAmount);
+    await pool.connect(buyer).buy(buyAmount, 0, buyer.address, (await time.latest()) + 3600);
+
+    const logs = await pool.queryFilter(pool.filters.InvestorPurchase(buyer.address));
+    const logsOther = await pool.queryFilter(pool.filters.InvestorPurchase(nonWhitelisted.address));
+
+    expect(logs.length).to.equal(1);
+    expect(logs[0].args.wallet).to.equal(buyer.address);
+    expect(logs[0].args.usdcAmount).to.equal(buyAmount);
+    expect(logs[0].args.tokenAmount).to.equal(expectedTokensOut);
+
+    expect(logsOther.length).to.equal(0);
+  });
 });

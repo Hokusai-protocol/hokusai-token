@@ -13,9 +13,6 @@ contract PurchaserWhitelist is AccessControlBase, IPurchaserWhitelist {
 
     mapping(address => bool) private _whitelisted;
 
-    event WalletWhitelisted(address indexed wallet);
-    event WalletRemovedFromWhitelist(address indexed wallet);
-
     constructor(address admin) AccessControlBase(admin) {
         _grantRole(WHITELIST_ADMIN_ROLE, admin);
     }

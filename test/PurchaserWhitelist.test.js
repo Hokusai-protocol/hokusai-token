@@ -141,4 +141,33 @@ describe("PurchaserWhitelist", function () {
     await whitelist.revokeRole(whitelistAdminRole, other.address);
     expect(await whitelist.hasRole(whitelistAdminRole, other.address)).to.equal(false);
   });
+
+  it("queryFilter returns WalletWhitelisted logs filtered by wallet", async function () {
+    await whitelist.addToWhitelist(a1.address);
+    await whitelist.addToWhitelist(a2.address);
+    await whitelist.removeFromWhitelist(a1.address);
+
+    const logsA1 = await whitelist.queryFilter(whitelist.filters.WalletWhitelisted(a1.address));
+    const logsA2 = await whitelist.queryFilter(whitelist.filters.WalletWhitelisted(a2.address));
+
+    expect(logsA1.length).to.equal(1);
+    expect(logsA1[0].args.wallet).to.equal(a1.address);
+
+    expect(logsA2.length).to.equal(1);
+    expect(logsA2[0].args.wallet).to.equal(a2.address);
+  });
+
+  it("queryFilter returns WalletRemovedFromWhitelist logs filtered by wallet", async function () {
+    await whitelist.addToWhitelist(a1.address);
+    await whitelist.addToWhitelist(a2.address);
+    await whitelist.removeFromWhitelist(a1.address);
+
+    const logsRemoved = await whitelist.queryFilter(whitelist.filters.WalletRemovedFromWhitelist(a1.address));
+    const logsA2Removed = await whitelist.queryFilter(whitelist.filters.WalletRemovedFromWhitelist(a2.address));
+
+    expect(logsRemoved.length).to.equal(1);
+    expect(logsRemoved[0].args.wallet).to.equal(a1.address);
+
+    expect(logsA2Removed.length).to.equal(0);
+  });
 });

@@ -1064,6 +1064,27 @@
       "justification": "HokusaiAMMFactory pauseAllPools emits after each successful bounded pool pause; calls are owner/pauser-gated and the only theoretical risk is event ordering.",
       "reviewedBy": "codex",
       "followUp": "n/a"
+    },
+    {
+      "id": "4bb3395dca584efb983233bd4fb0dd44d7f03ea48fd5c0f816b8a35c74b9ddc5",
+      "check": "reentrancy-no-eth",
+      "justification": "HokusaiAMM buy is nonReentrant and updates reserve accounting before minting; the PR only added a post-trade purchase event and does not introduce an unguarded value-transfer path.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "24efb4d10fb58111dead364ccd89f0033607cbd96fd971d06597902a3503b3f6",
+      "check": "reentrancy-benign",
+      "justification": "HokusaiAMM depositFees is nonReentrant and unchanged by this PR; the new ID is baseline drift after nearby event declarations shifted Slither hashing.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "d952c2844d6421e28667657429da800fd476600816f6744bae67c337c9f2b28d",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMM withdrawTreasury is owner-gated and unchanged by this PR; the remaining theoretical risk is event ordering after a successful treasury transfer.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
     }
   ]
 }

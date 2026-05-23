@@ -5,12 +5,14 @@ const { ZeroAddress } = require("ethers");
 describe("PurchaserWhitelist", function () {
   let whitelist;
   let owner, other, a1, a2, a3;
+  let whitelistAdminRole;
 
   beforeEach(async function () {
     [owner, other, a1, a2, a3] = await ethers.getSigners();
     const PurchaserWhitelist = await ethers.getContractFactory("PurchaserWhitelist");
-    whitelist = await PurchaserWhitelist.deploy();
+    whitelist = await PurchaserWhitelist.deploy(owner.address);
     await whitelist.waitForDeployment();
+    whitelistAdminRole = await whitelist.WHITELIST_ADMIN_ROLE();
   });
 
   it("isWhitelisted reflects add/remove", async function () {
@@ -77,24 +79,53 @@ describe("PurchaserWhitelist", function () {
       .withArgs(201, 200);
   });
 
-  it("only owner can mutate whitelist", async function () {
-    await expect(whitelist.connect(other).addToWhitelist(a1.address))
-      .to.be.revertedWith("Ownable: caller is not the owner");
-    await expect(whitelist.connect(other).removeFromWhitelist(a1.address))
-      .to.be.revertedWith("Ownable: caller is not the owner");
-    await expect(whitelist.connect(other).addBatch([a1.address]))
-      .to.be.revertedWith("Ownable: caller is not the owner");
-    await expect(whitelist.connect(other).removeBatch([a1.address]))
-      .to.be.revertedWith("Ownable: caller is not the owner");
+  it("grants admin roles to the configured admin", async function () {
+    const defaultAdminRole = await whitelist.DEFAULT_ADMIN_ROLE();
+
+    expect(await whitelist.hasRole(defaultAdminRole, owner.address)).to.equal(true);
+    expect(await whitelist.hasRole(whitelistAdminRole, owner.address)).to.equal(true);
+    expect(await whitelist.getRoleAdmin(whitelistAdminRole)).to.equal(defaultAdminRole);
   });
 
-  it("ownership transfer updates whitelist authority", async function () {
-    await whitelist.transferOwnership(other.address);
+  it("rejects a zero admin in the constructor", async function () {
+    const PurchaserWhitelist = await ethers.getContractFactory("PurchaserWhitelist");
+    await expect(PurchaserWhitelist.deploy(ZeroAddress))
+      .to.be.revertedWith("AccessControlBase: admin cannot be zero");
+  });
 
+  it("only whitelist admin can mutate whitelist", async function () {
+    const missingRoleMessage = `AccessControl: account ${other.address.toLowerCase()} is missing role ${whitelistAdminRole}`;
+
+    await expect(whitelist.connect(other).addToWhitelist(a1.address))
+      .to.be.revertedWith(missingRoleMessage);
+    await expect(whitelist.connect(other).removeFromWhitelist(a1.address))
+      .to.be.revertedWith(missingRoleMessage);
+    await expect(whitelist.connect(other).addBatch([a1.address]))
+      .to.be.revertedWith(missingRoleMessage);
+    await expect(whitelist.connect(other).removeBatch([a1.address]))
+      .to.be.revertedWith(missingRoleMessage);
+  });
+
+  it("default admin can transfer whitelist authority by grant and revoke", async function () {
+    await whitelist.grantRole(whitelistAdminRole, other.address);
+
+    await whitelist.revokeRole(whitelistAdminRole, owner.address);
+
+    const ownerMissingRoleMessage = `AccessControl: account ${owner.address.toLowerCase()} is missing role ${whitelistAdminRole}`;
     await expect(whitelist.addToWhitelist(a1.address))
-      .to.be.revertedWith("Ownable: caller is not the owner");
+      .to.be.revertedWith(ownerMissingRoleMessage);
 
     await whitelist.connect(other).addToWhitelist(a1.address);
     expect(await whitelist.isWhitelisted(a1.address)).to.equal(true);
+  });
+
+  it("default admin can grant and revoke whitelist admin role", async function () {
+    expect(await whitelist.hasRole(whitelistAdminRole, other.address)).to.equal(false);
+
+    await whitelist.grantRole(whitelistAdminRole, other.address);
+    expect(await whitelist.hasRole(whitelistAdminRole, other.address)).to.equal(true);
+
+    await whitelist.revokeRole(whitelistAdminRole, other.address);
+    expect(await whitelist.hasRole(whitelistAdminRole, other.address)).to.equal(false);
   });
 });

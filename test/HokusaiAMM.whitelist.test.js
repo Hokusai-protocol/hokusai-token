@@ -112,6 +112,17 @@ describe("HokusaiAMM Purchaser Whitelist Integration", function () {
     expect(after).to.be.gt(before);
   });
 
+  it("emits InvestorPurchase for whitelisted buys", async function () {
+    await whitelist.addToWhitelist(buyer.address);
+
+    const buyAmount = parseUnits("1000", 6);
+    const expectedTokensOut = await pool.getBuyQuote(buyAmount);
+
+    await expect(
+      pool.connect(buyer).buy(buyAmount, 0, buyer.address, (await time.latest()) + 3600)
+    ).to.emit(pool, "InvestorPurchase").withArgs(buyer.address, buyAmount, expectedTokensOut);
+  });
+
   it("non-whitelisted buyer cannot buy and state is unchanged", async function () {
     const buyAmount = parseUnits("1000", 6);
     const reserveBefore = await pool.reserveBalance();

@@ -231,6 +231,13 @@ async function deployFullStack(networkConfig, runtime) {
     )
   );
 
+  logger.log("Phase 2b: shared purchaser whitelist");
+  const PurchaserWhitelist = await ethers.getContractFactory("PurchaserWhitelist");
+  const purchaserWhitelist = await PurchaserWhitelist.deploy(deployer.address);
+  await purchaserWhitelist.waitForDeployment();
+  recordReceipt(await recordDeployment(purchaserWhitelist, gasUsed, "PurchaserWhitelist"));
+  contracts.PurchaserWhitelist = await purchaserWhitelist.getAddress();
+
   logger.log("Phase 3: infrastructure and fee routing");
   const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
   const infrastructureReserve = await InfrastructureReserve.deploy(
@@ -361,6 +368,16 @@ async function deployFullStack(networkConfig, runtime) {
     BigInt(networkConfig.factoryDefaults.flatCurvePrice),
     "HokusaiAMMFactory.defaultFlatCurvePrice"
   );
+  expectEqual(
+    await purchaserWhitelist.hasRole(await purchaserWhitelist.DEFAULT_ADMIN_ROLE(), deployer.address),
+    true,
+    "PurchaserWhitelist.DEFAULT_ADMIN_ROLE"
+  );
+  expectEqual(
+    await purchaserWhitelist.hasRole(await purchaserWhitelist.WHITELIST_ADMIN_ROLE(), deployer.address),
+    true,
+    "PurchaserWhitelist.WHITELIST_ADMIN_ROLE"
+  );
   if (!(await modelRegistry.poolRegistrars(contracts.HokusaiAMMFactory))) {
     throw new Error("ModelRegistry pool registrar role missing on HokusaiAMMFactory");
   }
@@ -421,6 +438,10 @@ async function deployFullStack(networkConfig, runtime) {
     DEFAULT_ADMIN_ROLE: [deployer.address],
     SUBMITTER_ROLE: [deployer.address],
   };
+  roles.PurchaserWhitelist = {
+    DEFAULT_ADMIN_ROLE: [deployer.address],
+    WHITELIST_ADMIN_ROLE: [deployer.address],
+  };
   roles.InfrastructureCostOracle = {
     DEFAULT_ADMIN_ROLE: [deployer.address],
     GOV_ROLE: [deployer.address],
@@ -440,6 +461,7 @@ async function deployFullStack(networkConfig, runtime) {
       deltaVerifierParams: networkConfig.deltaVerifierParams,
       infrastructureCostOracleParams: networkConfig.infrastructureCostOracleParams,
       expectedChainId,
+      purchaserWhitelist: contracts.PurchaserWhitelist,
     },
     gasUsed,
     notes,

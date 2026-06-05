@@ -131,6 +131,10 @@ function validatePoolConfig(pool) {
   if (typeof pool.performanceMetric !== "string" || pool.performanceMetric.length === 0) {
     throw new LaunchConfigError("pool.performanceMetric is required");
   }
+
+  if (pool.public !== undefined && typeof pool.public !== "boolean") {
+    throw new LaunchConfigError("pool.public must be boolean");
+  }
 }
 
 function validateTokenEntry(entry) {

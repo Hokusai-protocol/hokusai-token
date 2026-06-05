@@ -266,3 +266,13 @@ Deployment is successful when:
 ---
 
 **🎉 Ready to integrate! Share `docs/SEPOLIA-FRONTEND-INTEGRATION.md` with your frontend team.**
+
+## Purchaser Whitelist Gating
+
+AMM purchases now default to whitelist enforcement. Deployment artifacts expose the shared whitelist at `contracts.PurchaserWhitelist` and `config.purchaserWhitelist`, and each pool entry records `pools[].purchaserWhitelist`.
+
+Frontend flows should treat a non-zero pool whitelist as a gated buy path. Sepolia operators can check or update eligibility with:
+
+- `npx hardhat run scripts/whitelist-check-sepolia.js --network sepolia -- <address>`
+- `npx hardhat run scripts/whitelist-add-sepolia.js --network sepolia -- <address>`
+- `npx hardhat run scripts/whitelist-remove-sepolia.js --network sepolia -- <address>`

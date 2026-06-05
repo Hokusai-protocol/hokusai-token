@@ -342,3 +342,9 @@ For existing deployments:
 ## Contact
 
 For technical support or questions about the deployment process, contact the Hokusai development team.
+
+## Purchaser Whitelist Gating
+
+Launch pools now default to purchaser whitelist enforcement. Read the shared whitelist from `contracts.PurchaserWhitelist` or `config.purchaserWhitelist`, and read each pool's effective setting from `pools[].purchaserWhitelist`.
+
+If a pool whitelist is non-zero, the buy flow should present a gated state until the connected wallet is confirmed eligible. Sepolia operator scripts live in `scripts/whitelist-add-sepolia.js`, `scripts/whitelist-remove-sepolia.js`, and `scripts/whitelist-check-sepolia.js`.

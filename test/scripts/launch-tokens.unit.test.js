@@ -79,6 +79,55 @@ describe("launch-tokens helper", function () {
     expect(scaled.flatCurvePriceUsdc).to.equal(10000n);
   });
 
+  it("accepts pool.public when it is boolean", function () {
+    const token1 = buildToken(1);
+    const filepath = writeConfig({
+      version: 1,
+      tokens: [
+        { ...token1, pool: { ...token1.pool, public: true } },
+        buildToken(2, {
+          configKey: "token-2",
+          modelId: "2",
+          supplierRecipient: "0x00000000000000000000000000000000000000A2",
+          governor: "0x00000000000000000000000000000000000000B2",
+        }),
+        buildToken(3, {
+          configKey: "token-3",
+          modelId: "3",
+          supplierRecipient: "0x00000000000000000000000000000000000000A3",
+          governor: "0x00000000000000000000000000000000000000B3",
+        }),
+      ],
+    });
+
+    const loaded = loadLaunchTokensConfig(filepath);
+    expect(loaded.tokens[0].pool.public).to.equal(true);
+  });
+
+  it("rejects non-boolean pool.public", function () {
+    const token1 = buildToken(1);
+    const filepath = writeConfig({
+      version: 1,
+      tokens: [
+        { ...token1, pool: { ...token1.pool, public: "yes" } },
+        buildToken(2, {
+          configKey: "token-2",
+          modelId: "2",
+          supplierRecipient: "0x00000000000000000000000000000000000000A2",
+          governor: "0x00000000000000000000000000000000000000B2",
+        }),
+        buildToken(3, {
+          configKey: "token-3",
+          modelId: "3",
+          supplierRecipient: "0x00000000000000000000000000000000000000A3",
+          governor: "0x00000000000000000000000000000000000000B3",
+        }),
+      ],
+    });
+
+    expect(() => loadLaunchTokensConfig(filepath)).to.throw(LaunchConfigError, "pool.public must be boolean");
+  });
+
   it("rejects configs with the wrong token count", function () {
     const filepath = writeConfig({ version: 1, tokens: [buildToken(1)] });
     expect(() => loadLaunchTokensConfig(filepath)).to.throw(LaunchConfigError, "Launch config must define exactly 3 tokens");

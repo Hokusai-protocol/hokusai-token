@@ -64,6 +64,22 @@ function formatMismatchValue(value) {
   return value.toString();
 }
 
+function normalizeAddress(address) {
+  return ethers.getAddress(address);
+}
+
+function resolvePurchaserWhitelistAddress(deployment) {
+  const configured = process.env.WHITELIST_ADDRESS_OVERRIDE
+    || deployment.contracts?.PurchaserWhitelist
+    || deployment.config?.purchaserWhitelist;
+
+  if (!configured) {
+    return null;
+  }
+
+  return normalizeAddress(configured);
+}
+
 function splitSupplierAllocation(supplierWei, vestingConfig) {
   if (!vestingConfig.enabled) {
     return { immediateAmount: supplierWei, vestedAmount: 0n };
@@ -197,12 +213,14 @@ async function runLaunchDeploy({
   const registryAddress = deployment.contracts.ModelRegistry;
   const managerAddress = deployment.contracts.TokenManager;
   const factoryAddress = deployment.contracts.HokusaiAMMFactory;
+  const purchaserWhitelistAddress = resolvePurchaserWhitelistAddress(deployment);
 
   console.log("\n📋 Contract Addresses:");
   console.log(`   USDC:             ${usdcAddress}`);
   console.log(`   ModelRegistry:    ${registryAddress}`);
   console.log(`   TokenManager:     ${managerAddress}`);
   console.log(`   AMMFactory:       ${factoryAddress}`);
+  console.log(`   Whitelist:        ${purchaserWhitelistAddress || "PUBLIC/UNSET"}`);
 
   const usdc = await ethers.getContractAt("IERC20", usdcAddress);
   const modelRegistry = await ethers.getContractAt("ModelRegistry", registryAddress);
@@ -220,6 +238,14 @@ async function runLaunchDeploy({
 
   if (scaledEntries.length !== POOLS_TO_CREATE.length) {
     throw new Error(`Expected ${POOLS_TO_CREATE.length} configured launch tokens, found ${scaledEntries.length}`);
+  }
+
+  for (const entry of scaledEntries) {
+    if (entry.pool.public !== true && !purchaserWhitelistAddress) {
+      throw new Error(
+        `LaunchConfigError: pool ${entry.configKey} missing whitelist (set deployment.contracts.PurchaserWhitelist or pool.public=true)`
+      );
+    }
   }
 
   const usdcBalance = await usdc.balanceOf(deployer.address);
@@ -254,6 +280,7 @@ async function runLaunchDeploy({
     console.log(`     Trade Fee:             ${config.pool.tradeFee / 100}%`);
     console.log(`     IBR Duration:          ${config.pool.ibrSeconds / 86400} days`);
     console.log(`     Distribution Timing:   ${config.distributionTiming}`);
+    console.log(`     Public Pool:           ${config.pool.public === true ? "yes" : "no"}`);
   }
 
   console.log("\n🛑 Please review the above information");
@@ -331,15 +358,27 @@ async function runLaunchDeploy({
       console.log("   ✅ ModelRegistry mapping verified");
 
       console.log("   🏊 Creating AMM pool...");
-      const poolTx = await factory.createPoolWithParams(
-        config.modelId,
-        tokenAddress,
-        config.pool.crr,
-        config.pool.tradeFee,
-        config.pool.ibrSeconds,
-        config.flatCurveThresholdUsdc,
-        config.flatCurvePriceUsdc
-      );
+      const isPublicPool = config.pool.public === true;
+      const poolTx = isPublicPool
+        ? await factory.createPoolWithParams(
+          config.modelId,
+          tokenAddress,
+          config.pool.crr,
+          config.pool.tradeFee,
+          config.pool.ibrSeconds,
+          config.flatCurveThresholdUsdc,
+          config.flatCurvePriceUsdc
+        )
+        : await factory.createPoolWithParamsAndWhitelist(
+          config.modelId,
+          tokenAddress,
+          config.pool.crr,
+          config.pool.tradeFee,
+          config.pool.ibrSeconds,
+          config.flatCurveThresholdUsdc,
+          config.flatCurvePriceUsdc,
+          purchaserWhitelistAddress
+        );
       const poolReceipt = await poolTx.wait();
       console.log(`   ⛽ Gas used: ${poolReceipt.gasUsed.toString()}`);
 
@@ -350,6 +389,15 @@ async function runLaunchDeploy({
 
       console.log(`   ✅ Pool created: ${poolAddress}`);
       console.log(`   🔗 View on Etherscan: ${etherscanBaseUrl}/address/${poolAddress}`);
+      const pool = await ethers.getContractAt("HokusaiAMM", poolAddress);
+      const actualWhitelist = normalizeAddress(await pool.purchaserWhitelist());
+      const expectedWhitelist = isPublicPool ? ethers.ZeroAddress : purchaserWhitelistAddress;
+      if (actualWhitelist !== normalizeAddress(expectedWhitelist)) {
+        throw new Error(
+          `Pool whitelist mismatch for ${config.configKey}: expected ${expectedWhitelist}, got ${actualWhitelist}`
+        );
+      }
+      console.log(`   ✅ Purchaser whitelist: ${actualWhitelist}`);
 
       console.log("   🔍 Verifying canonical ModelRegistry pool mapping...");
       const registryPool = await modelRegistry.getPool(config.modelId);
@@ -373,7 +421,6 @@ async function runLaunchDeploy({
       console.log("   ✅ AMM authorized with MINTER_ROLE");
 
       console.log(`   💰 Adding initial liquidity ($${ethers.formatUnits(config.initialReserveUsdc, 6)} USDC)...`);
-      const pool = await ethers.getContractAt("HokusaiAMM", poolAddress);
 
       console.log("   🔓 Approving USDC...");
       const approveTx = await usdc.approve(poolAddress, config.initialReserveUsdc);
@@ -480,6 +527,7 @@ async function runLaunchDeploy({
         ibrEndsAt: new Date(Date.now() + config.pool.ibrSeconds * 1000).toISOString(),
         flatCurveThreshold: ethers.formatUnits(config.flatCurveThresholdUsdc, 6),
         flatCurvePrice: ethers.formatUnits(config.flatCurvePriceUsdc, 6),
+        purchaserWhitelist: isPublicPool ? null : purchaserWhitelistAddress,
       });
 
       console.log(`   ✅ ${config.pool.name} complete!`);
@@ -528,7 +576,13 @@ async function runLaunchDeploy({
     console.log(`     CRR:            ${pool.crr / 10000}%`);
     console.log(`     Trade Fee:      ${pool.tradeFee / 100}%`);
     console.log(`     IBR Ends:       ${pool.ibrEndsAt}`);
+    console.log(`     Whitelist:      ${pool.purchaserWhitelist || "PUBLIC"}`);
     console.log(`     Etherscan:      ${etherscanBaseUrl}/address/${pool.ammAddress}`);
+  }
+
+  if (purchaserWhitelistAddress) {
+    console.log("\n🔐 Purchaser Gating:");
+    console.log(`   AMM purchases require whitelist eligibility. Shared whitelist: ${purchaserWhitelistAddress}`);
   }
 
   if (writtenPendingActionsPath) {

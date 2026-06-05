@@ -72,6 +72,7 @@ describe("launch-tokens helper", function () {
     const scaled = scaleTokenEntry(loaded.tokens[0]);
 
     expect(loaded.tokens).to.have.lengthOf(3);
+    expect(loaded.tokens[0].public).to.equal(false);
     expect(scaled.supplierWei).to.equal(2500000n * 10n ** 18n);
     expect(scaled.investorWei).to.equal(10000000n * 10n ** 18n);
     expect(scaled.tokensPerDeltaOneWei).to.equal(500000n * 10n ** 18n);
@@ -121,5 +122,32 @@ describe("launch-tokens helper", function () {
     });
 
     expect(() => loadLaunchTokensConfig(filepath)).to.throw(LaunchConfigError, "infrastructureAccrualBps out of bounds");
+  });
+
+  it("accepts public=true and preserves it on the parsed entry", function () {
+    const filepath = writeConfig({
+      version: 1,
+      tokens: [
+        buildToken(1, { public: true }),
+        buildToken(2, { configKey: "token-2", modelId: "2", supplierRecipient: "0x00000000000000000000000000000000000000A2", governor: "0x00000000000000000000000000000000000000B2" }),
+        buildToken(3, { configKey: "token-3", modelId: "3", supplierRecipient: "0x00000000000000000000000000000000000000A3", governor: "0x00000000000000000000000000000000000000B3" }),
+      ],
+    });
+
+    const loaded = loadLaunchTokensConfig(filepath);
+    expect(loaded.tokens[0].public).to.equal(true);
+  });
+
+  it("rejects non-boolean public flag values", function () {
+    const filepath = writeConfig({
+      version: 1,
+      tokens: [
+        buildToken(1, { public: "yes" }),
+        buildToken(2, { configKey: "token-2", modelId: "2", supplierRecipient: "0x00000000000000000000000000000000000000A2", governor: "0x00000000000000000000000000000000000000B2" }),
+        buildToken(3, { configKey: "token-3", modelId: "3", supplierRecipient: "0x00000000000000000000000000000000000000A3", governor: "0x00000000000000000000000000000000000000B3" }),
+      ],
+    });
+
+    expect(() => loadLaunchTokensConfig(filepath)).to.throw(LaunchConfigError, "public must be boolean when provided");
   });
 });

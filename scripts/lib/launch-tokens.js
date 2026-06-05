@@ -151,6 +151,12 @@ function validateTokenEntry(entry) {
   if (typeof entry.symbol !== "string" || entry.symbol.length === 0) {
     throw new LaunchConfigError("symbol is required");
   }
+  if (entry.public !== undefined && typeof entry.public !== "boolean") {
+    throw new LaunchConfigError("public must be boolean when provided");
+  }
+  if (entry.public === undefined) {
+    entry.public = false;
+  }
 
   entry.supplierRecipient = assertChecksumAddress(entry.supplierRecipient, "supplierRecipient");
   entry.governor = assertChecksumAddress(entry.governor, "governor");

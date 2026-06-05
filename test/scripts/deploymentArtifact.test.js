@@ -37,6 +37,7 @@ describe("deployment artifact helper", function () {
     expect(artifact.scriptSha).to.match(/^[a-f0-9]{64}$/);
     expect(artifact.config.expectedChainId).to.equal("1");
     expect(artifact.config.maxReward).to.equal("42");
+    expect(artifact.notes.purchaserWhitelistGatingDefault).to.equal(true);
   });
 
   it("hashes script content deterministically", function () {

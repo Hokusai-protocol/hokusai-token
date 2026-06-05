@@ -1,4 +1,8 @@
-import { createMintRequestSettlement, MintRequestMessage, validateMintRequestMessage } from '../../../src/schemas/mint-request-schema';
+import {
+  createMintRequestSettlement,
+  MintRequestMessage,
+  validateMintRequestMessage,
+} from '../../../src/schemas/mint-request-schema';
 
 describe('MintRequest schema', () => {
   const validMessage: MintRequestMessage = {
@@ -47,10 +51,31 @@ describe('MintRequest schema', () => {
     expect(result.error).toBeDefined();
   });
 
+  test('rejects missing canonical anchors', () => {
+    const { benchmark_spec_id, ...missingBenchmarkSpec } = validMessage;
+    const resultMissingBenchmarkSpec = validateMintRequestMessage(missingBenchmarkSpec);
+    expect(resultMissingBenchmarkSpec.error).toBeDefined();
+
+    const resultBlankBenchmarkSpec = validateMintRequestMessage({
+      ...validMessage,
+      benchmark_spec_id: '',
+    });
+    expect(resultBlankBenchmarkSpec.error).toBeDefined();
+
+    const resultMissingDatasetHash = validateMintRequestMessage({
+      ...validMessage,
+      dataset_hash: undefined as unknown as string,
+    });
+    expect(resultMissingDatasetHash.error).toBeDefined();
+  });
+
   test('rejects contributor weights that do not sum to 10000', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
-      contributors: [{ ...validMessage.contributors[0], weight_bps: 5000 }, validMessage.contributors[1]],
+      contributors: [
+        { ...validMessage.contributors[0], weight_bps: 5000 },
+        validMessage.contributors[1],
+      ],
     });
     expect(result.error).toBeDefined();
   });

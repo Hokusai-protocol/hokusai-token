@@ -1,3 +1,9 @@
+/*
+ * Covers legacy DeltaVerifier submitEvaluation* multi-contributor flows.
+ * submitMintRequest edge cases and semantics are covered in
+ * test/DeltaVerifier.mintRequest.test.js.
+ * The files are intentionally separate because they exercise different APIs.
+ */
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, ZeroAddress } = require("ethers");

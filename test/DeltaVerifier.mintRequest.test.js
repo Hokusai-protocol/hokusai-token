@@ -1,3 +1,9 @@
+/*
+ * Covers DeltaVerifier.submitMintRequest edge cases and mint semantics.
+ * Legacy submitEvaluation* multi-contributor coverage stays in
+ * test/deltaVerifier.multiContributor.test.js.
+ * The files are intentionally separate because they exercise different APIs.
+ */
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther } = require("ethers");
@@ -33,6 +39,37 @@ describe("DeltaVerifier MintRequest", function () {
     const paramsAddress = await tokenManager.modelParams(MODEL_ID_STR);
     const HokusaiParams = await ethers.getContractFactory("HokusaiParams");
     return HokusaiParams.attach(paramsAddress);
+  }
+
+  async function expectMissingRole(txPromise, signer, role) {
+    await expect(txPromise).to.be.revertedWith(
+      `AccessControl: account ${signer.address.toLowerCase()} is missing role ${role}`
+    );
+  }
+
+  async function submitMintRequestAs(signer, payload, contributors) {
+    return deltaVerifier.connect(signer).submitMintRequest(MODEL_ID, payload, contributors);
+  }
+
+  async function getContributorBalances(contributors) {
+    return Promise.all(contributors.map(({ walletAddress }) => deployedToken.balanceOf(walletAddress)));
+  }
+
+  function calculateTotalReward(payload, tokensPerDeltaOne) {
+    const deltaInBps = BigInt(Math.max(payload.candidateScoreBps - payload.baselineScoreBps, 0));
+    return (deltaInBps * tokensPerDeltaOne) / 100n;
+  }
+
+  function calculateRewardSplit(totalReward, contributors) {
+    const rewardAmounts = contributors.map(({ weight }) => (totalReward * BigInt(weight)) / 10000n);
+    const distributed = rewardAmounts.reduce((sum, amount) => sum + amount, 0n);
+    const dust = totalReward - distributed;
+
+    if (rewardAmounts.length > 0) {
+      rewardAmounts[0] += dust;
+    }
+
+    return { rewardAmounts, dust };
   }
 
   function buildContributors(overrides = null) {
@@ -145,6 +182,124 @@ describe("DeltaVerifier MintRequest", function () {
     expect(await deployedToken.balanceOf(contributor3.address)).to.equal(reward3);
   });
 
+  it("rejects weight-sum below 10000 (9999)", async function () {
+    const payload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("idempotency-weight-under") },
+    });
+
+    await expect(
+      submitMintRequestAs(submitter, payload, [{ walletAddress: contributor1.address, weight: 9999 }])
+    ).to.be.revertedWith("Weights must sum to 100%");
+
+    expect(await deltaVerifier.processedIdempotencyKeys(payload.anchors.idempotencyKey)).to.equal(false);
+  });
+
+  it("rejects weight-sum above 10000 (10001)", async function () {
+    const payload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("idempotency-weight-over") },
+    });
+
+    await expect(
+      submitMintRequestAs(submitter, payload, [
+        { walletAddress: contributor1.address, weight: 5001 },
+        { walletAddress: contributor2.address, weight: 5000 },
+      ])
+    ).to.be.revertedWith("Weights must sum to 100%");
+
+    expect(await deltaVerifier.processedIdempotencyKeys(payload.anchors.idempotencyKey)).to.equal(false);
+  });
+
+  it("rejects three-way duplicate contributor address", async function () {
+    const payload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("idempotency-duplicate-three-way") },
+    });
+
+    await expect(
+      submitMintRequestAs(submitter, payload, [
+        { walletAddress: contributor1.address, weight: 3333 },
+        { walletAddress: contributor1.address, weight: 3333 },
+        { walletAddress: contributor1.address, weight: 3334 },
+      ])
+    ).to.be.revertedWith("Duplicate contributor address");
+
+    expect(await deltaVerifier.processedIdempotencyKeys(payload.anchors.idempotencyKey)).to.equal(false);
+  });
+
+  it("accepts two distinct contributors as duplicate-check control", async function () {
+    const payload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("idempotency-distinct-control") },
+    });
+    const contributors = [
+      { walletAddress: contributor1.address, weight: 7000 },
+      { walletAddress: contributor2.address, weight: 3000 },
+    ];
+
+    await submitMintRequestAs(submitter, payload, contributors);
+
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal((MAX_REWARD * 7000n) / 10000n);
+    expect(await deployedToken.balanceOf(contributor2.address)).to.equal((MAX_REWARD * 3000n) / 10000n);
+  });
+
+  it("splits rewards across 4 contributors with dust to first", async function () {
+    await hokusaiParams.setTokensPerDeltaOne(parseEther("100") + 1n);
+
+    const payload = buildMintRequestPayload({
+      baselineScoreBps: 5000,
+      candidateScoreBps: 5101,
+      anchors: { idempotencyKey: ethers.id("idempotency-four-way-dust") },
+    });
+    const contributors = [
+      { walletAddress: contributor1.address, weight: 2501 },
+      { walletAddress: contributor2.address, weight: 2499 },
+      { walletAddress: contributor3.address, weight: 2500 },
+      { walletAddress: owner.address, weight: 2500 },
+    ];
+    const totalReward = calculateTotalReward(payload, await hokusaiParams.tokensPerDeltaOne());
+    const { rewardAmounts, dust } = calculateRewardSplit(totalReward, contributors);
+
+    await submitMintRequestAs(submitter, payload, contributors);
+
+    const balances = await getContributorBalances(contributors);
+    const totalDistributed = balances.reduce((sum, amount) => sum + amount, 0n);
+
+    expect(balances[0]).to.equal(rewardAmounts[0]);
+    expect(balances[1]).to.equal(rewardAmounts[1]);
+    expect(balances[2]).to.equal(rewardAmounts[2]);
+    expect(balances[3]).to.equal(rewardAmounts[3]);
+    expect(dust).to.be.gt(0n);
+    expect(totalDistributed).to.equal(totalReward);
+  });
+
+  it("splits rewards across 5 contributors evenly with zero dust", async function () {
+    await hokusaiParams.setTokensPerDeltaOne(parseEther("100"));
+
+    const payload = buildMintRequestPayload({
+      baselineScoreBps: 5000,
+      candidateScoreBps: 5100,
+      anchors: { idempotencyKey: ethers.id("idempotency-five-way-even") },
+    });
+    const contributors = [
+      { walletAddress: contributor1.address, weight: 2000 },
+      { walletAddress: contributor2.address, weight: 2000 },
+      { walletAddress: contributor3.address, weight: 2000 },
+      { walletAddress: owner.address, weight: 2000 },
+      { walletAddress: submitter.address, weight: 2000 },
+    ];
+    const totalSupplyBefore = await deployedToken.totalSupply();
+    const totalReward = calculateTotalReward(payload, await hokusaiParams.tokensPerDeltaOne());
+    const expectedRewardPerContributor = totalReward / 5n;
+
+    await submitMintRequestAs(submitter, payload, contributors);
+
+    const balances = await getContributorBalances(contributors);
+    const totalSupplyAfter = await deployedToken.totalSupply();
+
+    for (const balance of balances) {
+      expect(balance).to.equal(expectedRewardPerContributor);
+    }
+    expect(totalSupplyAfter - totalSupplyBefore).to.equal(totalReward);
+  });
+
   it("rejects replayed idempotency keys", async function () {
     const payload = buildMintRequestPayload();
     const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
@@ -202,6 +357,96 @@ describe("DeltaVerifier MintRequest", function () {
     ).to.be.revertedWith("Idempotency key already processed");
   });
 
+  it("requires a new idempotency key after a budget-blocked submission", async function () {
+    const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const blockedPayload = buildMintRequestPayload({
+      maxCostUsdMicro: 100,
+      actualCostUsdMicro: 125,
+      anchors: { idempotencyKey: ethers.id("idempotency-budget-blocked-retry") },
+    });
+    const reusedKeyPayload = buildMintRequestPayload({
+      maxCostUsdMicro: 200,
+      actualCostUsdMicro: 125,
+      anchors: { idempotencyKey: blockedPayload.anchors.idempotencyKey },
+    });
+    const freshKeyPayload = buildMintRequestPayload({
+      maxCostUsdMicro: 200,
+      actualCostUsdMicro: 125,
+      anchors: { idempotencyKey: ethers.id("idempotency-budget-blocked-retry-fresh") },
+    });
+
+    await submitMintRequestAs(submitter, blockedPayload, contributors);
+
+    expect(await deltaVerifier.processedIdempotencyKeys(blockedPayload.anchors.idempotencyKey)).to.equal(true);
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal(0);
+
+    await expect(
+      submitMintRequestAs(submitter, reusedKeyPayload, contributors)
+    ).to.be.revertedWith("Idempotency key already processed");
+
+    await submitMintRequestAs(submitter, freshKeyPayload, contributors);
+
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal(MAX_REWARD);
+  });
+
+  it("reusing a successful key is rejected (control)", async function () {
+    const payload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("idempotency-successful-reuse") },
+    });
+    const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+
+    await submitMintRequestAs(submitter, payload, contributors);
+
+    await expect(
+      submitMintRequestAs(submitter, payload, contributors)
+    ).to.be.revertedWith("Idempotency key already processed");
+  });
+
+  it("disables budget enforcement when maxCostUsdMicro == 0 with nonzero actualCost", async function () {
+    const payload = buildMintRequestPayload({
+      maxCostUsdMicro: 0,
+      actualCostUsdMicro: 999999,
+      anchors: { idempotencyKey: ethers.id("idempotency-max-cost-zero") },
+    });
+    const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const tx = await submitMintRequestAs(submitter, payload, contributors);
+
+    await expect(tx).to.not.emit(deltaVerifier, "BudgetConstraintViolated");
+
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal(MAX_REWARD);
+  });
+
+  it("disables budget enforcement when actualCostUsdMicro == 0 with nonzero maxCost", async function () {
+    const payload = buildMintRequestPayload({
+      maxCostUsdMicro: 50,
+      actualCostUsdMicro: 0,
+      anchors: { idempotencyKey: ethers.id("idempotency-actual-cost-zero") },
+    });
+    const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const tx = await submitMintRequestAs(submitter, payload, contributors);
+
+    await expect(tx).to.not.emit(deltaVerifier, "BudgetConstraintViolated");
+
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal(MAX_REWARD);
+  });
+
+  it("enforces budget when both costs are positive and actualCost > maxCost (control)", async function () {
+    const payload = buildMintRequestPayload({
+      maxCostUsdMicro: 50,
+      actualCostUsdMicro: 100,
+      anchors: { idempotencyKey: ethers.id("idempotency-budget-positive-control") },
+    });
+    const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const tx = await submitMintRequestAs(submitter, payload, contributors);
+
+    await expect(tx)
+      .to.emit(deltaVerifier, "BudgetConstraintViolated")
+      .withArgs(payload.pipelineRunId, MODEL_ID, 50, 100);
+
+    expect(await deltaVerifier.processedIdempotencyKeys(payload.anchors.idempotencyKey)).to.equal(true);
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal(0);
+  });
+
   it("emits zero-reward acceptance when candidate does not beat baseline", async function () {
     const payload = buildMintRequestPayload({
       candidateScoreBps: 5000,
@@ -227,6 +472,76 @@ describe("DeltaVerifier MintRequest", function () {
 
     expect(await deltaVerifier.processedIdempotencyKeys(payload.anchors.idempotencyKey)).to.equal(true);
     expect(await deployedToken.balanceOf(contributor1.address)).to.equal(0);
+  });
+
+  it("zero-delta (candidate == baseline) emits acceptance but mints nothing", async function () {
+    const payload = buildMintRequestPayload({
+      baselineScoreBps: 5000,
+      candidateScoreBps: 5000,
+      anchors: { idempotencyKey: ethers.id("idempotency-zero-delta-no-mint") },
+    });
+    const contributors = [
+      { walletAddress: contributor1.address, weight: 7000 },
+      { walletAddress: contributor2.address, weight: 3000 },
+    ];
+    const totalSupplyBefore = await deployedToken.totalSupply();
+    const tx = await submitMintRequestAs(submitter, payload, contributors);
+
+    await expect(tx)
+      .to.emit(deltaVerifier, "DeltaOneAccepted")
+      .withArgs(
+        MODEL_ID,
+        payload.anchors.idempotencyKey,
+        payload.anchors.benchmarkSpecHash,
+        payload.anchors.attestationHash,
+        payload.anchors.datasetHash,
+        payload.anchors.metricName,
+        payload.anchors.metricFamily,
+        payload.baselineScoreBps,
+        payload.candidateScoreBps,
+        0n,
+        payload.pipelineRunId
+      );
+    await expect(tx).to.not.emit(deltaVerifier, "BatchRewardsDistributed");
+
+    expect(await deployedToken.totalSupply()).to.equal(totalSupplyBefore);
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal(0);
+    expect(await deployedToken.balanceOf(contributor2.address)).to.equal(0);
+  });
+
+  it("negative-delta (candidate < baseline) emits acceptance but mints nothing", async function () {
+    const payload = buildMintRequestPayload({
+      baselineScoreBps: 7500,
+      candidateScoreBps: 5000,
+      anchors: { idempotencyKey: ethers.id("idempotency-negative-delta-no-mint") },
+    });
+    const contributors = [
+      { walletAddress: contributor1.address, weight: 7000 },
+      { walletAddress: contributor2.address, weight: 3000 },
+    ];
+    const totalSupplyBefore = await deployedToken.totalSupply();
+    const tx = await submitMintRequestAs(submitter, payload, contributors);
+
+    await expect(tx)
+      .to.emit(deltaVerifier, "DeltaOneAccepted")
+      .withArgs(
+        MODEL_ID,
+        payload.anchors.idempotencyKey,
+        payload.anchors.benchmarkSpecHash,
+        payload.anchors.attestationHash,
+        payload.anchors.datasetHash,
+        payload.anchors.metricName,
+        payload.anchors.metricFamily,
+        payload.baselineScoreBps,
+        payload.candidateScoreBps,
+        0n,
+        payload.pipelineRunId
+      );
+    await expect(tx).to.not.emit(deltaVerifier, "BatchRewardsDistributed");
+
+    expect(await deployedToken.totalSupply()).to.equal(totalSupplyBefore);
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal(0);
+    expect(await deployedToken.balanceOf(contributor2.address)).to.equal(0);
   });
 
   it("rejects empty pipeline run IDs and metric names", async function () {
@@ -282,19 +597,67 @@ describe("DeltaVerifier MintRequest", function () {
     ).to.be.revertedWith("Candidate score exceeds 10000 bps");
   });
 
-  it("rejects callers without SUBMITTER_ROLE and rejects paused submissions", async function () {
+  it("rejects callers without SUBMITTER_ROLE", async function () {
     const payload = buildMintRequestPayload();
     const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const submitterRole = await deltaVerifier.SUBMITTER_ROLE();
 
-    await expect(
-      deltaVerifier.connect(outsider).submitMintRequest(MODEL_ID, payload, contributors)
-    ).to.be.reverted;
+    await expectMissingRole(submitMintRequestAs(outsider, payload, contributors), outsider, submitterRole);
+  });
+
+  it("grants submission after SUBMITTER_ROLE is granted", async function () {
+    const payload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("idempotency-granted-submitter") },
+    });
+    const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const submitterRole = await deltaVerifier.SUBMITTER_ROLE();
+
+    await deltaVerifier.grantRole(submitterRole, outsider.address);
+    await submitMintRequestAs(outsider, payload, contributors);
+
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal(MAX_REWARD);
+  });
+
+  it("rejects submission while paused", async function () {
+    const payload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("idempotency-paused-submit") },
+    });
+    const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
 
     await deltaVerifier.pause();
 
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors)
+      submitMintRequestAs(submitter, payload, contributors)
     ).to.be.revertedWith("Pausable: paused");
+
+    expect(await deltaVerifier.processedIdempotencyKeys(payload.anchors.idempotencyKey)).to.equal(false);
+  });
+
+  it("pause -> unpause round-trip restores submission", async function () {
+    const payload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("idempotency-pause-unpause-round-trip") },
+    });
+    const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+
+    await deltaVerifier.pause();
+    await deltaVerifier.unpause();
+    await submitMintRequestAs(submitter, payload, contributors);
+
+    expect(await deployedToken.balanceOf(contributor1.address)).to.equal(MAX_REWARD);
+  });
+
+  it("rejects pause from non-pauser", async function () {
+    const pauserRole = await deltaVerifier.PAUSER_ROLE();
+
+    await expectMissingRole(deltaVerifier.connect(outsider).pause(), outsider, pauserRole);
+  });
+
+  it("rejects unpause from non-admin", async function () {
+    const defaultAdminRole = await deltaVerifier.DEFAULT_ADMIN_ROLE();
+
+    await deltaVerifier.pause();
+
+    await expectMissingRole(deltaVerifier.connect(outsider).unpause(), outsider, defaultAdminRole);
   });
 
   it("records zero_inflated_continuous metrics without special-casing", async function () {

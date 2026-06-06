@@ -206,9 +206,9 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - Reward tokens mint outside investor allocation through the reward bucket. Track live reward issuance with `rewardMinted()` and the cap with `getRewardMintingCap()`, so `totalSupply()` can exceed `maxSupply()` without being anomalous.
 - Supplier allocation distribution now uses the token's contributor reward vesting policy. The immediate portion mints to the supplier wallet, and any vested portion mints to `RewardVestingVault`, where it is excluded from redeemable AMM supply until claimed.
 
-**Conservative Pool:**
-- [ ] Model ID: `model-conservative-001`
-- [ ] Token: Hokusai Conservative (HKS-CON)
+**HMESS Pool:**
+- [ ] Model ID: `28`
+- [ ] Token: Hokusai Messaging (HMESS)
 - [ ] Supplier Allocation: `___________`
 - [ ] Investor Allocation: `___________`
 - [ ] Launch Allocation Cap: `___________`
@@ -218,9 +218,9 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Trade Fee: 0.30%
 - [ ] IBR Duration: 7 days
 
-**Aggressive Pool:**
-- [ ] Model ID: `model-aggressive-002`
-- [ ] Token: Hokusai Aggressive (HKS-AGG)
+**HLEAD Pool:**
+- [ ] Model ID: `27`
+- [ ] Token: Hokusai Sales Lead Scoring (HLEAD)
 - [ ] Supplier Allocation: `___________`
 - [ ] Investor Allocation: `___________`
 - [ ] Launch Allocation Cap: `___________`
@@ -230,9 +230,9 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Trade Fee: 0.30%
 - [ ] IBR Duration: 7 days
 
-**Balanced Pool:**
-- [ ] Model ID: `model-balanced-003`
-- [ ] Token: Hokusai Balanced (HKS-BAL)
+**HROUT Pool:**
+- [ ] Model ID: `30`
+- [ ] Token: Hokusai Task Routing (HROUT)
 - [ ] Supplier Allocation: `___________`
 - [ ] Investor Allocation: `___________`
 - [ ] Launch Allocation Cap: `___________`
@@ -247,7 +247,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Total USDC needed: $85,000
 - [ ] USDC approved for pools
 
-**Conservative Pool:**
+**HMESS Pool:**
 - [ ] Token deployed: `___________`
 - [ ] Model registered
 - [ ] Pool created: `___________`
@@ -256,7 +256,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Reserve balance verified: $10,000
 - [ ] Spot price checked: $___________
 
-**Aggressive Pool:**
+**HLEAD Pool:**
 - [ ] Token deployed: `___________`
 - [ ] Model registered
 - [ ] Pool created: `___________`
@@ -265,7 +265,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Reserve balance verified: $50,000
 - [ ] Spot price checked: $___________
 
-**Balanced Pool:**
+**HROUT Pool:**
 - [ ] Token deployed: `___________`
 - [ ] Model registered
 - [ ] Pool created: `___________`

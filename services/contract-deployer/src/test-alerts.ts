@@ -25,7 +25,7 @@ const scenarios = {
     txHash: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b',
     blockNumber: 7234567,
     details: {
-      pool: 'model-conservative-001',
+      pool: '28',
       poolContract: '0x58565F787C49F09C7Bf33990e7C5B7208580901a',
       currentReserve: '$8,500 USDC',
       previousReserve: '$10,000 USDC',
@@ -41,7 +41,7 @@ const scenarios = {
     txHash: '0x9f8e7d6c5b4a3918273645b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5',
     blockNumber: 7234589,
     details: {
-      pool: 'model-aggressive-002',
+      pool: '27',
       poolContract: '0xEf815E7F11eD0B88cE33Dd30FC9568f7F66abC5a',
       tradeType: 'BUY',
       tradeSize: '$15,000 USDC',
@@ -57,7 +57,7 @@ const scenarios = {
     txHash: '0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d',
     blockNumber: 7234601,
     details: {
-      pool: 'model-balanced-003',
+      pool: '30',
       poolContract: '0x76A59583430243D595E8985cA089a00Cc18B73af',
       pausedBy: '0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B',
       timestamp: new Date().toISOString(),
@@ -72,7 +72,7 @@ const scenarios = {
     txHash: '0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f',
     blockNumber: 7234623,
     details: {
-      pool: 'model-conservative-001',
+      pool: '28',
       poolContract: '0x58565F787C49F09C7Bf33990e7C5B7208580901a',
       trades24h: '156',
       volume24h: '$45,000 USDC',
@@ -88,7 +88,7 @@ const scenarios = {
     txHash: '0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b',
     blockNumber: 7234645,
     details: {
-      pool: 'model-aggressive-002',
+      pool: '27',
       poolContract: '0xEf815E7F11eD0B88cE33Dd30FC9568f7F66abC5a',
       previousPrice: '$0.0120',
       currentPrice: '$0.0105',

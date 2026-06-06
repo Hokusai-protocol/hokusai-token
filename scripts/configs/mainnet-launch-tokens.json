@@ -2,11 +2,11 @@
   "version": 1,
   "tokens": [
     {
-      "configKey": "conservative",
-      "modelId": "model-conservative-001",
-      "name": "Hokusai Conservative",
-      "symbol": "HKS-CON",
-      "supplierRecipient": "0xPLACEHOLDER_SUPPLIER_CONSERVATIVE",
+      "configKey": "hmess",
+      "modelId": "28",
+      "name": "Hokusai Messaging",
+      "symbol": "HMESS",
+      "supplierRecipient": "0xPLACEHOLDER_SUPPLIER_HMESS",
       "supplierAllocation": "2500000",
       "investorAllocation": "10000000",
       "tokensPerDeltaOne": "500000",
@@ -14,7 +14,7 @@
       "initialOraclePricePerThousandUsd": "0",
       "licenseHash": "0x1111111111111111111111111111111111111111111111111111111111111111",
       "licenseURI": "https://hokusai.ai/licenses/standard",
-      "governor": "0xPLACEHOLDER_GOVERNOR_CONSERVATIVE",
+      "governor": "0xPLACEHOLDER_GOVERNOR_HMESS",
       "vestingConfig": {
         "enabled": false,
         "immediateUnlockBps": 10000,
@@ -23,7 +23,7 @@
       },
       "distributionTiming": "post-verification",
       "pool": {
-        "name": "Conservative Pool (30% CRR)",
+        "name": "HMESS Pool",
         "performanceMetric": "accuracy",
         "initialReserveUsdc": "10000",
         "crr": 300000,
@@ -34,11 +34,11 @@
       }
     },
     {
-      "configKey": "aggressive",
-      "modelId": "model-aggressive-002",
-      "name": "Hokusai Aggressive",
-      "symbol": "HKS-AGG",
-      "supplierRecipient": "0xPLACEHOLDER_SUPPLIER_AGGRESSIVE",
+      "configKey": "hlead",
+      "modelId": "27",
+      "name": "Hokusai Sales Lead Scoring",
+      "symbol": "HLEAD",
+      "supplierRecipient": "0xPLACEHOLDER_SUPPLIER_HLEAD",
       "supplierAllocation": "1250000",
       "investorAllocation": "5000000",
       "tokensPerDeltaOne": "500000",
@@ -46,7 +46,7 @@
       "initialOraclePricePerThousandUsd": "0",
       "licenseHash": "0x2222222222222222222222222222222222222222222222222222222222222222",
       "licenseURI": "https://hokusai.ai/licenses/standard",
-      "governor": "0xPLACEHOLDER_GOVERNOR_AGGRESSIVE",
+      "governor": "0xPLACEHOLDER_GOVERNOR_HLEAD",
       "vestingConfig": {
         "enabled": false,
         "immediateUnlockBps": 10000,
@@ -55,7 +55,7 @@
       },
       "distributionTiming": "post-verification",
       "pool": {
-        "name": "Aggressive Pool (10% CRR)",
+        "name": "HLEAD Pool",
         "performanceMetric": "accuracy",
         "initialReserveUsdc": "50000",
         "crr": 100000,
@@ -66,11 +66,11 @@
       }
     },
     {
-      "configKey": "balanced",
-      "modelId": "model-balanced-003",
-      "name": "Hokusai Balanced",
-      "symbol": "HKS-BAL",
-      "supplierRecipient": "0xPLACEHOLDER_SUPPLIER_BALANCED",
+      "configKey": "hrout",
+      "modelId": "30",
+      "name": "Hokusai Task Routing",
+      "symbol": "HROUT",
+      "supplierRecipient": "0xPLACEHOLDER_SUPPLIER_HROUT",
       "supplierAllocation": "5000000",
       "investorAllocation": "20000000",
       "tokensPerDeltaOne": "500000",
@@ -78,7 +78,7 @@
       "initialOraclePricePerThousandUsd": "0",
       "licenseHash": "0x3333333333333333333333333333333333333333333333333333333333333333",
       "licenseURI": "https://hokusai.ai/licenses/standard",
-      "governor": "0xPLACEHOLDER_GOVERNOR_BALANCED",
+      "governor": "0xPLACEHOLDER_GOVERNOR_HROUT",
       "vestingConfig": {
         "enabled": false,
         "immediateUnlockBps": 10000,
@@ -87,7 +87,7 @@
       },
       "distributionTiming": "post-verification",
       "pool": {
-        "name": "Balanced Pool (20% CRR)",
+        "name": "HROUT Pool",
         "performanceMetric": "accuracy",
         "initialReserveUsdc": "25000",
         "crr": 200000,

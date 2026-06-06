@@ -40,8 +40,8 @@ describe("Edge Case Testing", function () {
 
     console.log(`\n  📦 Network: ${deployment.network}`);
 
-    // Use balanced pool for testing (good reserves)
-    poolInfo = deployment.pools.find(p => p.configKey === "balanced");
+    // Use HROUT pool for testing (good reserves)
+    poolInfo = deployment.pools.find(p => p.configKey === "hrout");
     pool = await ethers.getContractAt("HokusaiAMM", poolInfo.ammAddress);
     token = await ethers.getContractAt("HokusaiToken", poolInfo.tokenAddress);
     mockUSDC = await ethers.getContractAt("MockUSDC", deployment.contracts.MockUSDC);

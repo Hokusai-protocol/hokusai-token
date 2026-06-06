@@ -14,34 +14,34 @@
   },
   "tokens": [
     {
-      "configKey": "conservative",
-      "modelId": "model-conservative-001",
-      "name": "Hokusai Conservative",
-      "symbol": "HKS-CON",
+      "configKey": "hmess",
+      "modelId": "28",
+      "name": "Hokusai Messaging",
+      "symbol": "HMESS",
       "address": "0xE3423d52c42b61bc1Dd6abfbDa9bEBa827a4c806",
       "initialSupply": "1000000000000000000000000"
     },
     {
-      "configKey": "aggressive",
-      "modelId": "model-aggressive-002",
-      "name": "Hokusai Aggressive",
-      "symbol": "HKS-AGG",
+      "configKey": "hlead",
+      "modelId": "27",
+      "name": "Hokusai Sales Lead Scoring",
+      "symbol": "HLEAD",
       "address": "0xc6d747bC7884e50104C6A919C86f02001a76E281",
       "initialSupply": "500000000000000000000000"
     },
     {
-      "configKey": "balanced",
-      "modelId": "model-balanced-003",
-      "name": "Hokusai Balanced",
-      "symbol": "HKS-BAL",
+      "configKey": "hrout",
+      "modelId": "30",
+      "name": "Hokusai Task Routing",
+      "symbol": "HROUT",
       "address": "0xeA2Ec4A52fDE565CC5a1B92A213C3CC156a6F63e",
       "initialSupply": "2000000000000000000000000"
     }
   ],
   "pools": [
     {
-      "configKey": "conservative",
-      "modelId": "model-conservative-001",
+      "configKey": "hmess",
+      "modelId": "28",
       "tokenAddress": "0xE3423d52c42b61bc1Dd6abfbDa9bEBa827a4c806",
       "ammAddress": "0x58565F787C49F09C7Bf33990e7C5B7208580901a",
       "initialReserve": "10000000000",
@@ -51,8 +51,8 @@
       "ibrDuration": 86400
     },
     {
-      "configKey": "aggressive",
-      "modelId": "model-aggressive-002",
+      "configKey": "hlead",
+      "modelId": "27",
       "tokenAddress": "0xc6d747bC7884e50104C6A919C86f02001a76E281",
       "ammAddress": "0xEf815E7F11eD0B88cE33Dd30FC9568f7F66abC5a",
       "initialReserve": "50000000000",
@@ -62,8 +62,8 @@
       "ibrDuration": 86400
     },
     {
-      "configKey": "balanced",
-      "modelId": "model-balanced-003",
+      "configKey": "hrout",
+      "modelId": "30",
       "tokenAddress": "0xeA2Ec4A52fDE565CC5a1B92A213C3CC156a6F63e",
       "ammAddress": "0x76A59583430243D595E8985cA089a00Cc18B73af",
       "initialReserve": "25000000000",

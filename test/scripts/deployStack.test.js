@@ -62,11 +62,14 @@ describe("deployFullStack", function () {
     expect(result.contracts.DataContributionRegistry).to.properAddress;
     expect(result.contracts.HokusaiAMMFactory).to.properAddress;
     expect(result.contracts.HokusaiAMMPoolDeployer).to.properAddress;
+    expect(result.contracts.PurchaserWhitelist).to.properAddress;
     expect(result.contracts.InfrastructureReserve).to.properAddress;
     expect(result.contracts.InfrastructureCostOracle).to.properAddress;
     expect(result.contracts.UsageFeeRouter).to.properAddress;
     expect(result.contracts.DeltaVerifier).to.properAddress;
     expect(result.contracts._tokenManagerImpl).to.equal("DeployableTokenManager");
+    expect(result.config.purchaserWhitelist).to.equal(result.contracts.PurchaserWhitelist);
+    expect(result.notes.purchaserWhitelistGatingDefault).to.equal(true);
     expect(result.notes.rewardVestingVaultWired).to.equal(true);
 
     const modelRegistry = await hre.ethers.getContractAt("ModelRegistry", result.contracts.ModelRegistry);
@@ -80,6 +83,10 @@ describe("deployFullStack", function () {
       result.contracts.InfrastructureReserve
     );
     const usageFeeRouter = await hre.ethers.getContractAt("UsageFeeRouter", result.contracts.UsageFeeRouter);
+    const purchaserWhitelist = await hre.ethers.getContractAt(
+      "PurchaserWhitelist",
+      result.contracts.PurchaserWhitelist
+    );
 
     expect(await modelRegistry.stringModelTokenManager()).to.equal(result.contracts.TokenManager);
     expect(await tokenManager.deltaVerifier()).to.equal(result.contracts.DeltaVerifier);
@@ -97,12 +104,15 @@ describe("deployFullStack", function () {
     const depositorRole = await infraReserve.DEPOSITOR_ROLE();
     const payerRole = await infraReserve.PAYER_ROLE();
     const feeDepositorRole = await usageFeeRouter.FEE_DEPOSITOR_ROLE();
+    const whitelistAdminRole = await purchaserWhitelist.WHITELIST_ADMIN_ROLE();
 
     expect(await contributionRegistry.hasRole(recorderRole, result.contracts.DeltaVerifier)).to.equal(true);
     expect(await contributionRegistry.hasRole(verifierRole, deployer.address)).to.equal(true);
     expect(await infraReserve.hasRole(depositorRole, result.contracts.UsageFeeRouter)).to.equal(true);
     expect(await infraReserve.hasRole(payerRole, treasury.address)).to.equal(true);
     expect(await usageFeeRouter.hasRole(feeDepositorRole, backendService.address)).to.equal(true);
+    expect(await purchaserWhitelist.hasRole(whitelistAdminRole, deployer.address)).to.equal(true);
+    expect(await hre.ethers.provider.getCode(result.contracts.PurchaserWhitelist)).to.not.equal("0x");
 
     const tokenAddress = await deployTestTokenAddress(
       tokenManager,
@@ -150,7 +160,9 @@ describe("deployFullStack", function () {
     expect(artifact.chainId).to.equal("31337");
     expect(artifact.dryRun).to.equal(true);
     expect(artifact.contracts.DeltaVerifier).to.equal(result.contracts.DeltaVerifier);
+    expect(artifact.contracts.PurchaserWhitelist).to.equal(result.contracts.PurchaserWhitelist);
     expect(artifact.roles.InfrastructureReserve.PAYER_ROLE).to.deep.equal([treasury.address]);
+    expect(artifact.roles.PurchaserWhitelist.WHITELIST_ADMIN_ROLE).to.deep.equal([deployer.address]);
     expect(artifact.roles.ModelRegistry.poolRegistrar).to.equal(result.contracts.HokusaiAMMFactory);
     expect(artifact.config.expectedChainId).to.equal("11155111");
     expect(artifact.gasUsed.ModelRegistry).to.match(/^\d+$/);

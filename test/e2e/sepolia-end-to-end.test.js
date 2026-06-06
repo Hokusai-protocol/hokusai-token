@@ -36,6 +36,9 @@ const ABIS = {
     "function getPool(string modelId) view returns (address)",
     "function poolCount() view returns (uint256)",
   ],
+  ammPool: [
+    "function purchaserWhitelist() view returns (address)",
+  ],
   erc20: [
     "function balanceOf(address account) view returns (uint256)",
     "function totalSupply() view returns (uint256)",
@@ -154,6 +157,15 @@ describeSepolia("Sepolia end-to-end launch preconditions", function () {
 
       expect(symbol).to.be.a("string").and.not.equal("");
       expect(totalSupply).to.be.greaterThan(0n);
+    });
+
+    it(`uses the shared purchaser whitelist for ${expectedSymbol} / ${modelId}`, async function () {
+      const poolAddress = await ammFactory.getPool(modelId);
+      const pool = new ethers.Contract(poolAddress, ABIS.ammPool, signer);
+      const poolWhitelist = await pool.purchaserWhitelist();
+
+      expect(poolWhitelist).to.not.equal(ZERO_ADDRESS);
+      expect(ethers.getAddress(poolWhitelist)).to.equal(ethers.getAddress(contracts.PurchaserWhitelist));
     });
   });
 });

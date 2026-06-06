@@ -77,6 +77,14 @@ const ABIS = {
     "function GOV_ROLE() view returns (bytes32)",
     "function hasRole(bytes32 role, address account) view returns (bool)",
   ],
+  purchaserWhitelist: [
+    "function WHITELIST_ADMIN_ROLE() view returns (bytes32)",
+    "function hasRole(bytes32 role, address account) view returns (bool)",
+    "function isWhitelisted(address account) view returns (bool)",
+  ],
+  ammPool: [
+    "function purchaserWhitelist() view returns (address)",
+  ],
 };
 
 function parseArgs(argv) {
@@ -86,6 +94,7 @@ function parseArgs(argv) {
     minSignerEth: process.env.SMOKE_MIN_SIGNER_ETH || DEFAULT_MIN_SIGNER_ETH,
     tokenModels: parseTokenModels(process.env.SMOKE_TOKEN_MODELS || DEFAULT_TOKEN_MODELS),
     requireEmptyQueues: process.env.SMOKE_REQUIRE_EMPTY_QUEUES === "1",
+    requireWhitelist: process.env.SMOKE_REQUIRE_WHITELIST !== "0",
     json: process.env.SMOKE_JSON === "1",
   };
 
@@ -101,6 +110,8 @@ function parseArgs(argv) {
       options.tokenModels = parseTokenModels(argv[++i]);
     } else if (arg === "--require-empty-queues") {
       options.requireEmptyQueues = true;
+    } else if (arg === "--allow-missing-whitelist") {
+      options.requireWhitelist = false;
     } else if (arg === "--json") {
       options.json = true;
     } else if (arg === "--help" || arg === "-h") {
@@ -126,6 +137,7 @@ CI/environment options:
   SMOKE_MIN_SIGNER_ETH=0.01
   SMOKE_TOKEN_MODELS=HMESS:28,HLEAD:27,HROUT:30
   SMOKE_REQUIRE_EMPTY_QUEUES=1
+  SMOKE_REQUIRE_WHITELIST=0
   SMOKE_JSON=1
 
 Options:
@@ -134,6 +146,7 @@ Options:
   --min-signer-eth <eth>       Same as SMOKE_MIN_SIGNER_ETH.
   --token-models <mapping>     Same as SMOKE_TOKEN_MODELS.
   --require-empty-queues       Same as SMOKE_REQUIRE_EMPTY_QUEUES=1.
+  --allow-missing-whitelist    Allow pools without purchaser whitelists.
   --json                       Same as SMOKE_JSON=1.
 
 Note: npm/Hardhat may consume appended flags. Prefer the SMOKE_* environment
@@ -268,6 +281,7 @@ function deploymentContracts(deployment) {
     "DataContributionRegistry",
     "MockUSDC",
     "HokusaiAMMFactory",
+    "PurchaserWhitelist",
     "InfrastructureReserve",
     "InfrastructureCostOracle",
     "UsageFeeRouter",
@@ -418,6 +432,11 @@ async function main() {
   const costOracle = new hre.ethers.Contract(
     contracts.InfrastructureCostOracle,
     ABIS.infrastructureCostOracle,
+    provider,
+  );
+  const purchaserWhitelist = new hre.ethers.Contract(
+    contracts.PurchaserWhitelist,
+    ABIS.purchaserWhitelist,
     provider,
   );
 
@@ -586,6 +605,22 @@ async function main() {
       { numericToken, stringToken, managerToken },
     );
     recorder.assert(`${label} AMM pool exists`, !sameAddress(poolAddress, ZERO_ADDRESS), { poolAddress });
+    if (!sameAddress(poolAddress, ZERO_ADDRESS)) {
+      const pool = new hre.ethers.Contract(poolAddress, ABIS.ammPool, provider);
+      const poolWhitelist = await pool.purchaserWhitelist();
+      recorder.assert(
+        `${label} pool whitelist matches shared whitelist`,
+        sameAddress(poolWhitelist, contracts.PurchaserWhitelist),
+        { poolWhitelist, sharedWhitelist: contracts.PurchaserWhitelist },
+      );
+      if (options.requireWhitelist) {
+        recorder.assert(
+          `${label} pool whitelist is nonzero`,
+          !sameAddress(poolWhitelist, ZERO_ADDRESS),
+          { poolWhitelist },
+        );
+      }
+    }
   }
 
   const [
@@ -639,6 +674,12 @@ async function main() {
   recorder.assert("Deployment signer has InfrastructureCostOracle GOV_ROLE", await costOracle.hasRole(govRole, deployer), {
     signer: deployer,
   });
+  const whitelistAdminRole = await purchaserWhitelist.WHITELIST_ADMIN_ROLE();
+  recorder.assert(
+    "Deployment signer has PurchaserWhitelist WHITELIST_ADMIN_ROLE",
+    await purchaserWhitelist.hasRole(whitelistAdminRole, deployer),
+    { signer: deployer },
+  );
 
   const failures = recorder.checks.filter((check) => check.status === "fail");
   const warnings = recorder.checks.filter((check) => check.status === "warn");

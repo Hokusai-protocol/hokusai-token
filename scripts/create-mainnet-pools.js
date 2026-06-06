@@ -15,6 +15,13 @@ const DEFAULT_CONFIG_PATH = path.join(__dirname, "configs", "mainnet-launch-toke
 const DEFAULT_PENDING_ACTIONS_PATH = path.join(__dirname, "..", "deployments", "mainnet-pending-actions.json");
 const POOLS_TO_CREATE = ["conservative", "aggressive", "balanced"];
 
+class LaunchWhitelistConfigError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "LaunchWhitelistConfigError";
+  }
+}
+
 async function loadDeployment(deploymentPath = DEFAULT_DEPLOYMENT_PATH) {
   if (!fs.existsSync(deploymentPath)) {
     throw new Error("Deployment artifact not found! Run deploy-mainnet.js first.");
@@ -62,6 +69,29 @@ function formatMismatchValue(value) {
     return String(value);
   }
   return value.toString();
+}
+
+function isZeroAddress(value) {
+  return !value || ethers.getAddress(value) === ethers.ZeroAddress;
+}
+
+function resolvePurchaserWhitelistAddress(deployment) {
+  const overrideAddress = process.env.WHITELIST_ADDRESS;
+  if (overrideAddress) {
+    const normalized = ethers.getAddress(overrideAddress);
+    console.log(`\n[OVERRIDE] Using purchaser whitelist from WHITELIST_ADDRESS: ${normalized}`);
+    return { address: normalized, source: "WHITELIST_ADDRESS" };
+  }
+
+  const artifactAddress = deployment.contracts?.PurchaserWhitelist;
+  if (!artifactAddress) {
+    return { address: ethers.ZeroAddress, source: "deployment artifact" };
+  }
+
+  return {
+    address: ethers.getAddress(artifactAddress),
+    source: "deployment artifact",
+  };
 }
 
 function splitSupplierAllocation(supplierWei, vestingConfig) {
@@ -222,6 +252,16 @@ async function runLaunchDeploy({
     throw new Error(`Expected ${POOLS_TO_CREATE.length} configured launch tokens, found ${scaledEntries.length}`);
   }
 
+  const { address: purchaserWhitelistAddress, source: purchaserWhitelistSource } =
+    resolvePurchaserWhitelistAddress(deployment);
+  const requiresWhitelist = scaledEntries.some((entry) => entry.public !== true);
+  if (requiresWhitelist && isZeroAddress(purchaserWhitelistAddress)) {
+    throw new LaunchWhitelistConfigError(
+      "Missing shared purchaser whitelist for non-public launch pools"
+    );
+  }
+  console.log(`   PurchaserWhitelist: ${purchaserWhitelistAddress} (${purchaserWhitelistSource})`);
+
   const usdcBalance = await usdc.balanceOf(deployer.address);
   console.log("\n💰 Deployer USDC balance:", ethers.formatUnits(usdcBalance, 6), "USDC");
 
@@ -331,14 +371,20 @@ async function runLaunchDeploy({
       console.log("   ✅ ModelRegistry mapping verified");
 
       console.log("   🏊 Creating AMM pool...");
-      const poolTx = await factory.createPoolWithParams(
+      const poolWhitelistAddress = config.public ? ethers.ZeroAddress : purchaserWhitelistAddress;
+      if (config.public) {
+        console.log(`   ⚠️  Pool ${config.pool.name} created as public (no whitelist)`);
+      }
+
+      const poolTx = await factory.createPoolWithParamsAndWhitelist(
         config.modelId,
         tokenAddress,
         config.pool.crr,
         config.pool.tradeFee,
         config.pool.ibrSeconds,
         config.flatCurveThresholdUsdc,
-        config.flatCurvePriceUsdc
+        config.flatCurvePriceUsdc,
+        poolWhitelistAddress
       );
       const poolReceipt = await poolTx.wait();
       console.log(`   ⛽ Gas used: ${poolReceipt.gasUsed.toString()}`);
@@ -374,6 +420,12 @@ async function runLaunchDeploy({
 
       console.log(`   💰 Adding initial liquidity ($${ethers.formatUnits(config.initialReserveUsdc, 6)} USDC)...`);
       const pool = await ethers.getContractAt("HokusaiAMM", poolAddress);
+      const onChainWhitelist = await pool.purchaserWhitelist();
+      if (ethers.getAddress(onChainWhitelist) !== ethers.getAddress(poolWhitelistAddress)) {
+        throw new Error(
+          `Pool whitelist mismatch for ${config.modelId}: expected ${poolWhitelistAddress}, got ${onChainWhitelist}`
+        );
+      }
 
       console.log("   🔓 Approving USDC...");
       const approveTx = await usdc.approve(poolAddress, config.initialReserveUsdc);
@@ -473,6 +525,7 @@ async function runLaunchDeploy({
         modelId: config.modelId,
         tokenAddress,
         ammAddress: poolAddress,
+        purchaserWhitelist: poolWhitelistAddress,
         initialReserve: config.initialReserveUsdc.toString(),
         crr: config.pool.crr,
         tradeFee: config.pool.tradeFee,
@@ -573,7 +626,9 @@ module.exports = {
   DEFAULT_CONFIG_PATH,
   DEFAULT_DEPLOYMENT_PATH,
   DEFAULT_PENDING_ACTIONS_PATH,
+  LaunchWhitelistConfigError,
   loadDeployment,
+  resolvePurchaserWhitelistAddress,
   runLaunchDeploy,
   verifyDeployedToken,
   verifyRegisteredModel,

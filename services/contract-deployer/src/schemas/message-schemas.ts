@@ -4,6 +4,24 @@ import Joi from 'joi';
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const ETH_HASH_REGEX = /^0x[a-fA-F0-9]{64}$/;
 const TOKEN_SYMBOL_REGEX = /^[A-Z0-9\-]{1,10}$/;
+const BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
+
+export interface VestingConfig {
+  enabled: boolean;
+  immediateUnlockBps: number;
+  vestingDurationSeconds: bigint;
+  cliffSeconds: bigint;
+}
+
+export interface InitialParams {
+  tokensPerDeltaOne: bigint;
+  infrastructureAccrualBps: number;
+  initialOraclePricePerThousandUsd: bigint;
+  licenseHash: string;
+  licenseURI: string;
+  governor: string;
+  vestingConfig: VestingConfig;
+}
 
 export interface ModelReadyToDeployMessage {
   model_id: string;
@@ -20,6 +38,10 @@ export interface ModelReadyToDeployMessage {
   tags?: Record<string, string>;
   timestamp: string;
   message_version: string;
+  initialParams?: InitialParams;
+  modelSupplierAllocation?: bigint;
+  modelSupplierRecipient?: string;
+  investorAllocation?: bigint;
   _retryCount?: number;
 }
 
@@ -52,6 +74,23 @@ export interface TokenDeployedMessage {
 }
 
 // Joi validation schemas
+const vestingConfigSchema = Joi.object<VestingConfig>({
+  enabled: Joi.boolean().required(),
+  immediateUnlockBps: Joi.number().integer().min(0).max(10000).required(),
+  vestingDurationSeconds: Joi.alternatives().try(Joi.string(), Joi.number()).required(),
+  cliffSeconds: Joi.alternatives().try(Joi.string(), Joi.number()).required()
+});
+
+const initialParamsSchema = Joi.object<InitialParams>({
+  tokensPerDeltaOne: Joi.alternatives().try(Joi.string(), Joi.number()).required(),
+  infrastructureAccrualBps: Joi.number().integer().min(0).max(10000).required(),
+  initialOraclePricePerThousandUsd: Joi.alternatives().try(Joi.string(), Joi.number()).required(),
+  licenseHash: Joi.string().pattern(BYTES32_REGEX).required(),
+  licenseURI: Joi.string().required(),
+  governor: Joi.string().pattern(ETH_ADDRESS_REGEX).required(),
+  vestingConfig: vestingConfigSchema.required()
+});
+
 const modelReadySchema = Joi.object<ModelReadyToDeployMessage>({
   model_id: Joi.string().required(),
   token_symbol: Joi.string().pattern(TOKEN_SYMBOL_REGEX).required(),
@@ -67,6 +106,10 @@ const modelReadySchema = Joi.object<ModelReadyToDeployMessage>({
   tags: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
   timestamp: Joi.string().isoDate().required(),
   message_version: Joi.string().valid('1.0').required(),
+  initialParams: initialParamsSchema.optional(),
+  modelSupplierAllocation: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
+  modelSupplierRecipient: Joi.string().pattern(ETH_ADDRESS_REGEX).optional(),
+  investorAllocation: Joi.alternatives().try(Joi.string(), Joi.number()).optional(),
   _retryCount: Joi.number().integer().min(0).optional()
 });
 

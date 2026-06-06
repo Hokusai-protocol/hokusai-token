@@ -1,7 +1,10 @@
 import { ethers } from 'ethers';
 import { ModelReadyToDeployMessage } from '../schemas/message-schemas';
 import { logger } from '../utils/logger';
-import HokusaiTokenABI from '../../contracts/HokusaiToken.json';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const DeployableTokenManagerABIArray = require('../../contracts/DeployableTokenManager.json');
+
+const DeployableTokenManagerABI = { abi: DeployableTokenManagerABIArray };
 
 export interface ContractDeployerConfig {
   rpcUrls: string[];
@@ -65,12 +68,11 @@ export class ContractDeployer {
   async deployToken(message: ModelReadyToDeployMessage): Promise<DeploymentResult> {
     const tokenName = `Hokusai ${message.model_id}`;
     const tokenSymbol = message.token_symbol;
-    const controller = this.config.tokenManagerAddress;
 
-    logger.info('Deploying token contract', { 
-      modelId: message.model_id, 
-      tokenName, 
-      tokenSymbol 
+    logger.info('Deploying token contract via TokenManager', {
+      modelId: message.model_id,
+      tokenName,
+      tokenSymbol
     });
 
     let attempts = 0;
@@ -78,68 +80,125 @@ export class ContractDeployer {
 
     while (attempts < maxAttempts) {
       try {
-        // Deploy the contract
-        const factory = new ethers.ContractFactory(
-          HokusaiTokenABI.abi,
-          HokusaiTokenABI.bytecode,
+        // Connect to TokenManager contract
+        const tokenManager = new ethers.Contract(
+          this.config.tokenManagerAddress,
+          DeployableTokenManagerABI.abi,
           this.signer
+        ) as ethers.Contract & {
+          deployTokenWithAllocations: (
+            modelId: string,
+            name: string,
+            symbol: string,
+            modelSupplierAllocation: bigint,
+            modelSupplierRecipient: string,
+            investorAllocation: bigint,
+            initialParams: unknown,
+            overrides?: ethers.Overrides
+          ) => Promise<ethers.ContractTransactionResponse | null>;
+        };
+
+        // Prepare allocations (use defaults if not provided)
+        const modelSupplierAllocation = message.modelSupplierAllocation || BigInt(0);
+        const modelSupplierRecipient = message.modelSupplierRecipient || await this.signer.getAddress();
+        const investorAllocation = message.investorAllocation || BigInt(0);
+
+        // Prepare initial params (use defaults if not provided)
+        const initialParams = message.initialParams || {
+          tokensPerDeltaOne: BigInt(1000) * BigInt(10 ** 18),
+          infrastructureAccrualBps: 500,
+          initialOraclePricePerThousandUsd: BigInt(1000),
+          licenseHash: ethers.ZeroHash,
+          licenseURI: '',
+          governor: await this.signer.getAddress(),
+          vestingConfig: {
+            enabled: false,
+            immediateUnlockBps: 10000,
+            vestingDurationSeconds: BigInt(0),
+            cliffSeconds: BigInt(0)
+          }
+        };
+
+        // Estimate gas for the call
+        const estimatedGas = await (tokenManager.deployTokenWithAllocations as (
+          modelId: string,
+          name: string,
+          symbol: string,
+          modelSupplierAllocation: bigint,
+          modelSupplierRecipient: string,
+          investorAllocation: bigint,
+          initialParams: unknown
+        ) => Promise<bigint>).estimateGas(
+          message.model_id,
+          tokenName,
+          tokenSymbol,
+          modelSupplierAllocation,
+          modelSupplierRecipient,
+          investorAllocation,
+          initialParams
         );
 
-        // Estimate gas
-        const estimatedGas = await this.provider.estimateGas({
-          data: factory.bytecode,
-          from: await this.signer.getAddress()
-        });
-        
         const gasLimit = estimatedGas * BigInt(Math.floor(this.config.gasMultiplier * 10)) / 10n;
-        
+
         // Get gas price
         const feeData = await this.provider.getFeeData();
         let gasPrice = feeData.gasPrice || BigInt('30000000000');
-        
+
         // Cap gas price at maximum
         const maxGasPrice = BigInt(this.config.maxGasPrice);
         if (gasPrice > maxGasPrice) {
           gasPrice = maxGasPrice;
         }
 
-        const contract = await factory.deploy(tokenName, tokenSymbol, controller, {
-          gasLimit,
-          gasPrice
-        });
+        // Call deployTokenWithAllocations
+        const tx = await (tokenManager.deployTokenWithAllocations as (
+          modelId: string,
+          name: string,
+          symbol: string,
+          modelSupplierAllocation: bigint,
+          modelSupplierRecipient: string,
+          investorAllocation: bigint,
+          initialParams: unknown,
+          overrides: ethers.Overrides
+        ) => Promise<ethers.ContractTransactionResponse | null>)(
+          message.model_id,
+          tokenName,
+          tokenSymbol,
+          modelSupplierAllocation,
+          modelSupplierRecipient,
+          investorAllocation,
+          initialParams,
+          { gasLimit, gasPrice }
+        );
 
-        await contract.waitForDeployment();
-        
-        const deploymentTx = contract.deploymentTransaction();
-        if (!deploymentTx) {
-          throw new Error('Deployment transaction not found');
-        }
-        
-        const receipt = await deploymentTx.wait(this.config.confirmations);
+        const receipt = await tx.wait(this.config.confirmations);
         if (!receipt) {
           throw new Error('Transaction receipt not found');
         }
 
-        const tokenAddress = await contract.getAddress();
+        // Parse TokenDeployed event to get token address
+        const iface = new ethers.Interface(DeployableTokenManagerABI.abi);
+        let tokenAddress: string | null = null;
 
-        // Set contributor if provided
-        if (message.contributor_address) {
+        for (const log of receipt.logs) {
           try {
-            const setContributorTx = await contract.setContributor(message.contributor_address);
-            await setContributorTx.wait(this.config.confirmations);
-            logger.info('Contributor address set', { 
-              tokenAddress, 
-              contributor: message.contributor_address 
-            });
-          } catch (error) {
-            logger.error('Failed to set contributor address', { error, tokenAddress });
-            // Don't fail deployment if contributor setting fails
+            const parsed = iface.parseLog(log);
+            if (parsed?.name === 'TokenDeployed') {
+              tokenAddress = parsed.args[1]; // tokenAddress is the second indexed parameter
+              break;
+            }
+          } catch (e) {
+            // Continue if log parsing fails
           }
         }
 
-        logger.info('Token deployed successfully', { 
-          tokenAddress, 
-          transactionHash: receipt.hash 
+        if (!tokenAddress) {
+          throw new Error('TokenDeployed event not found in transaction receipt');
+        }
+
+        logger.info('Token deployed successfully', {
+          tokenAddress,
+          transactionHash: receipt.hash
         });
 
         return {
@@ -152,9 +211,9 @@ export class ContractDeployer {
 
       } catch (error: any) {
         attempts++;
-        logger.error(`Deployment attempt ${attempts} failed`, { 
-          error: error.message, 
-          modelId: message.model_id 
+        logger.error(`Deployment attempt ${attempts} failed`, {
+          error: error.message,
+          modelId: message.model_id
         });
 
         if (attempts >= maxAttempts) {

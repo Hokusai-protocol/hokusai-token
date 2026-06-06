@@ -1,0 +1,18 @@
+{
+  "planner": "claude-sonnet-4-6",
+  "coder": "gpt-5.3-codex",
+  "reviewer": "claude-haiku-4-5-20251001",
+  "planDepth": "light",
+  "codeDepth": "medium",
+  "reviewMode": "static",
+  "reviewRecommended": "static",
+  "provenance": {
+    "source": "bootstrap",
+    "inputKind": "issue",
+    "inputPath": "features/align-backend-frontend-and-contract-deployer-service-with-current-abis-challenger/selected-task.json",
+    "inputHash": "",
+    "routedAt": "2026-05-14T19:59:21Z",
+    "routerMode": "normal"
+  },
+  "maxCostUsd": 25.00
+}

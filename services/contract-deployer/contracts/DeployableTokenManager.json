@@ -5,6 +5,11 @@
         "internalType": "address",
         "name": "registryAddress",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "tokenDeploymentFactoryAddress",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -736,7 +741,7 @@
             "type": "tuple"
           }
         ],
-        "internalType": "struct TokenManager.InitialParams",
+        "internalType": "struct DeployableTokenManager.InitialParams",
         "name": "initialParams",
         "type": "tuple"
       }
@@ -834,7 +839,7 @@
             "type": "tuple"
           }
         ],
-        "internalType": "struct TokenManager.InitialParams",
+        "internalType": "struct DeployableTokenManager.InitialParams",
         "name": "initialParams",
         "type": "tuple"
       }
@@ -1277,6 +1282,19 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "tokenDeploymentFactory",
+    "outputs": [
+      {
+        "internalType": "contract ITokenDeploymentFactory",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

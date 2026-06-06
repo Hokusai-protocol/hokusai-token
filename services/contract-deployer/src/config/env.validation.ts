@@ -1,9 +1,21 @@
 import Joi from 'joi';
+import { ethers } from 'ethers';
 import { createLogger } from '../utils/logger';
 import { loadSSMConfiguration } from './aws-ssm';
 import type { SSMParameters } from './aws-ssm';
 
 const logger = createLogger('config');
+
+/**
+ * Validate and normalize Ethereum addresses
+ */
+function validateEthereumAddress(address: string, fieldName: string): string {
+  try {
+    return ethers.getAddress(address);
+  } catch (error) {
+    throw new Error(`Invalid Ethereum address for ${fieldName}: ${address}`);
+  }
+}
 
 // Environment variable schema
 const envSchema = Joi.object({
@@ -22,16 +34,19 @@ const envSchema = Joi.object({
   
   // Blockchain configuration
   RPC_URL: Joi.string().required(),
-  CHAIN_ID: Joi.number().default(137), // Polygon mainnet
-  NETWORK_NAME: Joi.string().default('polygon-mainnet'),
-  
+  CHAIN_ID: Joi.number().default(11155111), // Sepolia testnet
+  NETWORK_NAME: Joi.string().default('sepolia'),
+
   // Contract addresses
   MODEL_REGISTRY_ADDRESS: Joi.string().required(),
   TOKEN_MANAGER_ADDRESS: Joi.string().required(),
   DELTA_VERIFIER_ADDRESS: Joi.string().optional(),
-  
+  USAGE_FEE_ROUTER_ADDRESS: Joi.string().optional(),
+  DEPLOY_FACTORY_ADDRESS: Joi.string().optional(),
+
   // Deployer configuration
   DEPLOYER_PRIVATE_KEY: Joi.string().required(),
+  DEPOSITOR_PRIVATE_KEY: Joi.string().optional(),
   
   // Gas configuration
   GAS_PRICE_MULTIPLIER: Joi.number().min(1).max(5).default(1.2),
@@ -121,7 +136,10 @@ export interface Config {
   MODEL_REGISTRY_ADDRESS: string;
   TOKEN_MANAGER_ADDRESS: string;
   DELTA_VERIFIER_ADDRESS?: string;
+  USAGE_FEE_ROUTER_ADDRESS?: string;
+  DEPLOY_FACTORY_ADDRESS?: string;
   DEPLOYER_PRIVATE_KEY: string;
+  DEPOSITOR_PRIVATE_KEY?: string;
   GAS_PRICE_MULTIPLIER: number;
   MAX_GAS_PRICE_GWEI: number;
   DEFAULT_GAS_LIMIT: number;
@@ -184,23 +202,24 @@ function parseRedisUrl(redisUrl: string): { REDIS_HOST: string; REDIS_PORT: stri
  */
 function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
   const mapping: Record<string, string> = {};
-  
+
   if (ssmParams.redis_url) mapping.REDIS_URL = ssmParams.redis_url;
   if (ssmParams.rpc_endpoint) mapping.RPC_URL = ssmParams.rpc_endpoint;
   if (ssmParams.model_registry_address) mapping.MODEL_REGISTRY_ADDRESS = ssmParams.model_registry_address;
   if (ssmParams.token_manager_address) mapping.TOKEN_MANAGER_ADDRESS = ssmParams.token_manager_address;
+  if (ssmParams.usage_fee_router_address) mapping.USAGE_FEE_ROUTER_ADDRESS = ssmParams.usage_fee_router_address;
   if (ssmParams.deployer_key) mapping.DEPLOYER_PRIVATE_KEY = ssmParams.deployer_key;
   if (ssmParams.api_keys) mapping.API_KEYS = ssmParams.api_keys;
   if (ssmParams.jwt_secret) mapping.JWT_SECRET = ssmParams.jwt_secret;
   if (ssmParams.webhook_url) mapping.WEBHOOK_URL = ssmParams.webhook_url;
   if (ssmParams.webhook_secret) mapping.WEBHOOK_SECRET = ssmParams.webhook_secret;
-  
+
   // Map any additional parameters
   const additionalParams = Object.entries(ssmParams)
-    .filter(([key]) => !['redis_url', 'rpc_endpoint', 'model_registry_address', 
-                        'token_manager_address', 'deployer_key', 'api_keys', 
+    .filter(([key]) => !['redis_url', 'rpc_endpoint', 'model_registry_address',
+                        'token_manager_address', 'usage_fee_router_address', 'deployer_key', 'api_keys',
                         'jwt_secret', 'webhook_url', 'webhook_secret'].includes(key));
-  
+
   for (const [key, value] of additionalParams) {
     // Convert snake_case to UPPER_SNAKE_CASE
     const envKey = key.toUpperCase();
@@ -208,7 +227,7 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
       mapping[envKey] = value;
     }
   }
-  
+
   return mapping;
 }
 
@@ -278,15 +297,41 @@ export async function validateEnv(): Promise<Config> {
   // Final validation for required fields
   const requiredFields = [
     'RPC_URL',
-    'MODEL_REGISTRY_ADDRESS', 
+    'MODEL_REGISTRY_ADDRESS',
     'TOKEN_MANAGER_ADDRESS',
     'DEPLOYER_PRIVATE_KEY'
   ];
 
   const missingFields = requiredFields.filter(field => !config[field as keyof Config]);
-  
+
   if (missingFields.length > 0) {
     throw new Error(`Missing required configuration fields: ${missingFields.join(', ')}`);
+  }
+
+  // Validate Ethereum addresses
+  const addressFields = [
+    { name: 'MODEL_REGISTRY_ADDRESS', value: config.MODEL_REGISTRY_ADDRESS },
+    { name: 'TOKEN_MANAGER_ADDRESS', value: config.TOKEN_MANAGER_ADDRESS }
+  ];
+
+  // Add optional address fields if present
+  if (config.DELTA_VERIFIER_ADDRESS) {
+    addressFields.push({ name: 'DELTA_VERIFIER_ADDRESS', value: config.DELTA_VERIFIER_ADDRESS });
+  }
+  if (config.USAGE_FEE_ROUTER_ADDRESS) {
+    addressFields.push({ name: 'USAGE_FEE_ROUTER_ADDRESS', value: config.USAGE_FEE_ROUTER_ADDRESS });
+  }
+  if (config.DEPLOY_FACTORY_ADDRESS) {
+    addressFields.push({ name: 'DEPLOY_FACTORY_ADDRESS', value: config.DEPLOY_FACTORY_ADDRESS });
+  }
+
+  for (const field of addressFields) {
+    try {
+      const validatedAddress = validateEthereumAddress(field.value, field.name);
+      (config as Record<string, any>)[field.name] = validatedAddress;
+    } catch (error) {
+      throw new Error(`${field.name}: ${error instanceof Error ? error.message : 'Invalid address'}`);
+    }
   }
 
   // Convert string booleans

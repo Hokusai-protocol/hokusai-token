@@ -1,0 +1,10 @@
+{
+  "taskId": "HOK-1697_c",
+  "title": "Align backend, frontend, and contract-deployer service with current ABIs",
+  "description": "Align backend, frontend, and contract-deployer service with current ABIs\n\nMake sure off-chain systems can safely read from and write to the current contracts.\n\nAcceptance criteria:\n\n* Backend/frontend ABIs use `deployTokenWithAllocations`, current params tuple including oracle price and vesting config, current UsageFeeRouter API, and current event names.\n* Contract-deployer service environment points to current Sepolia addresses and passes integration tests.\n* Frontend wallet flows handle approvals, buys, sells, IBR disabled-sell state, slippage/deadline errors, and network mismatch.\n* API usage fee depositor path is tested against Sepolia contracts.\n* Production env var and SSM/secret updates are documented without exposing secrets.",
+  "labels": [],
+  "workflowType": "feature",
+  "featureName": "align-backend-frontend-and-contract-deployer-service-with-current-abis-challenger",
+  "contextPath": "features/align-backend-frontend-and-contract-deployer-service-with-current-abis-challenger/selected-task.json",
+  "selectedAt": "2026-06-06T02:58:39Z"
+}

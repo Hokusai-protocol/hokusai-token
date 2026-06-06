@@ -2,11 +2,10 @@ import { ethers } from 'ethers';
 import { logger } from '../utils/logger';
 
 const MODEL_REGISTRY_ABI = [
-  'function registerModel(string modelId, address tokenAddress, string metricName, string mlflowRunId)',
+  'function registerStringModel(string modelId, address token, string performanceMetric)',
   'function getTokenAddress(string modelId) view returns (address)',
-  'function getModelInfo(string modelId) view returns (address tokenAddress, string metricName, string mlflowRunId, uint256 registrationTime, bool isActive)',
   'function owner() view returns (address)',
-  'event ModelRegistered(string indexed modelId, address tokenAddress, string metricName, string mlflowRunId)'
+  'event StringModelRegistered(string indexed modelId, address indexed tokenAddress, string performanceMetric)'
 ];
 
 export interface ModelRegistryConfig {
@@ -19,8 +18,7 @@ export interface ModelRegistryConfig {
 export interface RegistrationData {
   modelId: string;
   tokenAddress: string;
-  metricName: string;
-  mlflowRunId: string;
+  performanceMetric: string;
 }
 
 export interface RegistrationResult {
@@ -32,14 +30,15 @@ export interface RegistrationResult {
 
 export interface ModelInfo {
   tokenAddress: string;
-  metricName: string;
-  mlflowRunId: string;
-  registrationTime: Date;
-  isActive: boolean;
+  performanceMetric: string;
 }
 
 export class ModelRegistryService {
-  private contract: ethers.Contract;
+  private contract: ethers.Contract & {
+    registerStringModel: (modelId: string, token: string, performanceMetric: string) => Promise<ethers.ContractTransactionResponse | null>;
+    getTokenAddress: (modelId: string) => Promise<string>;
+    owner: () => Promise<string>;
+  };
   private config: ModelRegistryConfig;
 
   constructor(config: ModelRegistryConfig) {
@@ -48,7 +47,7 @@ export class ModelRegistryService {
       config.registryAddress,
       MODEL_REGISTRY_ABI,
       config.signer
-    );
+    ) as typeof this.contract;
   }
 
   async registerModel(data: RegistrationData): Promise<RegistrationResult> {
@@ -59,11 +58,10 @@ export class ModelRegistryService {
 
     while (attempts < maxAttempts) {
       try {
-        const tx = await this.contract.registerModel(
+        const tx = await this.contract.registerStringModel(
           data.modelId,
           data.tokenAddress,
-          data.metricName,
-          data.mlflowRunId
+          data.performanceMetric
         );
 
         const receipt = await tx.wait(this.config.confirmations);
@@ -113,34 +111,27 @@ export class ModelRegistryService {
     }
   }
 
-  async getModelInfo(modelId: string): Promise<ModelInfo | null> {
+  async getTokenAddress(modelId: string): Promise<string | null> {
     try {
-      const info = await this.contract.getModelInfo(modelId);
-      
-      if (info.tokenAddress === ethers.ZeroAddress) {
+      const tokenAddress = await this.contract.getTokenAddress(modelId);
+
+      if (tokenAddress === ethers.ZeroAddress) {
         return null;
       }
 
-      return {
-        tokenAddress: info.tokenAddress,
-        metricName: info.metricName,
-        mlflowRunId: info.mlflowRunId,
-        registrationTime: new Date(Number(info.registrationTime) * 1000),
-        isActive: info.isActive
-      };
+      return tokenAddress;
     } catch (error) {
-      logger.error('Failed to get model info', { error, modelId });
+      logger.error('Failed to get token address', { error, modelId });
       throw error;
     }
   }
 
   async estimateRegistrationGas(data: RegistrationData): Promise<string> {
     try {
-      const estimatedGas = await this.contract.registerModel.estimateGas(
+      const estimatedGas = await this.contract.registerStringModel.estimateGas(
         data.modelId,
         data.tokenAddress,
-        data.metricName,
-        data.mlflowRunId
+        data.performanceMetric
       );
       return estimatedGas.toString();
     } catch (error) {
@@ -164,14 +155,13 @@ export class ModelRegistryService {
     errorHandler?: (error: Error) => void
   ): Promise<void> {
     try {
-      const filter = this.contract.filters.ModelRegistered();
-      
-      this.contract.on(filter, (modelId, tokenAddress, metricName, mlflowRunId, event) => {
+      const filter = this.contract.filters.StringModelRegistered();
+
+      this.contract.on(filter, (modelId, tokenAddress, performanceMetric, event) => {
         handler({
           modelId,
           tokenAddress,
-          metricName,
-          mlflowRunId,
+          performanceMetric,
           blockNumber: event.blockNumber
         });
       });

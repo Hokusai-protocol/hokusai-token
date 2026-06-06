@@ -30,10 +30,10 @@
 import { ethers, Contract, Signer } from "ethers";
 
 const FEE_ROUTER_ABI = [
-  "function depositFee(string modelId, uint256 amount) external",
-  "function batchDepositFees(string[] modelIds, uint256[] amounts) external",
+  "function depositFee(string modelId, uint256 amount, uint256 callCount) external",
+  "function batchDepositFees(string[] modelIds, uint256[] amounts, uint256[] callCounts) external",
   "function protocolFeeBps() view returns (uint16)",
-  "event FeeDeposited(string indexed modelId, address indexed poolAddress, uint256 amount, uint256 protocolFee, uint256 poolDeposit, address indexed depositor)",
+  "event FeeDeposited(string indexed modelId, address indexed poolAddress, uint256 amount, uint256 callCount, uint256 protocolFee, uint256 poolDeposit, address indexed depositor)",
   "event BatchDeposited(uint256 totalAmount, uint256 totalProtocolFee, uint256 poolCount, address indexed depositor)",
 ];
 
@@ -46,12 +46,14 @@ const ERC20_ABI = [
 interface FeeDeposit {
   modelId: string;
   amount: bigint;
+  callCount: bigint;
 }
 
 interface DepositEvent {
   modelId: string;
   poolAddress: string;
   amount: bigint;
+  callCount: bigint;
   protocolFee: bigint;
   poolDeposit: bigint;
   depositor: string;
@@ -136,7 +138,7 @@ export class FeeCollectionService {
   /**
    * Deposit fee for a single model
    */
-  async depositFees(modelId: string, usdcAmount: bigint): Promise<string> {
+  async depositFees(modelId: string, usdcAmount: bigint, callCount: bigint = 1n): Promise<string> {
     if (!this.signerAddress) await this.initialize();
 
     // Check balance
@@ -152,10 +154,10 @@ export class FeeCollectionService {
 
     // Deposit
     console.log(
-      `Depositing ${ethers.formatUnits(usdcAmount, 6)} USDC for ${modelId}`
+      `Depositing ${ethers.formatUnits(usdcAmount, 6)} USDC for ${modelId} (calls: ${callCount})`
     );
 
-    const tx = await this.feeRouter.depositFee(modelId, usdcAmount);
+    const tx = await this.feeRouter.depositFee(modelId, usdcAmount, callCount);
     const receipt = await tx.wait();
 
     console.log(`Fee deposited: ${receipt.hash}`);
@@ -189,13 +191,14 @@ export class FeeCollectionService {
     // Prepare batch data
     const modelIds = deposits.map((d) => d.modelId);
     const amounts = deposits.map((d) => d.amount);
+    const callCounts = deposits.map((d) => d.callCount);
 
     console.log(
       `Batch depositing ${ethers.formatUnits(totalAmount, 6)} USDC across ${deposits.length} models`
     );
 
     // Execute batch deposit
-    const tx = await this.feeRouter.batchDepositFees(modelIds, amounts);
+    const tx = await this.feeRouter.batchDepositFees(modelIds, amounts, callCounts);
     const receipt = await tx.wait();
 
     console.log(`Batch deposit confirmed: ${receipt.hash}`);
@@ -212,6 +215,7 @@ export class FeeCollectionService {
         modelId: string,
         poolAddress: string,
         amount: bigint,
+        callCount: bigint,
         protocolFee: bigint,
         poolDeposit: bigint,
         depositor: string,
@@ -223,6 +227,7 @@ export class FeeCollectionService {
           modelId,
           poolAddress,
           amount,
+          callCount,
           protocolFee,
           poolDeposit,
           depositor,
@@ -252,6 +257,7 @@ export class FeeCollectionService {
           modelId: e.args.modelId,
           poolAddress: e.args.poolAddress,
           amount: e.args.amount,
+          callCount: e.args.callCount,
           protocolFee: e.args.protocolFee,
           poolDeposit: e.args.poolDeposit,
           depositor: e.args.depositor,
@@ -320,20 +326,21 @@ async function example() {
 
   await service.initialize();
 
-  // Single deposit
-  await service.depositFees("model-sentiment-v1", parseUSDC("100"));
+  // Single deposit with call count
+  await service.depositFees("model-sentiment-v1", parseUSDC("100"), 50n);
 
-  // Batch deposit
+  // Batch deposit with call counts
   await service.batchDeposit([
-    { modelId: "model-sentiment-v1", amount: parseUSDC("50") },
-    { modelId: "model-forecast-v2", amount: parseUSDC("150") },
-    { modelId: "model-classify-v1", amount: parseUSDC("25") },
+    { modelId: "model-sentiment-v1", amount: parseUSDC("50"), callCount: 25n },
+    { modelId: "model-forecast-v2", amount: parseUSDC("150"), callCount: 75n },
+    { modelId: "model-classify-v1", amount: parseUSDC("25"), callCount: 10n },
   ]);
 
   // Listen for deposits
   service.onFeeDeposited((event) => {
     console.log(`Fee deposited for ${event.modelId}:`);
     console.log(`  Amount: $${formatUSDC(event.amount)}`);
+    console.log(`  Call Count: ${event.callCount}`);
     console.log(`  Protocol Fee: $${formatUSDC(event.protocolFee)}`);
     console.log(`  Pool Deposit: $${formatUSDC(event.poolDeposit)}`);
   });

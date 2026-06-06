@@ -21,8 +21,9 @@ export interface SSMParameters {
   rpc_endpoint: string;
   redis_url: string;
   api_keys: string;
-  
+
   // Optional parameters
+  usage_fee_router_address?: string;
   jwt_secret?: string;
   webhook_url?: string;
   webhook_secret?: string;
@@ -184,20 +185,21 @@ export class SSMParameterStore {
       'redis_url',
       'api_keys'
     ];
-    
+
     const optionalParams = [
+      'usage_fee_router_address',
       'jwt_secret',
       'webhook_url',
       'webhook_secret'
     ];
-    
+
     const allParams = [...requiredParams, ...optionalParams];
-    
+
     logger.info(`Fetching ${allParams.length} SSM parameters from ${this.config.pathPrefix}`);
-    
+
     try {
       const results = await this.getParameters(allParams);
-      
+
       // Validate required parameters
       const missingRequired: string[] = [];
       for (const param of requiredParams) {
@@ -205,15 +207,15 @@ export class SSMParameterStore {
           missingRequired.push(`${this.config.pathPrefix}${param}`);
         }
       }
-      
+
       if (missingRequired.length > 0) {
         throw new Error(`Missing required SSM parameters: ${missingRequired.join(', ')}`);
       }
-      
+
       // Log successful retrieval
       const retrievedCount = Object.keys(results).filter(key => results[key]).length;
       logger.info(`Successfully retrieved ${retrievedCount}/${allParams.length} SSM parameters`);
-      
+
       // Return typed parameters object
       return {
         deployer_key: results.deployer_key!,
@@ -222,11 +224,12 @@ export class SSMParameterStore {
         rpc_endpoint: results.rpc_endpoint!,
         redis_url: results.redis_url!,
         api_keys: results.api_keys!,
+        usage_fee_router_address: results.usage_fee_router_address,
         jwt_secret: results.jwt_secret,
         webhook_url: results.webhook_url,
         webhook_secret: results.webhook_secret,
       };
-      
+
     } catch (error) {
       logger.error('Failed to retrieve SSM parameters:', error);
       throw error;

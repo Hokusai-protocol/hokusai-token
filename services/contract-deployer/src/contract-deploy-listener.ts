@@ -153,8 +153,7 @@ export class ContractDeployListener {
       const registrationResult = await this.registry.registerModel({
         modelId: message.model_id,
         tokenAddress: deploymentResult.tokenAddress,
-        metricName: message.metric_name,
-        mlflowRunId: message.mlflow_run_id
+        performanceMetric: message.metric_name
       });
       logger.info('Model registered', {
         modelId: message.model_id,

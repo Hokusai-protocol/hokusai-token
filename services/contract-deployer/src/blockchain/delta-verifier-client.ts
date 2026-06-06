@@ -1,6 +1,9 @@
 import { ethers } from 'ethers';
-import DeltaVerifierArtifact from '../../contracts/DeltaVerifier.json';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const DeltaVerifierABIArray = require('../../contracts/DeltaVerifier.json');
 import { logger } from '../utils/logger';
+
+const DeltaVerifierArtifact = { abi: DeltaVerifierABIArray };
 
 const MODEL_REGISTRY_ABI = [
   'function isRegistered(uint256 modelId) view returns (bool)',

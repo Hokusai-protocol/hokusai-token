@@ -40,6 +40,7 @@ interface TradingInterfaceProps {
   poolAddress: string;
   provider: ethers.Provider;
   signer: ethers.Signer;
+  expectedChainId?: number; // Defaults to Sepolia (11155111)
 }
 
 interface PoolState {
@@ -68,6 +69,7 @@ export const TradingInterface: React.FC<TradingInterfaceProps> = ({
   poolAddress,
   provider,
   signer,
+  expectedChainId = 11155111, // Sepolia
 }) => {
   const [tradeType, setTradeType] = useState<"buy" | "sell">("buy");
   const [inputAmount, setInputAmount] = useState("");
@@ -78,8 +80,25 @@ export const TradingInterface: React.FC<TradingInterfaceProps> = ({
   const [loading, setLoading] = useState(false);
   const [txStatus, setTxStatus] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [currentChainId, setCurrentChainId] = useState<number | null>(null);
+  const [approvalPending, setApprovalPending] = useState(false);
+  const [approvalComplete, setApprovalComplete] = useState(false);
 
   const pool = new Contract(poolAddress, AMM_ABI, provider);
+
+  // Check current network
+  useEffect(() => {
+    const checkNetwork = async () => {
+      try {
+        const network = await provider.getNetwork();
+        setCurrentChainId(Number(network.chainId));
+      } catch (err) {
+        console.error("Error checking network:", err);
+      }
+    };
+
+    checkNetwork();
+  }, [provider]);
 
   // Fetch pool state
   useEffect(() => {
@@ -176,12 +195,59 @@ export const TradingInterface: React.FC<TradingInterfaceProps> = ({
     return (expectedOut * slippageMultiplier) / 10000n;
   };
 
+  // Parse ethers errors for specific conditions
+  const parseTradeError = (err: any): string => {
+    const message = err.message || '';
+    const reason = err.reason || '';
+
+    if (message.includes('deadline') || reason.includes('expired')) {
+      return 'Transaction deadline passed — please retry';
+    }
+    if (message.includes('slippage') || message.includes('insufficient output')) {
+      return 'Price moved too much — adjust slippage or retry';
+    }
+    return message || 'Transaction failed';
+  };
+
+  // Approve token for spending
+  const approveToken = async (tokenAddress: string, amount: bigint): Promise<boolean> => {
+    if (!signer) return false;
+
+    setApprovalPending(true);
+    setTxStatus("Step 1: Approve token for spending...");
+    setError("");
+
+    try {
+      const token = new Contract(tokenAddress, ERC20_ABI, signer);
+      const userAddress = await signer.getAddress();
+      const allowance = await token.allowance(userAddress, poolAddress);
+
+      if (allowance >= amount) {
+        setApprovalComplete(true);
+        return true;
+      }
+
+      const approveTx = await token.approve(poolAddress, amount);
+      setTxStatus("Confirming approval...");
+      await approveTx.wait();
+
+      setApprovalComplete(true);
+      setApprovalPending(false);
+      setTxStatus("");
+      return true;
+    } catch (err: any) {
+      setError(parseTradeError(err));
+      setApprovalPending(false);
+      return false;
+    }
+  };
+
   // Execute trade
   const executeTrade = async () => {
-    if (!signer || !preview || !inputAmount) return;
+    if (!signer || !preview || !inputAmount || !approvalComplete) return;
 
     setLoading(true);
-    setTxStatus("Preparing transaction...");
+    setTxStatus("Step 2: Executing transaction...");
     setError("");
 
     try {
@@ -190,20 +256,8 @@ export const TradingInterface: React.FC<TradingInterfaceProps> = ({
       const deadline = Math.floor(Date.now() / 1000) + 600; // 10 minutes
 
       if (tradeType === "buy") {
-        // Approve USDC
-        setTxStatus("Approving USDC...");
-        const usdcAddress = await pool.reserveToken();
-        const usdc = new Contract(usdcAddress, ERC20_ABI, signer);
-        const amount = ethers.parseUnits(inputAmount, 6);
-
-        const allowance = await usdc.allowance(userAddress, poolAddress);
-        if (allowance < amount) {
-          const approveTx = await usdc.approve(poolAddress, amount);
-          await approveTx.wait();
-        }
-
         // Execute buy
-        setTxStatus("Executing buy...");
+        const amount = ethers.parseUnits(inputAmount, 6);
         const tokensOut = ethers.parseEther(preview.tokensOut!);
         const minTokensOut = calculateMinOut(tokensOut);
 
@@ -219,21 +273,10 @@ export const TradingInterface: React.FC<TradingInterfaceProps> = ({
 
         setTxStatus(`Success! Tx: ${receipt.hash.slice(0, 10)}...`);
         setInputAmount("");
+        setApprovalComplete(false);
       } else {
-        // Approve tokens
-        setTxStatus("Approving tokens...");
-        const tokenAddress = await pool.hokusaiToken();
-        const token = new Contract(tokenAddress, ERC20_ABI, signer);
-        const amount = ethers.parseEther(inputAmount);
-
-        const allowance = await token.allowance(userAddress, poolAddress);
-        if (allowance < amount) {
-          const approveTx = await token.approve(poolAddress, amount);
-          await approveTx.wait();
-        }
-
         // Execute sell
-        setTxStatus("Executing sell...");
+        const amount = ethers.parseEther(inputAmount);
         const reserveOut = ethers.parseUnits(preview.reserveOut!, 6);
         const minReserveOut = calculateMinOut(reserveOut);
 
@@ -249,12 +292,33 @@ export const TradingInterface: React.FC<TradingInterfaceProps> = ({
 
         setTxStatus(`Success! Tx: ${receipt.hash.slice(0, 10)}...`);
         setInputAmount("");
+        setApprovalComplete(false);
       }
     } catch (err: any) {
-      setError(err.message || "Transaction failed");
+      setError(parseTradeError(err));
       setTxStatus("");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Start approval flow
+  const initiateApproval = async () => {
+    if (!signer || !inputAmount) return;
+
+    try {
+      const userAddress = await signer.getAddress();
+      const amount = tradeType === "buy"
+        ? ethers.parseUnits(inputAmount, 6)
+        : ethers.parseEther(inputAmount);
+
+      const tokenAddress = tradeType === "buy"
+        ? await pool.reserveToken()
+        : await pool.hokusaiToken();
+
+      await approveToken(tokenAddress, amount);
+    } catch (err: any) {
+      setError(err.message || "Approval failed");
     }
   };
 
@@ -277,19 +341,40 @@ export const TradingInterface: React.FC<TradingInterfaceProps> = ({
   const buyDisabled = !tradeInfo || tradeInfo.isPaused || loading;
   const sellDisabled = !tradeInfo || tradeInfo.isPaused || !tradeInfo.sellsEnabled || loading;
 
+  const isNetworkMismatch = currentChainId && currentChainId !== expectedChainId;
+  const isSellDisabledByIBR = !tradeInfo?.sellsEnabled;
+
   return (
     <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold mb-4">Trade</h2>
+
+      {/* Network Mismatch Banner */}
+      {isNetworkMismatch && (
+        <div className="mb-4 p-3 bg-red-100 rounded border border-red-400">
+          <p className="text-sm font-semibold text-red-800 mb-2">
+            ⚠️ Wrong Network
+          </p>
+          <p className="text-xs text-red-700 mb-2">
+            Please switch to Sepolia testnet to continue trading.
+          </p>
+          <button
+            className="text-xs bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
+            onClick={() => window.alert('Please switch network in your wallet')}
+          >
+            Switch to Sepolia
+          </button>
+        </div>
+      )}
 
       {/* Trade Type Toggle */}
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setTradeType("buy")}
-          disabled={buyDisabled}
+          disabled={buyDisabled || isNetworkMismatch}
           className={`flex-1 py-2 rounded ${
             tradeType === "buy"
               ? "bg-green-600 text-white"
-              : buyDisabled
+              : (buyDisabled || isNetworkMismatch)
               ? "bg-gray-200 text-gray-500"
               : "bg-gray-200"
           }`}
@@ -298,24 +383,28 @@ export const TradingInterface: React.FC<TradingInterfaceProps> = ({
         </button>
         <button
           onClick={() => setTradeType("sell")}
-          disabled={sellDisabled}
+          disabled={sellDisabled || isNetworkMismatch}
           className={`flex-1 py-2 rounded ${
             tradeType === "sell"
               ? "bg-red-600 text-white"
-              : sellDisabled
+              : (sellDisabled || isNetworkMismatch)
               ? "bg-gray-200 text-gray-500"
               : "bg-gray-200"
           }`}
+          aria-disabled={isSellDisabledByIBR}
         >
           Sell
         </button>
       </div>
 
       {/* IBR Notice */}
-      {tradeType === "sell" && !tradeInfo?.sellsEnabled && (
-        <div className="mb-4 p-3 bg-yellow-100 rounded">
-          <p className="text-sm text-yellow-800">
-            Sells available in {getIBRCountdown()}
+      {tradeType === "sell" && isSellDisabledByIBR && (
+        <div className="mb-4 p-3 bg-yellow-100 rounded border border-yellow-400">
+          <p className="text-sm font-semibold text-yellow-800 mb-1">
+            Sells disabled during IBR
+          </p>
+          <p className="text-xs text-yellow-700">
+            Sells enabled in {getIBRCountdown()}
           </p>
         </div>
       )}
@@ -399,23 +488,51 @@ export const TradingInterface: React.FC<TradingInterfaceProps> = ({
         </div>
       )}
 
-      {/* Execute Button */}
+      {/* Two-Step Approval UI */}
+      {!approvalComplete && preview && !isNetworkMismatch && (
+        <>
+          <button
+            onClick={initiateApproval}
+            disabled={approvalPending || !preview}
+            className={`w-full py-3 rounded font-medium mb-2 ${
+              approvalPending || !preview
+                ? "bg-gray-300 text-gray-500"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
+          >
+            {approvalPending ? "Approving..." : "Step 1: Approve"}
+          </button>
+          {approvalPending && (
+            <p className="text-xs text-gray-600 text-center mb-2">
+              Waiting for approval confirmation...
+            </p>
+          )}
+        </>
+      )}
+
+      {/* Execute Button (Step 2) */}
       <button
         onClick={executeTrade}
         disabled={
           !preview ||
           loading ||
-          (tradeType === "buy" ? buyDisabled : sellDisabled)
+          (tradeType === "buy" ? buyDisabled : sellDisabled) ||
+          isNetworkMismatch ||
+          !approvalComplete
         }
         className={`w-full py-3 rounded font-medium ${
-          !preview || loading || (tradeType === "buy" ? buyDisabled : sellDisabled)
+          !preview || loading || (tradeType === "buy" ? buyDisabled : sellDisabled) || isNetworkMismatch || !approvalComplete
             ? "bg-gray-300 text-gray-500"
             : tradeType === "buy"
             ? "bg-green-600 text-white hover:bg-green-700"
             : "bg-red-600 text-white hover:bg-red-700"
         }`}
       >
-        {loading ? "Processing..." : tradeType === "buy" ? "Buy" : "Sell"}
+        {!approvalComplete
+          ? "Complete Step 1 First"
+          : loading
+          ? "Processing..."
+          : `Step 2: ${tradeType === "buy" ? "Buy" : "Sell"}`}
       </button>
 
       {/* Pool Info */}

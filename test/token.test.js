@@ -36,6 +36,7 @@ describe("HokusaiToken", function () {
       parseEther("10000"),
       0,
       0,
+      0,
       ZeroAddress
     );
     await token.waitForDeployment();

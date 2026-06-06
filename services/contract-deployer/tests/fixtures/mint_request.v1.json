@@ -30,14 +30,11 @@
   "contributors": [
     {
       "wallet_address": "0x742d35cc6634c0532925a3b844bc9e7595f62341",
-      "weight_bps": 7000,
-      "submissionId": "sub-001",
-      "contributionBatchId": "batch-001"
+      "weight_bps": 7000
     },
     {
       "wallet_address": "0x6c3e007f281f6948b37c511a11e43c8026d2f069",
-      "weight_bps": 3000,
-      "submissionId": "sub-002"
+      "weight_bps": 3000
     }
   ]
 }

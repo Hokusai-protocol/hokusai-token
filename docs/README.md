@@ -59,6 +59,18 @@ Choose your integration path:
 - Decimal handling (USDC: 6, tokens: 18)
 - Multicall batching for performance
 
+### Security
+
+- [DeltaVerifier v1 Trust Model](deltaverifier-trust-model.md)
+  - Who can submit evaluations and how `SUBMITTER_ROLE` is granted/rotated
+  - On-chain vs. off-chain anti-gaming controls (replay, fake evals, contributor weighting, benchmark gaming, cost caps)
+  - What `attestation_hash` commits to and what remains off-chain
+  - Residual trust assumptions and v1 scope limitations
+- [Slither Static Analysis](slither-static-analysis.md)
+  - CI-gating static-analysis baseline for smart contracts
+  - Detector coverage for reentrancy, delegatecall, tx.origin, shadowing, upgradeability, and access control
+  - Baseline workflow for accepted findings
+
 ### Troubleshooting
 
 - [Troubleshooting Guide](troubleshooting.md)
@@ -73,6 +85,11 @@ Choose your integration path:
   - Role grant/revoke matrix
   - Sepolia ownership-transfer rehearsal
   - Emergency pause/unpause procedure
+  - Single entry point for launch-day rollback authority
+- [Mainnet Launch Day Rollback Runbook](mainnet-launch-rollback-runbook.md)
+  - Stop conditions and rollback severity levels
+  - Stage-based rollback paths before/after pools and public launch
+  - Safe transaction, frontend/backend disable, resume, and abandon checklists
 
 ### API Reference
 

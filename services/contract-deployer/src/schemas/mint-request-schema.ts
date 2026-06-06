@@ -15,6 +15,14 @@ export interface MintRequestEvaluation {
   new_score_bps: number;
   max_cost_usd_micro: number;
   actual_cost_usd_micro: number;
+  sample_size_baseline?: number | null;
+  sample_size_candidate?: number | null;
+  ci_low_bps?: number | null;
+  ci_high_bps?: number | null;
+  p_value?: number | null;
+  effect_size_bps?: number | null;
+  statistical_method?: string | null;
+  statistical_reason?: string | null;
 }
 
 export interface MintRequestMessage {
@@ -29,6 +37,7 @@ export interface MintRequestMessage {
   dataset_hash: string;
   attestation_hash: string;
   idempotency_key: string;
+  totalSamples: number;
   evaluation: MintRequestEvaluation;
   contributors: MintRequestContributor[];
   _retryCount?: number;
@@ -56,6 +65,18 @@ const contributorSchema = Joi.object<MintRequestContributor>({
   weight_bps: Joi.number().integer().min(1).max(10000).required(),
 });
 
+export function deriveTotalSamples(evaluation: MintRequestEvaluation): number | null {
+  const sampleSizes = [evaluation.sample_size_candidate, evaluation.sample_size_baseline];
+
+  for (const sampleSize of sampleSizes) {
+    if (typeof sampleSize === 'number' && Number.isInteger(sampleSize) && sampleSize > 0) {
+      return sampleSize;
+    }
+  }
+
+  return null;
+}
+
 const evaluationSchema = Joi.object<MintRequestEvaluation>({
   metric_name: Joi.string().min(1).required(),
   metric_family: Joi.string().min(1).required(),
@@ -63,7 +84,28 @@ const evaluationSchema = Joi.object<MintRequestEvaluation>({
   new_score_bps: Joi.number().integer().min(0).max(10000).required(),
   max_cost_usd_micro: Joi.number().integer().min(0).required(),
   actual_cost_usd_micro: Joi.number().integer().min(0).required(),
-});
+  sample_size_baseline: Joi.number().integer().min(0).allow(null).optional(),
+  sample_size_candidate: Joi.number().integer().min(0).allow(null).optional(),
+  ci_low_bps: Joi.number().integer().min(0).max(10000).allow(null).optional(),
+  ci_high_bps: Joi.number().integer().min(0).max(10000).allow(null).optional(),
+  p_value: Joi.number().min(0).max(1).allow(null).optional(),
+  effect_size_bps: Joi.number().integer().min(0).max(10000).allow(null).optional(),
+  statistical_method: Joi.string().max(128).allow(null).optional(),
+  statistical_reason: Joi.string().max(1024).allow(null).optional(),
+})
+  .custom((value: MintRequestEvaluation, helpers) => {
+    if (deriveTotalSamples(value) !== null) {
+      return value;
+    }
+
+    return helpers.error('any.custom', {
+      message:
+        '"evaluation" must include a positive integer sample_size_candidate or sample_size_baseline to derive totalSamples',
+    });
+  }, 'totalSamples derivation validation')
+  .messages({
+    'any.custom': '{{#message}}',
+  });
 
 const mintRequestSchema = Joi.object<MintRequestMessage>({
   message_type: Joi.string().valid('mint_request').required(),
@@ -79,6 +121,7 @@ const mintRequestSchema = Joi.object<MintRequestMessage>({
   dataset_hash: Joi.string().pattern(HASH_REGEX).required(),
   attestation_hash: Joi.string().pattern(HASH_REGEX).required(),
   idempotency_key: Joi.string().pattern(HASH_REGEX).required(),
+  totalSamples: Joi.number().integer().min(1).required(),
   evaluation: evaluationSchema.required(),
   contributors: Joi.array()
     .items(contributorSchema)
@@ -93,7 +136,23 @@ const mintRequestSchema = Joi.object<MintRequestMessage>({
       return value;
     }, 'contributors total weight validation'),
   _retryCount: Joi.number().integer().min(0).optional(),
-}).options({ abortEarly: false });
+})
+  .custom((value: MintRequestMessage, helpers) => {
+    const candidate = value.evaluation?.sample_size_candidate;
+    if (
+      typeof candidate === 'number' &&
+      Number.isInteger(candidate) &&
+      candidate > 0 &&
+      candidate !== value.totalSamples
+    ) {
+      return helpers.error('any.custom', {
+        message: `"totalSamples" (${value.totalSamples}) does not match evaluation.sample_size_candidate (${candidate})`,
+      });
+    }
+    return value;
+  }, 'totalSamples cross-field validation')
+  .messages({ 'any.custom': '{{#message}}' })
+  .options({ abortEarly: false });
 
 export function validateMintRequestMessage(
   message: unknown,

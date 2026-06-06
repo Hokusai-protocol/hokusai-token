@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const hre = require("hardhat");
 
 const { deployFullStack } = require("../../scripts/lib/deploy-stack");
+const { deployTestToken, deployTestTokenAddress } = require("../helpers/tokenDeployment");
 
 describe("deployFullStack", function () {
   const baseConfig = {
@@ -60,11 +61,15 @@ describe("deployFullStack", function () {
     expect(result.contracts.RewardVestingVault).to.properAddress;
     expect(result.contracts.DataContributionRegistry).to.properAddress;
     expect(result.contracts.HokusaiAMMFactory).to.properAddress;
+    expect(result.contracts.HokusaiAMMPoolDeployer).to.properAddress;
+    expect(result.contracts.PurchaserWhitelist).to.properAddress;
     expect(result.contracts.InfrastructureReserve).to.properAddress;
     expect(result.contracts.InfrastructureCostOracle).to.properAddress;
     expect(result.contracts.UsageFeeRouter).to.properAddress;
     expect(result.contracts.DeltaVerifier).to.properAddress;
     expect(result.contracts._tokenManagerImpl).to.equal("DeployableTokenManager");
+    expect(result.config.purchaserWhitelist).to.equal(result.contracts.PurchaserWhitelist);
+    expect(result.notes.purchaserWhitelistGatingDefault).to.equal(true);
     expect(result.notes.rewardVestingVaultWired).to.equal(true);
 
     const modelRegistry = await hre.ethers.getContractAt("ModelRegistry", result.contracts.ModelRegistry);
@@ -78,36 +83,91 @@ describe("deployFullStack", function () {
       result.contracts.InfrastructureReserve
     );
     const usageFeeRouter = await hre.ethers.getContractAt("UsageFeeRouter", result.contracts.UsageFeeRouter);
+    const purchaserWhitelist = await hre.ethers.getContractAt(
+      "PurchaserWhitelist",
+      result.contracts.PurchaserWhitelist
+    );
 
     expect(await modelRegistry.stringModelTokenManager()).to.equal(result.contracts.TokenManager);
     expect(await tokenManager.deltaVerifier()).to.equal(result.contracts.DeltaVerifier);
     expect(await tokenManager.vestingVault()).to.equal(result.contracts.RewardVestingVault);
+    expect(await (await hre.ethers.getContractAt("HokusaiAMMFactory", result.contracts.HokusaiAMMFactory)).poolDeployer())
+      .to.equal(result.contracts.HokusaiAMMPoolDeployer);
     expect(await usageFeeRouter.factory()).to.equal(result.contracts.HokusaiAMMFactory);
     expect(await usageFeeRouter.reserveToken()).to.equal(result.config.reserveToken);
     expect(await usageFeeRouter.infraReserve()).to.equal(result.contracts.InfrastructureReserve);
     expect(await usageFeeRouter.costOracle()).to.equal(result.contracts.InfrastructureCostOracle);
+    expect(await modelRegistry.poolRegistrars(result.contracts.HokusaiAMMFactory)).to.equal(true);
 
     const recorderRole = await contributionRegistry.RECORDER_ROLE();
     const verifierRole = await contributionRegistry.VERIFIER_ROLE();
     const depositorRole = await infraReserve.DEPOSITOR_ROLE();
     const payerRole = await infraReserve.PAYER_ROLE();
     const feeDepositorRole = await usageFeeRouter.FEE_DEPOSITOR_ROLE();
+    const whitelistAdminRole = await purchaserWhitelist.WHITELIST_ADMIN_ROLE();
 
     expect(await contributionRegistry.hasRole(recorderRole, result.contracts.DeltaVerifier)).to.equal(true);
     expect(await contributionRegistry.hasRole(verifierRole, deployer.address)).to.equal(true);
     expect(await infraReserve.hasRole(depositorRole, result.contracts.UsageFeeRouter)).to.equal(true);
     expect(await infraReserve.hasRole(payerRole, treasury.address)).to.equal(true);
     expect(await usageFeeRouter.hasRole(feeDepositorRole, backendService.address)).to.equal(true);
+    expect(await purchaserWhitelist.hasRole(whitelistAdminRole, deployer.address)).to.equal(true);
+    expect(await hre.ethers.provider.getCode(result.contracts.PurchaserWhitelist)).to.not.equal("0x");
+
+    const tokenAddress = await deployTestTokenAddress(
+      tokenManager,
+      "501",
+      "Deploy Stack Token",
+      "DSTK",
+      hre.ethers.parseEther("1"),
+      deployer.address
+    );
+    await deployTestToken(
+      tokenManager,
+      "501",
+      "Deploy Stack Token",
+      "DSTK",
+      hre.ethers.parseEther("1"),
+      deployer.address
+    );
+    expect(tokenAddress).to.properAddress;
+
+    await modelRegistry.registerStringModel("501", tokenAddress, "accuracy");
+    const factory = await hre.ethers.getContractAt("HokusaiAMMFactory", result.contracts.HokusaiAMMFactory);
+    const poolAddress = await factory.createPoolWithParams.staticCall(
+      "501",
+      tokenAddress,
+      200000,
+      30,
+      7 * 24 * 60 * 60,
+      25000n * 10n ** 6n,
+      10000
+    );
+    await factory.createPoolWithParams(
+      "501",
+      tokenAddress,
+      200000,
+      30,
+      7 * 24 * 60 * 60,
+      25000n * 10n ** 6n,
+      10000
+    );
+    expect(await factory.getPool("501")).to.equal(poolAddress);
+    expect(await modelRegistry.getPool("501")).to.equal(poolAddress);
 
     const artifact = await result.artifact({ timestamp: "2026-05-13T15:00:00.000Z" });
     expect(artifact.network).to.equal("sepolia");
     expect(artifact.chainId).to.equal("31337");
     expect(artifact.dryRun).to.equal(true);
     expect(artifact.contracts.DeltaVerifier).to.equal(result.contracts.DeltaVerifier);
+    expect(artifact.contracts.PurchaserWhitelist).to.equal(result.contracts.PurchaserWhitelist);
     expect(artifact.roles.InfrastructureReserve.PAYER_ROLE).to.deep.equal([treasury.address]);
+    expect(artifact.roles.PurchaserWhitelist.WHITELIST_ADMIN_ROLE).to.deep.equal([deployer.address]);
+    expect(artifact.roles.ModelRegistry.poolRegistrar).to.equal(result.contracts.HokusaiAMMFactory);
     expect(artifact.config.expectedChainId).to.equal("11155111");
     expect(artifact.gasUsed.ModelRegistry).to.match(/^\d+$/);
     expect(artifact.gasUsed.wiring.setDeltaVerifier).to.match(/^\d+$/);
+    expect(artifact.gasUsed.wiring.factorySetPoolDeployer).to.match(/^\d+$/);
     expect(artifact.gasUsed.totalCostEth).to.not.equal("0.0");
     expect(artifact.git.sha === "unknown" || /^[a-f0-9]{40}$/.test(artifact.git.sha)).to.equal(true);
     expect(artifact.scriptSha).to.match(/^[a-f0-9]{64}$/);

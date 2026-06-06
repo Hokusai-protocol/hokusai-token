@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
 
 describe("Phase 4: Factory & Registry Integration", function () {
     let modelRegistry;
@@ -10,9 +11,9 @@ describe("Phase 4: Factory & Registry Integration", function () {
     let mockUSDC;
     let owner, treasury, deployer, user1;
 
-    const MODEL_ID_1 = "model-alpha";
-    const MODEL_ID_2 = "model-beta";
-    const MODEL_ID_3 = "model-gamma";
+    const MODEL_ID_1 = "401";
+    const MODEL_ID_2 = "402";
+    const MODEL_ID_3 = "403";
 
     beforeEach(async function () {
         [owner, treasury, deployer, user1] = await ethers.getSigners();
@@ -32,14 +33,13 @@ describe("Phase 4: Factory & Registry Integration", function () {
         await mockUSDC.waitForDeployment();
 
         // Deploy factory
-        const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-        factory = await HokusaiAMMFactory.deploy(
-            await modelRegistry.getAddress(),
-            await tokenManager.getAddress(),
-            await mockUSDC.getAddress(),
-            treasury.address
-        );
-        await factory.waitForDeployment();
+        ({ factory } = await deployFactoryWithPoolDeployer(
+            modelRegistry,
+            tokenManager,
+            mockUSDC,
+            treasury
+        ));
+        await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
     });
 
     // ============================================================
@@ -52,6 +52,10 @@ describe("Phase 4: Factory & Registry Integration", function () {
             expect(await factory.tokenManager()).to.equal(await tokenManager.getAddress());
             expect(await factory.reserveToken()).to.equal(await mockUSDC.getAddress());
             expect(await factory.treasury()).to.equal(treasury.address);
+        });
+
+        it("Should initialize with a configured pool deployer", async function () {
+            expect(await factory.poolDeployer()).to.properAddress;
         });
 
         it("Should set correct default parameters", async function () {
@@ -99,6 +103,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
             expect(await factory.hasPool(MODEL_ID_1)).to.be.true;
             expect(await factory.getPool(MODEL_ID_1)).to.equal(poolAddress);
             expect(await factory.poolCount()).to.equal(1);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
         });
 
         it("Should create pool with custom parameters", async function () {
@@ -133,14 +138,12 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
             expect(await pool.crr()).to.equal(customCrr);
             expect(await pool.tradeFee()).to.equal(customTradeFee);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
         });
 
-        it("Should allow manual registration in ModelRegistry", async function () {
+        it("Should register pool in ModelRegistry automatically", async function () {
             const poolAddress = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
             await factory.createPool(MODEL_ID_1, token1Address);
-
-            // Register pool manually (model already registered in beforeEach)
-            await modelRegistry.registerPool(MODEL_ID_1, poolAddress);
 
             expect(await modelRegistry.hasPool(MODEL_ID_1)).to.be.true;
             expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
@@ -159,11 +162,13 @@ describe("Phase 4: Factory & Registry Integration", function () {
         });
 
         it("Should revert if pool already exists", async function () {
+            const originalPool = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
             await factory.createPool(MODEL_ID_1, token1Address);
 
             await expect(
                 factory.createPool(MODEL_ID_1, token1Address)
             ).to.be.revertedWith("Pool already exists");
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(originalPool);
         });
 
         // Validation tests removed - covered by ValidationLib.test.js
@@ -171,7 +176,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should revert if model not registered in ModelRegistry", async function () {
             await expect(
-                factory.createPool("non-existent-model", token1Address)
+                factory.createPool("999", token1Address)
             ).to.be.revertedWith("Model not registered in ModelRegistry");
         });
 
@@ -185,6 +190,97 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         // Removed: CRR, trade fee, and IBR duration validation tests
         // These are covered by ValidationLib.test.js and FeeLib.test.js
+
+        it("Should update factory and registry mappings canonically for multiple models", async function () {
+            const token2Address = await deployTestTokenAddress(tokenManager, MODEL_ID_2, "Beta Token", "BETA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, MODEL_ID_2, "Beta Token", "BETA", parseEther("1"), owner.address);
+            await modelRegistry.registerStringModel(MODEL_ID_2, token2Address, "Test metric");
+
+            const pool1 = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
+            await factory.createPool(MODEL_ID_1, token1Address);
+
+            const pool2 = await factory.createPoolWithParams.staticCall(
+                MODEL_ID_2,
+                token2Address,
+                150000,
+                50,
+                14 * 24 * 60 * 60,
+                parseUnits("50000", 6),
+                parseUnits("0.02", 6)
+            );
+            await factory.createPoolWithParams(
+                MODEL_ID_2,
+                token2Address,
+                150000,
+                50,
+                14 * 24 * 60 * 60,
+                parseUnits("50000", 6),
+                parseUnits("0.02", 6)
+            );
+
+            expect(pool1).to.not.equal(ZeroAddress);
+            expect(pool2).to.not.equal(ZeroAddress);
+            expect(pool1).to.not.equal(pool2);
+            expect(await factory.getPool(MODEL_ID_1)).to.equal(pool1);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(pool1);
+            expect(await factory.getPool(MODEL_ID_2)).to.equal(pool2);
+            expect(await modelRegistry.getPool(MODEL_ID_2)).to.equal(pool2);
+        });
+
+        it("Should revert atomically when factory is not an authorized pool registrar", async function () {
+            const { factory: unauthorizedFactory } = await deployFactoryWithPoolDeployer(
+                modelRegistry,
+                tokenManager,
+                mockUSDC,
+                treasury
+            );
+
+            await expect(
+                unauthorizedFactory.createPoolWithParams(
+                    MODEL_ID_1,
+                    token1Address,
+                    200000,
+                    30,
+                    7 * 24 * 60 * 60,
+                    parseUnits("25000", 6),
+                    parseUnits("0.01", 6)
+                )
+            ).to.be.revertedWith("Caller is not authorized to register pools");
+
+            expect(await unauthorizedFactory.getPool(MODEL_ID_1)).to.equal(ZeroAddress);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(ZeroAddress);
+
+            await modelRegistry.setPoolRegistrar(await unauthorizedFactory.getAddress(), true);
+
+            const poolAddress = await unauthorizedFactory.createPoolWithParams.staticCall(
+                MODEL_ID_1,
+                token1Address,
+                200000,
+                30,
+                7 * 24 * 60 * 60,
+                parseUnits("25000", 6),
+                parseUnits("0.01", 6)
+            );
+            await unauthorizedFactory.createPoolWithParams(
+                MODEL_ID_1,
+                token1Address,
+                200000,
+                30,
+                7 * 24 * 60 * 60,
+                parseUnits("25000", 6),
+                parseUnits("0.01", 6)
+            );
+
+            expect(await unauthorizedFactory.getPool(MODEL_ID_1)).to.equal(poolAddress);
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
+        });
+
+        it("Should reject unauthorized direct ModelRegistry pool registration", async function () {
+            await expect(
+                modelRegistry.connect(user1).registerPool(MODEL_ID_1, user1.address)
+            ).to.be.revertedWith("Caller is not authorized to register pools");
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(ZeroAddress);
+        });
     });
 
     // ============================================================
@@ -264,14 +360,14 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should isolate pools (different parameters)", async function () {
             // Create pool with different parameters
-            const token4Address = await deployTestTokenAddress(tokenManager, "model-delta", "Delta Token", "DELTA", parseEther("1"), owner.address);
-            await deployTestToken(tokenManager, "model-delta", "Delta Token", "DELTA", parseEther("1"), owner.address);
+            const token4Address = await deployTestTokenAddress(tokenManager, "404", "Delta Token", "DELTA", parseEther("1"), owner.address);
+            await deployTestToken(tokenManager, "404", "Delta Token", "DELTA", parseEther("1"), owner.address);
 
             // Register model in ModelRegistry
-            await modelRegistry.registerStringModel("model-delta", token4Address, "Test metric");
+            await modelRegistry.registerStringModel("404", token4Address, "Test metric");
 
             const customPool = await factory.createPoolWithParams.staticCall(
-                "model-delta",
+                "404",
                 token4Address,
                 200000, // 20% CRR
                 50, // 0.5% trade fee
@@ -280,7 +376,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
                 parseUnits("0.005", 6) // Custom price
             );
             await factory.createPoolWithParams(
-                "model-delta",
+                "404",
                 token4Address,
                 200000,
                 50,
@@ -411,7 +507,7 @@ describe("Phase 4: Factory & Registry Integration", function () {
 
         it("Should revert getPoolInfo for non-existent pool", async function () {
             await expect(
-                factory.getPoolInfo("non-existent-model")
+                factory.getPoolInfo("999")
             ).to.be.revertedWith("Pool not found");
         });
     });

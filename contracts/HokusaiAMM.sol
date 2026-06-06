@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "./TokenManager.sol";
+import "./interfaces/IPurchaserWhitelist.sol";
 import "./libraries/ValidationLib.sol";
 import "./libraries/FeeLib.sol";
 import "./libraries/BondingCurveMath.sol";
@@ -33,6 +34,8 @@ import "./libraries/BondingCurveMath.sol";
  *   w = CRR (reserve ratio)
  */
 contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
+    error NotWhitelisted(address buyer);
+
     // ============================================================
     // STATE VARIABLES
     // ============================================================
@@ -48,6 +51,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     uint256 public tradeFee; // Trade fee in bps (basis points), default 30 = 0.30%
     uint256 public buyOnlyUntil; // Timestamp when sells become enabled (IBR end)
     uint256 public maxTradeBps; // Maximum trade size as % of reserve in bps, default 2000 = 20%
+    IPurchaserWhitelist public purchaserWhitelist;
 
     // Two-phase pricing parameters (immutable)
     uint256 public immutable FLAT_CURVE_THRESHOLD; // Reserve amount where bonding curve activates (6 decimals)
@@ -85,6 +89,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         uint256 spotPrice
     );
 
+    // Compliance-focused purchase event with stable, export-friendly fields.
+    event InvestorPurchase(
+        address indexed wallet,
+        uint256 usdcAmount,
+        uint256 tokenAmount
+    );
+
     event Sell(
         address indexed seller,
         uint256 tokensIn,
@@ -115,6 +126,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     );
 
     event MaxTradeBpsUpdated(uint256 oldBps, uint256 newBps);
+    event PurchaserWhitelistUpdated(address indexed oldWhitelist, address indexed newWhitelist);
 
     // ============================================================
     // CONSTRUCTOR
@@ -136,7 +148,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     constructor(
         address _reserveToken,
         address _hokusaiToken,
-        address _tokenManager,
+        address payable _tokenManager,
         string memory _modelId,
         address _treasury,
         uint256 _crr,
@@ -190,6 +202,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         address to,
         uint256 deadline
     ) external nonReentrant whenNotPaused returns (uint256 tokensOut) {
+        if (
+            address(purchaserWhitelist) != address(0) &&
+            !purchaserWhitelist.isWhitelisted(msg.sender)
+        ) {
+            revert NotWhitelisted(msg.sender);
+        }
+
         require(block.timestamp <= deadline, "Transaction expired");
         require(reserveIn > 0, "Reserve amount must be > 0");
         require(to != address(0), "Invalid recipient");
@@ -244,6 +263,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         }
 
         emit Buy(msg.sender, reserveIn, tokensOut, feeAmount, spotPrice());
+        emit InvestorPurchase(msg.sender, reserveIn, tokensOut);
     }
 
     /**
@@ -280,9 +300,15 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         reserveBalance -= reserveOut;
 
         // Burn tokens via TokenManager (requires user approval to this contract)
-        IERC20(hokusaiToken).transferFrom(msg.sender, address(this), tokensIn);
-        IERC20(hokusaiToken).approve(address(tokenManager), tokensIn);
-        tokenManager.burnTokens(modelId, address(this), tokensIn);
+        require(
+            IERC20(hokusaiToken).transferFrom(msg.sender, address(this), tokensIn),
+            "Token transfer failed"
+        );
+        require(
+            IERC20(hokusaiToken).approve(address(tokenManager), tokensIn),
+            "Token approve failed"
+        );
+        tokenManager.burnAMMTokens(modelId, address(this), tokensIn);
 
         // Transfer USDC to seller (after fee)
         require(
@@ -306,6 +332,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     // ============================================================
 
     /**
+     * @dev Returns the redeemable circulating supply used by the AMM curve.
+     */
+    function _redeemableSupply() internal view returns (uint256) {
+        return tokenManager.getRedeemableSupply(modelId);
+    }
+
+    /**
      * @dev Calculate tokens out for a given USDC deposit
      * @param reserveIn Amount of USDC to deposit
      * @return tokensOut Tokens to be minted
@@ -318,7 +351,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     function getBuyQuote(uint256 reserveIn) public view returns (uint256 tokensOut) {
         if (reserveIn == 0) return 0;
 
-        uint256 supply = IERC20(hokusaiToken).totalSupply();
+        uint256 supply = _redeemableSupply();
         uint256 futureReserve = reserveBalance + reserveIn;
 
         // Case 1: Entirely in flat price phase
@@ -360,7 +393,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     function getSellQuote(uint256 tokensIn) public view returns (uint256 reserveOut) {
         if (tokensIn == 0) return 0;
 
-        uint256 supply = IERC20(hokusaiToken).totalSupply();
+        uint256 supply = _redeemableSupply();
         if (supply == 0 || tokensIn > supply) return 0;
         if (reserveBalance == 0) return 0;
 
@@ -381,13 +414,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Get current spot price
+     * @dev Get current spot price from redeemable circulating supply
      * @return Current price in USDC per token (6 decimals)
      *
      * Returns flat price during flat phase, bonding curve formula otherwise
      */
     function spotPrice() public view returns (uint256) {
-        uint256 supply = IERC20(hokusaiToken).totalSupply();
+        uint256 supply = _redeemableSupply();
 
         // During flat price phase, return fixed price
         if (reserveBalance < FLAT_CURVE_THRESHOLD) {
@@ -409,13 +442,13 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Get current reserves and supply
+     * @dev Get current reserves and redeemable circulating supply
      * @return reserve Current USDC reserve balance
-     * @return supply Current token supply
+     * @return supply Current redeemable circulating supply
      */
     function getReserves() external view returns (uint256 reserve, uint256 supply) {
         reserve = reserveBalance;
-        supply = IERC20(hokusaiToken).totalSupply();
+        supply = _redeemableSupply();
     }
 
     /**
@@ -433,7 +466,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     /**
      * @dev Get comprehensive pool state
      * @return reserve Current USDC reserve balance
-     * @return supply Current token supply
+     * @return supply Current redeemable circulating supply
      * @return price Current spot price (6 decimals)
      * @return reserveRatio CRR in PPM
      * @return tradeFeeRate Trade fee in bps
@@ -450,7 +483,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         )
     {
         reserve = reserveBalance;
-        supply = IERC20(hokusaiToken).totalSupply();
+        supply = _redeemableSupply();
         price = spotPrice();
         reserveRatio = crr;
         tradeFeeRate = tradeFee;
@@ -501,7 +534,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         // New reserve = current + reserveIn (after fee)
         uint256 feeAmount = (reserveIn * tradeFee) / 10000;
         uint256 newReserve = reserveBalance + (reserveIn - feeAmount);
-        uint256 newSupply = IERC20(hokusaiToken).totalSupply() + tokensOut;
+        uint256 newSupply = _redeemableSupply() + tokensOut;
 
         // P = (R * PPM * 1e18) / (crr * S)
         newSpotPrice = (newReserve * PPM * 1e18) / (crr * newSupply);
@@ -541,7 +574,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
 
         // Calculate new spot price after trade
         // New supply = current - tokensIn
-        uint256 newSupply = IERC20(hokusaiToken).totalSupply() - tokensIn;
+        uint256 newSupply = _redeemableSupply() - tokensIn;
         // New reserve = current - reserveOut
         uint256 newReserve = reserveBalance - reserveOut;
 
@@ -652,6 +685,12 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         maxTradeBps = newMaxTradeBps;
     }
 
+    function setPurchaserWhitelist(address whitelist) external onlyOwner {
+        address oldWhitelist = address(purchaserWhitelist);
+        purchaserWhitelist = IPurchaserWhitelist(whitelist);
+        emit PurchaserWhitelistUpdated(oldWhitelist, whitelist);
+    }
+
     /**
      * @dev Pause trading (emergency only)
      */
@@ -725,7 +764,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      */
     function _calculateFlatPriceTokens(uint256 reserveIn) internal view returns (uint256) {
         // Deduct trade fee using FeeLib
-        (uint256 reserveAfterFee, ) = FeeLib.applyFee(reserveIn, tradeFee);
+        uint256 reserveAfterFee = reserveIn - FeeLib.calculateFee(reserveIn, tradeFee);
 
         // Simple fixed price calculation
         // USDC is 6 decimals, token is 18 decimals
@@ -757,7 +796,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         }
 
         // Deduct trade fee using FeeLib
-        (uint256 reserveAfterFee, ) = FeeLib.applyFee(reserveIn, tradeFee);
+        uint256 reserveAfterFee = reserveIn - FeeLib.calculateFee(reserveIn, tradeFee);
 
         // Use BondingCurveMath library for bonding curve calculation
         return BondingCurveMath.calculateBuy(

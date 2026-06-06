@@ -19,7 +19,7 @@ describe("DeployableTokenManager Vesting", function () {
   let treasury;
   let outsider;
 
-  const MODEL_ID = "vesting-model";
+  const MODEL_ID = "1104";
   const DEFAULT_VESTING_SENTINEL = {
     enabled: false,
     immediateUnlockBps: 0,
@@ -128,6 +128,7 @@ describe("DeployableTokenManager Vesting", function () {
 
     expect(await token.balanceOf(contributor.address)).to.equal(immediateAmount);
     expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(vestedAmount);
+    expect(await token.investorMinted()).to.equal(0);
     expect(await vestingVault.getSchedulesByBeneficiary(contributor.address)).to.deep.equal([0n]);
   });
 
@@ -236,6 +237,7 @@ describe("DeployableTokenManager Vesting", function () {
     await tokenManager.mintReward("no-vesting", contributor.address, rewardAmount);
 
     expect(await token.balanceOf(contributor.address)).to.equal(rewardAmount);
+    expect(await token.investorMinted()).to.equal(0);
     expect(await vestingVault.getSchedulesByBeneficiary(contributor.address)).to.deep.equal([]);
   });
 
@@ -299,5 +301,29 @@ describe("DeployableTokenManager Vesting", function () {
     await expect(
       amm.connect(contributor).sell(rewardAmount, 0, contributor.address, (await time.latest()) + 3600)
     ).to.be.reverted;
+  });
+
+  it("falls back to totalSupply when no vesting vault is configured", async function () {
+    const TokenDeploymentFactory = await ethers.getContractFactory("TokenDeploymentFactory");
+    const DeployableTokenManager = await ethers.getContractFactory("DeployableTokenManager");
+
+    const freshFactory = await TokenDeploymentFactory.deploy();
+    await freshFactory.waitForDeployment();
+
+    const freshManager = await DeployableTokenManager.deploy(
+      await modelRegistry.getAddress(),
+      await freshFactory.getAddress()
+    );
+    await freshManager.waitForDeployment();
+
+    await freshManager.deployTokenWithParams(
+      "no-vault",
+      "No Vault Token",
+      "NVT",
+      parseEther("4321"),
+      buildInitialParams(owner.address, { vestingConfig: buildDisabledVestingConfig() })
+    );
+
+    expect(await freshManager.getRedeemableSupply("no-vault")).to.equal(parseEther("4321"));
   });
 });

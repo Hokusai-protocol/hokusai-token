@@ -3,7 +3,6 @@
 Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 
 **Date:** ___________
-**Deployer:** ___________
 **Network:** Ethereum Mainnet (Chain ID: 1)
 
 ---
@@ -18,8 +17,8 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Backup RPC provider configured
 
 ### Wallet Preparation
-- [ ] Deployer wallet address verified: `___________`
-- [ ] ETH balance sufficient (minimum 0.5 ETH): `_____` ETH
+- [ ] Deployer wallet address verified: `0x3937A9B521298D4c6D9d438cEFF396eD18DD7Bb6`
+- [ ] ETH balance sufficient (minimum 0.5 ETH): `0.99` ETH
 - [ ] USDC balance sufficient for initial reserves: `$_____` USDC
 - [ ] Test transaction sent to verify wallet access
 - [ ] Backup wallet configured (for emergency)
@@ -38,6 +37,10 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Security audit completed (if applicable)
 - [ ] Testnet deployment successful (Sepolia)
 - [ ] Testnet functionality verified (buy/sell transactions)
+- [ ] [Canonical model registration doc](canonical-model-registration.md) reviewed
+- [ ] Canonical registration smoke verified for every launch model id
+- [ ] [Mainnet launch token parameter lock](mainnet-launch-token-parameter-lock.md) reviewed and signed off
+- [ ] Launch token identity, supplier allocation, reward params, AMM params, and initial reserve values match the approved token parameter lock
 
 ### Contract Verification Preparation
 - [ ] Etherscan API key configured in `.env`
@@ -46,13 +49,21 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Flattened contracts generated (if needed)
 
 ### Treasury & Admin Configuration
-- [ ] Treasury address decided: `___________`
-- [ ] Multi-sig setup (if using): `___________`
+- [ ] Treasury address decided: `0xac2BEb4377a897dC25FFaD13562bd6ce632F3970`
+- [ ] Governance Safe confirmed: `0x158B985CC667b4E022AD05B99E89007790da66E2`
+- [ ] Safe threshold confirmed: `2-of-3`
+- [ ] Emergency Safe policy confirmed (`EMERGENCY_SAFE_ADDRESS` documented if different from governance Safe)
+- [ ] Timelock delay approved for mainnet: `172800` seconds
+- [ ] [Governance Runbook](governance-runbook.md) reviewed
 - [ ] Admin roles documented
-- [ ] Ownership transfer plan documented
+- [ ] Ownership and role transfer plan documented
 - [ ] [Mainnet custody and role rehearsal runbook](mainnet-custody-runbook.md) completed
+- [ ] [Mainnet launch day rollback runbook](mainnet-launch-rollback-runbook.md) completed through operator assignment and tabletop rehearsal
 - [ ] Sepolia ownership-transfer and deployer-role revocation rehearsal completed
 - [ ] Sepolia emergency pause/unpause rehearsal completed
+- [ ] Sepolia timelock proposal, delay, and execute rehearsal completed
+- [ ] Sepolia governance verification report archived
+- [ ] Frontend/backend write-disable rollback drill completed
 
 ---
 
@@ -102,6 +113,7 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 
 ### Configuration Verification
 - [ ] ModelRegistry.tokenManager = TokenManager address
+- [ ] ModelRegistry.poolRegistrars(factory) = true
 - [ ] TokenManager.deltaVerifier = DeltaVerifier address
 - [ ] Factory.modelRegistry = ModelRegistry address
 - [ ] Factory.tokenManager = TokenManager address
@@ -165,6 +177,14 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY_ADDRESS>"
 npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC>" "0x<TREASURY>"
 ```
 
+### Governance Deployment And Verification
+- [ ] `HokusaiTimelockController` verified
+  - Link: https://etherscan.io/address/___________#code
+- [ ] `deployments/mainnet-latest.json` includes `governance.timelock`
+- [ ] `deployments/mainnet-timelock-<timestamp>.json` archived
+- [ ] Timelock proposer/executor/canceller roles confirmed for Safe
+- [ ] Deployer does not retain `TIMELOCK_ADMIN_ROLE`
+
 ---
 
 ## Phase 3: Pool Creation (CRITICAL)
@@ -180,12 +200,18 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 
 ### Pool Configuration Review
 
+### Token Supply Model
+
+- `maxSupply` is the launch allocation cap for supplier allocation + investor allocation, not the total ERC20 supply cap.
+- Reward tokens mint outside investor allocation through the reward bucket. Track live reward issuance with `rewardMinted()` and the cap with `getRewardMintingCap()`, so `totalSupply()` can exceed `maxSupply()` without being anomalous.
+- Supplier allocation distribution now uses the token's contributor reward vesting policy. The immediate portion mints to the supplier wallet, and any vested portion mints to `RewardVestingVault`, where it is excluded from redeemable AMM supply until claimed.
+
 **Conservative Pool:**
 - [ ] Model ID: `model-conservative-001`
 - [ ] Token: Hokusai Conservative (HKS-CON)
 - [ ] Supplier Allocation: `___________`
 - [ ] Investor Allocation: `___________`
-- [ ] Max Supply: `___________`
+- [ ] Launch Allocation Cap: `___________`
 - [ ] Tokens Per DeltaOne: `___________`
 - [ ] Initial Reserve: $10,000 USDC
 - [ ] CRR: 30%
@@ -197,7 +223,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token: Hokusai Aggressive (HKS-AGG)
 - [ ] Supplier Allocation: `___________`
 - [ ] Investor Allocation: `___________`
-- [ ] Max Supply: `___________`
+- [ ] Launch Allocation Cap: `___________`
 - [ ] Tokens Per DeltaOne: `___________`
 - [ ] Initial Reserve: $50,000 USDC
 - [ ] CRR: 10%
@@ -209,7 +235,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token: Hokusai Balanced (HKS-BAL)
 - [ ] Supplier Allocation: `___________`
 - [ ] Investor Allocation: `___________`
-- [ ] Max Supply: `___________`
+- [ ] Launch Allocation Cap: `___________`
 - [ ] Tokens Per DeltaOne: `___________`
 - [ ] Initial Reserve: $25,000 USDC
 - [ ] CRR: 20%
@@ -225,6 +251,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token deployed: `___________`
 - [ ] Model registered
 - [ ] Pool created: `___________`
+- [ ] `ModelRegistry.getPool(modelId)` matches `HokusaiAMMFactory.getPool(modelId)`
 - [ ] Initial liquidity added
 - [ ] Reserve balance verified: $10,000
 - [ ] Spot price checked: $___________
@@ -233,6 +260,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token deployed: `___________`
 - [ ] Model registered
 - [ ] Pool created: `___________`
+- [ ] `ModelRegistry.getPool(modelId)` matches `HokusaiAMMFactory.getPool(modelId)`
 - [ ] Initial liquidity added
 - [ ] Reserve balance verified: $50,000
 - [ ] Spot price checked: $___________
@@ -241,12 +269,18 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Token deployed: `___________`
 - [ ] Model registered
 - [ ] Pool created: `___________`
+- [ ] `ModelRegistry.getPool(modelId)` matches `HokusaiAMMFactory.getPool(modelId)`
 - [ ] Initial liquidity added
 - [ ] Reserve balance verified: $25,000
 - [ ] Spot price checked: $___________
 
 ### Supplier Allocation Distribution
 - [ ] Review `scripts/configs/mainnet-launch-tokens.json` for each token's `distributionTiming`
+- [ ] For each token, verify supplier distribution timing and record the expected AMM spot-price impact before launch
+- [ ] For each distributed token, record the expected immediate amount and vested amount from `vestingConfig.immediateUnlockBps`
+- [ ] Verify the supplier recipient received only the immediate portion at distribution time
+- [ ] If a vested portion exists, verify `RewardVestingVault` received the remainder and that a schedule exists with the correct beneficiary, cliff, duration, and start time
+- [ ] Record the vesting start timestamp; `pre-launch` distribution starts the supplier vesting clock before the pool is live
 - [ ] Conservative timing: `pre-launch` or `post-verification` = `___________`
 - [ ] Conservative signer (`TokenManager.owner()` / multisig): `___________`
 - [ ] Conservative distribution tx hash: `___________`
@@ -341,6 +375,34 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] Health endpoint showing all pools
 - [ ] No errors in monitoring logs
 
+### Governance Verification
+- [ ] Governance transfer dry-run reviewed:
+
+```bash
+DRY_RUN=true npx hardhat run scripts/governance/transfer-governance.js --network mainnet
+```
+
+- [ ] Governance transfer executed:
+
+```bash
+npx hardhat run scripts/governance/transfer-governance.js --network mainnet
+```
+
+- [ ] Governance verification report passes:
+
+```bash
+npx hardhat run scripts/governance/verify-governance.js --network mainnet
+```
+
+- [ ] Report archived: `deployments/governance-verification-mainnet-latest.json`
+- [ ] `ModelRegistry.owner()` = timelock
+- [ ] `TokenManager.owner()` = timelock
+- [ ] `HokusaiAMMFactory.owner()` = timelock
+- [ ] Each `HokusaiToken.owner()` = timelock
+- [ ] Each `HokusaiParams` `DEFAULT_ADMIN_ROLE` and `GOV_ROLE` = timelock
+- [ ] Emergency Safe can pause but cannot unpause `DeltaVerifier` and `InfrastructureReserve`
+- [ ] Emergency Safe can call factory pool pause functions but cannot perform timelocked admin changes
+
 ### IBR Verification
 - [ ] Sell transactions disabled (should revert during IBR)
 - [ ] IBR end times calculated correctly
@@ -355,6 +417,7 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 - [ ] API documentation updated (if applicable)
 - [ ] Monitoring dashboard URLs shared with team
 - [ ] Emergency procedures documented
+- [ ] Governance runbook updated with final mainnet addresses
 - [ ] Owner function documentation updated
 
 ### Team Communication
@@ -376,9 +439,12 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 
 ### Access Control Review
 - [ ] All owner addresses documented
-- [ ] Multi-sig configuration verified (if using)
+- [ ] Safe configuration verified
+- [ ] Timelock configuration verified
 - [ ] Role assignments documented:
   - [ ] DEFAULT_ADMIN_ROLE holders
+  - [ ] GOV_ROLE holders
+  - [ ] PAUSER_ROLE holders
   - [ ] MINTER_ROLE holders
   - [ ] FEE_DEPOSITOR_ROLE holders
   - [ ] RECORDER_ROLE holders
@@ -436,6 +502,8 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 
 ## Emergency Procedures
 
+Use [Mainnet Custody And Role Rehearsal Runbook](mainnet-custody-runbook.md) as the single emergency entry point. If launch is in progress or newly public, activate [Mainnet Launch Day Rollback Runbook](mainnet-launch-rollback-runbook.md) before taking further deployment, pool, custody, frontend, or announcement actions.
+
 ### If Monitoring Detects Issue
 1. **Critical Alert (Pause, Ownership Transfer, Zero Reserve)**
    - [ ] Respond within 5 minutes
@@ -461,10 +529,11 @@ npx hardhat verify --network mainnet 0x... "0x<REGISTRY>" "0x<MANAGER>" "0x<USDC
 ### Emergency Pause Procedure
 ```solidity
 // Only if absolutely necessary (exploit, critical bug)
-// Call pause() on affected pool(s)
+// Emergency Safe pauses through the approved narrow path
 
-HokusaiAMM pool = HokusaiAMM(poolAddress);
-pool.pause();  // Only owner can call
+HokusaiAMMFactory(factoryAddress).pausePool(poolAddress);
+DeltaVerifier(deltaVerifierAddress).pause();
+InfrastructureReserve(infrastructureReserveAddress).pause();
 ```
 
 ### Contact Information
@@ -505,3 +574,4 @@ ___________________________________________________________________________
 ___________________________________________________________________________
 ___________________________________________________________________________
 ___________________________________________________________________________
+See also: [docs/canonical-model-registration.md](./canonical-model-registration.md)

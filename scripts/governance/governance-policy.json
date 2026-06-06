@@ -1,0 +1,143 @@
+{
+  "defaults": {
+    "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+    "sepoliaMinDelay": 300,
+    "mainnetMinDelay": 172800
+  },
+  "timelock": {
+    "proposers": ["ADMIN_SAFE"],
+    "executors": ["ADMIN_SAFE"],
+    "cancellers": ["ADMIN_SAFE"],
+    "revokedFromDeployer": ["TIMELOCK_ADMIN_ROLE"]
+  },
+  "contracts": [
+    {
+      "name": "ModelRegistry",
+      "abi": "ModelRegistry",
+      "addressFrom": "contracts.ModelRegistry",
+      "owner": "TIMELOCK",
+      "revokedFromDeployer": ["owner"],
+      "checks": [
+        { "type": "equals", "method": "stringModelTokenManager", "expected": "CONTRACT:TokenManager" },
+        { "type": "mappingBool", "method": "poolRegistrars", "args": ["CONTRACT:HokusaiAMMFactory"], "expected": true }
+      ]
+    },
+    {
+      "name": "TokenManager",
+      "abiFrom": "contracts._tokenManagerImpl",
+      "addressFrom": "contracts.TokenManager",
+      "owner": "TIMELOCK",
+      "revokedFromDeployer": ["owner", "DEFAULT_ADMIN_ROLE"],
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "MINTER_ROLE": ["DEPLOYMENT_ROLE:TokenManager:MINTER_ROLE"],
+        "DEPLOYER_ROLE": ["DEPLOYMENT_ROLE:TokenManager:DEPLOYER_ROLE"]
+      },
+      "checks": [
+        { "type": "equals", "method": "deltaVerifier", "expected": "CONTRACT:DeltaVerifier" },
+        { "type": "equals", "method": "vestingVault", "expected": "CONTRACT:RewardVestingVault" }
+      ]
+    },
+    {
+      "name": "HokusaiAMMFactory",
+      "abi": "HokusaiAMMFactory",
+      "addressFrom": "contracts.HokusaiAMMFactory",
+      "owner": "TIMELOCK",
+      "revokedFromDeployer": ["owner"],
+      "setters": {
+        "pauser": { "method": "setPauser", "expected": "EMERGENCY_SAFE" }
+      }
+    },
+    {
+      "name": "HokusaiAMM",
+      "abi": "HokusaiAMM",
+      "collection": "pools",
+      "addressFrom": "ammAddress",
+      "owner": "CONTRACT:HokusaiAMMFactory"
+    },
+    {
+      "name": "DeltaVerifier",
+      "abi": "DeltaVerifier",
+      "addressFrom": "contracts.DeltaVerifier",
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "PAUSER_ROLE"],
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "SUBMITTER_ROLE": ["DEPLOYMENT_ROLE:DeltaVerifier:SUBMITTER_ROLE"],
+        "PAUSER_ROLE": ["EMERGENCY_SAFE"]
+      }
+    },
+    {
+      "name": "InfrastructureReserve",
+      "abi": "InfrastructureReserve",
+      "addressFrom": "contracts.InfrastructureReserve",
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "PAUSER_ROLE"],
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "DEPOSITOR_ROLE": ["DEPLOYMENT_ROLE:InfrastructureReserve:DEPOSITOR_ROLE"],
+        "PAYER_ROLE": ["DEPLOYMENT_ROLE:InfrastructureReserve:PAYER_ROLE"],
+        "PAUSER_ROLE": ["EMERGENCY_SAFE"]
+      }
+    },
+    {
+      "name": "InfrastructureCostOracle",
+      "abi": "InfrastructureCostOracle",
+      "addressFrom": "contracts.InfrastructureCostOracle",
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "GOV_ROLE"],
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "GOV_ROLE": ["TIMELOCK"]
+      }
+    },
+    {
+      "name": "UsageFeeRouter",
+      "abi": "UsageFeeRouter",
+      "addressFrom": "contracts.UsageFeeRouter",
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE"],
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "FEE_DEPOSITOR_ROLE": ["DEPLOYMENT_ROLE:UsageFeeRouter:FEE_DEPOSITOR_ROLE"]
+      }
+    },
+    {
+      "name": "DataContributionRegistry",
+      "abi": "DataContributionRegistry",
+      "addressFrom": "contracts.DataContributionRegistry",
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE"],
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "RECORDER_ROLE": ["DEPLOYMENT_ROLE:DataContributionRegistry:RECORDER_ROLE"],
+        "VERIFIER_ROLE": ["DEPLOYMENT_ROLE:DataContributionRegistry:VERIFIER_ROLE"]
+      }
+    },
+    {
+      "name": "FundingVault",
+      "abi": "FundingVault",
+      "addressFrom": "contracts.FundingVault",
+      "optional": true,
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE"],
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "GRADUATOR_ROLE": ["DEPLOYMENT_ROLE:FundingVault:GRADUATOR_ROLE"]
+      }
+    },
+    {
+      "name": "HokusaiToken",
+      "abi": "HokusaiToken",
+      "collection": "tokens",
+      "addressFrom": "address",
+      "owner": "TIMELOCK",
+      "revokedFromDeployer": ["owner"]
+    },
+    {
+      "name": "HokusaiParams",
+      "abi": "HokusaiParams",
+      "collection": "tokens",
+      "addressFrom": "paramsAddress",
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "GOV_ROLE"],
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "GOV_ROLE": ["TIMELOCK"]
+      }
+    }
+  ]
+}

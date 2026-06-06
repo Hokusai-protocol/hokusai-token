@@ -36,6 +36,14 @@ function assertEqual(label: string, actual: bigint, expected?: bigint): void {
   }
 }
 
+async function readInvestorAllocation(token: ethers.Contract, maxSupply: bigint, modelSupplierAllocation: bigint): Promise<bigint> {
+  try {
+    return (await token.investorAllocation()) as bigint;
+  } catch {
+    return maxSupply - modelSupplierAllocation;
+  }
+}
+
 async function main(): Promise<void> {
   if (process.argv.includes("--lint")) {
     const offenders: string[] = [];
@@ -96,6 +104,7 @@ async function main(): Promise<void> {
   const totalSupply = (await token.totalSupply()) as bigint;
   const maxSupply = (await token.maxSupply()) as bigint;
   const modelSupplierAllocation = (await token.modelSupplierAllocation()) as bigint;
+  const investorAllocation = await readInvestorAllocation(token, maxSupply, modelSupplierAllocation);
   const modelSupplierDistributed = (await token.modelSupplierDistributed()) as boolean;
   const modelSupplierRecipient = (await token.modelSupplierRecipient()) as string;
   const tokensPerDeltaOne = (await params.tokensPerDeltaOne()) as bigint;
@@ -104,6 +113,7 @@ async function main(): Promise<void> {
   console.log(`Params: ${paramsAddress}`);
   console.log(`Supplier recipient: ${modelSupplierRecipient}`);
   console.log(`Supplier allocation: ${formatWholeTokens(modelSupplierAllocation)}`);
+  console.log(`Investor allocation: ${formatWholeTokens(investorAllocation)}`);
   console.log(`Supplier distributed: ${modelSupplierDistributed}`);
   console.log(`Total supply: ${formatWholeTokens(totalSupply)}`);
   console.log(`Max supply: ${formatWholeTokens(maxSupply)}`);
@@ -119,7 +129,7 @@ async function main(): Promise<void> {
   }
 
   assertEqual("supplier allocation", modelSupplierAllocation, expectedSupplier);
-  assertEqual("investor allocation", maxSupply - modelSupplierAllocation, expectedInvestor);
+  assertEqual("investor allocation", investorAllocation, expectedInvestor);
   assertEqual("total supply", totalSupply, expectedTotalSupply);
   assertEqual("tokensPerDeltaOne", tokensPerDeltaOne, expectedTokensPerDeltaOne);
 

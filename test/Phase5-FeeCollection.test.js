@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
 
 describe("Phase 5: Fee Collection System", function () {
     let modelRegistry;
@@ -13,8 +14,8 @@ describe("Phase 5: Fee Collection System", function () {
     let pool1, pool2;
     let owner, treasury, depositor, user1;
 
-    const MODEL_ID_1 = "model-alpha";
-    const MODEL_ID_2 = "model-beta";
+    const MODEL_ID_1 = "401";
+    const MODEL_ID_2 = "402";
     // Default infrastructureAccrualBps from TokenManager.deployToken() is 8000 (80%)
     const DEFAULT_INFRA_BPS = 8000n;
     const INITIAL_GROSS_MARGIN_BPS = 2000;
@@ -35,14 +36,13 @@ describe("Phase 5: Fee Collection System", function () {
         mockUSDC = await MockUSDC.deploy();
         await mockUSDC.waitForDeployment();
 
-        const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-        factory = await HokusaiAMMFactory.deploy(
-            await modelRegistry.getAddress(),
-            await tokenManager.getAddress(),
-            await mockUSDC.getAddress(),
-            treasury.address
-        );
-        await factory.waitForDeployment();
+        ({ factory } = await deployFactoryWithPoolDeployer(
+            modelRegistry,
+            tokenManager,
+            mockUSDC,
+            treasury
+        ));
+        await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
         // Deploy tokens and pools
         const token1Address = await deployTestTokenAddress(tokenManager, MODEL_ID_1, "Alpha Token", "ALPHA", parseEther("1"), owner.address);
@@ -194,7 +194,7 @@ describe("Phase 5: Fee Collection System", function () {
 
         it("Should revert if pool does not exist", async function () {
             await expect(
-                feeRouter.connect(depositor).depositFee("non-existent-model", parseUnits("1000", 6), 1000)
+                feeRouter.connect(depositor).depositFee("999", parseUnits("1000", 6), 1000)
             ).to.be.revertedWith("Pool does not exist");
         });
 
@@ -296,7 +296,7 @@ describe("Phase 5: Fee Collection System", function () {
 
             const callCounts = [];
             for (let i = 0; i < 5; i++) {
-                const modelId = `model-${i}`;
+                const modelId = String(5000 + i);
                 const tokenAddress = await deployTestTokenAddress(tokenManager, modelId, `Token ${i}`, `TKN${i}`, parseEther("1"), owner.address);
                 await deployTestToken(tokenManager, modelId, `Token ${i}`, `TKN${i}`, parseEther("1"), owner.address);
                 // Register model in ModelRegistry

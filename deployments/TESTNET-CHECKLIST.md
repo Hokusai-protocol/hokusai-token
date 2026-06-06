@@ -26,6 +26,7 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
   npm run deploy:sepolia
   ```
 - [ ] `deployments/sepolia-latest.json` created or updated
+- [ ] [docs/canonical-model-registration.md](../docs/canonical-model-registration.md) reviewed
 - [ ] Artifact contains `contracts._tokenManagerImpl = "DeployableTokenManager"`
 - [ ] Artifact contains `TokenDeploymentFactory`
 - [ ] Artifact contains `RewardVestingVault`
@@ -41,6 +42,7 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
 - [ ] `InfrastructureReserve.treasury()` matches expected treasury/Safe
 - [ ] `UsageFeeRouter.factory()` matches factory
 - [ ] `UsageFeeRouter.infraReserve()` matches reserve
+- [ ] `ModelRegistry.poolRegistrars(factory)` returns `true`
 - [ ] `TokenManager.deltaVerifier()` matches `DeltaVerifier`
 - [ ] `TokenManager.vestingVault()` matches `RewardVestingVault`
 - [ ] `DataContributionRegistry.RECORDER_ROLE` granted to `DeltaVerifier`
@@ -56,9 +58,14 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
 - [ ] Params address recorded
 - [ ] Pool address recorded
 - [ ] `ModelRegistry.isStringRegistered(modelId)` returns `true`
+- [ ] `ModelRegistry.isRegistered(uint256(modelId))` returns `true`
 - [ ] `TokenManager.getTokenAddress(modelId)` returns token address
+- [ ] `ModelRegistry.getTokenAddress(uint256(modelId))` returns the same token address
 - [ ] `HokusaiAMMFactory.getPool(modelId)` returns pool address
+- [ ] `ModelRegistry.getPool(modelId)` returns the same pool address
+- [ ] `npm run smoke:sepolia` verifies canonical registration for models `27`, `28`, and `30`
 - [ ] Pool reserve/token balances match launch config
+- [ ] Supplier distribution timing reviewed and expected AMM spot-price impact recorded before pool launch
 - [ ] `pool.paused()` returns `false`
 - [ ] `pool.owner()` recorded
 - [ ] Pool owner has an executable pause/unpause path
@@ -99,6 +106,7 @@ Use this checklist before any mainnet deployment rehearsal. It is intentionally 
 
 ## Sign-Off
 
+- [ ] Trust model reviewed: [docs/deltaverifier-trust-model.md](../docs/deltaverifier-trust-model.md)
 - [ ] Final `deployments/sepolia-latest.json` archived in release notes
 - [ ] Known issues documented
 - [ ] Pool pause-path status explicitly approved

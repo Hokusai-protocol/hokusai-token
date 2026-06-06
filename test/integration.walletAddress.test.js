@@ -141,10 +141,6 @@ describe("Integration: JSON Wallet Address Support", function () {
     );
     await hokusaiParams.waitForDeployment();
 
-    const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-    hokusaiToken = await HokusaiToken.deploy("Hokusai Token", "HOKU", owner.address, await hokusaiParams.getAddress(), parseEther("10000"), 0, 0, ZeroAddress);
-    await hokusaiToken.waitForDeployment();
-
     const TokenManager = await ethers.getContractFactory("TokenManager");
     tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
     await tokenManager.waitForDeployment();
@@ -168,8 +164,9 @@ describe("Integration: JSON Wallet Address Support", function () {
     await deltaVerifier.waitForDeployment();
 
     // Set up permissions
-    await hokusaiToken.setController(await tokenManager.getAddress());
     await deployTestToken(tokenManager, MODEL_ID, "Hokusai Token", "HOKU", parseEther("10000"), owner.address);
+    const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+    hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
     await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), await deltaVerifier.getAddress());
     await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
 
@@ -179,7 +176,7 @@ describe("Integration: JSON Wallet Address Support", function () {
     // Register model in registry for DeltaVerifier
     await modelRegistry.registerModel(
       MODEL_ID,
-      await hokusaiToken.getAddress(),
+      tokenAddress,
       "accuracy"
     );
   });

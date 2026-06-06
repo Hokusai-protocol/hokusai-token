@@ -16,7 +16,9 @@
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sync:abi": "tsx scripts/sync-abi.ts",
+    "sync:abi:check": "tsx scripts/sync-abi.ts --check"
   },
   "keywords": [
     "hokusai",

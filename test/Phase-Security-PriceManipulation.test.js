@@ -8,7 +8,7 @@ describe("Phase 6: Price Manipulation Attack Security", function () {
     let owner, treasury, victim, attacker;
 
     // AMM Parameters
-    const modelId = "price-manipulation-test-model";
+    const modelId = "1204";
     const INITIAL_RESERVE = parseUnits("10000", 6); // $10k USDC
     const INITIAL_SUPPLY = parseUnits("100000", 18); // 100k tokens
     const CRR = 100000; // 10% reserve ratio

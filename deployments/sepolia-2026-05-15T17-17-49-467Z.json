@@ -1,0 +1,134 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "dryRun": false,
+  "timestamp": "2026-05-15T17:17:49.467Z",
+  "git": {
+    "sha": "9afb2bd9a34d4b0d98beba0a56ecd88af6f6f112",
+    "dirty": true
+  },
+  "scriptSha": "ea3ccd8a31f3319e7fd72b14bba5828892df18aca36acbcd86d6a6d1466b705b",
+  "deployer": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "treasury": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+  "backendService": null,
+  "contracts": {
+    "ModelRegistry": "0xc62e6686Ec940D5336b8C5408F6d26A2a1090F01",
+    "TokenDeploymentFactory": "0x9281f1106dd39a8DA3f2CcC1148e7A79f73550ad",
+    "TokenManager": "0xf70780865E19a7a349652c28A3bc1B7061A05614",
+    "_tokenManagerImpl": "DeployableTokenManager",
+    "RewardVestingVault": "0xf0065d43beBF4F566bc5d82435D2D12B5f745adF",
+    "DataContributionRegistry": "0xCBd25AcD64DE46FC04A6bfF34b8240AFC0c5A7f6",
+    "MockUSDC": "0x93351618b4CC2bE28A401538a65258b240E589f2",
+    "HokusaiAMMFactory": "0xab1960F529B55eE6351DEb5F510f31b1B9738161",
+    "InfrastructureReserve": "0x4C3b969F880A82DD514b888c23c1256aC0eEe6a8",
+    "InfrastructureCostOracle": "0x109295B6028B4A8a048844d9FA14510a8ff8E9D5",
+    "UsageFeeRouter": "0x4B32A85cbdFd123FCf70033203700f1ABa99d476",
+    "DeltaVerifier": "0x0380677fA640C987e4cb647500156a6FCc41cb4d"
+  },
+  "roles": {
+    "ModelRegistry": {
+      "owner": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "stringModelTokenManager": "0xf70780865E19a7a349652c28A3bc1B7061A05614"
+    },
+    "TokenManager": {
+      "owner": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "deltaVerifier": "0x0380677fA640C987e4cb647500156a6FCc41cb4d",
+      "vestingVault": "0xf0065d43beBF4F566bc5d82435D2D12B5f745adF"
+    },
+    "DataContributionRegistry": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+      ],
+      "RECORDER_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+        "0x0380677fA640C987e4cb647500156a6FCc41cb4d"
+      ],
+      "VERIFIER_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+      ]
+    },
+    "InfrastructureReserve": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+      ],
+      "DEPOSITOR_ROLE": [
+        "0x4B32A85cbdFd123FCf70033203700f1ABa99d476"
+      ],
+      "PAYER_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+      ]
+    },
+    "UsageFeeRouter": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+      ],
+      "FEE_DEPOSITOR_ROLE": [
+        "0x3018cf81729c932bc3e733a264e5f4a0a08ded5b"
+      ]
+    },
+    "DeltaVerifier": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+      ],
+      "SUBMITTER_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+      ]
+    },
+    "InfrastructureCostOracle": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+      ],
+      "GOV_ROLE": [
+        "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B"
+      ]
+    }
+  },
+  "config": {
+    "reserveToken": "0x93351618b4CC2bE28A401538a65258b240E589f2",
+    "factoryDefaults": {
+      "crr": 200000,
+      "tradeFee": 30,
+      "ibrDuration": 604800,
+      "flatCurveThreshold": "25000000000",
+      "flatCurvePrice": 10000
+    },
+    "deltaVerifierParams": {
+      "baseRewardRate": 1000,
+      "minImprovementBps": 100,
+      "maxReward": "1000000000000000000000000"
+    },
+    "infrastructureCostOracleParams": {
+      "initialGrossMarginBps": 1500
+    },
+    "expectedChainId": "11155111"
+  },
+  "gasUsed": {
+    "wiring": {
+      "setVestingVault": "47875",
+      "setStringModelTokenManager": "47472",
+      "mockUsdcMint": "68158",
+      "factorySetDefaults": "32962",
+      "infraDepositorRole": "51213",
+      "infraPayerRole": "51201",
+      "contributionRegistryRecorderRole": "51239",
+      "setDeltaVerifier": "47866"
+    },
+    "ModelRegistry": "2414707",
+    "TokenDeploymentFactory": "4667169",
+    "TokenManager": "3331099",
+    "RewardVestingVault": "1074256",
+    "DataContributionRegistry": "2209245",
+    "MockUSDC": "700530",
+    "HokusaiAMMFactory": "5047770",
+    "InfrastructureReserve": "3044715",
+    "InfrastructureCostOracle": "1240965",
+    "UsageFeeRouter": "2201801",
+    "DeltaVerifier": "3086410",
+    "totalGas": "29416653",
+    "totalCostWei": "5157561003381853",
+    "totalCostEth": "0.005157561003381853"
+  },
+  "notes": {
+    "rewardVestingVaultWired": true
+  }
+}

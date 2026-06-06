@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
 
 describe("UsageFeeRouter", function () {
   let modelRegistry;
@@ -14,8 +15,8 @@ describe("UsageFeeRouter", function () {
   let pool1, pool2;
   let owner, treasury, depositor, payer, user1;
 
-  const MODEL_ID_1 = "model-alpha";
-  const MODEL_ID_2 = "model-beta";
+  const MODEL_ID_1 = "401";
+  const MODEL_ID_2 = "402";
   const INITIAL_SUPPLY = parseEther("1000000");
   const INITIAL_GROSS_MARGIN_BPS = 2000;
 
@@ -40,14 +41,13 @@ describe("UsageFeeRouter", function () {
     mockUSDC = await MockUSDC.deploy();
     await mockUSDC.waitForDeployment();
 
-    const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-    factory = await HokusaiAMMFactory.deploy(
-      await modelRegistry.getAddress(),
-      await tokenManager.getAddress(),
-      await mockUSDC.getAddress(),
-      treasury.address
-    );
-    await factory.waitForDeployment();
+    ({ factory } = await deployFactoryWithPoolDeployer(
+      modelRegistry,
+      tokenManager,
+      mockUSDC,
+      treasury
+    ));
+    await modelRegistry.setPoolRegistrar(await factory.getAddress(), true);
 
     // Deploy InfrastructureReserve
     const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
@@ -317,7 +317,7 @@ describe("UsageFeeRouter", function () {
 
     it("Should revert if pool does not exist", async function () {
       await expect(
-        feeRouter.connect(depositor).depositFee("non-existent-model", parseUnits("1000", 6), 1000)
+        feeRouter.connect(depositor).depositFee("999", parseUnits("1000", 6), 1000)
       ).to.be.revertedWith("Pool does not exist");
     });
 

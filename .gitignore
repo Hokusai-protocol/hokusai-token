@@ -38,3 +38,7 @@ deployments/*.backup.json
 # Misc
 .DS_Store
 .wavemill/
+.wavemill-config.json
+.wavemill-config.json.backup
+crytic-export/
+slither-report.*

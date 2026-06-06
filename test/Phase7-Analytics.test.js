@@ -11,7 +11,7 @@ describe("Phase 7: Analytics & View Functions", function () {
     let mockUSDC;
     let owner, treasury, buyer1;
 
-    const MODEL_ID = "test-model-v1";
+    const MODEL_ID = "1201";
     const TOKEN_NAME = "Test Model Token";
     const TOKEN_SYMBOL = "TMT";
     const INITIAL_SUPPLY = parseEther("1");
@@ -479,19 +479,19 @@ describe("Phase 7: Analytics & View Functions", function () {
 
         it("Should consume reasonable gas for calculateBuyImpact", async function () {
             const tx = await hokusaiAMM.calculateBuyImpact.estimateGas(parseUnits("1000", 6));
-            expect(tx).to.be.lt(50000); // Price impact calc is more complex
+            expect(tx).to.be.lt(70000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
             console.log("        calculateBuyImpact gas:", tx.toString());
         });
 
         it("Should consume reasonable gas for calculateSellImpact", async function () {
             const tx = await hokusaiAMM.calculateSellImpact.estimateGas(parseEther("1000"));
-            expect(tx).to.be.lt(50000);
+            expect(tx).to.be.lt(70000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
             console.log("        calculateSellImpact gas:", tx.toString());
         });
 
         it("Should consume reasonable gas for spotPrice", async function () {
             const tx = await hokusaiAMM.spotPrice.estimateGas();
-            expect(tx).to.be.lt(35000);
+            expect(tx).to.be.lt(45000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
             console.log("        spotPrice gas:", tx.toString());
         });
 
@@ -503,7 +503,7 @@ describe("Phase 7: Analytics & View Functions", function () {
 
         it("Should consume reasonable gas for getReserves", async function () {
             const tx = await hokusaiAMM.getReserves.estimateGas();
-            expect(tx).to.be.lt(30000);
+            expect(tx).to.be.lt(45000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
             console.log("        getReserves gas:", tx.toString());
         });
     });

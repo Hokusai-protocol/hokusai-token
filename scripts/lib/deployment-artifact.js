@@ -86,7 +86,10 @@ function buildArtifact({
     roles: deploymentResult.roles,
     config: deploymentResult.config,
     gasUsed: deploymentResult.gasUsed,
-    notes: deploymentResult.notes,
+    notes: {
+      purchaserWhitelistGatingDefault: true,
+      ...deploymentResult.notes,
+    },
   };
 
   return toSerializable(artifact);

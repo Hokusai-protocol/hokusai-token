@@ -1,0 +1,98 @@
+name: Echidna
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz-short:
+    name: Fuzz Short
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pull Echidna image
+        run: docker pull --platform linux/amd64 ghcr.io/crytic/echidna/echidna:v2.2.4
+
+      - name: Run short fuzz suite
+        run: npm run echidna:all
+
+  fuzz-long:
+    name: Fuzz Long
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pull Echidna image
+        run: docker pull --platform linux/amd64 ghcr.io/crytic/echidna/echidna:v2.2.4
+
+      - name: Build long-run config
+        run: |
+          cp echidna.config.yaml echidna.long.config.yaml
+          perl -0pi -e 's/testLimit: 50000/testLimit: 5000000/' echidna.long.config.yaml
+
+      - name: Run long fuzz suite
+        run: |
+          rm -rf echidna-artifacts
+          mkdir -p echidna-artifacts
+          overall_exit=0
+          for target in \
+            "contracts/echidna/EchidnaSanity.sol EchidnaSanity" \
+            "contracts/echidna/EchidnaHokusaiToken.sol EchidnaHokusaiToken" \
+            "contracts/echidna/EchidnaTokenManager.sol EchidnaTokenManager" \
+            "contracts/echidna/EchidnaAMMReserve.sol EchidnaAMMReserve" \
+            "contracts/echidna/EchidnaAMMPhase.sol EchidnaAMMPhase" \
+            "contracts/echidna/EchidnaAMMEconomic.sol EchidnaAMMEconomic" \
+            "contracts/echidna/EchidnaInfrastructureReserve.sol EchidnaInfrastructureReserve"
+          do
+            set -- $target
+            rm -rf echidna-corpus
+            docker run --rm --platform linux/amd64 -v "$PWD:/code" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 \
+              echidna . --contract "$2" --config echidna.long.config.yaml || overall_exit=1
+            [ -d echidna-corpus ] && mv echidna-corpus "echidna-artifacts/$2" || true
+          done
+          exit $overall_exit
+
+      - name: Upload corpus
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: echidna-corpus
+          path: |
+            echidna-artifacts
+            echidna.long.config.yaml

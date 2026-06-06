@@ -32,11 +32,11 @@ async function main(): Promise<void> {
     let listener: ContractDeployListener | null = null;
     let mintListener: MintRequestListener | null = null;
     let redisConnected = false;
-    
+
     try {
       listener = new ContractDeployListener({
         redis: {
-          url: config.REDIS_URL || `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`
+          url: config.REDIS_URL || `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`,
         },
         blockchain: {
           rpcUrls: config.RPC_URL.split(','),
@@ -62,16 +62,16 @@ async function main(): Promise<void> {
           inbound: process.env.INBOUND_QUEUE || 'hokusai:model_ready_queue',
           outbound: process.env.OUTBOUND_QUEUE || 'hokusai:token_deployed_queue',
           processing: process.env.PROCESSING_QUEUE || 'hokusai:processing_queue',
-          deadLetter: process.env.DLQ_NAME || 'hokusai:dlq'
-        }
+          deadLetter: process.env.DLQ_NAME || 'hokusai:dlq',
+        },
       });
 
       // Initialize the listener with timeout
       const initPromise = listener.initialize();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Redis connection timeout')), 5000)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Redis connection timeout')), 5000),
       );
-      
+
       await Promise.race([initPromise, timeoutPromise]);
       redisConnected = true;
       logger.info('Contract Deploy Listener initialized with Redis');
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
       try {
         mintListener = new MintRequestListener({
           redis: {
-            url: config.REDIS_URL || `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`
+            url: config.REDIS_URL || `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`,
           },
           blockchain: {
             rpcUrls: config.RPC_URL.split(','),
@@ -94,16 +94,22 @@ async function main(): Promise<void> {
             modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
             confirmations: config.CONFIRMATION_BLOCKS,
             gasMultiplier: config.GAS_PRICE_MULTIPLIER,
-            maxGasPrice: (config.MAX_GAS_PRICE_GWEI * 1e9).toString()
+            maxGasPrice: (config.MAX_GAS_PRICE_GWEI * 1e9).toString(),
           },
           queues: {
             inbound: config.MINT_REQUEST_QUEUE,
             processing: config.MINT_REQUEST_PROCESSING_QUEUE,
             deadLetter: config.MINT_REQUEST_DLQ,
             processedSet: config.MINT_REQUEST_PROCESSED_SET,
+            retry: config.MINT_REQUEST_RETRY_QUEUE,
             settlements: config.MINT_REQUEST_SETTLEMENT_QUEUE,
-            maxRetries: config.MINT_REQUEST_MAX_RETRIES
-          }
+            maxRetries: config.MINT_REQUEST_MAX_RETRIES,
+            backoffBaseMs: config.MINT_BACKOFF_BASE_MS,
+            backoffMaxMs: config.MINT_BACKOFF_MAX_MS,
+            backoffMultiplier: config.MINT_BACKOFF_MULTIPLIER,
+            recordKeyPrefix: config.MINT_RECORD_KEY_PREFIX,
+            recordTtlSeconds: config.MINT_RECORD_TTL_SECONDS,
+          },
         });
 
         await mintListener.initialize();
@@ -125,8 +131,8 @@ async function main(): Promise<void> {
       const redisUrl = config.REDIS_URL || `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`;
       redis = createClient({ url: redisUrl });
       const connectPromise = redis.connect();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Redis connection timeout')), 5000)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Redis connection timeout')), 5000),
       );
       await Promise.race([connectPromise, timeoutPromise]);
       logger.info('Redis connected for health checks');
@@ -143,7 +149,7 @@ async function main(): Promise<void> {
       redis,
       provider,
       registryAddress: config.MODEL_REGISTRY_ADDRESS,
-      tokenManagerAddress: config.TOKEN_MANAGER_ADDRESS
+      tokenManagerAddress: config.TOKEN_MANAGER_ADDRESS,
     });
 
     // Set up health check endpoints
@@ -169,7 +175,9 @@ async function main(): Promise<void> {
       processingPromise = listener.start();
       logger.info('Contract Deployer Service started successfully with queue processing');
     } else {
-      logger.info('Contract Deployer Service started successfully (API only mode, no queue processing)');
+      logger.info(
+        'Contract Deployer Service started successfully (API only mode, no queue processing)',
+      );
     }
     if (mintListener) {
       mintProcessingPromise = mintListener.start();
@@ -179,7 +187,7 @@ async function main(): Promise<void> {
     // Setup graceful shutdown
     const gracefulShutdown = async (signal: string) => {
       logger.info(`Received ${signal}, starting graceful shutdown...`);
-      
+
       // Stop accepting new connections
       server.close(() => {
         logger.info('HTTP server closed');
@@ -192,7 +200,7 @@ async function main(): Promise<void> {
       if (mintListener) {
         mintListener.stop();
       }
-      
+
       // Wait for message processing to complete if it was started
       if (processingPromise) {
         await processingPromise;
@@ -200,7 +208,7 @@ async function main(): Promise<void> {
       if (mintProcessingPromise) {
         await mintProcessingPromise;
       }
-      
+
       // Clean up resources
       if (listener) {
         await listener.cleanup();
@@ -211,7 +219,7 @@ async function main(): Promise<void> {
       if (redis) {
         await redis.quit();
       }
-      
+
       logger.info('Graceful shutdown completed');
       process.exit(0);
     };
@@ -219,7 +227,6 @@ async function main(): Promise<void> {
     // Handle shutdown signals
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
   } catch (error) {
     logger.error('Failed to start service', error);
     process.exit(1);

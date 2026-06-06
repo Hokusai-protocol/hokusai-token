@@ -39,6 +39,7 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
             1, // initialSupply
             0, // maxSupply
             0, // modelSupplierAllocation
+            0, // investorAllocation
             ethers.ZeroAddress // modelSupplierRecipient
         );
         await token0.waitForDeployment();
@@ -52,6 +53,7 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
             1,
             0,
             0,
+            0,
             ethers.ZeroAddress
         );
         await token1.waitForDeployment();
@@ -63,6 +65,7 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
             await modelRegistry.getAddress(),
             await params.getAddress(),
             1,
+            0,
             0,
             0,
             ethers.ZeroAddress
@@ -202,27 +205,63 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
     describe("Active status views", function () {
         it("should expose active status through numeric and string model IDs", async function () {
             await modelRegistry.registerModel(0, token0Addr, "accuracy");
-            await modelRegistry.registerStringModel("string-model", token1Addr, "accuracy");
+            await modelRegistry.registerStringModel("1", token1Addr, "accuracy");
 
             expect(await modelRegistry["isModelActive(uint256)"](0)).to.be.true;
-            expect(await modelRegistry["isModelActive(string)"]("string-model")).to.be.true;
+            expect(await modelRegistry["isModelActive(string)"]("1")).to.be.true;
 
             await modelRegistry.deactivateModel(0);
-            await modelRegistry.deactivateStringModel("string-model");
+            await modelRegistry.deactivateStringModel("1");
 
             expect(await modelRegistry["isModelActive(uint256)"](0)).to.be.false;
-            expect(await modelRegistry["isModelActive(string)"]("string-model")).to.be.false;
+            expect(await modelRegistry["isModelActive(string)"]("1")).to.be.false;
 
             await modelRegistry.reactivateModel(0);
-            await modelRegistry.reactivateStringModel("string-model");
+            await modelRegistry.reactivateStringModel("1");
 
             expect(await modelRegistry["isModelActive(uint256)"](0)).to.be.true;
-            expect(await modelRegistry["isModelActive(string)"]("string-model")).to.be.true;
+            expect(await modelRegistry["isModelActive(string)"]("1")).to.be.true;
         });
 
         it("should return false for unregistered models", async function () {
             expect(await modelRegistry["isModelActive(uint256)"](999)).to.be.false;
             expect(await modelRegistry["isModelActive(string)"]("missing-model")).to.be.false;
+        });
+    });
+
+    describe("Canonical string compatibility", function () {
+        it("should canonicalize decimal string registrations into numeric storage", async function () {
+            await modelRegistry.registerStringModel("42", token2Addr, "f1-score");
+
+            expect(await modelRegistry.isRegistered(42)).to.be.true;
+            expect(await modelRegistry.getTokenAddress(42)).to.equal(token2Addr);
+            expect(await modelRegistry.getStringToken("42")).to.equal(token2Addr);
+            expect(await modelRegistry.getStringModelId(token2Addr)).to.equal("42");
+
+            const stringModel = await modelRegistry.modelsByString("42");
+            expect(stringModel.tokenAddress).to.equal(token2Addr);
+            expect(stringModel.performanceMetric).to.equal("f1-score");
+            expect(stringModel.active).to.equal(true);
+        });
+
+        it("should reject non-decimal string model IDs", async function () {
+            await expect(
+                modelRegistry.registerStringModel("model-42", token2Addr, "f1-score")
+            ).to.be.revertedWith("Model ID must be decimal string");
+
+            expect(await modelRegistry.isStringRegistered("model-42")).to.equal(false);
+            const stringModel = await modelRegistry.modelsByString("model-42");
+            expect(stringModel.tokenAddress).to.equal(ethers.ZeroAddress);
+            expect(stringModel.performanceMetric).to.equal("");
+            expect(stringModel.active).to.equal(false);
+        });
+
+        it("should prevent duplicate registrations across numeric and string entrypoints", async function () {
+            await modelRegistry.registerStringModel("42", token2Addr, "f1-score");
+
+            await expect(
+                modelRegistry.registerModel(42, token1Addr, "accuracy")
+            ).to.be.revertedWith("Model already registered");
         });
     });
 });

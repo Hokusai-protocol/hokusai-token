@@ -383,6 +383,7 @@ Comprehensive integration guides for developers:
 - **[⚙️ Backend Integration](docs/integration/backend-services.md)** - For server-side engineers
 - **[💻 Frontend Integration](docs/integration/frontend-development.md)** - For web developers
 - **[🐛 Troubleshooting Guide](docs/troubleshooting.md)** - Common errors and solutions
+- **[🔒 DeltaVerifier Trust Model](docs/deltaverifier-trust-model.md)** - Trusted submitter model, anti-gaming controls, attestation scope
 
 ### Integration Guides
 

@@ -378,6 +378,8 @@ describe("Full Integration: Params Module", function () {
         parseEther("1000000"),
         initialParams
       );
+      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_STR);
+      await modelRegistry.registerModel(MODEL_ID_UINT, tokenAddress, "f1");
 
       // Both old and new calculation methods should be available
       const oldReward = await deltaVerifier.calculateReward(500, 10000, 0);
@@ -417,7 +419,7 @@ describe("Full Integration: Params Module", function () {
       const evalReceipt = await evalTx.wait();
 
       // Verify gas usage is reasonable
-      expect(deployReceipt.gasUsed).to.be.lt(3700000);
+      expect(deployReceipt.gasUsed).to.be.lt(4100000);
       expect(registerReceipt.gasUsed).to.be.lt(200000);  // Less than 200k gas for registration
       expect(evalReceipt.gasUsed).to.be.lt(600000);     // Less than 600k gas for evaluation (includes contribution recording)
     });

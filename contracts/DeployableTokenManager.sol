@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
@@ -16,7 +18,7 @@ import "./libraries/RewardSplitLib.sol";
  * Token and params creation is delegated to TokenDeploymentFactory so this
  * contract stays below the EIP-170 runtime bytecode limit.
  */
-contract DeployableTokenManager is Ownable, AccessControlBase {
+contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
     ModelRegistry public registry;
     ITokenDeploymentFactory public tokenDeploymentFactory;
     address public deltaVerifier;
@@ -77,10 +79,20 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         address indexed recipient,
         uint256 amount
     );
+    event DeploymentFeesWithdrawn(address indexed recipient, uint256 amount);
     event RewardVestingCreated(
         string indexed modelId,
         address indexed contributor,
         uint256 totalReward,
+        uint256 immediateAmount,
+        uint256 vestedAmount,
+        uint256 vestingStart,
+        uint256 vestingEnd
+    );
+    event SupplierAllocationVested(
+        string indexed modelId,
+        address indexed supplierRecipient,
+        uint256 totalAllocation,
         uint256 immediateAmount,
         uint256 vestedAmount,
         uint256 vestingStart,
@@ -104,13 +116,14 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         _grantRoles(roles, msg.sender);
     }
 
+    // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
     function deployTokenWithParams(
         string memory modelId,
         string memory name,
         string memory symbol,
         uint256 totalSupply,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
         ValidationLib.requireNonEmptyString(symbol, "token symbol");
@@ -128,6 +141,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             totalSupply,
             0,
             0,
+            0,
             address(0),
             _toFactoryParams(initialParams)
         );
@@ -135,8 +149,10 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         _storeDeployment(modelId, tokenAddress, paramsAddress);
         _emitParamsDeployed(modelId, paramsAddress, initialParams);
         emit TokenDeployed(modelId, tokenAddress, msg.sender, name, symbol, totalSupply);
+        _refundExcess();
     }
 
+    // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
     function deployTokenWithAllocations(
         string memory modelId,
         string memory name,
@@ -145,7 +161,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         address modelSupplierRecipient,
         uint256 investorAllocation,
         InitialParams memory initialParams
-    ) public payable returns (address tokenAddress) {
+    ) public payable nonReentrant returns (address tokenAddress) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonEmptyString(name, "token name");
         ValidationLib.requireNonEmptyString(symbol, "token symbol");
@@ -157,6 +173,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
 
         _collectDeploymentFee();
 
+        // Calculate launch allocation cap (model supplier + investor allocations).
         uint256 maxSupply = modelSupplierAllocation + investorAllocation;
         address paramsAddress;
         (tokenAddress, paramsAddress) = tokenDeploymentFactory.deployTokenAndParams(
@@ -166,6 +183,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             0,
             maxSupply,
             modelSupplierAllocation,
+            investorAllocation,
             modelSupplierRecipient,
             _toFactoryParams(initialParams)
         );
@@ -180,20 +198,72 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             address(0),
             investorAllocation
         );
+        _refundExcess();
     }
 
-    function distributeModelSupplierAllocation(string memory modelId) external onlyOwner {
+    /**
+     * @dev Distributes model supplier allocation after model verification or at the chosen launch step.
+     * Distribution mints into the supplier wallet, increases redeemable AMM supply,
+     * and can move spot price and bonding-curve behavior.
+     */
+    function distributeModelSupplierAllocation(string memory modelId) external onlyOwner nonReentrant {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
 
+        _distributeSupplierWithVesting(modelId, tokenAddress);
+    }
+
+    function _distributeSupplierWithVesting(string memory modelId, address tokenAddress) private {
         IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
-        token.distributeModelSupplierAllocation();
+        IHokusaiParams params = token.params();
+        address supplierRecipient = token.modelSupplierRecipient();
+        uint256 totalAllocation = token.modelSupplierAllocation();
+
+        if (!params.vestingEnabled()) {
+            token.distributeModelSupplierAllocation(address(0), 0);
+            emit ModelSupplierAllocationDistributed(modelId, supplierRecipient, totalAllocation);
+            return;
+        }
+
+        (uint256 immediateAmount, uint256 vestedAmount) = RewardSplitLib.split(
+            totalAllocation,
+            params.immediateUnlockBps()
+        );
+
+        if (vestedAmount == 0) {
+            token.distributeModelSupplierAllocation(address(0), 0);
+            emit ModelSupplierAllocationDistributed(modelId, supplierRecipient, totalAllocation);
+            return;
+        }
+
+        require(address(vestingVault) != address(0), "Vesting vault not configured");
+
+        uint64 duration = params.vestingDurationSeconds();
+        token.distributeModelSupplierAllocation(address(vestingVault), vestedAmount);
+        // slither-disable-next-line unused-return
+        vestingVault.createSchedule(
+            modelId,
+            tokenAddress,
+            supplierRecipient,
+            vestedAmount,
+            params.cliffSeconds(),
+            duration
+        );
 
         emit ModelSupplierAllocationDistributed(
             modelId,
-            token.modelSupplierRecipient(),
-            token.modelSupplierAllocation()
+            supplierRecipient,
+            totalAllocation
+        );
+        emit SupplierAllocationVested(
+            modelId,
+            supplierRecipient,
+            totalAllocation,
+            immediateAmount,
+            vestedAmount,
+            block.timestamp,
+            block.timestamp + uint256(duration)
         );
     }
 
@@ -229,7 +299,30 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         revokeRole(MINTER_ROLE, amm);
     }
 
-    function mintTokens(string memory modelId, address recipient, uint256 amount) external {
+    /**
+     * @dev Returns the redeemable circulating supply used by AMM pricing.
+     * Excludes balances held in the vesting vault until contributors claim them.
+     * Supplier-allocation tokens count as redeemable circulating supply once distributed
+     * because only vesting-vault balances are excluded, so supplier distribution timing
+     * can affect AMM spot price and bonding-curve behavior.
+     */
+    function getRedeemableSupply(string memory modelId) external view returns (uint256) {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+
+        uint256 totalSupply = IERC20(tokenAddress).totalSupply();
+        address vault = address(vestingVault);
+        if (vault == address(0)) {
+            return totalSupply;
+        }
+
+        uint256 lockedSupply = IERC20(tokenAddress).balanceOf(vault);
+        return totalSupply > lockedSupply ? totalSupply - lockedSupply : 0;
+    }
+
+    function mintTokens(string memory modelId, address recipient, uint256 amount) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to mint"
@@ -245,7 +338,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             "Model is deactivated"
         );
 
-        IManagedHokusaiToken(tokenAddress).mint(recipient, amount);
+        _mintInvestorToken(tokenAddress, recipient, amount);
         emit TokensMinted(modelId, recipient, amount);
     }
 
@@ -253,7 +346,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         string memory modelId,
         address[] calldata recipients,
         uint256[] calldata amounts
-    ) external {
+    ) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Unauthorized"
@@ -268,7 +361,6 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             "Model is deactivated"
         );
 
-        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
         uint256 totalAmount = 0;
 
         for (uint256 i = 0; i < recipients.length; i++) {
@@ -279,14 +371,14 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
                 continue;
             }
 
-            token.mint(recipients[i], amounts[i]);
+            _mintInvestorToken(tokenAddress, recipients[i], amounts[i]);
             totalAmount += amounts[i];
         }
 
         emit BatchMinted(modelId, recipients, amounts, totalAmount);
     }
 
-    function mintReward(string memory modelId, address recipient, uint256 amount) external {
+    function mintReward(string memory modelId, address recipient, uint256 amount) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to mint"
@@ -310,7 +402,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         string memory modelId,
         address[] calldata recipients,
         uint256[] calldata amounts
-    ) external {
+    ) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Unauthorized"
@@ -342,7 +434,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         emit BatchMinted(modelId, recipients, amounts, totalAmount);
     }
 
-    function burnTokens(string memory modelId, address account, uint256 amount) external {
+    function burnTokens(string memory modelId, address account, uint256 amount) external nonReentrant {
         require(
             hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to burn"
@@ -354,6 +446,40 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
         IManagedHokusaiToken(tokenAddress).burnFrom(account, amount);
+        emit TokensBurned(modelId, account, amount);
+    }
+
+    function burnInvestorTokens(string memory modelId, address account, uint256 amount) external nonReentrant {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to burn"
+        );
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(account, "account");
+        ValidationLib.requirePositiveAmount(amount, "amount");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        _burnInvestorToken(tokenAddress, account, amount);
+        emit TokensBurned(modelId, account, amount);
+    }
+
+    /**
+     * @dev Burns tokens from an AMM sell flow for a specific account and model.
+     * Restores investor headroom first, then reward headroom for capped tokens.
+     */
+    function burnAMMTokens(string memory modelId, address account, uint256 amount) external nonReentrant {
+        require(
+            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            "Caller is not authorized to burn"
+        );
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+        ValidationLib.requireNonZeroAddress(account, "account");
+        ValidationLib.requirePositiveAmount(amount, "amount");
+
+        address tokenAddress = modelTokens[modelId];
+        require(tokenAddress != address(0), "Token not deployed for this model");
+        _burnAMMToken(tokenAddress, account, amount);
         emit TokensBurned(modelId, account, amount);
     }
 
@@ -380,19 +506,28 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
     }
 
     function _collectDeploymentFee() private {
-        if (deploymentFee == 0) {
-            return;
+        if (deploymentFee > 0) {
+            require(msg.value >= deploymentFee, "Insufficient deployment fee");
         }
+    }
 
-        require(msg.value >= deploymentFee, "Insufficient deployment fee");
-        (bool sent, ) = feeRecipient.call{value: deploymentFee}("");
-        require(sent, "Failed to send deployment fee");
-
+    function _refundExcess() private {
         if (msg.value > deploymentFee) {
-            (bool refunded, ) = msg.sender.call{value: msg.value - deploymentFee}("");
+            uint256 excess = msg.value - deploymentFee;
+            (bool refunded, ) = msg.sender.call{value: excess}("");
             require(refunded, "Failed to refund excess payment");
         }
     }
+
+    function withdrawDeploymentFees() external onlyOwner nonReentrant {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No fees to withdraw");
+        (bool sent, ) = feeRecipient.call{value: balance}("");
+        require(sent, "Failed to send deployment fees");
+        emit DeploymentFeesWithdrawn(feeRecipient, balance);
+    }
+
+    receive() external payable {}
 
     function _storeDeployment(
         string memory modelId,
@@ -445,7 +580,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         IHokusaiParams params = token.params();
 
         if (!params.vestingEnabled()) {
-            token.mint(recipient, amount);
+            _mintRewardToken(tokenAddress, recipient, amount);
             return;
         }
 
@@ -455,7 +590,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         );
 
         if (immediateAmount > 0) {
-            token.mint(recipient, immediateAmount);
+            _mintRewardToken(tokenAddress, recipient, immediateAmount);
         }
 
         if (vestedAmount == 0) {
@@ -465,7 +600,8 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
         require(address(vestingVault) != address(0), "Vesting vault not configured");
 
         uint64 duration = params.vestingDurationSeconds();
-        token.mint(address(vestingVault), vestedAmount);
+        _mintRewardToken(tokenAddress, address(vestingVault), vestedAmount);
+        // slither-disable-next-line unused-return
         vestingVault.createSchedule(
             modelId,
             tokenAddress,
@@ -484,5 +620,45 @@ contract DeployableTokenManager is Ownable, AccessControlBase {
             block.timestamp,
             block.timestamp + uint256(duration)
         );
+    }
+
+    function _mintInvestorToken(address tokenAddress, address recipient, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+        if (token.maxSupply() == type(uint256).max) {
+            token.mint(recipient, amount);
+            return;
+        }
+
+        token.mintInvestor(recipient, amount);
+    }
+
+    function _mintRewardToken(address tokenAddress, address recipient, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+        if (token.maxSupply() == type(uint256).max) {
+            token.mint(recipient, amount);
+            return;
+        }
+
+        token.mintReward(recipient, amount);
+    }
+
+    function _burnInvestorToken(address tokenAddress, address account, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+        if (token.maxSupply() == type(uint256).max) {
+            token.burnFrom(account, amount);
+            return;
+        }
+
+        token.burnInvestor(account, amount);
+    }
+
+    function _burnAMMToken(address tokenAddress, address account, uint256 amount) private {
+        IManagedHokusaiToken token = IManagedHokusaiToken(tokenAddress);
+        if (token.maxSupply() == type(uint256).max) {
+            token.burnFrom(account, amount);
+            return;
+        }
+
+        token.burnAMM(account, amount);
     }
 }

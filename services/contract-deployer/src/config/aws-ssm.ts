@@ -26,6 +26,7 @@ export interface SSMParameters {
   jwt_secret?: string;
   webhook_url?: string;
   webhook_secret?: string;
+  usage_fee_router_address?: string;
 }
 
 export class SSMParameterStore {
@@ -188,7 +189,8 @@ export class SSMParameterStore {
     const optionalParams = [
       'jwt_secret',
       'webhook_url',
-      'webhook_secret'
+      'webhook_secret',
+      'usage_fee_router_address'
     ];
     
     const allParams = [...requiredParams, ...optionalParams];
@@ -225,6 +227,7 @@ export class SSMParameterStore {
         jwt_secret: results.jwt_secret,
         webhook_url: results.webhook_url,
         webhook_secret: results.webhook_secret,
+        usage_fee_router_address: results.usage_fee_router_address,
       };
       
     } catch (error) {

@@ -1,7 +1,7 @@
 import { createClient, RedisClientType } from 'redis';
 import { ethers } from 'ethers';
 import { RedisQueueConsumer } from './queue/redis-consumer';
-import { ContractDeployer } from './blockchain/contract-deployer';
+import { ContractDeployer, ContractDeployerConfig } from './blockchain/contract-deployer';
 import { ModelRegistryService } from './blockchain/model-registry';
 import { EventPublisher } from './queue/event-publisher';
 import { HealthCheckService } from './monitoring/health-check';
@@ -12,15 +12,7 @@ export interface ContractDeployListenerConfig {
   redis: {
     url: string;
   };
-  blockchain: {
-    rpcUrls: string[];
-    privateKey: string;
-    tokenManagerAddress: string;
-    modelRegistryAddress: string;
-    gasMultiplier: number;
-    maxGasPrice: string;
-    confirmations: number;
-  };
+  blockchain: ContractDeployerConfig;
   queues: {
     inbound: string;
     outbound: string;

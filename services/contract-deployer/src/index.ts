@@ -44,8 +44,19 @@ async function main(): Promise<void> {
           tokenManagerAddress: config.TOKEN_MANAGER_ADDRESS,
           modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
           gasMultiplier: config.GAS_PRICE_MULTIPLIER,
-          maxGasPrice: (config.MAX_GAS_PRICE_GWEI * 1e9).toString(), // Convert Gwei to Wei
-          confirmations: config.CONFIRMATION_BLOCKS
+          maxGasPrice: (config.MAX_GAS_PRICE_GWEI * 1e9).toString(),
+          confirmations: config.CONFIRMATION_BLOCKS,
+          deploymentParams: {
+            modelSupplierAllocation: BigInt(config.MODEL_SUPPLIER_ALLOCATION),
+            modelSupplierRecipient: config.MODEL_SUPPLIER_RECIPIENT,
+            investorAllocation: BigInt(config.INVESTOR_ALLOCATION),
+            tokensPerDeltaOne: BigInt(config.TOKENS_PER_DELTA_ONE),
+            infrastructureAccrualBps: config.INFRASTRUCTURE_ACCRUAL_BPS,
+            initialOraclePricePerThousandUsd: BigInt(config.INITIAL_ORACLE_PRICE_PER_THOUSAND_USD),
+            licenseHash: config.LICENSE_HASH,
+            licenseURI: config.LICENSE_URI,
+            governor: config.GOVERNOR_ADDRESS,
+          }
         },
         queues: {
           inbound: process.env.INBOUND_QUEUE || 'hokusai:model_ready_queue',

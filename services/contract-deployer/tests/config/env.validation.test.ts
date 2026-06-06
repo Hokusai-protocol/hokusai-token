@@ -45,8 +45,8 @@ describe('Environment Validation', () => {
       
       expect(config.PORT).toBe(8002);
       expect(config.LOG_LEVEL).toBe('info');
-      expect(config.CHAIN_ID).toBe(1);
-      expect(config.NETWORK_NAME).toBe('mainnet');
+      expect(config.CHAIN_ID).toBe(11155111);
+      expect(config.NETWORK_NAME).toBe('sepolia');
       expect(config.REDIS_HOST).toBe('localhost');
       expect(config.REDIS_PORT).toBe(6379);
       expect(config.CONFIRMATION_BLOCKS).toBe(3);

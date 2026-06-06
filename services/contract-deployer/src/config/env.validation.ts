@@ -22,13 +22,25 @@ const envSchema = Joi.object({
   
   // Blockchain configuration
   RPC_URL: Joi.string().required(),
-  CHAIN_ID: Joi.number().default(137), // Polygon mainnet
-  NETWORK_NAME: Joi.string().default('polygon-mainnet'),
-  
+  CHAIN_ID: Joi.number().default(11155111),
+  NETWORK_NAME: Joi.string().default('sepolia'),
+
   // Contract addresses
   MODEL_REGISTRY_ADDRESS: Joi.string().required(),
   TOKEN_MANAGER_ADDRESS: Joi.string().required(),
   DELTA_VERIFIER_ADDRESS: Joi.string().optional(),
+  USAGE_FEE_ROUTER_ADDRESS: Joi.string().optional(),
+
+  // Deployment allocation params for deployTokenWithAllocations
+  MODEL_SUPPLIER_ALLOCATION: Joi.string().default('2500000000000000000000000'),
+  MODEL_SUPPLIER_RECIPIENT: Joi.string().default('0x0000000000000000000000000000000000000000'),
+  INVESTOR_ALLOCATION: Joi.string().default('10000000000000000000000000'),
+  TOKENS_PER_DELTA_ONE: Joi.string().default('5000000000000000000000'),
+  INFRASTRUCTURE_ACCRUAL_BPS: Joi.number().integer().min(0).max(10000).default(8000),
+  INITIAL_ORACLE_PRICE_PER_THOUSAND_USD: Joi.string().default('0'),
+  LICENSE_HASH: Joi.string().default('0x' + '00'.repeat(32)),
+  LICENSE_URI: Joi.string().default(''),
+  GOVERNOR_ADDRESS: Joi.string().default('0x0000000000000000000000000000000000000000'),
   
   // Deployer configuration
   DEPLOYER_PRIVATE_KEY: Joi.string().required(),
@@ -121,6 +133,16 @@ export interface Config {
   MODEL_REGISTRY_ADDRESS: string;
   TOKEN_MANAGER_ADDRESS: string;
   DELTA_VERIFIER_ADDRESS?: string;
+  USAGE_FEE_ROUTER_ADDRESS?: string;
+  MODEL_SUPPLIER_ALLOCATION: string;
+  MODEL_SUPPLIER_RECIPIENT: string;
+  INVESTOR_ALLOCATION: string;
+  TOKENS_PER_DELTA_ONE: string;
+  INFRASTRUCTURE_ACCRUAL_BPS: number;
+  INITIAL_ORACLE_PRICE_PER_THOUSAND_USD: string;
+  LICENSE_HASH: string;
+  LICENSE_URI: string;
+  GOVERNOR_ADDRESS: string;
   DEPLOYER_PRIVATE_KEY: string;
   GAS_PRICE_MULTIPLIER: number;
   MAX_GAS_PRICE_GWEI: number;
@@ -194,12 +216,14 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
   if (ssmParams.jwt_secret) mapping.JWT_SECRET = ssmParams.jwt_secret;
   if (ssmParams.webhook_url) mapping.WEBHOOK_URL = ssmParams.webhook_url;
   if (ssmParams.webhook_secret) mapping.WEBHOOK_SECRET = ssmParams.webhook_secret;
+  if (ssmParams.usage_fee_router_address) mapping.USAGE_FEE_ROUTER_ADDRESS = ssmParams.usage_fee_router_address;
   
   // Map any additional parameters
   const additionalParams = Object.entries(ssmParams)
-    .filter(([key]) => !['redis_url', 'rpc_endpoint', 'model_registry_address', 
-                        'token_manager_address', 'deployer_key', 'api_keys', 
-                        'jwt_secret', 'webhook_url', 'webhook_secret'].includes(key));
+    .filter(([key]) => !['redis_url', 'rpc_endpoint', 'model_registry_address',
+                        'token_manager_address', 'deployer_key', 'api_keys',
+                        'jwt_secret', 'webhook_url', 'webhook_secret',
+                        'usage_fee_router_address'].includes(key));
   
   for (const [key, value] of additionalParams) {
     // Convert snake_case to UPPER_SNAKE_CASE

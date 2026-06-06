@@ -48,7 +48,18 @@ describe('Contract Deploy Listener - Integration Tests', () => {
         modelRegistryAddress: process.env.MODEL_REGISTRY_ADDRESS || '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
         gasMultiplier: 1.2,
         maxGasPrice: '100000000000',
-        confirmations: 1
+        confirmations: 1,
+        deploymentParams: {
+          modelSupplierAllocation: BigInt(0),
+          modelSupplierRecipient: '0x0000000000000000000000000000000000000000',
+          investorAllocation: BigInt(0),
+          tokensPerDeltaOne: BigInt(0),
+          infrastructureAccrualBps: 0,
+          initialOraclePricePerThousandUsd: BigInt(0),
+          licenseHash: '0x' + '00'.repeat(32),
+          licenseURI: '',
+          governor: '0x0000000000000000000000000000000000000000',
+        },
       },
       queues: {
         inbound: INBOUND_QUEUE,

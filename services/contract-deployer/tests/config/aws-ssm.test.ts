@@ -182,14 +182,17 @@ describe('SSMParameterStore', () => {
         InvalidParameters: [],
       };
 
-      mockSSMClient.send.mockResolvedValueOnce(mockResponse);
+      // getAllParameters makes 2 batch requests (19 params, batch size 10)
+      mockSSMClient.send
+        .mockResolvedValueOnce(mockResponse)
+        .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] });
 
       const ssm = new SSMParameterStore({
         pathPrefix: '/hokusai/development/contracts/',
       });
 
       const result = await ssm.getAllParameters();
-      
+
       expect(result).toEqual({
         deployer_key: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12',
         token_manager_address: '0x1234567890123456789012345678901234567890',
@@ -200,6 +203,16 @@ describe('SSMParameterStore', () => {
         jwt_secret: 'jwt-secret-value',
         webhook_url: undefined,
         webhook_secret: undefined,
+        usage_fee_router_address: undefined,
+        model_supplier_allocation: undefined,
+        model_supplier_recipient: undefined,
+        investor_allocation: undefined,
+        tokens_per_delta_one: undefined,
+        infrastructure_accrual_bps: undefined,
+        initial_oracle_price_per_thousand_usd: undefined,
+        license_hash: undefined,
+        license_uri: undefined,
+        governor_address: undefined,
       });
     });
 
@@ -215,7 +228,10 @@ describe('SSMParameterStore', () => {
         InvalidParameters: [],
       };
 
-      mockSSMClient.send.mockResolvedValueOnce(mockResponse);
+      // getAllParameters makes 2 batch requests (19 params, batch size 10)
+      mockSSMClient.send
+        .mockResolvedValueOnce(mockResponse)
+        .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] });
 
       const ssm = new SSMParameterStore({
         pathPrefix: '/hokusai/development/contracts/',
@@ -303,13 +319,14 @@ describe('loadSSMConfiguration', () => {
       InvalidParameters: [],
     };
 
-    // Mock test connection (ParameterNotFound = success)
+    // Mock: testConnection (ParameterNotFound = success) + 2 batch getAllParameters requests
     mockSSMClient.send
       .mockRejectedValueOnce({ name: 'ParameterNotFound' })
-      .mockResolvedValueOnce(mockResponse);
+      .mockResolvedValueOnce(mockResponse)
+      .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] });
 
     const result = await loadSSMConfiguration();
-    
+
     expect(result).toBeDefined();
     expect(result!.deployer_key).toBe('prod-deployer-key');
     expect(result!.rpc_endpoint).toBe('https://ethereum-prod-rpc.com');
@@ -349,13 +366,14 @@ describe('loadSSMConfiguration', () => {
       InvalidParameters: [],
     };
 
-    // Mock test connection and getAllParameters
+    // Mock: testConnection (ParameterNotFound = success) + 2 batch getAllParameters requests
     mockSSMClient.send
       .mockRejectedValueOnce({ name: 'ParameterNotFound' })
-      .mockResolvedValueOnce(mockResponse);
+      .mockResolvedValueOnce(mockResponse)
+      .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] });
 
     const result = await loadSSMConfiguration();
-    
+
     expect(result).toBeDefined();
     expect(result!.deployer_key).toBe('dev-deployer-key');
   });

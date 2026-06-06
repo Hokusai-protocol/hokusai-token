@@ -28,12 +28,10 @@ export class ContractDeployListener {
   private registry: ModelRegistryService;
   private publisher: EventPublisher;
   private healthCheck: HealthCheckService;
-  private config: ContractDeployListenerConfig;
   private provider: ethers.Provider;
   private signer: ethers.Signer;
 
   constructor(config: ContractDeployListenerConfig) {
-    this.config = config;
     this.redis = createClient({ url: config.redis.url });
     
     // Initialize blockchain components

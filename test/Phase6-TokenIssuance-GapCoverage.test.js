@@ -40,14 +40,6 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       );
       await hokusaiParams.waitForDeployment();
 
-      const HokusaiToken = await ethers.getContractFactory("HokusaiToken");
-      const hokusaiToken = await HokusaiToken.deploy(
-        "Gap Test Token", "GTT", owner.address,
-        await hokusaiParams.getAddress(), parseEther("10000"),
-        0, 0, ZeroAddress
-      );
-      await hokusaiToken.waitForDeployment();
-
       const TokenManager = await ethers.getContractFactory("TokenManager");
       tokenManager = await TokenManager.deploy(await modelRegistry.getAddress());
       await tokenManager.waitForDeployment();
@@ -65,15 +57,15 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       );
       await deltaVerifier.waitForDeployment();
 
-      await hokusaiToken.setController(await tokenManager.getAddress());
       await deployTestToken(tokenManager, MODEL_ID, "Gap Test Token", "GTT", parseEther("10000"), owner.address);
+      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), await deltaVerifier.getAddress());
       await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
 
       const RECORDER_ROLE = await contributionRegistry.RECORDER_ROLE();
       await contributionRegistry.grantRole(RECORDER_ROLE, await deltaVerifier.getAddress());
 
-      await modelRegistry.registerModel(MODEL_ID, await hokusaiToken.getAddress(), "accuracy");
+      await modelRegistry.registerModel(MODEL_ID, tokenAddress, "accuracy");
     });
 
     function makeEvalData(pipelineRunId) {

@@ -1,6 +1,8 @@
 const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
+const { validateNumericModelId } = require('./lib/launch-tokens');
+const { ensureFactoryPoolRegistrar } = require('./lib/pool-registrar');
 
 // Helper to add delays between transactions (avoid rate limiting)
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -99,6 +101,11 @@ async function main() {
   const modelRegistry = await ethers.getContractAt("ModelRegistry", registryAddress);
   const tokenManager = await ethers.getContractAt("TokenManager", managerAddress);
   const factory = await ethers.getContractAt("HokusaiAMMFactory", factoryAddress);
+  await ensureFactoryPoolRegistrar({
+    modelRegistry,
+    factoryAddress,
+    signerAddress: deployer.address,
+  });
 
   // Check balances
   const usdcBalance = await usdc.balanceOf(deployer.address);
@@ -184,8 +191,8 @@ async function main() {
   console.log("-".repeat(70));
 
   console.log(`📋 Registering model in ModelRegistry...`);
-  const registerTx = await modelRegistry.registerStringModel(
-    MODEL_CONFIG.modelId,
+  const registerTx = await modelRegistry.registerModel(
+    validateNumericModelId(MODEL_CONFIG.modelId),
     tokenAddress,
     MODEL_CONFIG.primaryMetric
   );

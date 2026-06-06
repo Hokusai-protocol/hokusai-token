@@ -180,7 +180,7 @@ describe("DeltaVerifier with Dynamic Params", function () {
           10000,
           0
         )
-      ).to.be.revertedWith("Token not found for model");
+      ).to.be.revertedWith("Model not registered");
     });
 
     it("Should respect minimum improvement threshold", async function () {
@@ -468,7 +468,7 @@ describe("DeltaVerifier with Dynamic Params", function () {
       // Empty string should fail
       await expect(
         deltaVerifier.calculateRewardDynamic("", 500, 10000, 0)
-      ).to.be.revertedWith("Token not found for model");
+      ).to.be.revertedWith("Model ID cannot be empty");
     });
   });
 

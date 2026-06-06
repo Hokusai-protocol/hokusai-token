@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "tokens": [
+    {
+      "configKey": "conservative",
+      "modelId": "28",
+      "name": "Hokusai Messaging",
+      "symbol": "HMESS",
+      "supplierRecipient": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "supplierAllocation": "1000000",
+      "investorAllocation": "10000000",
+      "tokensPerDeltaOne": "500000",
+      "infrastructureAccrualBps": 8000,
+      "initialOraclePricePerThousandUsd": "0",
+      "licenseHash": "0x2828282828282828282828282828282828282828282828282828282828282828",
+      "licenseURI": "https://hokus.ai/licenses/sepolia-test",
+      "governor": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "vestingConfig": {
+        "enabled": true,
+        "immediateUnlockBps": 2000,
+        "vestingDurationSeconds": 2592000,
+        "cliffSeconds": 0
+      },
+      "distributionTiming": "pre-launch",
+      "pool": {
+        "name": "HMESS Sepolia Pool",
+        "performanceMetric": "message_quality_score",
+        "initialReserveUsdc": "100",
+        "crr": 200000,
+        "tradeFee": 30,
+        "ibrSeconds": 604800,
+        "flatCurveThresholdUsdc": "25000",
+        "flatCurvePriceUsdc": "0.01"
+      }
+    },
+    {
+      "configKey": "aggressive",
+      "modelId": "27",
+      "name": "Hokusai Sales Lead Scoring",
+      "symbol": "HLEAD",
+      "supplierRecipient": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "supplierAllocation": "1000000",
+      "investorAllocation": "10000000",
+      "tokensPerDeltaOne": "500000",
+      "infrastructureAccrualBps": 8000,
+      "initialOraclePricePerThousandUsd": "0",
+      "licenseHash": "0x2727272727272727272727272727272727272727272727272727272727272727",
+      "licenseURI": "https://hokus.ai/licenses/sepolia-test",
+      "governor": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "vestingConfig": {
+        "enabled": true,
+        "immediateUnlockBps": 2000,
+        "vestingDurationSeconds": 2592000,
+        "cliffSeconds": 0
+      },
+      "distributionTiming": "pre-launch",
+      "pool": {
+        "name": "HLEAD Sepolia Pool",
+        "performanceMetric": "lead_scoring_accuracy",
+        "initialReserveUsdc": "100",
+        "crr": 200000,
+        "tradeFee": 30,
+        "ibrSeconds": 604800,
+        "flatCurveThresholdUsdc": "25000",
+        "flatCurvePriceUsdc": "0.01"
+      }
+    },
+    {
+      "configKey": "balanced",
+      "modelId": "30",
+      "name": "Hokusai Task Routing",
+      "symbol": "HROUT",
+      "supplierRecipient": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "supplierAllocation": "1000000",
+      "investorAllocation": "10000000",
+      "tokensPerDeltaOne": "500000",
+      "infrastructureAccrualBps": 8000,
+      "initialOraclePricePerThousandUsd": "0",
+      "licenseHash": "0x3030303030303030303030303030303030303030303030303030303030303030",
+      "licenseURI": "https://hokus.ai/licenses/sepolia-test",
+      "governor": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "vestingConfig": {
+        "enabled": true,
+        "immediateUnlockBps": 2000,
+        "vestingDurationSeconds": 2592000,
+        "cliffSeconds": 0
+      },
+      "distributionTiming": "pre-launch",
+      "pool": {
+        "name": "HROUT Sepolia Pool",
+        "performanceMetric": "task_routing_score",
+        "initialReserveUsdc": "100",
+        "crr": 200000,
+        "tradeFee": 30,
+        "ibrSeconds": 604800,
+        "flatCurveThresholdUsdc": "25000",
+        "flatCurvePriceUsdc": "0.01"
+      }
+    }
+  ]
+}

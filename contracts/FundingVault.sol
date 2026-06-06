@@ -140,7 +140,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     constructor(
         address _usdc,
         address _ammFactory,
-        address _tokenManager,
+        address payable _tokenManager,
         address _modelRegistry,
         address _admin
     ) AccessControlBase(_admin) {
@@ -373,7 +373,10 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
             proposal.tokenAddress
         );
 
-        modelRegistry.registerPool(modelId, poolAddress);
+        require(
+            modelRegistry.getPool(modelId) == poolAddress,
+            "Factory pool registration mismatch"
+        );
 
         // Authorize pool to mint tokens (grant MINTER_ROLE)
         bytes32 MINTER_ROLE = tokenManager.MINTER_ROLE();

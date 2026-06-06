@@ -103,6 +103,7 @@ async function deployFullStack(networkConfig, runtime) {
   const roles = {};
   const gasUsed = { wiring: {} };
   const notes = {
+    purchaserWhitelistGatingDefault: true,
     rewardVestingVaultWired: true,
   };
   const receipts = [];
@@ -198,6 +199,20 @@ async function deployFullStack(networkConfig, runtime) {
   recordReceipt(await recordDeployment(factory, gasUsed, "HokusaiAMMFactory"));
   contracts.HokusaiAMMFactory = await factory.getAddress();
 
+  const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
+  const poolDeployer = await HokusaiAMMPoolDeployer.deploy(contracts.HokusaiAMMFactory);
+  await poolDeployer.waitForDeployment();
+  recordReceipt(await recordDeployment(poolDeployer, gasUsed, "HokusaiAMMPoolDeployer"));
+  contracts.HokusaiAMMPoolDeployer = await poolDeployer.getAddress();
+
+  recordReceipt(
+    await waitForTx(
+      factory.setPoolDeployer(contracts.HokusaiAMMPoolDeployer),
+      gasUsed.wiring,
+      "factorySetPoolDeployer"
+    )
+  );
+
   recordReceipt(
     await waitForTx(
       factory.setDefaults(
@@ -209,6 +224,19 @@ async function deployFullStack(networkConfig, runtime) {
       "factorySetDefaults"
     )
   );
+  recordReceipt(
+    await waitForTx(
+      modelRegistry.setPoolRegistrar(contracts.HokusaiAMMFactory, true),
+      gasUsed.wiring,
+      "factoryPoolRegistrar"
+    )
+  );
+
+  const PurchaserWhitelist = await ethers.getContractFactory("PurchaserWhitelist");
+  const purchaserWhitelist = await PurchaserWhitelist.deploy(deployer.address);
+  await purchaserWhitelist.waitForDeployment();
+  recordReceipt(await recordDeployment(purchaserWhitelist, gasUsed, "PurchaserWhitelist"));
+  contracts.PurchaserWhitelist = await purchaserWhitelist.getAddress();
 
   logger.log("Phase 3: infrastructure and fee routing");
   const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
@@ -319,6 +347,12 @@ async function deployFullStack(networkConfig, runtime) {
   expectAddress(await factory.modelRegistry(), contracts.ModelRegistry, "HokusaiAMMFactory.modelRegistry");
   expectAddress(await factory.tokenManager(), contracts.TokenManager, "HokusaiAMMFactory.tokenManager");
   expectAddress(await factory.reserveToken(), reserveTokenAddress, "HokusaiAMMFactory.reserveToken");
+  expectAddress(await factory.poolDeployer(), contracts.HokusaiAMMPoolDeployer, "HokusaiAMMFactory.poolDeployer");
+  expectAddress(
+    contracts.PurchaserWhitelist,
+    await purchaserWhitelist.getAddress(),
+    "PurchaserWhitelist.address"
+  );
   expectAddress(await usageFeeRouter.factory(), contracts.HokusaiAMMFactory, "UsageFeeRouter.factory");
   expectAddress(await usageFeeRouter.reserveToken(), reserveTokenAddress, "UsageFeeRouter.reserveToken");
   expectAddress(await usageFeeRouter.infraReserve(), contracts.InfrastructureReserve, "UsageFeeRouter.infraReserve");
@@ -339,6 +373,13 @@ async function deployFullStack(networkConfig, runtime) {
     BigInt(networkConfig.factoryDefaults.flatCurvePrice),
     "HokusaiAMMFactory.defaultFlatCurvePrice"
   );
+  if (!(await modelRegistry.poolRegistrars(contracts.HokusaiAMMFactory))) {
+    throw new Error("ModelRegistry pool registrar role missing on HokusaiAMMFactory");
+  }
+  const whitelistAdminRole = await purchaserWhitelist.WHITELIST_ADMIN_ROLE();
+  if (!(await purchaserWhitelist.hasRole(whitelistAdminRole, deployer.address))) {
+    throw new Error("PurchaserWhitelist admin role missing on deployer");
+  }
 
   if (!(await contributionRegistry.hasRole(recorderRole, contracts.DeltaVerifier))) {
     throw new Error("DataContributionRegistry recorder role missing on DeltaVerifier");
@@ -371,11 +412,16 @@ async function deployFullStack(networkConfig, runtime) {
   roles.ModelRegistry = {
     owner: await modelRegistry.owner(),
     stringModelTokenManager: contracts.TokenManager,
+    poolRegistrar: contracts.HokusaiAMMFactory,
   };
   roles.TokenManager = {
     owner: await tokenManager.owner(),
     deltaVerifier: await tokenManager.deltaVerifier(),
     vestingVault: await tokenManager.vestingVault(),
+  };
+  roles.PurchaserWhitelist = {
+    DEFAULT_ADMIN_ROLE: [deployer.address],
+    WHITELIST_ADMIN_ROLE: [deployer.address],
   };
   roles.DataContributionRegistry = {
     DEFAULT_ADMIN_ROLE: [deployer.address],
@@ -410,6 +456,7 @@ async function deployFullStack(networkConfig, runtime) {
     roles,
     config: {
       reserveToken: reserveTokenAddress,
+      purchaserWhitelist: contracts.PurchaserWhitelist,
       factoryDefaults: networkConfig.factoryDefaults,
       deltaVerifierParams: networkConfig.deltaVerifierParams,
       infrastructureCostOracleParams: networkConfig.infrastructureCostOracleParams,

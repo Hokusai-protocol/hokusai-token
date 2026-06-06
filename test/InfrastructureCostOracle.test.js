@@ -7,8 +7,8 @@ describe("InfrastructureCostOracle", function () {
   let oracle;
   let owner, governor, admin, user1;
 
-  const MODEL_ID_1 = "model-alpha";
-  const MODEL_ID_2 = "model-beta";
+  const MODEL_ID_1 = "1001";
+  const MODEL_ID_2 = "1002";
   const INITIAL_GROSS_MARGIN_BPS = 2000; // 20% markup
 
   beforeEach(async function () {

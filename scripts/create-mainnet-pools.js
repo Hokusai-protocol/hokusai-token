@@ -4,7 +4,9 @@ const path = require("path");
 const {
   loadLaunchTokensConfig,
   scaleTokenEntry,
+  validateNumericModelId,
 } = require("./lib/launch-tokens");
+const { ensureFactoryPoolRegistrar } = require("./lib/pool-registrar");
 
 const { ethers } = hre;
 
@@ -12,6 +14,13 @@ const DEFAULT_DEPLOYMENT_PATH = path.join(__dirname, "..", "deployments", "mainn
 const DEFAULT_CONFIG_PATH = path.join(__dirname, "configs", "mainnet-launch-tokens.json");
 const DEFAULT_PENDING_ACTIONS_PATH = path.join(__dirname, "..", "deployments", "mainnet-pending-actions.json");
 const POOLS_TO_CREATE = ["conservative", "aggressive", "balanced"];
+
+class LaunchWhitelistConfigError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "LaunchWhitelistConfigError";
+  }
+}
 
 async function loadDeployment(deploymentPath = DEFAULT_DEPLOYMENT_PATH) {
   if (!fs.existsSync(deploymentPath)) {
@@ -62,6 +71,41 @@ function formatMismatchValue(value) {
   return value.toString();
 }
 
+function isZeroAddress(value) {
+  return !value || ethers.getAddress(value) === ethers.ZeroAddress;
+}
+
+function resolvePurchaserWhitelistAddress(deployment) {
+  const overrideAddress = process.env.WHITELIST_ADDRESS;
+  if (overrideAddress) {
+    const normalized = ethers.getAddress(overrideAddress);
+    console.log(`\n[OVERRIDE] Using purchaser whitelist from WHITELIST_ADDRESS: ${normalized}`);
+    return { address: normalized, source: "WHITELIST_ADDRESS" };
+  }
+
+  const artifactAddress = deployment.contracts?.PurchaserWhitelist;
+  if (!artifactAddress) {
+    return { address: ethers.ZeroAddress, source: "deployment artifact" };
+  }
+
+  return {
+    address: ethers.getAddress(artifactAddress),
+    source: "deployment artifact",
+  };
+}
+
+function splitSupplierAllocation(supplierWei, vestingConfig) {
+  if (!vestingConfig.enabled) {
+    return { immediateAmount: supplierWei, vestedAmount: 0n };
+  }
+
+  const immediateAmount = (supplierWei * BigInt(vestingConfig.immediateUnlockBps)) / 10000n;
+  return {
+    immediateAmount,
+    vestedAmount: supplierWei - immediateAmount,
+  };
+}
+
 async function verifyDeployedToken({ tokenManager, tokenAddress, expected }) {
   const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
   const paramsAddress = await token.params();
@@ -70,11 +114,17 @@ async function verifyDeployedToken({ tokenManager, tokenAddress, expected }) {
   const govRole = await params.GOV_ROLE();
   const maxSupply = await token.maxSupply();
   const supplierAllocation = await token.modelSupplierAllocation();
+  let investorAllocation;
+  try {
+    investorAllocation = await token.investorAllocation();
+  } catch (error) {
+    investorAllocation = maxSupply - supplierAllocation;
+  }
 
   const checks = [
     ["supplierRecipient", await token.modelSupplierRecipient(), ethers.getAddress(expected.supplierRecipient)],
     ["supplierAllocation", supplierAllocation, expected.supplierWei],
-    ["investorAllocation", maxSupply - supplierAllocation, expected.investorWei],
+    ["investorAllocation", investorAllocation, expected.investorWei],
     ["maxSupply", maxSupply, expected.maxSupplyWei],
     ["modelSupplierDistributed", await token.modelSupplierDistributed(), false],
     ["tokensPerDeltaOne", await params.tokensPerDeltaOne(), expected.tokensPerDeltaOneWei],
@@ -102,7 +152,10 @@ async function verifyDeployedToken({ tokenManager, tokenAddress, expected }) {
 }
 
 async function verifyRegisteredModel({ modelRegistry, tokenAddress, expected }) {
+  const numericModelId = validateNumericModelId(expected.modelId, "modelId");
   const checks = [
+    ["modelRegistry.isRegistered", await modelRegistry.isRegistered(numericModelId), true],
+    ["modelRegistry.getTokenAddress", await modelRegistry.getTokenAddress(numericModelId), tokenAddress],
     ["modelRegistry.isStringRegistered", await modelRegistry.isStringRegistered(expected.modelId), true],
     ["modelRegistry.getStringToken", await modelRegistry.getStringToken(expected.modelId), tokenAddress],
   ];
@@ -185,6 +238,11 @@ async function runLaunchDeploy({
   const modelRegistry = await ethers.getContractAt("ModelRegistry", registryAddress);
   const tokenManager = await ethers.getContractAt("TokenManager", managerAddress);
   const factory = await ethers.getContractAt("HokusaiAMMFactory", factoryAddress);
+  await ensureFactoryPoolRegistrar({
+    modelRegistry,
+    factoryAddress,
+    signerAddress: deployer.address,
+  });
 
   const scaledEntries = launchConfig.tokens
     .filter((entry) => POOLS_TO_CREATE.includes(entry.configKey))
@@ -193,6 +251,16 @@ async function runLaunchDeploy({
   if (scaledEntries.length !== POOLS_TO_CREATE.length) {
     throw new Error(`Expected ${POOLS_TO_CREATE.length} configured launch tokens, found ${scaledEntries.length}`);
   }
+
+  const { address: purchaserWhitelistAddress, source: purchaserWhitelistSource } =
+    resolvePurchaserWhitelistAddress(deployment);
+  const requiresWhitelist = scaledEntries.some((entry) => entry.public !== true);
+  if (requiresWhitelist && isZeroAddress(purchaserWhitelistAddress)) {
+    throw new LaunchWhitelistConfigError(
+      "Missing shared purchaser whitelist for non-public launch pools"
+    );
+  }
+  console.log(`   PurchaserWhitelist: ${purchaserWhitelistAddress} (${purchaserWhitelistSource})`);
 
   const usdcBalance = await usdc.balanceOf(deployer.address);
   console.log("\n💰 Deployer USDC balance:", ethers.formatUnits(usdcBalance, 6), "USDC");
@@ -284,8 +352,9 @@ async function runLaunchDeploy({
       console.log("   ✅ Token configuration verified");
 
       console.log("   📋 Registering model in ModelRegistry...");
-      const registerTx = await modelRegistry.registerStringModel(
-        config.modelId,
+      const numericModelId = validateNumericModelId(config.modelId, "modelId");
+      const registerTx = await modelRegistry.registerModel(
+        numericModelId,
         tokenAddress,
         config.pool.performanceMetric
       );
@@ -302,14 +371,20 @@ async function runLaunchDeploy({
       console.log("   ✅ ModelRegistry mapping verified");
 
       console.log("   🏊 Creating AMM pool...");
-      const poolTx = await factory.createPoolWithParams(
+      const poolWhitelistAddress = config.public ? ethers.ZeroAddress : purchaserWhitelistAddress;
+      if (config.public) {
+        console.log(`   ⚠️  Pool ${config.pool.name} created as public (no whitelist)`);
+      }
+
+      const poolTx = await factory.createPoolWithParamsAndWhitelist(
         config.modelId,
         tokenAddress,
         config.pool.crr,
         config.pool.tradeFee,
         config.pool.ibrSeconds,
         config.flatCurveThresholdUsdc,
-        config.flatCurvePriceUsdc
+        config.flatCurvePriceUsdc,
+        poolWhitelistAddress
       );
       const poolReceipt = await poolTx.wait();
       console.log(`   ⛽ Gas used: ${poolReceipt.gasUsed.toString()}`);
@@ -322,6 +397,22 @@ async function runLaunchDeploy({
       console.log(`   ✅ Pool created: ${poolAddress}`);
       console.log(`   🔗 View on Etherscan: ${etherscanBaseUrl}/address/${poolAddress}`);
 
+      console.log("   🔍 Verifying canonical ModelRegistry pool mapping...");
+      const registryPool = await modelRegistry.getPool(config.modelId);
+      if (registryPool === hre.ethers.ZeroAddress) {
+        console.log("   ⚠️  Registry mapping missing after factory create; applying legacy fallback");
+        const registerPoolTx = await modelRegistry.registerPool(config.modelId, poolAddress);
+        const registerPoolReceipt = await registerPoolTx.wait();
+        console.log("   ✅ Pool registered in ModelRegistry via fallback");
+        console.log(`   ⛽ Gas used: ${registerPoolReceipt.gasUsed.toString()}`);
+      } else if (hre.ethers.getAddress(registryPool) === hre.ethers.getAddress(poolAddress)) {
+        console.log("   ✅ Pool already registered canonically by factory");
+      } else {
+        throw new Error(
+          `ModelRegistry.getPool(${config.modelId}) returned ${registryPool}, expected ${poolAddress}`
+        );
+      }
+
       console.log("   🔐 Authorizing AMM to mint tokens...");
       const authorizeTx = await tokenManager.authorizeAMM(poolAddress);
       await authorizeTx.wait();
@@ -329,6 +420,12 @@ async function runLaunchDeploy({
 
       console.log(`   💰 Adding initial liquidity ($${ethers.formatUnits(config.initialReserveUsdc, 6)} USDC)...`);
       const pool = await ethers.getContractAt("HokusaiAMM", poolAddress);
+      const onChainWhitelist = await pool.purchaserWhitelist();
+      if (ethers.getAddress(onChainWhitelist) !== ethers.getAddress(poolWhitelistAddress)) {
+        throw new Error(
+          `Pool whitelist mismatch for ${config.modelId}: expected ${poolWhitelistAddress}, got ${onChainWhitelist}`
+        );
+      }
 
       console.log("   🔓 Approving USDC...");
       const approveTx = await usdc.approve(poolAddress, config.initialReserveUsdc);
@@ -360,15 +457,38 @@ async function runLaunchDeploy({
       console.log(`      Flat Curve Price: $${ethers.formatUnits(flatCurvePrice, 6)}`);
 
       let modelSupplierDistributed = await token.modelSupplierDistributed();
+      const { immediateAmount, vestedAmount } = splitSupplierAllocation(
+        config.supplierWei,
+        config.vestingConfig
+      );
       if (config.distributionTiming === "pre-launch") {
         console.log("   🪙 Distributing supplier allocation pre-launch...");
         const distributeTx = await tokenManager.distributeModelSupplierAllocation(config.modelId);
         await distributeTx.wait();
         modelSupplierDistributed = await token.modelSupplierDistributed();
         const supplierBalance = await token.balanceOf(config.supplierRecipient);
-        if (!modelSupplierDistributed || supplierBalance !== config.supplierWei) {
+        if (!modelSupplierDistributed || supplierBalance !== immediateAmount) {
           throw new Error(`Supplier allocation verification failed for ${config.modelId}`);
         }
+
+        if (vestedAmount > 0n) {
+          const vestingVaultAddress = await tokenManager.vestingVault();
+          if (vestingVaultAddress === ethers.ZeroAddress) {
+            throw new Error(`Vesting vault not configured for ${config.modelId}`);
+          }
+
+          const vestingVault = await ethers.getContractAt("RewardVestingVault", vestingVaultAddress);
+          const vaultBalance = await token.balanceOf(vestingVaultAddress);
+          if (vaultBalance < vestedAmount) {
+            throw new Error(`Supplier vesting vault balance verification failed for ${config.modelId}`);
+          }
+
+          const scheduleIds = await vestingVault.getSchedulesByBeneficiary(config.supplierRecipient);
+          if (scheduleIds.length === 0) {
+            throw new Error(`Supplier vesting schedule missing for ${config.modelId}`);
+          }
+        }
+
         console.log("   ✅ Supplier allocation distributed");
       } else {
         pendingActions.push({
@@ -396,6 +516,8 @@ async function runLaunchDeploy({
         paramsAddress,
         vestingConfig: config.vestingConfig,
         modelSupplierDistributed,
+        supplierImmediateAmount: immediateAmount.toString(),
+        supplierVestedAmount: vestedAmount.toString(),
       });
 
       deployment.pools.push({
@@ -403,6 +525,7 @@ async function runLaunchDeploy({
         modelId: config.modelId,
         tokenAddress,
         ammAddress: poolAddress,
+        purchaserWhitelist: poolWhitelistAddress,
         initialReserve: config.initialReserveUsdc.toString(),
         crr: config.pool.crr,
         tradeFee: config.pool.tradeFee,
@@ -503,7 +626,9 @@ module.exports = {
   DEFAULT_CONFIG_PATH,
   DEFAULT_DEPLOYMENT_PATH,
   DEFAULT_PENDING_ACTIONS_PATH,
+  LaunchWhitelistConfigError,
   loadDeployment,
+  resolvePurchaserWhitelistAddress,
   runLaunchDeploy,
   verifyDeployedToken,
   verifyRegisteredModel,

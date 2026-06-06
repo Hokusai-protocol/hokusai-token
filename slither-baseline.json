@@ -1,0 +1,1167 @@
+{
+  "_comment": "Accepted or triaged Slither findings. Each entry must include a justification and review metadata. See docs/slither-static-analysis.md.",
+  "accepted": [
+    {
+      "id": "1d7ad28cad4e8097946a98348cad9ba5573af5b8c2c21093f73f9662a88325cf",
+      "check": "incorrect-equality",
+      "justification": "Accepted false positive: this equality check is on deterministic contribution state and claimant identity, not a manipulable balance or timestamp value.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "54c03dd4f85503f880bcfa5ea5f85a3e978a2136cc8e132d821c2fd2a0b26d33",
+      "check": "incorrect-equality",
+      "justification": "Accepted false positive: keccak256(bytes(a)) == keccak256(bytes(b)) is the standard Solidity pattern for string equality and is not a balance-comparison bug.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "cf423f4f3f1e53f424529d59215cc1e00d0459a2bffe0a6eb6b93caff99950ae",
+      "check": "incorrect-equality",
+      "justification": "Accepted false positive: these strict equalities are bounded accounting and state invariants (dust == 0 fast path and claimed-vs-claimable counters), not exploitable token-balance comparisons.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "358e4d064cb820af5ddf28d188405f4f9176b14837851127bf1848b20f5c65c3",
+      "check": "reentrancy-no-eth",
+      "justification": "Accepted false positive: the pre-storage external call is to the constructor-configured tokenDeploymentFactory, which is trusted deployment infrastructure rather than caller-controlled execution.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "06d4d9b128da369661da11aa4cf1042ccc88654c49c662daccfb8ea8f4de7b19",
+      "check": "incorrect-equality",
+      "justification": "Pre-existing FundingVault dust-sweep equality pattern; ID changed after line shifts in HOK-1816 without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "8005a511929c507ab8713c0459ed93dc0e63b06a46359c55329b1050b03d68d2",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "92015b589f70a3cd8c0e402d4d329d42a45dd944db8b79d12da86444ceca06fa",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "b755299da0afe685c3710c97323efb59f702eb830e77362a183a115f428bd2ae",
+      "check": "reentrancy-no-eth",
+      "justification": "Accepted false positive: the pre-storage external call is to the constructor-configured tokenDeploymentFactory, which is trusted deployment infrastructure rather than caller-controlled execution.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "ca5db420417af85ae5f2233fd863d14d2245ef7c951aebea32949a5047582cb8",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "cce90c099329fdfb4711802aa058ecdddd21ed128c38813076d6b459e7d1d115",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "f69051a29e03ee4bca8880627f699c880a6ffb7c85f5c2d494abf8f0bf4c2cf8",
+      "check": "reentrancy-no-eth",
+      "justification": "Pre-existing FundingVault graduation-path finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "f07ff1b33bc01551de687de165589849f6087c4a538f030d6e3c3319c643fac7",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual reentrancy-no-eth finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; no ETH is transferred in this code path and there is no fund safety risk.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "280a18781c963415a02751607593092110e6903518fd350827f0f54b48d5d44c",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "33d23c28bba365a11b375b3b14bc38dc69754234e48566f2e9fee2b84859fd14",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "7c42940f1ac3033a9cecd02d6ffc25fb45ac7f6b64b9cc3dba0318bf26821aa3",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "799e09f3c083e7832be9fff6b0881296f74dca081fe9b80245d8390b12c6c806",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "8026bbd52b7a640e907ff303ca8358641a08c699f55761785ea31c2cf3d2dc6b",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "9bfb1c31bbda414756a33e31edeb30efb354ff7de964b9acd04d3c5a510758e4",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "a1d7b46b4de2f832fbf2f8c846d2e36023a320101ba9cc3f15eba554fb1250bc",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "bb9c94cff16b0bdfc372a2e35fb9acdabea3a0dc0048efaddea460e8a71cbf8f",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "e2b21dd2fdd740bc7ea67281fe5023791acb50bc62d36762a7a78e2a5ed35558",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "eb023b9c30ea828c74bd06c653a26a6af565232b2302c55ce3778814d02c09bf",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "f963167fec038a582662bb1179b2968ff7879b020d8e74bfba81c4fe22f2dfa8",
+      "check": "unused-return",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "321990ccea93bcb113a1cc95583b506639fdc1701fc64f471afea7922e8da595",
+      "check": "reentrancy-benign",
+      "justification": "Residual reentrancy-benign finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the flagged code path has no state changes after the external call that could affect fund safety.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "3a0205c05d88895e3b07ce6e02d10d261d4327587cc92cfe0cf25815c29dad9d",
+      "check": "reentrancy-benign",
+      "justification": "Residual reentrancy-benign finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the flagged code path has no state changes after the external call that could affect fund safety.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "7843d0f344f78fdf3b8f2443bd3bf1d640914b6d4fc3c2ea4b3760ded9efce21",
+      "check": "reentrancy-benign",
+      "justification": "Residual reentrancy-benign finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the flagged code path has no state changes after the external call that could affect fund safety.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "0004c8d60996a038bfaa7f951e4e78aeb5a6321228d60cc4d2e8d4c008f97293",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "18e69809c5527cd04f2560d0b5f32ed2112316a5164d9de5ac5526bb6d2e384c",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "1a1b55f1e03c68f898ce7984db27ef801a85bb4e3f4981acc918cd7b7d75fa66",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "1c6c336e2acaebd05968854a274acf762f3f662e65f61f7dcb21ca5c087fa9fb",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "2e11d44d8b2d71eb21e13194ba15200108b9b6222482e791b12c3a554624d10d",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "32c945f35465ce9139ee4d34c8722a15c58b41abb1c26898034baee361aa4245",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "5725248afffda83e89b67297266bdf1aa817547ffea12d369adec7ba0565c2bf",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "71bbf52a41abad0934e9b44ad7b51a950bbf1b2a70d46cc571063cf7e6c03593",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "811a24c5da30ce86360e1be69606ed5832c1f065837062c4948b94ab3b538491",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "9ad96d48d20441f5814908b8bce44fb304aff8f210d0f4da3a76b6a3e4625506",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "a985e182e9393cedd8e3e7158aaaceea424985ec2754983550e01f702f1dc278",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "c5759c5323b5a785d52287022f9dca2ab5f05f4dafa92f4380dff6a661d8172d",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "c60f99afdf140f1c2e95f2b8808824073971f7daf31ebd5b54bb6a445074fd73",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "cda40ba9a2d8b8a41e9221015eb4e208513640372ad2d2c062158c3c873447e4",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "ce85240d7f829e22f504deb7fb0e9568f960239b3f9d2945e4d4443e9fb3d67b",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "e0e936584356d683a1e14159c716aaeb6f0d8283419421b4c0880a097da2da84",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "e1b0541f5366876ac01fb8d1d3900bdab5637fc38d77f2d7a010cb0d12aa1aaf",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "e69f121b4b669f69b2a8394bb7f7216f4d75061b5628622dcab44e8f1538f83b",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding surfaced during HOK-1823 after adding nonReentrant guards to adjacent functions; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "7ef0d55caa3b0b5e7a38df800cda034fdb1ed71c9b635e01eb1349c66e051b52",
+      "check": "unused-return",
+      "justification": "Pre-existing FundingVault graduation-path finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "2f9ce64f1fb88f150759baeef5d709f5affb52c3dc1db2f7dd6a3d3f1d944558",
+      "check": "shadowing-local",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "500e401d9e7352ab5866825c00a75fd8b18ee41bbf42445ddaf25c08ab83f5a1",
+      "check": "shadowing-local",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "124bd48bc6f67d5596c84dd0433bc6f632703242fd7b293ed211273dd1c94888",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "1c8e36f17a0bb8103f3021dc43b1213e22e6cc1754ba71f2d9cf1b035aeb7590",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "3cc7e79d64205d5dbf8efc2bc6ab15ee53cf75d241e057e4f05863cb0af197fa",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "73b9c295fe68a88081f1c6623faee5bcbb24556be81f2bdb83184ec66caf960f",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "9ed15b97569b4effd0825cd81b353ef0187716710e15e658685b65392c55037f",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "a02a635f804ae7e107eb8f3ed788e6e1dbaaa874a03f5913d57b1cfd75175146",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "ad253a0ad38c015a3af5261057abafc9e3e8a41a66d898343210e2944f4155c0",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "b696af0cfb5218be29ceb519905583874f4cc134b17141fb5f358f506afb1004",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "c90c34ddcafe43ce19c1598dbd7c2b9e3fbc94d71b098f9806eaaad8428a6888",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "e82575ad092fc4daf772d1f1bdfbc3e91d9ee11582e2daa960cda9e2f9d57835",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "ee72c5d6121c7e42400e8e2bb4a2a2afc92557f5d3f63577a8581d58d6c92cc3",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "08cbcae6e93642ce7283d7abf3b53c849917ab7c3a2c657a1559ecfe7918e0fe",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "0f631c5c71f5d29619824c932773b0a7d8c73405966dcd53e243fe68c5f5cc21",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "12d954f933c50a78327787140200afbfa2353e8112072d8ca190e2db02c4a9e8",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "24690ef1659087f35fdf3418af2e195370f55023bb9cfaed0fe50a3656d7734a",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "2ba74e0780ebe5542a64e5e57a60504cc3097e357719431b3ca8dd06d7040497",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "2ca00a926ad715d9bdabc0b27f9cf3e8e62c1f91b47921e78962d727467eb81f",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "2dc09dc3addf04823856837102cdd7ad9b25680e102a5831aab7b528ca3b7d3a",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "36a6692ab88efe66f25a56174c3ea48fb0d011b73cc562126204e38cd318b59d",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "4371791aed9edaa5e6c2328e9aaab9a5c7c277de98d17ca310d36be2dc75c125",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "4415e54e2200f41d689e76bbdadb4e24906e2ebe53703f59e413f9000a3c3868",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "4bba14856350f092c0f96f88c265555d7dd32243521d49603aa6509ebe42af31",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "1506bac413b6d41c90853ae535d2029be86ff193b523b8bd75618e88a1ecc928",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory pause-path event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "4d3764f4222846dfc781089a65e307424b85da79d7509ed2a6f933fc0cec638a",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "531bbe0685cec239fa8a53d31fcad416a73e759c963451e9bd926eb13ba453f0",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "64d0cc06054bc30f2d94b301bffdbc1bc9c921415e284fe932b95a8b9ebb334f",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "68b94c88ea6905ef37095df1b764fd36499de20fc7e6ea2b9a6ba1e7ab3ce573",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "446b99e267fe3600086e01cb721ba3a6dfe32606f7ba36664be93f7fb9ce2e3c",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory createPoolWithParams event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "6cb1297bb7142dae4a6e0874a05808bb5db3c04f0b4abca7441a9b8d79f935fc",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "76994b89da2c865deb2831f0cf54e248458e8b69fdaa2ef99cfb6ebb2dde1983",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "833d2a239d14d2a4f6986c9ff67ab5c6589f7fc740b5146c6d6bdac4fd452545",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "892d9c91dcdedd1f7de8acc53e5709ffa3ab400adede21c96459ca6e4a9b5082",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "94bbcd47210c19b6e0d65de0e9ed0cf157c2c98feaa2330c71ae4e139b8ddc1a",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "575caa87533a9b80912f53c960c09daa9955e908f859ac26ffd5c9d04c0ca36a",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory pauseAllPools event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "998ad94c28c54d4b1a223f3fb0784e311600c8b895544f1f9a4686924c002175",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "6d0a84d51dd9f6f789f5cc2b5481f0f1ac35d8c9c818e0378771ed6f3629be0f",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory pausePools event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "720d27a5559847dbd84fe2dac1acb81298546d3876362d04d9b8e8affea1f3a0",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory unpausePool event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "896dfcbfbc982b20fa0113012c8431703b73d08bec9e70922b015f0e48adce16",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory unpausePools event ordering finding; ID changed after HOK-1816 line shifts without changing the accepted risk.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "a9dfa2a6f07e6601fb1466a769d11cd67b920e34f2577a8646bc72a2da1a63d5",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "b010374c16441d672f8aa26d07ece4873a5930f51aea0742c50f12430109e71f",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "cf3159918bfead813e061a6edafe1193ce369a22c59c7ad6e0dcba643c67b36b",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "d30c9593ef667fd3bf66651ebc752f8773053400609de51115f03afd7b1cd5cf",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "d9c974bfa97dac9feeb4abdd15b5c8e1ac70a68d66f4de04eb438aab9a083ef2",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "ef09bbbedf9a26d15f8e2417fae6adf7035d21a0e05b5e732b3d5c1d366caffe",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "f017101733f8418c3bcb930b376c585f8f07bb65edc1fcc758cdc31917141b69",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing finding captured during the initial Slither rollout; contract remediation is outside HOK-1734 scope.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "4bc0f1ce5cf9b6c2e72e5b0eda8059b7b8dc4428569cc13e22675efc8c982b76",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual reentrancy-no-eth finding re-surfaced after pull-payment refactor in HOK-1734; the pre-storage external call is to the constructor-configured tokenDeploymentFactory, which is trusted deployment infrastructure, and nonReentrant guards are in place.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "fbe4b208b1ed2e2dfbd5c3469c8cf6a51f0e5a48d966095c67a394a9327d83fa",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual reentrancy-no-eth finding re-surfaced after pull-payment refactor in HOK-1734; the pre-storage external call is to the constructor-configured tokenDeploymentFactory, which is trusted deployment infrastructure, and nonReentrant guards are in place.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "4f87fccc66753903da43fa6eae10ee2c76e6dc0576fe196d4fb442a2d368ed20",
+      "check": "unused-return",
+      "justification": "Residual unused-return finding re-surfaced after pull-payment refactor in HOK-1734; same pre-existing pattern as other accepted unused-return entries in this contract.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "6a9f90b53746dd3f398cd92ab85747c10dc94047b5ae8baf65016d2f050c7b66",
+      "check": "unused-return",
+      "justification": "Residual unused-return finding re-surfaced after pull-payment refactor in HOK-1734; same pre-existing pattern as other accepted unused-return entries in this contract.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "085dc8832f5aeb40df1934610fe8ea3f8dadbde43084a4260cab7d5ae3f9c413",
+      "check": "reentrancy-benign",
+      "justification": "Residual reentrancy-benign finding re-surfaced after pull-payment refactor in HOK-1734; the flagged code path has no state changes after the external call that could affect fund safety.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "957e3e0673ffe526321ee92f8ce9444e1bcd10f1ef6193de4d260f334ef10b40",
+      "check": "reentrancy-benign",
+      "justification": "Residual reentrancy-benign finding re-surfaced after pull-payment refactor in HOK-1734; the flagged code path has no state changes after the external call that could affect fund safety.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "0104028036972a578298d5e76555d78f13e5de5f8a9ae2f5915f4d2095a570ae",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "16d5ac59efb6283fa915584553a9049fc16c3690cbcc4408778e5609d3cf3b6d",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "26c7ad8a1b6fa356869bd3f08c86a3c16cf2a00855066d761bd663a2df71fa75",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "2ebbf9f41a27469abd1f3dd600fec625f92c1f799b8dd82c3a4561defda7d900",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "3121ff60c8b3a9f5ca1fbfe08fcb4b612aca93ebcc2851047639540ed073ef3f",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "3834320c471d9daba6bf9b44ed6af77a9efec4c9147e680a945899710dd7f8cb",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "4c4ef26180e6e8dc4d66773a48bc851d000fb10c8fde48e58e9ccc2606fd1a63",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "57031462271f605272703136988c1fb682524f780929a6918f9ef2dcaf232914",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "63fd801b3c35b980c118611afd63da1e4ce613c668cef1b05006ce8e25e03e32",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "6b17a10990f963cb8bae6e6a058ccf6f99892d436fa2f671a36da30fcb056e16",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "966e5004fbb9c71736b47c136905cdb4a08e0a220879bda277e33740753ed5c3",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "9d5cdbf956497d33553328c6ec4a76b8f59d1ca1021014781e521d019bdb4a21",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "a67f190cc833d168b7505eb118654bf48c3a10267df74a24a8034f50fd39b92b",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "b645c5d862e87100a90d0191056488c18192f2eb6ba84fd46ccc76a9f1161bc1",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "b7544245617806a90d5404bebaca31c39a56e0285089ed374d584eca5f43aa57",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "b816576719cf879bb067c473e1d08efac0297a296b4f9fc317b9e1496f07f7cc",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "dd9fe29007c948212b2182717b594b3dc3c78f54500f282a936816b1c3e98533",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding re-surfaced after pull-payment refactor in HOK-1734; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "1ad97fdb98add19b4578c78c1d9350d38f4db2bf257938f500adc7266436fd2c",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual deployment-factory finding after adding nonReentrant guards to DeployableTokenManager external mutation paths; the pre-storage external call is to the constructor-configured tokenDeploymentFactory.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "f0cd872a263599643069154ab84cd19fe889325e7182679c8f6d2f66f5fb49fd",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual deployment-factory finding after adding nonReentrant guards to DeployableTokenManager external mutation paths; the pre-storage external call is to the constructor-configured tokenDeploymentFactory.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "32f0160fde7b9d38a757ffe551519cfe03d5cb33ce0da091b996334125ee8c6b",
+      "check": "reentrancy-benign",
+      "justification": "Residual deployment-factory finding after adding nonReentrant guards to DeployableTokenManager external mutation paths; deployment state writes occur after the trusted tokenDeploymentFactory returns.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "b58fad60389a6b6ba6355c73603c2ca49f9fc73b9caa5a61f5ec62370b9c9353",
+      "check": "reentrancy-benign",
+      "justification": "Residual deployment-factory finding after adding nonReentrant guards to DeployableTokenManager external mutation paths; deployment state writes occur after the trusted tokenDeploymentFactory returns.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "5c5662f78d7ea22848c687323eeb5d25226f54c665ab149ec241e6071692e43b",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual deployment-factory finding after HOK-1828 documentation and terminology line shifts; the pre-storage external call is to the constructor-configured tokenDeploymentFactory.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "aee563a659e20719a4951b06389692cf1616941297ab168862d67dce020e54ef",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual deployment-factory finding after HOK-1828 documentation and terminology line shifts; the pre-storage external call is to the constructor-configured tokenDeploymentFactory.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "0b452a2aed37c33e69194b47be9329b9e273e89d7d3c360caa991ad8f7d31eb1",
+      "check": "unused-return",
+      "justification": "Residual unused-return finding after HOK-1828 documentation and terminology line shifts; same pre-existing pattern as other accepted unused-return entries in this contract.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "837a451a93c3d7ea5d540ff67a7f02828631a3fbc4387f5c3edd5d0e4347efa5",
+      "check": "reentrancy-benign",
+      "justification": "Residual deployment-factory finding after HOK-1828 documentation and terminology line shifts; deployment state writes occur after the trusted tokenDeploymentFactory returns.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "c30c0ede6ad5f0387c6190d0c5838b98858a7167f0f72469c6c198f95650a6a0",
+      "check": "reentrancy-benign",
+      "justification": "Residual deployment-factory finding after HOK-1828 documentation and terminology line shifts; deployment state writes occur after the trusted tokenDeploymentFactory returns.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1827"
+    },
+    {
+      "id": "3d53a01096222386f0920176804625c37ee9438ce79a9d5254573857db3bf554",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "459e62344540cdc655fa380f918a5763b7ba0e4431d27dfb8b310812368da69a",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "4b4e212dc7271d46b5fba635828842aca8f3fe10e1b25ce87b5f4ecf162acbea",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "6778e649f2e69b39199531f056118c3657c023491df956e11443a402ba0c5c8a",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "6a73bb29534bd60ad44568d3f75bbab1c6fcd81439ce09928c56b09fc3c797c3",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "aa48258796bf28c5c71b1cf4824cdb01288662852968811a35ca7d7889b33113",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "c136f4151a5a3dfd638ca8f4ea5fff78d72339141dc8e3c5388e3fc9333e170c",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "dc38ccc630d119280abd5537942ae3fe690eeb427af283e14932ca8baf88029d",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "e0ab4057c3f154f7a9e62f1898b2dceb2841c0b22082d4e9b01cb37e68e0e385",
+      "check": "reentrancy-events",
+      "justification": "Residual reentrancy-events finding after HOK-1828 documentation and terminology line shifts; the only theoretical risk is out-of-order event emission, which does not affect fund safety or correctness.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1734"
+    },
+    {
+      "id": "61f43cc17aca05b54df3e17fe64782938fd410139ef4349050c4bb682f73d02c",
+      "check": "reentrancy-no-eth",
+      "justification": "Residual InfrastructureReserve batch payment finding after HOK-1829 role line shifts; accounting is updated before the ERC20 transfer and the function is protected by nonReentrant.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "80b5d7ddf6a1d37acf592be780e70b891e413d47516ab4fd3646099e7eb8ebf2",
+      "check": "unused-return",
+      "justification": "Residual DeltaVerifier registry-call finding after HOK-1829 role line shifts; contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "bdd37650817454ba075d81ed906cf3cd7c9c8d42f2172fdb99c179008dbdc5ca",
+      "check": "unused-return",
+      "justification": "Residual DeltaVerifier batch registry-call finding after HOK-1829 role line shifts; contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "0ab5dc87846a40abf6a93e19c4cf93813369a1a11cc21829cbfedfe7ec389b62",
+      "check": "reentrancy-benign",
+      "justification": "Residual InfrastructureReserve batch payment finding after HOK-1829 role line shifts; the function uses CEI accounting and nonReentrant before provider token transfers.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "b0a27cdde8dd9800db8a33da2a1c60a3d787ab1d57c966253934cc58e4645656",
+      "check": "reentrancy-benign",
+      "justification": "Residual InfrastructureReserve batch deposit finding after HOK-1829 role line shifts; the only post-transfer global accounting is cumulative statistics and the function is nonReentrant.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "b4bc0a69fa1f3da2161c4bf098ebe38a38638318f7f4c20266ece1f7432f1052",
+      "check": "reentrancy-benign",
+      "justification": "Residual InfrastructureReserve single deposit finding after HOK-1829 role line shifts; the function is nonReentrant and the flagged external call is the expected ERC20 transferFrom.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1823"
+    },
+    {
+      "id": "717e3dab4d92ac4fb05b7690bdedebcdd80206e9b9d75abf26da325328f9a978",
+      "check": "reentrancy-events",
+      "justification": "TokenDeploymentFactory emits after configuring freshly deployed HokusaiToken and HokusaiParams contracts; the only theoretical risk is event ordering and no mutable factory state is exposed.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "c55fbfa188f46e89674c403217945c4535e344fea612fc87e1e54da43c673a5d",
+      "check": "reentrancy-events",
+      "justification": "InfrastructureReserve emergency withdrawal transfers to the configured treasury and then emits; the only theoretical risk is event ordering and no reserve accounting is updated after transfer.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "2a9902c0dd85f6d08cea3450ee89723ab268d162113895540586e810c28bf57d",
+      "check": "reentrancy-no-eth",
+      "justification": "HokusaiAMM buy is guarded by nonReentrant; the flagged external calls are ERC20 transfers and TokenManager minting with no ETH transfer and reserve accounting updated before mint emission.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "f999bc3582e930492d6c23a52d1f8892f4bcffb674c73b183e5fb25a507a4af6",
+      "check": "reentrancy-benign",
+      "justification": "HokusaiAMM fee deposit is guarded by nonReentrant; the external call is the expected ERC20 transferFrom and post-transfer state only records reserve accounting and graduation state.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "ba0cd6a907f96ff20eeb92dc8d0ae153ca5da1c061d2c2af7bb1537981efa08b",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMM treasury withdrawal transfers to the configured treasury and then emits; the only theoretical risk is event ordering and no reserve accounting is updated after transfer.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "2dc2363735e009d06ae330a26b5166b26bc1bd10acb83a12c0af52488ca30f13",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory createPoolWithParams records pool state before registering the pool and emitting; registry failure reverts the transaction and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "b3fde5084eabb78d50dd6abb4aef07376621e5a89078792c2df233b1019bcabd",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory createPoolWithWhitelist emits after successful pool creation and whitelist attachment; the only theoretical risk is event ordering after trusted pool configuration.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "62c805625969527cf2f666fa3b61c6025484efa1da9748d222aa4b556cac5340",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory createPoolWithParamsAndWhitelist emits after successful pool creation and whitelist attachment; the only theoretical risk is event ordering after trusted pool configuration.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "45c4627d09e3efacb680361bec51d4f3d08a3e100126187de1a0020b77f3516f",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory pausePool emits only after the target pool pause succeeds; the external call is owner/pauser-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "d45a68f383b363bfe47b94d3adb6ebdd4693317f6e1d73a5776dc5b435ae2c96",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory unpausePool emits only after the target pool unpause succeeds; the external call is owner-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "f268ea41b41fa2804b3781a20bbfd390fe91a77ba6e457a6b22c02d9d0403654",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory pausePools emits after each successful bounded pool pause; calls are owner/pauser-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "a42a747ca9fc0c16d8c81607989d18b4a70270140bf15252a2d7fff35c7f912e",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory unpausePools emits after each successful bounded pool unpause; calls are owner-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "11fa4469ed501f9e140ce8ad053c5fe3903acc8c915172b9a51e944bdd7e9d73",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMFactory pauseAllPools emits after each successful bounded pool pause; calls are owner/pauser-gated and the only theoretical risk is event ordering.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "4bb3395dca584efb983233bd4fb0dd44d7f03ea48fd5c0f816b8a35c74b9ddc5",
+      "check": "reentrancy-no-eth",
+      "justification": "HokusaiAMM buy is nonReentrant and updates reserve accounting before minting; the PR only added a post-trade purchase event and does not introduce an unguarded value-transfer path.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "24efb4d10fb58111dead364ccd89f0033607cbd96fd971d06597902a3503b3f6",
+      "check": "reentrancy-benign",
+      "justification": "HokusaiAMM depositFees is nonReentrant and unchanged by this PR; the new ID is baseline drift after nearby event declarations shifted Slither hashing.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "d952c2844d6421e28667657429da800fd476600816f6744bae67c337c9f2b28d",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMM withdrawTreasury is owner-gated and unchanged by this PR; the remaining theoretical risk is event ordering after a successful treasury transfer.",
+      "reviewedBy": "codex",
+      "followUp": "n/a"
+    },
+    {
+      "id": "6365b84765941a2ce464655e7db4d9c36097b425231ce40c6d295110b958f30c",
+      "check": "reentrancy-no-eth",
+      "justification": "Factory pool creation now delegates deployment to the constructor-pinned HokusaiAMMPoolDeployer and then performs canonical ModelRegistry registration; both external hops are trusted infrastructure and no ETH is transferred in this path.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "e6c4a4feca0b472eb8ab74ac256489cc0692fccf5e22bb1e2e2e7a7e09f75520",
+      "check": "reentrancy-benign",
+      "justification": "Factory pool creation performs trusted deployment and canonical registration before emitting events; the detector flags event ordering, but the owner-only path does not create a fund safety issue.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "ee70ec9f7df4a6501b3c1a81e82782e0bfee0e3dc1502467dd5587c8a5e3a1f8",
+      "check": "reentrancy-events",
+      "justification": "Factory pool creation emits after trusted deployer and registry calls; the flagged risk is limited to event ordering on an owner-only path and does not change canonical tracking or fund balances.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "29bb9fedead61cabeeb41d790b02e0903b8e913113397061948b5c9329dabeb1",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMMPoolDeployer deploys a new pool and immediately transfers ownership back to the factory before emitting; the detector only identifies possible event reordering, not a state safety issue.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "4e827ade4056e3ec4f6296d1ce40a40e47becf1fe4eadfd183125f6ecac169d6",
+      "check": "reentrancy-events",
+      "justification": "Whitelist attachment runs only after factory ownership has been restored to the factory, and the detector is flagging owner-only post-call event ordering rather than an exploitable state transition.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "ea7dee375ed2143e4fa5b993012f4360b3c03cc7578e793b6efacaefed24f45b",
+      "check": "reentrancy-events",
+      "justification": "Custom-params whitelist creation follows the same owner-only pattern as standard pool creation; the only flagged effect is event ordering after trusted internal infrastructure calls.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "9e994580cc791b4e8c3d9f8e213435f3c368be519ca4bb4f257bd7199f555fc5",
+      "check": "reentrancy-events",
+      "justification": "Single-pool pause is owner-or-pauser gated and forwards to a known pool before emitting; the detector reports theoretical event ordering only, with no unsafe post-call accounting.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "5b35e7f9546c540c9d96e18f0d1fd372e902888c6f7ec3c3f5e151413b476e63",
+      "check": "reentrancy-events",
+      "justification": "Single-pool unpause is owner-only and only emits after forwarding to the known pool; this is an accepted event-ordering false positive, not a fund or authorization issue.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "7bd432879d737826452019c3ad4fcfb0ea1722b9f33107467ec9ea1c9d68dc35",
+      "check": "reentrancy-events",
+      "justification": "Batch pause loops over factory-tracked pools and emits after each pause; the detector flags event ordering on a governance-only path with no mutable accounting after the call.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "f3b3494064047bab802351a31ef0843d4f998b259af0035fcf7f2e9950c896a2",
+      "check": "reentrancy-events",
+      "justification": "Paginated pauseAllPools iterates over factory-tracked pools and emits after each pause; this is the same governance-only event-ordering pattern already accepted elsewhere in the repo.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    },
+    {
+      "id": "1cf5862d571a440e7c75f3b7ab504b8c0c01a412e99313a47ee2a2530b20b002",
+      "check": "reentrancy-events",
+      "justification": "Paginated unpauseAllPools is owner-only and touches only factory-tracked pools; the detector is identifying possible event ordering, not an exploitable reentrancy condition.",
+      "reviewedBy": "codex",
+      "followUp": "HOK-1846"
+    }
+  ]
+}

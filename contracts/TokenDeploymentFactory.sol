@@ -20,6 +20,7 @@ contract TokenDeploymentFactory is ITokenDeploymentFactory {
         uint256 initialSupply,
         uint256 maxSupply,
         uint256 modelSupplierAllocation,
+        uint256 investorAllocation,
         address modelSupplierRecipient,
         InitialParams memory initialParams
     ) external returns (address tokenAddress, address paramsAddress) {
@@ -44,9 +45,16 @@ contract TokenDeploymentFactory is ITokenDeploymentFactory {
             initialSupply,
             maxSupply,
             modelSupplierAllocation,
+            investorAllocation,
             modelSupplierRecipient
         );
         tokenAddress = address(newToken);
+
+        if (initialParams.governor != address(this)) {
+            newParams.grantRole(newParams.DEFAULT_ADMIN_ROLE(), initialParams.governor);
+            newParams.renounceRole(newParams.DEFAULT_ADMIN_ROLE(), address(this));
+            newToken.transferOwnership(initialParams.governor);
+        }
 
         emit TokenAndParamsDeployed(tokenAddress, paramsAddress, controller);
     }

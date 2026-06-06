@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
 
 describe("FundingVault", function () {
   let fundingVault;
@@ -15,8 +16,8 @@ describe("FundingVault", function () {
   let user2;
   let user3;
 
-  const MODEL_ID_1 = "model-1";
-  const MODEL_ID_2 = "model-2";
+  const MODEL_ID_1 = "901";
+  const MODEL_ID_2 = "902";
   const USDC_DECIMALS = 6;
 
   function usd(amount) {
@@ -44,14 +45,13 @@ describe("FundingVault", function () {
     await tokenManager.waitForDeployment();
     await modelRegistry.setStringModelTokenManager(await tokenManager.getAddress());
 
-    const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-    ammFactory = await HokusaiAMMFactory.deploy(
-      await modelRegistry.getAddress(),
-      await tokenManager.getAddress(),
-      await usdc.getAddress(),
-      owner.address
-    );
-    await ammFactory.waitForDeployment();
+    ({ factory: ammFactory } = await deployFactoryWithPoolDeployer(
+      modelRegistry,
+      tokenManager,
+      usdc,
+      owner
+    ));
+    await modelRegistry.setPoolRegistrar(await ammFactory.getAddress(), true);
 
     const FundingVault = await ethers.getContractFactory("FundingVault");
     fundingVault = await FundingVault.deploy(
@@ -73,8 +73,6 @@ describe("FundingVault", function () {
     await tokenManager.grantRole(DEFAULT_ADMIN_ROLE, await fundingVault.getAddress());
 
     await ammFactory.transferOwnership(await fundingVault.getAddress());
-    await modelRegistry.setPoolRegistrar(await fundingVault.getAddress(), true);
-
     await usdc.mint(user1.address, usd(100000));
     await usdc.mint(user2.address, usd(100000));
     await usdc.mint(user3.address, usd(100000));

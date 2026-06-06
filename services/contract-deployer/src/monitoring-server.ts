@@ -10,17 +10,19 @@ import express, { Request, Response } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import { ethers } from 'ethers';
+import { createClient, RedisClientType } from 'redis';
 import { AMMMonitor } from './monitoring/amm-monitor';
 import { monitoringRouter } from './routes/monitoring';
 import { reconciliationRouter } from './routes/reconciliation';
 import { logger } from './utils/logger';
-import { AlertManager } from './monitoring/alert-manager';
 import { CostReconciliationService } from './monitoring/cost-reconciliation-service';
 
 // Load environment variables
 dotenv.config();
 
 async function main(): Promise<void> {
+  let redis: RedisClientType | null = null;
+
   try {
     logger.info('[MONITORING-SERVER] Starting AMM Monitoring Service...');
     logger.info(`[MONITORING-SERVER] Node version: ${process.version}`);
@@ -46,6 +48,28 @@ async function main(): Promise<void> {
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
     const network = await provider.getNetwork();
     logger.info(`[MONITORING-SERVER] Connected to network: ${network.name} (chainId: ${network.chainId})`);
+
+    if (process.env.REDIS_URL) {
+      try {
+        logger.info('[MONITORING-SERVER] Connecting to Redis for readiness checks...');
+        redis = createClient({ url: process.env.REDIS_URL });
+        await Promise.race([
+          redis.connect(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Redis connection timeout')), 5000),
+          ),
+        ]);
+        logger.info('[MONITORING-SERVER] Redis connected');
+      } catch (error) {
+        logger.warn('[MONITORING-SERVER] Redis connection failed; readiness will report degraded', error);
+        if (redis) {
+          await redis.disconnect().catch(() => undefined);
+        }
+        redis = null;
+      }
+    } else {
+      logger.warn('[MONITORING-SERVER] REDIS_URL not set; queue readiness checks disabled');
+    }
 
     // Initialize AMM Monitor (it creates AlertManager internally)
     logger.info('[MONITORING-SERVER] Initializing AMM Monitor...');
@@ -119,6 +143,17 @@ async function main(): Promise<void> {
       });
     });
 
+    app.get('/health/ready', async (_req: Request, res: Response) => {
+      const readiness = await getReadiness({
+        ammMonitor,
+        provider,
+        networkChainId: network.chainId,
+        redis,
+      });
+
+      res.status(readiness.ready ? 200 : 503).json(readiness);
+    });
+
     // Monitoring API routes
     app.use('/api/monitoring', monitoringRouter(ammMonitor));
 
@@ -149,6 +184,9 @@ async function main(): Promise<void> {
       logger.info('[MONITORING-SERVER] SIGTERM received, shutting down gracefully...');
       await reconciliationService.stop();
       await ammMonitor.stop();
+      if (redis) {
+        await redis.quit();
+      }
       process.exit(0);
     });
 
@@ -156,12 +194,189 @@ async function main(): Promise<void> {
       logger.info('[MONITORING-SERVER] SIGINT received, shutting down gracefully...');
       await reconciliationService.stop();
       await ammMonitor.stop();
+      if (redis) {
+        await redis.quit();
+      }
       process.exit(0);
     });
 
   } catch (error) {
     logger.error('[MONITORING-SERVER] Fatal error:', error);
     process.exit(1);
+  }
+}
+
+interface ReadinessContext {
+  ammMonitor: AMMMonitor;
+  provider: ethers.JsonRpcProvider;
+  networkChainId: bigint;
+  redis: RedisClientType | null;
+}
+
+async function getReadiness({
+  ammMonitor,
+  provider,
+  networkChainId,
+  redis,
+}: ReadinessContext): Promise<Record<string, unknown> & { ready: boolean }> {
+  const checks: Record<string, unknown> = {};
+  let ready = true;
+
+  try {
+    const blockNumber = await provider.getBlockNumber();
+    checks.rpc = {
+      ok: true,
+      chainId: networkChainId.toString(),
+      blockNumber,
+    };
+  } catch (error) {
+    ready = false;
+    checks.rpc = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  const signerCheck = await getSignerReadiness(provider);
+  checks.signer = signerCheck;
+  if (!signerCheck.ok) {
+    ready = false;
+  }
+
+  const roleCheck = await getDeltaVerifierRoleReadiness(provider, signerCheck.address);
+  checks.deltaVerifier = roleCheck;
+  if (!roleCheck.ok) {
+    ready = false;
+  }
+
+  const redisCheck = await getRedisReadiness(redis);
+  checks.redis = redisCheck;
+  if (!redisCheck.ok) {
+    ready = false;
+  }
+
+  const health = ammMonitor.getHealth();
+  checks.monitoring = {
+    ok: health.isHealthy,
+    status: health.status,
+    poolsMonitored: health.poolsMonitored,
+    components: health.components,
+  };
+  if (!health.isHealthy) {
+    ready = false;
+  }
+
+  return {
+    ready,
+    status: ready ? 'ready' : 'not_ready',
+    timestamp: new Date().toISOString(),
+    checks,
+  };
+}
+
+async function getSignerReadiness(
+  provider: ethers.JsonRpcProvider,
+): Promise<{ ok: boolean; address?: string; balanceWei?: string; error?: string }> {
+  try {
+    if (!process.env.DEPLOYER_PRIVATE_KEY) {
+      return { ok: false, error: 'DEPLOYER_PRIVATE_KEY is not set' };
+    }
+
+    const wallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider);
+    const balance = await provider.getBalance(wallet.address);
+
+    return {
+      ok: balance > 0n,
+      address: wallet.address,
+      balanceWei: balance.toString(),
+      ...(balance > 0n ? {} : { error: 'signer balance is zero' }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function getDeltaVerifierRoleReadiness(
+  provider: ethers.JsonRpcProvider,
+  signerAddress?: string,
+): Promise<{ ok: boolean; address?: string; signer?: string; hasSubmitterRole?: boolean; error?: string }> {
+  try {
+    const deltaVerifierAddress = process.env.DELTA_VERIFIER_ADDRESS;
+    if (!deltaVerifierAddress) {
+      return { ok: false, error: 'DELTA_VERIFIER_ADDRESS is not set' };
+    }
+    if (!signerAddress) {
+      return {
+        ok: false,
+        address: deltaVerifierAddress,
+        error: 'signer address unavailable',
+      };
+    }
+
+    const deltaVerifier = new ethers.Contract(
+      deltaVerifierAddress,
+      [
+        'function SUBMITTER_ROLE() view returns (bytes32)',
+        'function hasRole(bytes32 role, address account) view returns (bool)',
+      ],
+      provider,
+    ) as ethers.Contract & {
+      SUBMITTER_ROLE(): Promise<string>;
+      hasRole(role: string, account: string): Promise<boolean>;
+    };
+    const submitterRole = await deltaVerifier.SUBMITTER_ROLE();
+    const hasSubmitterRole = await deltaVerifier.hasRole(submitterRole, signerAddress);
+
+    return {
+      ok: hasSubmitterRole,
+      address: deltaVerifierAddress,
+      signer: signerAddress,
+      hasSubmitterRole,
+      ...(hasSubmitterRole ? {} : { error: 'signer lacks SUBMITTER_ROLE' }),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function getRedisReadiness(
+  redis: RedisClientType | null,
+): Promise<{ ok: boolean; queues?: Record<string, number>; error?: string }> {
+  if (!redis) {
+    return { ok: false, error: 'Redis is not connected' };
+  }
+
+  try {
+    await redis.ping();
+    const queueNames = {
+      mintRequest: process.env.MINT_REQUEST_QUEUE || 'hokusai:mint_requests',
+      mintRequestProcessing:
+        process.env.MINT_REQUEST_PROCESSING_QUEUE || 'hokusai:mint_requests:processing',
+      mintRequestDlq: process.env.MINT_REQUEST_DLQ || 'hokusai:mint_requests:dlq',
+      mintRequestSettlement:
+        process.env.MINT_REQUEST_SETTLEMENT_QUEUE || 'hokusai:mint_request_settlements',
+    };
+    const queueDepths: Record<string, number> = {};
+
+    for (const [name, queue] of Object.entries(queueNames)) {
+      queueDepths[name] = await redis.lLen(queue);
+    }
+
+    return {
+      ok: true,
+      queues: queueDepths,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 

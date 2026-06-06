@@ -151,4 +151,4 @@ Daily reports:
 
 - `deployments/sepolia-latest.json` is the canonical Sepolia artifact path for scripts, but it must be regenerated from the current deployment flow before mainnet rehearsal sign-off.
 - `deployments/sepolia-v2-latest.json` is retained only as historical compatibility; do not build new runbooks around v2 naming.
-- Emergency response steps live in [docs/mainnet-custody-runbook.md](../docs/mainnet-custody-runbook.md).
+- Emergency response starts from [docs/mainnet-custody-runbook.md](../docs/mainnet-custody-runbook.md). Launch-day stop/resume/abandon decisions live in [docs/mainnet-launch-rollback-runbook.md](../docs/mainnet-launch-rollback-runbook.md).

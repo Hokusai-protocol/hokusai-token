@@ -7,6 +7,7 @@ import "./libraries/FeeLib.sol";
 import "./HokusaiAMM.sol";
 import "./ModelRegistry.sol";
 import "./TokenManager.sol";
+import "./interfaces/IHokusaiAMMPoolDeployer.sol";
 
 /**
  * @title HokusaiAMMFactory
@@ -34,12 +35,14 @@ contract HokusaiAMMFactory is Ownable {
     uint256 public defaultIbrDuration; // Default IBR duration in seconds
     uint256 public defaultFlatCurveThreshold; // Default flat curve threshold (6 decimals)
     uint256 public defaultFlatCurvePrice; // Default flat curve price (6 decimals)
+    address public poolDeployer;
 
     // Pool tracking
     mapping(string => address) public pools; // modelId => pool address
     mapping(address => string) public poolToModel; // pool => modelId
     mapping(address => bool) public isPool; // Quick lookup
     address[] public allPools; // Array of all pools
+    address public pauser; // Emergency pauser for pool pause operations
 
     // ============================================================
     // CONSTANTS
@@ -50,6 +53,7 @@ contract HokusaiAMMFactory is Ownable {
     uint256 public constant MAX_TRADE_FEE = 1000; // 10%
     uint256 public constant MIN_IBR_DURATION = 1 days;
     uint256 public constant MAX_IBR_DURATION = 30 days;
+    uint256 public constant MAX_PAUSE_BATCH = 50;
 
     // ============================================================
     // EVENTS
@@ -63,6 +67,11 @@ contract HokusaiAMMFactory is Ownable {
         uint256 tradeFee,
         uint256 ibrDuration
     );
+    event PoolCreatedWithWhitelist(
+        string indexed modelId,
+        address indexed poolAddress,
+        address indexed whitelistAddress
+    );
 
     event DefaultsUpdated(
         uint256 newCrr,
@@ -71,6 +80,10 @@ contract HokusaiAMMFactory is Ownable {
     );
 
     event TreasuryUpdated(address indexed newTreasury);
+    event PoolDeployerUpdated(address indexed poolDeployer);
+    event PoolPaused(string modelId, address indexed pool, address indexed caller);
+    event PoolUnpaused(string modelId, address indexed pool, address indexed caller);
+    event PauserUpdated(address indexed previousPauser, address indexed newPauser);
 
     // ============================================================
     // CONSTRUCTOR
@@ -85,7 +98,7 @@ contract HokusaiAMMFactory is Ownable {
      */
     constructor(
         address _modelRegistry,
-        address _tokenManager,
+        address payable _tokenManager,
         address _reserveToken,
         address _treasury
     ) Ownable() {
@@ -105,6 +118,15 @@ contract HokusaiAMMFactory is Ownable {
         defaultIbrDuration = 7 days;
         defaultFlatCurveThreshold = 25000 * 1e6; // $25,000 USDC
         defaultFlatCurvePrice = 1e4; // $0.01 (6 decimals: 0.01 * 1e6 = 10000)
+    }
+
+    // ============================================================
+    // MODIFIERS
+    // ============================================================
+
+    modifier onlyOwnerOrPauser() {
+        require(msg.sender == owner() || msg.sender == pauser, "Not owner or pauser");
+        _;
     }
 
     // ============================================================
@@ -134,6 +156,9 @@ contract HokusaiAMMFactory is Ownable {
 
     /**
      * @dev Create a new AMM pool with custom parameters
+     * Also registers the deployed pool in ModelRegistry so registry and factory
+     * discovery remain canonical within the same transaction. The factory must
+     * be an authorized ModelRegistry pool registrar for this call to succeed.
      * @param modelId String model identifier
      * @param tokenAddress Token address for this model
      * @param crr Reserve ratio in ppm
@@ -161,6 +186,7 @@ contract HokusaiAMMFactory is Ownable {
         ValidationLib.requireInBounds(ibrDuration, MIN_IBR_DURATION, MAX_IBR_DURATION);
         ValidationLib.requirePositiveAmount(flatCurveThreshold, "flat curve threshold");
         ValidationLib.requirePositiveAmount(flatCurvePrice, "flat curve price");
+        require(poolDeployer != address(0), "PoolDeployerNotSet");
 
         // Verify model is registered in ModelRegistry
         require(
@@ -182,11 +208,12 @@ contract HokusaiAMMFactory is Ownable {
             "Token address mismatch"
         );
 
-        // Deploy new AMM
-        HokusaiAMM newPool = new HokusaiAMM(
+        // Delegate initcode-heavy AMM deployment to the satellite deployer to
+        // keep the factory runtime below the EVM contract size limit.
+        poolAddress = IHokusaiAMMPoolDeployer(poolDeployer).deployPool(
             reserveToken,
             tokenAddress,
-            address(tokenManager),
+            payable(address(tokenManager)),
             modelId,
             treasury,
             crr,
@@ -195,13 +222,16 @@ contract HokusaiAMMFactory is Ownable {
             flatCurveThreshold,
             flatCurvePrice
         );
-        poolAddress = address(newPool);
 
         // Track pool
         pools[modelId] = poolAddress;
         poolToModel[poolAddress] = modelId;
         isPool[poolAddress] = true;
         allPools.push(poolAddress);
+
+        // Keep the canonical ModelRegistry mapping in sync atomically with
+        // factory creation. Any registry failure reverts the full transaction.
+        modelRegistry.registerPool(modelId, poolAddress);
 
         emit PoolCreated(
             modelId,
@@ -213,6 +243,56 @@ contract HokusaiAMMFactory is Ownable {
         );
 
         return poolAddress;
+    }
+
+    function createPoolWithWhitelist(
+        string memory modelId,
+        address tokenAddress,
+        address purchaserWhitelist
+    ) external onlyOwner returns (address poolAddress) {
+        poolAddress = createPoolWithParams(
+            modelId,
+            tokenAddress,
+            defaultCrr,
+            defaultTradeFee,
+            defaultIbrDuration,
+            defaultFlatCurveThreshold,
+            defaultFlatCurvePrice
+        );
+        _attachWhitelist(poolAddress, purchaserWhitelist);
+        emit PoolCreatedWithWhitelist(modelId, poolAddress, purchaserWhitelist);
+        return poolAddress;
+    }
+
+    function createPoolWithParamsAndWhitelist(
+        string memory modelId,
+        address tokenAddress,
+        uint256 crr,
+        uint256 tradeFee,
+        uint256 ibrDuration,
+        uint256 flatCurveThreshold,
+        uint256 flatCurvePrice,
+        address purchaserWhitelist
+    ) external onlyOwner returns (address poolAddress) {
+        poolAddress = createPoolWithParams(
+            modelId,
+            tokenAddress,
+            crr,
+            tradeFee,
+            ibrDuration,
+            flatCurveThreshold,
+            flatCurvePrice
+        );
+        _attachWhitelist(poolAddress, purchaserWhitelist);
+        emit PoolCreatedWithWhitelist(modelId, poolAddress, purchaserWhitelist);
+        return poolAddress;
+    }
+
+    function _attachWhitelist(address pool, address whitelist) internal {
+        if (whitelist == address(0)) {
+            return;
+        }
+        HokusaiAMM(pool).setPurchaserWhitelist(whitelist);
     }
 
     // ============================================================
@@ -307,6 +387,123 @@ contract HokusaiAMMFactory is Ownable {
         ValidationLib.requireNonZeroAddress(newTreasury, "treasury");
         treasury = newTreasury;
         emit TreasuryUpdated(newTreasury);
+    }
+
+    function setPoolDeployer(address _poolDeployer) external onlyOwner {
+        require(poolDeployer == address(0), "PoolDeployerAlreadySet");
+        ValidationLib.requireNonZeroAddress(_poolDeployer, "pool deployer");
+        poolDeployer = _poolDeployer;
+        emit PoolDeployerUpdated(_poolDeployer);
+    }
+
+    // ============================================================
+    // EMERGENCY PAUSE
+    // ============================================================
+
+    /**
+     * @dev Resolve a pool address for a model ID
+     * @param modelId String model identifier
+     * @return pool Pool address
+     */
+    function _requirePool(string calldata modelId) internal view returns (address pool) {
+        pool = pools[modelId];
+        require(pool != address(0), "Pool not found");
+    }
+
+    /**
+     * @dev Update the emergency pauser address
+     * @param newPauser New pauser address, or zero to revoke the role
+     */
+    function setPauser(address newPauser) external onlyOwner {
+        emit PauserUpdated(pauser, newPauser);
+        pauser = newPauser;
+    }
+
+    /**
+     * @dev Pause a specific pool
+     * @param modelId String model identifier
+     */
+    function pausePool(string calldata modelId) external onlyOwnerOrPauser {
+        address pool = _requirePool(modelId);
+        HokusaiAMM(pool).pause();
+        emit PoolPaused(modelId, pool, msg.sender);
+    }
+
+    /**
+     * @dev Unpause a specific pool
+     * @param modelId String model identifier
+     */
+    function unpausePool(string calldata modelId) external onlyOwner {
+        address pool = _requirePool(modelId);
+        HokusaiAMM(pool).unpause();
+        emit PoolUnpaused(modelId, pool, msg.sender);
+    }
+
+    /**
+     * @dev Pause a bounded list of pools
+     * @param modelIds Model identifiers to pause
+     */
+    function pausePools(string[] calldata modelIds) external onlyOwnerOrPauser {
+        ValidationLib.requireNonEmptyArray(modelIds.length);
+        ValidationLib.requireMaxArrayLength(modelIds.length, MAX_PAUSE_BATCH);
+
+        for (uint256 i = 0; i < modelIds.length; i++) {
+            address pool = _requirePool(modelIds[i]);
+            HokusaiAMM amm = HokusaiAMM(pool);
+
+            if (!amm.paused()) {
+                amm.pause();
+                emit PoolPaused(modelIds[i], pool, msg.sender);
+            }
+        }
+    }
+
+    /**
+     * @dev Unpause a bounded list of pools
+     * @param modelIds Model identifiers to unpause
+     */
+    function unpausePools(string[] calldata modelIds) external onlyOwner {
+        ValidationLib.requireNonEmptyArray(modelIds.length);
+        ValidationLib.requireMaxArrayLength(modelIds.length, MAX_PAUSE_BATCH);
+
+        for (uint256 i = 0; i < modelIds.length; i++) {
+            address pool = _requirePool(modelIds[i]);
+            HokusaiAMM amm = HokusaiAMM(pool);
+
+            if (amm.paused()) {
+                amm.unpause();
+                emit PoolUnpaused(modelIds[i], pool, msg.sender);
+            }
+        }
+    }
+
+    /**
+     * @dev Pause a paginated range of pools
+     * @param start Start index in the pool array
+     * @param limit Maximum number of pools to process
+     */
+    function pauseAllPools(uint256 start, uint256 limit) external onlyOwnerOrPauser {
+        require(limit <= MAX_PAUSE_BATCH, "Limit exceeds max batch");
+
+        uint256 total = allPools.length;
+        if (start >= total) {
+            return;
+        }
+
+        uint256 end = start + limit;
+        if (end > total) {
+            end = total;
+        }
+
+        for (uint256 i = start; i < end; i++) {
+            address pool = allPools[i];
+            HokusaiAMM amm = HokusaiAMM(pool);
+
+            if (!amm.paused()) {
+                amm.pause();
+                emit PoolPaused(poolToModel[pool], pool, msg.sender);
+            }
+        }
     }
 
     // ============================================================

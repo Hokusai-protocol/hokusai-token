@@ -8,7 +8,7 @@ describe("Two-Phase Pricing System", function () {
     let owner, treasury, buyer1, buyer2, seller;
 
     // AMM Parameters
-    const modelId = "two-phase-test-model";
+    const modelId = "1202";
     const INITIAL_SUPPLY = parseUnits("1000000", 18); // 1M tokens
     const CRR = 200000; // 20% reserve ratio
     const TRADE_FEE = 30; // 0.30%

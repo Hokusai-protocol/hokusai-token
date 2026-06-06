@@ -1,0 +1,7 @@
+testMode: property
+seqLen: 100
+testLimit: 50000
+corpusDir: "echidna-corpus"
+format: text
+workers: 1
+solcVersion: "0.8.20"

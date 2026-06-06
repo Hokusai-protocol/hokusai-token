@@ -1,6 +1,7 @@
 const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
+const { validateNumericModelId } = require('./lib/launch-tokens');
 
 /**
  * Comprehensive Testnet Deployment Script
@@ -153,6 +154,18 @@ async function main() {
     deployment.contracts.HokusaiAMMFactory = factoryAddress;
     console.log("   ✅ HokusaiAMMFactory:", factoryAddress);
 
+    console.log("   5a️⃣ Deploying HokusaiAMMPoolDeployer...");
+    const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
+    const poolDeployer = await HokusaiAMMPoolDeployer.deploy(factoryAddress);
+    await poolDeployer.waitForDeployment();
+    const poolDeployerAddress = await poolDeployer.getAddress();
+    deployment.contracts.HokusaiAMMPoolDeployer = poolDeployerAddress;
+    console.log("   ✅ HokusaiAMMPoolDeployer:", poolDeployerAddress);
+
+    console.log("   🔗 Wiring pool deployer to factory...");
+    await (await factory.setPoolDeployer(poolDeployerAddress)).wait();
+    console.log("   ✅ Factory pool deployer configured");
+
     // Set default pool parameters
     console.log("   ⚙️  Setting factory defaults...");
     await factory.setDefaults(
@@ -202,7 +215,7 @@ async function main() {
 
       // Register model in ModelRegistry
       console.log(`   📋 Registering model in ModelRegistry...`);
-      await modelRegistry.registerStringModel(config.modelId, tokenAddress, "accuracy");
+      await modelRegistry.registerModel(validateNumericModelId(config.modelId), tokenAddress, "accuracy");
       console.log(`   ✅ Model registered: ${config.modelId}`);
 
       // 7. Create pool via Factory

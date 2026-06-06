@@ -31,6 +31,7 @@ describe("TokenDeploymentFactory", function () {
       overrides.initialSupply ?? parseEther("1000"),
       overrides.maxSupply ?? 0,
       overrides.modelSupplierAllocation ?? 0,
+      overrides.investorAllocation ?? 0,
       overrides.modelSupplierRecipient ?? ZeroAddress,
       params
     );
@@ -111,6 +112,7 @@ describe("TokenDeploymentFactory", function () {
         "FACT",
         ZeroAddress,
         parseEther("1000"),
+        0,
         0,
         0,
         ZeroAddress,

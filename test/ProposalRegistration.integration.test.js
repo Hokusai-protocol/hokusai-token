@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther } = require("ethers");
 const { buildDisabledVestingConfig } = require("./helpers/tokenDeployment");
+const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
 
 describe("Proposal Registration Integration", function () {
   let tokenManager;
@@ -13,7 +14,7 @@ describe("Proposal Registration Integration", function () {
   let investor1;
   let investor2;
 
-  const MODEL_ID = "sales-lead-scoring-v1";
+  const MODEL_ID = "801";
   const TOKEN_NAME = "Sales Lead Scoring Token";
   const TOKEN_SYMBOL = "SLST";
   const INITIAL_SUPPLY = parseEther("1000000");
@@ -61,14 +62,13 @@ describe("Proposal Registration Integration", function () {
     await modelRegistry.setStringModelTokenManager(await tokenManager.getAddress());
 
     // Deploy HokusaiAMMFactory
-    const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
-    ammFactory = await HokusaiAMMFactory.deploy(
-      await modelRegistry.getAddress(),
-      await tokenManager.getAddress(),
-      await usdc.getAddress(),
-      owner.address
-    );
-    await ammFactory.waitForDeployment();
+    ({ factory: ammFactory } = await deployFactoryWithPoolDeployer(
+      modelRegistry,
+      tokenManager,
+      usdc,
+      owner
+    ));
+    await modelRegistry.setPoolRegistrar(await ammFactory.getAddress(), true);
 
     // Deploy FundingVault with real constructor
     const FundingVault = await ethers.getContractFactory("FundingVault");
@@ -238,7 +238,7 @@ describe("Proposal Registration Integration", function () {
 
       // Attempting to register a different model with same token should fail
       await expect(
-        modelRegistry.registerStringModel("different-model", tokenAddress, PERFORMANCE_METRIC)
+        modelRegistry.registerStringModel("802", tokenAddress, PERFORMANCE_METRIC)
       ).to.be.revertedWith("Token already registered");
 
       // Original model registration should still be valid
@@ -270,8 +270,8 @@ describe("Proposal Registration Integration", function () {
     });
 
     it("Should handle multiple proposals in parallel", async function () {
-      const model1 = "model-1";
-      const model2 = "model-2";
+      const model1 = "901";
+      const model2 = "902";
 
       const initialParams = makeInitialParams();
 

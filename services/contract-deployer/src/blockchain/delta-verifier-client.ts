@@ -30,6 +30,7 @@ export interface MintRequestPayloadInput {
   candidateScoreBps: number;
   maxCostUsdMicro: number;
   actualCostUsdMicro: number;
+  totalSamples: number;
   anchors: BenchmarkAnchorsInput;
 }
 

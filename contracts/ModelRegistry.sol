@@ -25,10 +25,6 @@ contract ModelRegistry is Ownable {
     mapping(address => bool) public isTokenRegistered;
     uint256 public nextModelId = 1;
 
-    // New: String-based model registry for AMM integration
-    mapping(string => ModelInfo) public modelsByString;
-    mapping(string => bool) public isStringModelRegistered;
-    mapping(address => string) public tokenToStringModel;
     mapping(string => address) public modelPools;
     mapping(address => string) public poolToStringModel;
     address public stringModelTokenManager;
@@ -75,20 +71,7 @@ contract ModelRegistry is Ownable {
      * @param performanceMetric The performance metric used for this model
      */
     function registerModel(uint256 modelId, address token, string memory performanceMetric) external onlyOwner {
-        require(token != address(0), "Token address cannot be zero");
-        require(bytes(performanceMetric).length > 0, "Performance metric cannot be empty");
-        require(!isModelRegistered[modelId], "Model already registered");
-        require(!isTokenRegistered[token], "Token already registered");
-
-        models[modelId] = ModelInfo({
-            tokenAddress: token,
-            performanceMetric: performanceMetric,
-            active: true
-        });
-        isModelRegistered[modelId] = true;
-        tokenToModel[token] = modelId;
-        isTokenRegistered[token] = true;
-
+        _registerModel(modelId, token, performanceMetric);
         emit ModelRegistered(modelId, token, performanceMetric);
     }
 
@@ -102,19 +85,7 @@ contract ModelRegistry is Ownable {
         uint256 modelId = nextModelId;
         nextModelId++;
 
-        require(token != address(0), "Token address cannot be zero");
-        require(bytes(performanceMetric).length > 0, "Performance metric cannot be empty");
-        require(!isTokenRegistered[token], "Token already registered");
-
-        models[modelId] = ModelInfo({
-            tokenAddress: token,
-            performanceMetric: performanceMetric,
-            active: true
-        });
-        isModelRegistered[modelId] = true;
-        tokenToModel[token] = modelId;
-        isTokenRegistered[token] = true;
-
+        _registerModel(modelId, token, performanceMetric);
         emit ModelRegistered(modelId, token, performanceMetric);
         return modelId;
     }
@@ -125,17 +96,7 @@ contract ModelRegistry is Ownable {
      * @param newToken The new token address
      */
     function updateModel(uint256 modelId, address newToken) external onlyOwner {
-        require(newToken != address(0), "Token address cannot be zero");
-        require(isModelRegistered[modelId], "Model not registered");
-        require(!isTokenRegistered[newToken], "Token already registered");
-
-        address oldToken = models[modelId].tokenAddress;
-        models[modelId].tokenAddress = newToken;
-        tokenToModel[oldToken] = 0; // Clear old reverse mapping
-        isTokenRegistered[oldToken] = false; // Clear old token registration
-        tokenToModel[newToken] = modelId; // Set new reverse mapping
-        isTokenRegistered[newToken] = true; // Mark new token as registered
-
+        _updateModel(modelId, newToken);
         emit ModelUpdated(modelId, newToken);
     }
 
@@ -266,7 +227,7 @@ contract ModelRegistry is Ownable {
     }
 
     // ============================================================
-    // STRING-BASED MODEL REGISTRY (for TokenManager integration)
+    // STRING-BASED MODEL REGISTRY (canonicalized to numeric IDs)
     // ============================================================
 
     /**
@@ -276,12 +237,13 @@ contract ModelRegistry is Ownable {
      * @param performanceMetric The performance metric used for this model
      */
     function registerStringModel(string memory modelId, address token, string memory performanceMetric) external onlyOwner {
+        require(bytes(modelId).length > 0, "Model ID cannot be empty");
         require(token != address(0), "Token address cannot be zero");
         require(bytes(performanceMetric).length > 0, "Performance metric cannot be empty");
-        require(bytes(modelId).length > 0, "Model ID cannot be empty");
-        require(!isStringModelRegistered[modelId], "Model already registered");
-        require(bytes(tokenToStringModel[token]).length == 0, "Token already registered");
 
+        uint256 numericModelId = _parseModelId(modelId);
+        require(!isModelRegistered[numericModelId], "Model already registered");
+        require(!isTokenRegistered[token], "Token already registered");
         if (stringModelTokenManager != address(0)) {
             IStringModelTokenManager tokenManager = IStringModelTokenManager(stringModelTokenManager);
             require(tokenManager.hasToken(modelId), "Token not registered in TokenManager");
@@ -291,14 +253,8 @@ contract ModelRegistry is Ownable {
             );
         }
 
-        modelsByString[modelId] = ModelInfo({
-            tokenAddress: token,
-            performanceMetric: performanceMetric,
-            active: true
-        });
-        isStringModelRegistered[modelId] = true;
-        tokenToStringModel[token] = modelId;
-
+        _registerModel(numericModelId, token, performanceMetric);
+        emit ModelRegistered(numericModelId, token, performanceMetric);
         emit StringModelRegistered(modelId, token, performanceMetric);
     }
 
@@ -308,15 +264,9 @@ contract ModelRegistry is Ownable {
      * @param newToken The new token address
      */
     function updateStringModel(string memory modelId, address newToken) external onlyOwner {
-        require(newToken != address(0), "Token address cannot be zero");
-        require(isStringModelRegistered[modelId], "Model not registered");
-        require(bytes(tokenToStringModel[newToken]).length == 0, "Token already registered");
-
-        address oldToken = modelsByString[modelId].tokenAddress;
-        delete tokenToStringModel[oldToken];
-        modelsByString[modelId].tokenAddress = newToken;
-        tokenToStringModel[newToken] = modelId;
-
+        uint256 numericModelId = _parseModelId(modelId);
+        _updateModel(numericModelId, newToken);
+        emit ModelUpdated(numericModelId, newToken);
         emit StringModelUpdated(modelId, newToken);
     }
 
@@ -326,11 +276,12 @@ contract ModelRegistry is Ownable {
      * @param newMetric The new performance metric
      */
     function updateStringMetric(string memory modelId, string memory newMetric) external onlyOwner {
-        require(isStringModelRegistered[modelId], "Model not registered");
+        uint256 numericModelId = _parseModelId(modelId);
+        require(isModelRegistered[numericModelId], "Model not registered");
         require(bytes(newMetric).length > 0, "Performance metric cannot be empty");
 
-        modelsByString[modelId].performanceMetric = newMetric;
-
+        models[numericModelId].performanceMetric = newMetric;
+        emit MetricUpdated(numericModelId, newMetric);
         emit StringMetricUpdated(modelId, newMetric);
     }
 
@@ -340,8 +291,9 @@ contract ModelRegistry is Ownable {
      * @return The token address for the model
      */
     function getStringToken(string memory modelId) external view returns (address) {
-        require(isStringModelRegistered[modelId], "Model not registered");
-        return modelsByString[modelId].tokenAddress;
+        uint256 numericModelId = _parseModelId(modelId);
+        require(isModelRegistered[numericModelId], "Model not registered");
+        return models[numericModelId].tokenAddress;
     }
 
     /**
@@ -350,8 +302,42 @@ contract ModelRegistry is Ownable {
      * @return The model ID for the token
      */
     function getStringModelId(address tokenAddress) external view returns (string memory) {
-        require(bytes(tokenToStringModel[tokenAddress]).length > 0, "Token not registered");
-        return tokenToStringModel[tokenAddress];
+        require(isTokenRegistered[tokenAddress], "Token not registered");
+        return _uintToString(tokenToModel[tokenAddress]);
+    }
+
+    /**
+     * @dev Compatibility getter retained for older integrations that read the
+     * former public `modelsByString` mapping directly.
+     */
+    function modelsByString(string memory modelId) external view returns (
+        address tokenAddress,
+        string memory performanceMetric,
+        bool active
+    ) {
+        if (!_isCanonicalStringModelId(modelId)) {
+            return (address(0), "", false);
+        }
+
+        uint256 numericModelId = _parseModelId(modelId);
+        if (!isModelRegistered[numericModelId]) {
+            return (address(0), "", false);
+        }
+
+        ModelInfo storage model = models[numericModelId];
+        return (model.tokenAddress, model.performanceMetric, model.active);
+    }
+
+    /**
+     * @dev Compatibility getter retained for older integrations that read the
+     * former public `isStringModelRegistered` mapping directly.
+     */
+    function isStringModelRegistered(string memory modelId) external view returns (bool) {
+        if (!_isCanonicalStringModelId(modelId)) {
+            return false;
+        }
+
+        return isModelRegistered[_parseModelId(modelId)];
     }
 
     /**
@@ -360,7 +346,11 @@ contract ModelRegistry is Ownable {
      * @return True if the model is registered, false otherwise
      */
     function isStringRegistered(string memory modelId) external view returns (bool) {
-        return isStringModelRegistered[modelId];
+        if (!_isCanonicalStringModelId(modelId)) {
+            return false;
+        }
+
+        return isModelRegistered[_parseModelId(modelId)];
     }
 
     /**
@@ -368,11 +358,12 @@ contract ModelRegistry is Ownable {
      * @param modelId The model identifier to deactivate
      */
     function deactivateStringModel(string memory modelId) external onlyOwner {
-        require(isStringModelRegistered[modelId], "Model not registered");
-        require(modelsByString[modelId].active, "Model already deactivated");
+        uint256 numericModelId = _parseModelId(modelId);
+        require(isModelRegistered[numericModelId], "Model not registered");
+        require(models[numericModelId].active, "Model already deactivated");
 
-        modelsByString[modelId].active = false;
-
+        models[numericModelId].active = false;
+        emit ModelDeactivated(numericModelId);
         emit StringModelDeactivated(modelId);
     }
 
@@ -381,11 +372,12 @@ contract ModelRegistry is Ownable {
      * @param modelId The model identifier to reactivate
      */
     function reactivateStringModel(string memory modelId) external onlyOwner {
-        require(isStringModelRegistered[modelId], "Model not registered");
-        require(!modelsByString[modelId].active, "Model already active");
+        uint256 numericModelId = _parseModelId(modelId);
+        require(isModelRegistered[numericModelId], "Model not registered");
+        require(!models[numericModelId].active, "Model already active");
 
-        modelsByString[modelId].active = true;
-
+        models[numericModelId].active = true;
+        emit ModelReactivated(numericModelId);
         emit StringModelReactivated(modelId);
     }
 
@@ -395,7 +387,12 @@ contract ModelRegistry is Ownable {
      * @return True if the model is registered and active
      */
     function isStringActive(string memory modelId) external view returns (bool) {
-        return isStringModelRegistered[modelId] && modelsByString[modelId].active;
+        if (!_isCanonicalStringModelId(modelId)) {
+            return false;
+        }
+
+        uint256 numericModelId = _parseModelId(modelId);
+        return isModelRegistered[numericModelId] && models[numericModelId].active;
     }
 
     /**
@@ -404,7 +401,12 @@ contract ModelRegistry is Ownable {
      * @return True if the model is registered and active
      */
     function isModelActive(string memory modelId) external view returns (bool) {
-        return isStringModelRegistered[modelId] && modelsByString[modelId].active;
+        if (!_isCanonicalStringModelId(modelId)) {
+            return false;
+        }
+
+        uint256 numericModelId = _parseModelId(modelId);
+        return isModelRegistered[numericModelId] && models[numericModelId].active;
     }
 
     // ============================================================
@@ -431,8 +433,9 @@ contract ModelRegistry is Ownable {
     function registerPool(string memory modelId, address pool) external onlyPoolRegistrarOrOwner {
         require(bytes(modelId).length > 0, "Model ID cannot be empty");
         require(pool != address(0), "Pool address cannot be zero");
-        require(isStringModelRegistered[modelId], "Model not registered");
-        require(modelsByString[modelId].active, "Model is deactivated");
+        uint256 numericModelId = _parseModelId(modelId);
+        require(isModelRegistered[numericModelId], "Model not registered");
+        require(models[numericModelId].active, "Model is deactivated");
         require(modelPools[modelId] == address(0), "Pool already exists");
         require(bytes(poolToStringModel[pool]).length == 0, "Pool already registered to another model");
 
@@ -457,5 +460,82 @@ contract ModelRegistry is Ownable {
      */
     function hasPool(string memory modelId) external view returns (bool) {
         return modelPools[modelId] != address(0);
+    }
+
+    function _registerModel(uint256 modelId, address token, string memory performanceMetric) private {
+        require(token != address(0), "Token address cannot be zero");
+        require(bytes(performanceMetric).length > 0, "Performance metric cannot be empty");
+        require(!isModelRegistered[modelId], "Model already registered");
+        require(!isTokenRegistered[token], "Token already registered");
+
+        models[modelId] = ModelInfo({
+            tokenAddress: token,
+            performanceMetric: performanceMetric,
+            active: true
+        });
+        isModelRegistered[modelId] = true;
+        tokenToModel[token] = modelId;
+        isTokenRegistered[token] = true;
+    }
+
+    function _updateModel(uint256 modelId, address newToken) private {
+        require(newToken != address(0), "Token address cannot be zero");
+        require(isModelRegistered[modelId], "Model not registered");
+        require(!isTokenRegistered[newToken], "Token already registered");
+
+        address oldToken = models[modelId].tokenAddress;
+        models[modelId].tokenAddress = newToken;
+        tokenToModel[oldToken] = 0;
+        isTokenRegistered[oldToken] = false;
+        tokenToModel[newToken] = modelId;
+        isTokenRegistered[newToken] = true;
+    }
+
+    function _isCanonicalStringModelId(string memory modelId) private pure returns (bool) {
+        bytes memory buffer = bytes(modelId);
+        if (buffer.length == 0) {
+            return false;
+        }
+
+        for (uint256 i = 0; i < buffer.length; i++) {
+            if (buffer[i] < 0x30 || buffer[i] > 0x39) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function _parseModelId(string memory modelId) private pure returns (uint256 parsed) {
+        bytes memory buffer = bytes(modelId);
+        require(buffer.length > 0, "Model ID cannot be empty");
+
+        for (uint256 i = 0; i < buffer.length; i++) {
+            uint8 charCode = uint8(buffer[i]);
+            require(charCode >= 48 && charCode <= 57, "Model ID must be decimal string");
+            parsed = (parsed * 10) + (charCode - 48);
+        }
+    }
+
+    function _uintToString(uint256 value) private pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+
+        return string(buffer);
     }
 }

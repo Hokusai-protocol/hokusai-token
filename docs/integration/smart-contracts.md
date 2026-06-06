@@ -600,6 +600,251 @@ if (!modelRegistry.isRegisteredString(modelId)) {
 }
 ```
 
+## Contract Events Reference
+
+All events that off-chain systems should subscribe to, grouped by contract.
+
+### TokenManager / DeployableTokenManager
+
+| Event | Indexed Fields | Data Fields |
+|---|---|---|
+| `TokenDeployed` | `modelId`, `tokenAddress`, `deployer` | `name`, `symbol` |
+| `ParamsDeployed` | `modelId`, `paramsAddress`, `deployer` | `tokensPerDeltaOne`, `infrastructureAccrualBps` |
+| `AllocationDistributed` | `modelId`, `modelSupplierRecipient`, `investorRecipient` | `modelSupplierAllocation`, `investorAllocation` |
+| `TokensMinted` | — | `modelId`, `to`, `amount` |
+| `TokensBurned` | — | `modelId`, `from`, `amount` |
+| `BatchMinted` | — | `modelId`, `recipients[]`, `amounts[]` |
+| `ModelSupplierAllocationDistributed` | `modelId` | `recipient`, `amount` |
+
+### DeltaVerifier
+
+| Event | Indexed Fields | Data Fields |
+|---|---|---|
+| `DeltaOneAccepted` | `modelId`, `idempotencyKey`, `benchmarkSpecHash` | `attestationHash`, `datasetHash` |
+| `EvaluationSubmitted` | `pipelineRunId`, `modelId` | — |
+| `BudgetConstraintViolated` | `pipelineRunId`, `modelId` | `maxCostUsd`, `actualCostUsd` |
+
+### UsageFeeRouter
+
+| Event | Indexed Fields | Data Fields |
+|---|---|---|
+| `FeeDeposited` | `modelId`, `poolAddress`, `depositor` | `totalAmount`, `infrastructureAmount`, `profitAmount` |
+| `BatchDeposited` | — | `totalAmount`, `modelCount` |
+| `FeeSplitCalculated` | `modelId` | `totalAmount`, `infrastructureAmount`, `profitAmount` |
+
+---
+
+## InitialParams Tuple Shape
+
+The `InitialParams` struct is required when calling `deployTokenWithAllocations`. It contains all per-model configuration including oracle price and vesting policy.
+
+### Solidity Definition
+
+```solidity
+struct InitialParams {
+    uint256 tokensPerDeltaOne;                   // Wei-scaled tokens per 1% improvement
+    uint16  infrastructureAccrualBps;            // 1000-10000 (10%-100%)
+    uint256 initialOraclePricePerThousandUsd;    // USD per 1000 API calls, 6-decimal convention
+    bytes32 licenseHash;                         // keccak256 of license reference
+    string  licenseURI;                          // URI to license document
+    address governor;                            // Address to receive GOV_ROLE on HokusaiParams
+    IHokusaiParams.VestingConfig vestingConfig;  // Contributor reward vesting policy
+}
+
+struct VestingConfig {
+    bool   enabled;                // Whether vesting is active
+    uint16 immediateUnlockBps;     // Immediately unlocked portion (10000 = 100%)
+    uint64 vestingDurationSeconds; // Linear vesting duration after cliff
+    uint64 cliffSeconds;           // Cliff before vesting starts
+}
+```
+
+### TypeScript Type
+
+```typescript
+interface InitialParams {
+  tokensPerDeltaOne: bigint;
+  infrastructureAccrualBps: number;
+  initialOraclePricePerThousandUsd: bigint;
+  licenseHash: string;    // bytes32 hex
+  licenseURI: string;
+  governor: string;       // address
+  vestingConfig: {
+    enabled: boolean;
+    immediateUnlockBps: number;
+    vestingDurationSeconds: number;
+    cliffSeconds: number;
+  };
+}
+```
+
+### Example (no vesting)
+
+```typescript
+const params: InitialParams = {
+  tokensPerDeltaOne: ethers.parseUnits("5000", 18),
+  infrastructureAccrualBps: 8000,
+  initialOraclePricePerThousandUsd: 3000000n, // $3.00 per 1000 calls
+  licenseHash: ethers.keccak256(ethers.toUtf8Bytes("MIT")),
+  licenseURI: "https://example.com/license",
+  governor: "0x...",
+  vestingConfig: {
+    enabled: false,
+    immediateUnlockBps: 10000,
+    vestingDurationSeconds: 0,
+    cliffSeconds: 0,
+  },
+};
+```
+
+---
+
+## UsageFeeRouter Deposit Flow
+
+The `UsageFeeRouter` routes API usage fees to the appropriate AMM pool and infrastructure reserve.
+
+### Prerequisites
+
+1. Caller must have `FEE_DEPOSITOR_ROLE` on UsageFeeRouter
+2. Caller must approve UsageFeeRouter to spend the reserve token (USDC)
+3. The model must have a registered AMM pool
+
+### `depositFee`
+
+```solidity
+function depositFee(
+    string memory modelId,
+    uint256 amount,       // USDC amount (6 decimals)
+    uint256 callCount     // Number of API calls this fee covers
+) external;
+```
+
+**TypeScript:**
+
+```typescript
+const usdc = new ethers.Contract(usdcAddress, erc20Abi, signer);
+await usdc.approve(usageFeeRouterAddress, amount);
+
+const router = new ethers.Contract(usageFeeRouterAddress, usageFeeRouterAbi, signer);
+await router.depositFee(modelId, amount, callCount);
+```
+
+### `batchDepositFees`
+
+```solidity
+function batchDepositFees(
+    string[] memory modelIds,
+    uint256[] memory amounts,
+    uint256[] memory callCounts
+) external;
+```
+
+All arrays must have the same length.
+
+### Error Cases
+
+| Revert Reason | Cause |
+|---|---|
+| `AccessControl: account ... is missing role ...` | Caller lacks `FEE_DEPOSITOR_ROLE` |
+| `Amount must be positive` | `amount` is 0 |
+| `ERC20: insufficient allowance` | USDC not approved for router |
+| `Model not active` | Model has no registered pool |
+
+---
+
+## Frontend Wallet Flow Specification
+
+This section specifies the behavioral contract for frontend wallet integrations. The frontend is in a separate repository; this serves as the interface specification.
+
+### Network Detection
+
+- **Expected chains:** Sepolia (`11155111`) for testnet, Ethereum mainnet (`1`) for production
+- **Detection:** Compare `wallet.chainId` against the target chain
+- **On mismatch:** Show a persistent banner: "Wrong network — please switch to {expected network}" with a "Switch Network" action that calls `wallet_switchEthereumChain`
+
+### Token Approval Flow
+
+Before any buy/sell, check the user's USDC allowance on the AMM pool:
+
+```typescript
+const allowance = await usdc.allowance(userAddress, poolAddress);
+if (allowance < amount) {
+  // Show "Approve USDC" step in the UI
+  const tx = await usdc.approve(poolAddress, ethers.MaxUint256);
+  await tx.wait(1);
+  // On success, switch to the Buy/Sell step
+}
+```
+
+### Buy Flow
+
+```typescript
+const expectedTokens = await pool.calculateBuyReturn(usdcAmount);
+const minTokensOut = expectedTokens * (10000n - slippageBps) / 10000n;
+const deadline = Math.floor(Date.now() / 1000) + deadlineSeconds;
+
+const tx = await pool.buy(usdcAmount, minTokensOut, userAddress, deadline);
+```
+
+### Sell Flow
+
+```typescript
+const expectedUsdc = await pool.calculateSellReturn(tokenAmount);
+const minReserveOut = expectedUsdc * (10000n - slippageBps) / 10000n;
+const deadline = Math.floor(Date.now() / 1000) + deadlineSeconds;
+
+const tx = await pool.sell(tokenAmount, minReserveOut, userAddress, deadline);
+```
+
+### IBR Disabled-Sell State
+
+During the Initial Bonding Round (IBR), sells are disabled:
+
+```typescript
+const sellEnabled = await pool.isSellEnabled();
+if (!sellEnabled) {
+  // Disable the Sell button
+  // Show message: "Selling is disabled during the Initial Bonding Round"
+  // Optionally show IBR end time from pool.getPoolInfo()
+}
+```
+
+### Error Handling
+
+| Revert Reason | User-Visible Message |
+|---|---|
+| `"Transaction expired"` | "Transaction expired. Please try again." |
+| `"Slippage limit exceeded"` / `minTokensOut` / `minReserveOut` not met | "Price moved beyond your slippage tolerance. Increase slippage or try a smaller amount." |
+| `"Sells not enabled during IBR"` | "Selling is disabled during the Initial Bonding Round." |
+| `"Reserve amount must be > 0"` / `"Token amount must be > 0"` | "Please enter an amount greater than zero." |
+| `ACTION_REJECTED` (EIP-1193) | "Transaction was rejected in your wallet." |
+
+### Recommended UX Flow
+
+```
+1. User connects wallet
+   ├─ Wrong network? → Show network switch banner
+   └─ Correct network → Continue
+
+2. User selects Buy or Sell
+   ├─ Sell selected + IBR active? → Show disabled state
+   └─ Continue
+
+3. User enters amount
+   ├─ Insufficient balance? → Disable submit
+   └─ Show estimated output with slippage info
+
+4. User submits
+   ├─ Allowance insufficient? → Step 1: Approve → Step 2: Trade
+   └─ Allowance sufficient? → Execute trade
+
+5. Transaction pending → Show spinner with tx hash link
+   ├─ Success → Show confirmation with amounts
+   └─ Revert → Show mapped error message from table above
+```
+
+---
+
 ## Next Steps
 
 - [Backend Service Integration Guide](./backend-services.md) - Learn about fee collection and ML verification

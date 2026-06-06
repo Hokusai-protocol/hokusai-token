@@ -12,6 +12,8 @@ describe('MintRequestProcessor', () => {
     model_id: 'sales-outreach-v1',
     model_id_uint: '21',
     eval_id: 'eval-1',
+    benchmark_spec_id: 'bench-1',
+    dataset_hash: '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
     attestation_hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     idempotency_key: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     totalSamples: 140,
@@ -33,7 +35,7 @@ describe('MintRequestProcessor', () => {
     ],
   };
 
-  test('maps optional benchmark anchors when present', async () => {
+  test('maps required benchmark anchors directly', async () => {
     const client = {
       submitMintRequest: jest.fn().mockResolvedValue({
         status: 'minted',
@@ -45,11 +47,7 @@ describe('MintRequestProcessor', () => {
     } as any;
 
     const processor = new MintRequestProcessor(client);
-    await processor.process({
-      ...message,
-      benchmark_spec_id: 'bench-1',
-      dataset_hash: '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
-    });
+    await processor.process(message);
 
     const payload = client.submitMintRequest.mock.calls[0][1];
     expect(payload.anchors.benchmarkSpecHash).toBe(ethers.keccak256(ethers.toUtf8Bytes('bench-1')));
@@ -57,31 +55,6 @@ describe('MintRequestProcessor', () => {
       '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
     );
     expect(payload.totalSamples).toBe(140);
-  });
-
-  test('falls back to derived benchmark hash and zero dataset hash', async () => {
-    const client = {
-      submitMintRequest: jest.fn().mockResolvedValue({
-        status: 'no_delta',
-        rewardAmount: '0',
-      }),
-    } as any;
-
-    const processor = new MintRequestProcessor(client);
-    const settlement = await processor.process(message);
-
-    const payload = client.submitMintRequest.mock.calls[0][1];
-    expect(payload.anchors.datasetHash).toBe(ethers.ZeroHash);
-    expect(payload.anchors.benchmarkSpecHash).toBe(
-      ethers.keccak256(
-        ethers.AbiCoder.defaultAbiCoder().encode(
-          ['uint256', 'string'],
-          [21n, message.evaluation.metric_name],
-        ),
-      ),
-    );
-    expect(payload.totalSamples).toBe(140);
-    expect(settlement.status).toBe('no_delta');
   });
 
   test('uses message.totalSamples directly in payload', async () => {

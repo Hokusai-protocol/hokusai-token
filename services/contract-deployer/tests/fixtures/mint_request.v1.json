@@ -6,8 +6,10 @@
   "model_id": "model-a",
   "model_id_uint": "12345678901234567890",
   "eval_id": "eval-2026-abc123",
+  "benchmark_spec_id": "spec-test-v1",
+  "dataset_hash": "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "attestation_hash": "0xd12b65d6be0c2170d427589cc027d4988031dc23356a7f83ecf476fc712bb543",
-  "idempotency_key": "0xfd742fa5dea6034d1be32ea5be01a73f931ef061869509afc3585fda659909e7",
+  "idempotency_key": "0x1c19c341d6c99e7e7dbd68f767cdf7d0969688fed7e3d3fdd82711b29ea69a65",
   "totalSamples": 1000,
   "evaluation": {
     "metric_name": "accuracy",

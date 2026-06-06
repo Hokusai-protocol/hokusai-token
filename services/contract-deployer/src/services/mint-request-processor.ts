@@ -16,7 +16,7 @@ export class MintRequestProcessor {
 
   async process(message: MintRequestMessage): Promise<MintRequestSettlement> {
     const modelId = BigInt(message.model_id_uint);
-    const payload = this.buildPayload(message, modelId);
+    const payload = this.buildPayload(message);
     const contributors = this.buildContributors(message);
     const result = await this.deltaVerifierClient.submitMintRequest(modelId, payload, contributors);
     const settlement = createMintRequestSettlement({
@@ -44,16 +44,7 @@ export class MintRequestProcessor {
     return settlement;
   }
 
-  private buildPayload(message: MintRequestMessage, modelId: bigint): MintRequestPayloadInput {
-    const benchmarkSpecHash =
-      typeof message.benchmark_spec_id === 'string' && message.benchmark_spec_id.length > 0
-        ? ethers.keccak256(ethers.toUtf8Bytes(message.benchmark_spec_id))
-        : ethers.keccak256(
-            ethers.AbiCoder.defaultAbiCoder().encode(
-              ['uint256', 'string'],
-              [modelId, message.evaluation.metric_name],
-            ),
-          );
+  private buildPayload(message: MintRequestMessage): MintRequestPayloadInput {
     return {
       pipelineRunId: message.eval_id,
       baselineScoreBps: message.evaluation.baseline_score_bps,
@@ -62,8 +53,8 @@ export class MintRequestProcessor {
       actualCostUsdMicro: message.evaluation.actual_cost_usd_micro,
       totalSamples: message.totalSamples,
       anchors: {
-        benchmarkSpecHash,
-        datasetHash: message.dataset_hash ?? ethers.ZeroHash,
+        benchmarkSpecHash: ethers.keccak256(ethers.toUtf8Bytes(message.benchmark_spec_id)),
+        datasetHash: message.dataset_hash,
         attestationHash: message.attestation_hash,
         idempotencyKey: message.idempotency_key,
         metricName: message.evaluation.metric_name,

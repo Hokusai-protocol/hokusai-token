@@ -20,16 +20,32 @@ const envSchema = Joi.object({
 
   // Blockchain configuration
   RPC_URL: Joi.string().required(),
-  CHAIN_ID: Joi.number().default(137), // Polygon mainnet
-  NETWORK_NAME: Joi.string().default('polygon-mainnet'),
+  CHAIN_ID: Joi.number().default(11155111),
+  NETWORK_NAME: Joi.string().default('sepolia'),
 
   // Contract addresses
-  MODEL_REGISTRY_ADDRESS: Joi.string().required(),
-  TOKEN_MANAGER_ADDRESS: Joi.string().required(),
-  DELTA_VERIFIER_ADDRESS: Joi.string().optional(),
+  MODEL_REGISTRY_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
+  TOKEN_MANAGER_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).required(),
+  DELTA_VERIFIER_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).optional(),
+  USAGE_FEE_ROUTER_ADDRESS: Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/).optional(),
+
+  // Deployment allocation params for deployTokenWithAllocations
+  MODEL_SUPPLIER_ALLOCATION: Joi.string().default('2500000000000000000000000'),
+  MODEL_SUPPLIER_RECIPIENT: Joi.string()
+    .pattern(/^0x[a-fA-F0-9]{40}$/)
+    .default('0x0000000000000000000000000000000000000000'),
+  INVESTOR_ALLOCATION: Joi.string().default('10000000000000000000000000'),
+  TOKENS_PER_DELTA_ONE: Joi.string().default('5000000000000000000000'),
+  INFRASTRUCTURE_ACCRUAL_BPS: Joi.number().integer().min(0).max(10000).default(8000),
+  INITIAL_ORACLE_PRICE_PER_THOUSAND_USD: Joi.string().default('0'),
+  LICENSE_HASH: Joi.string().default('0x' + '00'.repeat(32)),
+  LICENSE_URI: Joi.string().default('').allow(''),
+  GOVERNOR_ADDRESS: Joi.string()
+    .pattern(/^0x[a-fA-F0-9]{40}$/)
+    .default('0x0000000000000000000000000000000000000000'),
 
   // Deployer configuration
-  DEPLOYER_PRIVATE_KEY: Joi.string().required(),
+  DEPLOYER_PRIVATE_KEY: Joi.string().pattern(/^0x[a-fA-F0-9]{64}$/).required(),
 
   // Gas configuration
   GAS_PRICE_MULTIPLIER: Joi.number().min(1).max(5).default(1.2),
@@ -119,6 +135,16 @@ export interface Config {
   MODEL_REGISTRY_ADDRESS: string;
   TOKEN_MANAGER_ADDRESS: string;
   DELTA_VERIFIER_ADDRESS?: string;
+  USAGE_FEE_ROUTER_ADDRESS?: string;
+  MODEL_SUPPLIER_ALLOCATION: string;
+  MODEL_SUPPLIER_RECIPIENT: string;
+  INVESTOR_ALLOCATION: string;
+  TOKENS_PER_DELTA_ONE: string;
+  INFRASTRUCTURE_ACCRUAL_BPS: number;
+  INITIAL_ORACLE_PRICE_PER_THOUSAND_USD: string;
+  LICENSE_HASH: string;
+  LICENSE_URI: string;
+  GOVERNOR_ADDRESS: string;
   DEPLOYER_PRIVATE_KEY: string;
   GAS_PRICE_MULTIPLIER: number;
   MAX_GAS_PRICE_GWEI: number;
@@ -200,6 +226,26 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
   if (ssmParams.jwt_secret) mapping.JWT_SECRET = ssmParams.jwt_secret;
   if (ssmParams.webhook_url) mapping.WEBHOOK_URL = ssmParams.webhook_url;
   if (ssmParams.webhook_secret) mapping.WEBHOOK_SECRET = ssmParams.webhook_secret;
+  if (ssmParams.usage_fee_router_address)
+    mapping.USAGE_FEE_ROUTER_ADDRESS = ssmParams.usage_fee_router_address;
+  if (ssmParams.model_supplier_allocation)
+    mapping.MODEL_SUPPLIER_ALLOCATION = ssmParams.model_supplier_allocation;
+  if (ssmParams.model_supplier_recipient)
+    mapping.MODEL_SUPPLIER_RECIPIENT = ssmParams.model_supplier_recipient;
+  if (ssmParams.investor_allocation)
+    mapping.INVESTOR_ALLOCATION = ssmParams.investor_allocation;
+  if (ssmParams.tokens_per_delta_one)
+    mapping.TOKENS_PER_DELTA_ONE = ssmParams.tokens_per_delta_one;
+  if (ssmParams.infrastructure_accrual_bps)
+    mapping.INFRASTRUCTURE_ACCRUAL_BPS = ssmParams.infrastructure_accrual_bps;
+  if (ssmParams.initial_oracle_price_per_thousand_usd)
+    mapping.INITIAL_ORACLE_PRICE_PER_THOUSAND_USD = ssmParams.initial_oracle_price_per_thousand_usd;
+  if (ssmParams.license_hash)
+    mapping.LICENSE_HASH = ssmParams.license_hash;
+  if (ssmParams.license_uri !== undefined)
+    mapping.LICENSE_URI = ssmParams.license_uri;
+  if (ssmParams.governor_address)
+    mapping.GOVERNOR_ADDRESS = ssmParams.governor_address;
 
   // Map any additional parameters
   const additionalParams = Object.entries(ssmParams).filter(
@@ -214,6 +260,16 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
         'jwt_secret',
         'webhook_url',
         'webhook_secret',
+        'usage_fee_router_address',
+        'model_supplier_allocation',
+        'model_supplier_recipient',
+        'investor_allocation',
+        'tokens_per_delta_one',
+        'infrastructure_accrual_bps',
+        'initial_oracle_price_per_thousand_usd',
+        'license_hash',
+        'license_uri',
+        'governor_address',
       ].includes(key),
   );
 
@@ -305,6 +361,22 @@ export async function validateEnv(): Promise<Config> {
 
   if (missingFields.length > 0) {
     throw new Error(`Missing required configuration fields: ${missingFields.join(', ')}`);
+  }
+
+  // In production, deployment addresses must be non-zero — DeployableTokenManager rejects
+  // zero supplier recipient and governor at the contract level.
+  if (config.NODE_ENV === 'production') {
+    const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+    const zeroAddressFields: string[] = [];
+    if (config.MODEL_SUPPLIER_RECIPIENT === ZERO_ADDRESS)
+      zeroAddressFields.push('MODEL_SUPPLIER_RECIPIENT');
+    if (config.GOVERNOR_ADDRESS === ZERO_ADDRESS)
+      zeroAddressFields.push('GOVERNOR_ADDRESS');
+    if (zeroAddressFields.length > 0) {
+      throw new Error(
+        `Deployment params must not be zero address in production: ${zeroAddressFields.join(', ')}`,
+      );
+    }
   }
 
   // Convert string booleans

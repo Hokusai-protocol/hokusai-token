@@ -21,11 +21,23 @@ export interface SSMParameters {
   rpc_endpoint: string;
   redis_url: string;
   api_keys: string;
-  
+
   // Optional parameters
   jwt_secret?: string;
   webhook_url?: string;
   webhook_secret?: string;
+  usage_fee_router_address?: string;
+
+  // Deployment allocation params for deployTokenWithAllocations
+  model_supplier_allocation?: string;
+  model_supplier_recipient?: string;
+  investor_allocation?: string;
+  tokens_per_delta_one?: string;
+  infrastructure_accrual_bps?: string;
+  initial_oracle_price_per_thousand_usd?: string;
+  license_hash?: string;
+  license_uri?: string;
+  governor_address?: string;
 }
 
 export class SSMParameterStore {
@@ -188,7 +200,17 @@ export class SSMParameterStore {
     const optionalParams = [
       'jwt_secret',
       'webhook_url',
-      'webhook_secret'
+      'webhook_secret',
+      'usage_fee_router_address',
+      'model_supplier_allocation',
+      'model_supplier_recipient',
+      'investor_allocation',
+      'tokens_per_delta_one',
+      'infrastructure_accrual_bps',
+      'initial_oracle_price_per_thousand_usd',
+      'license_hash',
+      'license_uri',
+      'governor_address',
     ];
     
     const allParams = [...requiredParams, ...optionalParams];
@@ -225,6 +247,16 @@ export class SSMParameterStore {
         jwt_secret: results.jwt_secret,
         webhook_url: results.webhook_url,
         webhook_secret: results.webhook_secret,
+        usage_fee_router_address: results.usage_fee_router_address,
+        model_supplier_allocation: results.model_supplier_allocation,
+        model_supplier_recipient: results.model_supplier_recipient,
+        investor_allocation: results.investor_allocation,
+        tokens_per_delta_one: results.tokens_per_delta_one,
+        infrastructure_accrual_bps: results.infrastructure_accrual_bps,
+        initial_oracle_price_per_thousand_usd: results.initial_oracle_price_per_thousand_usd,
+        license_hash: results.license_hash,
+        license_uri: results.license_uri,
+        governor_address: results.governor_address,
       };
       
     } catch (error) {

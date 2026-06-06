@@ -33,11 +33,11 @@ export interface MintRequestMessage {
   model_id: string;
   model_id_uint: string;
   eval_id: string;
+  benchmark_spec_id: string;
+  dataset_hash: string;
   attestation_hash: string;
   idempotency_key: string;
   totalSamples: number;
-  benchmark_spec_id?: string;
-  dataset_hash?: string;
   evaluation: MintRequestEvaluation;
   contributors: MintRequestContributor[];
   _retryCount?: number;
@@ -117,11 +117,11 @@ const mintRequestSchema = Joi.object<MintRequestMessage>({
     .pattern(/^[1-9]\d*$/)
     .required(),
   eval_id: Joi.string().min(1).required(),
+  benchmark_spec_id: Joi.string().min(1).required(),
+  dataset_hash: Joi.string().pattern(HASH_REGEX).required(),
   attestation_hash: Joi.string().pattern(HASH_REGEX).required(),
   idempotency_key: Joi.string().pattern(HASH_REGEX).required(),
   totalSamples: Joi.number().integer().min(1).required(),
-  benchmark_spec_id: Joi.string().optional(),
-  dataset_hash: Joi.string().pattern(HASH_REGEX).optional(),
   evaluation: evaluationSchema.required(),
   contributors: Joi.array()
     .items(contributorSchema)

@@ -1,7 +1,7 @@
 import { createClient, RedisClientType } from 'redis';
 import { ethers } from 'ethers';
 import { RedisQueueConsumer } from './queue/redis-consumer';
-import { ContractDeployer } from './blockchain/contract-deployer';
+import { ContractDeployer, ContractDeployerConfig } from './blockchain/contract-deployer';
 import { ModelRegistryService } from './blockchain/model-registry';
 import { EventPublisher } from './queue/event-publisher';
 import { HealthCheckService } from './monitoring/health-check';
@@ -12,15 +12,7 @@ export interface ContractDeployListenerConfig {
   redis: {
     url: string;
   };
-  blockchain: {
-    rpcUrls: string[];
-    privateKey: string;
-    tokenManagerAddress: string;
-    modelRegistryAddress: string;
-    gasMultiplier: number;
-    maxGasPrice: string;
-    confirmations: number;
-  };
+  blockchain: ContractDeployerConfig;
   queues: {
     inbound: string;
     outbound: string;
@@ -36,12 +28,10 @@ export class ContractDeployListener {
   private registry: ModelRegistryService;
   private publisher: EventPublisher;
   private healthCheck: HealthCheckService;
-  private config: ContractDeployListenerConfig;
   private provider: ethers.Provider;
   private signer: ethers.Signer;
 
   constructor(config: ContractDeployListenerConfig) {
-    this.config = config;
     this.redis = createClient({ url: config.redis.url });
     
     // Initialize blockchain components

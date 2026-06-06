@@ -113,6 +113,24 @@ describe('MintRequest schema', () => {
     expect(result.error).toBeDefined();
   });
 
+  test('rejects missing canonical anchors', () => {
+    const { benchmark_spec_id, ...missingBenchmarkSpec } = validMessage;
+    const resultMissingBenchmarkSpec = validateMintRequestMessage(missingBenchmarkSpec);
+    expect(resultMissingBenchmarkSpec.error).toBeDefined();
+
+    const resultBlankBenchmarkSpec = validateMintRequestMessage({
+      ...validMessage,
+      benchmark_spec_id: '',
+    });
+    expect(resultBlankBenchmarkSpec.error).toBeDefined();
+
+    const resultMissingDatasetHash = validateMintRequestMessage({
+      ...validMessage,
+      dataset_hash: undefined as unknown as string,
+    });
+    expect(resultMissingDatasetHash.error).toBeDefined();
+  });
+
   test('rejects unknown root keys', () => {
     const result = validateMintRequestMessage({
       ...validMessage,

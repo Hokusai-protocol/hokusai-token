@@ -7,6 +7,7 @@ import DeltaVerifierArtifact from '../../contracts/DeltaVerifier.json';
 import { MintRequestConsumer } from '../../src/queue/mint-request-consumer';
 import { MintRecordStore } from '../../src/queue/mint-record-store';
 import {
+  ACCEPTED_CONTRIBUTOR_KEYS,
   createMintRequestSettlement,
   MintRequestMessage,
   MintRequestSettlement,
@@ -223,6 +224,22 @@ describe('MintRequest flow integration', () => {
     const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as unknown;
     const validation = validateMintRequestMessage(fixture);
     expect(validation.error).toBeUndefined();
+
+    // Contributor sub-object drift guard (HOK-2099): every contributor key the pipeline emits
+    // must be one the consumer schema knows about. A genuinely new field fails here with a
+    // clear name rather than a generic "is not allowed", forcing a deliberate schema update.
+    const contributors = (fixture as { contributors?: Array<Record<string, unknown>> })
+      .contributors;
+    expect(Array.isArray(contributors)).toBe(true);
+    const acceptedKeys = new Set<string>(ACCEPTED_CONTRIBUTOR_KEYS);
+    const unexpectedKeys = [
+      ...new Set(
+        (contributors ?? []).flatMap((contributor) =>
+          Object.keys(contributor).filter((key) => !acceptedKeys.has(key)),
+        ),
+      ),
+    ];
+    expect(unexpectedKeys).toEqual([]);
 
     if (siblingFixturePath && vendoredExists) {
       const vendoredJson = JSON.parse(

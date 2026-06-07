@@ -1,5 +1,8 @@
 import { ethers, Interface } from 'ethers';
-import { DeltaVerifierClient } from '../../../src/blockchain/delta-verifier-client';
+import {
+  DeltaVerifierClient,
+  MintRequestSubmissionError,
+} from '../../../src/blockchain/delta-verifier-client';
 import serviceArtifact from '../../../contracts/DeltaVerifier.json';
 
 describe('DeltaVerifierClient', () => {
@@ -195,6 +198,103 @@ describe('DeltaVerifierClient', () => {
       ),
     ).rejects.toThrow('Model not registered');
   });
+
+  test('marks receipt-wait failures after broadcast as permanent unknown-outcome errors', async () => {
+    deltaVerifierContract.processedIdempotencyKeys.mockResolvedValue(false);
+    modelRegistryContract.isRegistered.mockResolvedValue(true);
+    modelRegistryContract.isModelActive.mockResolvedValue(true);
+    deltaVerifierContract.submitMintRequest.estimateGas.mockResolvedValue(100n);
+    deltaVerifierContract.submitMintRequest.mockResolvedValue({
+      hash: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      wait: jest
+        .fn()
+        .mockRejectedValue(Object.assign(new Error('ECONNRESET'), { code: 'ECONNRESET' })),
+    });
+
+    const client = new DeltaVerifierClient({
+      provider,
+      signer,
+      deltaVerifierAddress,
+      modelRegistryAddress: registryAddress,
+      confirmations: 1,
+      gasMultiplier: 1.2,
+      maxGasPrice: '1000',
+    });
+
+    await expect(
+      client.submitMintRequest(
+        21n,
+        {
+          pipelineRunId: 'eval-1',
+          baselineScoreBps: 5000,
+          candidateScoreBps: 7500,
+          maxCostUsdMicro: 0,
+          actualCostUsdMicro: 0,
+          totalSamples: 1,
+          anchors: {
+            benchmarkSpecHash: ethers.ZeroHash,
+            datasetHash: ethers.ZeroHash,
+            attestationHash: ethers.ZeroHash,
+            idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            metricName: 'metric',
+            metricFamily: 'family',
+          },
+        },
+        [],
+      ),
+    ).rejects.toMatchObject({
+      name: 'MintRequestSubmissionError',
+      failureClass: 'permanent',
+      onChainOutcomeUnknown: true,
+      txHash: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    } satisfies Partial<MintRequestSubmissionError>);
+  });
+
+  test('wraps execution reverted errors as permanent submission failures', async () => {
+    deltaVerifierContract.processedIdempotencyKeys.mockResolvedValue(false);
+    modelRegistryContract.isRegistered.mockResolvedValue(true);
+    modelRegistryContract.isModelActive.mockResolvedValue(true);
+    deltaVerifierContract.submitMintRequest.estimateGas.mockRejectedValue(
+      new Error('execution reverted: mint rejected'),
+    );
+
+    const client = new DeltaVerifierClient({
+      provider,
+      signer,
+      deltaVerifierAddress,
+      modelRegistryAddress: registryAddress,
+      confirmations: 1,
+      gasMultiplier: 1.2,
+      maxGasPrice: '1000',
+    });
+
+    await expect(
+      client.submitMintRequest(
+        21n,
+        {
+          pipelineRunId: 'eval-1',
+          baselineScoreBps: 5000,
+          candidateScoreBps: 7500,
+          maxCostUsdMicro: 0,
+          actualCostUsdMicro: 0,
+          totalSamples: 1,
+          anchors: {
+            benchmarkSpecHash: ethers.ZeroHash,
+            datasetHash: ethers.ZeroHash,
+            attestationHash: ethers.ZeroHash,
+            idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            metricName: 'metric',
+            metricFamily: 'family',
+          },
+        },
+        [],
+      ),
+    ).rejects.toMatchObject({
+      name: 'MintRequestSubmissionError',
+      failureClass: 'permanent',
+      message: 'execution reverted: mint rejected',
+    } satisfies Partial<MintRequestSubmissionError>);
+  });
 });
 
 describe('submitMintRequest calldata encoding', () => {
@@ -243,8 +343,6 @@ describe('submitMintRequest calldata encoding', () => {
       },
     };
 
-    expect(() =>
-      iface.encodeFunctionData('submitMintRequest', [21n, payload, []]),
-    ).toThrow();
+    expect(() => iface.encodeFunctionData('submitMintRequest', [21n, payload, []])).toThrow();
   });
 });

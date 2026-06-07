@@ -34,6 +34,14 @@ const TRANSIENT_MESSAGE_PATTERNS = [
 ];
 
 export function classifyError(error: unknown): FailureClass {
+  if (getFailureClass(error) !== undefined) {
+    return getFailureClass(error)!;
+  }
+
+  if (hasUnknownOnChainOutcome(error)) {
+    return 'permanent';
+  }
+
   const code = getErrorCode(error);
   if (code !== undefined && PERMANENT_CODES.has(code)) {
     return 'permanent';
@@ -57,6 +65,23 @@ export function classifyError(error: unknown): FailureClass {
   }
 
   return 'transient';
+}
+
+function getFailureClass(error: unknown): FailureClass | undefined {
+  if (typeof error === 'object' && error !== null && 'failureClass' in error) {
+    const failureClass = (error as { failureClass?: unknown }).failureClass;
+    if (failureClass === 'transient' || failureClass === 'permanent') {
+      return failureClass;
+    }
+  }
+  return undefined;
+}
+
+function hasUnknownOnChainOutcome(error: unknown): boolean {
+  if (typeof error === 'object' && error !== null && 'onChainOutcomeUnknown' in error) {
+    return (error as { onChainOutcomeUnknown?: unknown }).onChainOutcomeUnknown === true;
+  }
+  return false;
 }
 
 export function computeBackoffMs(retryCount: number, config: RetryPolicyConfig): number {

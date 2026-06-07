@@ -49,6 +49,32 @@ export interface MintSubmissionResult {
   gasUsed?: string;
 }
 
+export class MintRequestSubmissionError extends Error {
+  readonly failureClass: 'transient' | 'permanent';
+  readonly onChainOutcomeUnknown: boolean;
+  readonly txHash?: string;
+
+  constructor(
+    message: string,
+    options: {
+      failureClass: 'transient' | 'permanent';
+      onChainOutcomeUnknown?: boolean;
+      txHash?: string;
+      cause?: unknown;
+    },
+  ) {
+    super(message);
+    this.name = 'MintRequestSubmissionError';
+    this.failureClass = options.failureClass;
+    this.onChainOutcomeUnknown = options.onChainOutcomeUnknown ?? false;
+    this.txHash = options.txHash;
+
+    if (options.cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = options.cause;
+    }
+  }
+}
+
 interface ParsedLogLike {
   name: string;
   args: {
@@ -65,6 +91,7 @@ interface TxReceiptLike {
 }
 
 interface TxResponseLike {
+  hash?: string;
   wait(confirmations: number): Promise<TxReceiptLike>;
 }
 
@@ -160,10 +187,29 @@ export class DeltaVerifierClient {
         gasLimit,
         gasPrice,
       });
-      const receipt = await tx.wait(this.config.confirmations);
+      let receipt: TxReceiptLike;
+      try {
+        receipt = await tx.wait(this.config.confirmations);
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : 'MintRequest receipt wait failed after submit';
+        throw new MintRequestSubmissionError(
+          `MintRequest transaction outcome unknown after submit: ${message}`,
+          {
+            failureClass: 'permanent',
+            onChainOutcomeUnknown: true,
+            txHash: tx.hash,
+            cause: error,
+          },
+        );
+      }
 
       if (receipt.status !== 1) {
-        throw new Error('MintRequest transaction reverted');
+        throw new MintRequestSubmissionError('MintRequest transaction reverted', {
+          failureClass: 'permanent',
+          cause: receipt,
+          txHash: receipt.hash,
+        });
       }
 
       let rewardAmount = '0';
@@ -203,6 +249,20 @@ export class DeltaVerifierClient {
           idempotencyKey: payload.anchors.idempotencyKey,
         });
         return { status: 'replay', rewardAmount: '0' };
+      }
+
+      if (
+        error instanceof MintRequestSubmissionError ||
+        (error instanceof Error && error.message.toLowerCase().includes('execution reverted'))
+      ) {
+        if (error instanceof MintRequestSubmissionError) {
+          throw error;
+        }
+
+        throw new MintRequestSubmissionError(error.message, {
+          failureClass: 'permanent',
+          cause: error,
+        });
       }
 
       throw error;

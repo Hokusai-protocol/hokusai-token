@@ -30,6 +30,7 @@
     "test:e2e:local": "npx hardhat test test/e2e/local-mainnet-readiness.test.js",
     "test:property": "npx hardhat test test/property/fuzz-invariants.test.js",
     "test:e2e:sepolia": "SEPOLIA_E2E_READONLY=1 npx hardhat test test/e2e/sepolia-end-to-end.test.js --network sepolia",
+    "test:e2e:sepolia:write": "SEPOLIA_E2E_WRITE=1 npx hardhat test test/e2e/sepolia-end-to-end.test.js --network sepolia",
     "test-queue": "npx ts-node scripts/test-queue.ts",
     "echidna:phase": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaAMMPhase --config echidna.config.yaml"
   },

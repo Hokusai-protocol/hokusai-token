@@ -57,10 +57,10 @@ describe("IBR Period Validation", function () {
     console.log(`\n  📦 Loaded deployment from: ${deploymentPath}`);
     console.log(`  🌐 Network: ${deployment.network} (chainId: ${deployment.chainId})`);
 
-    // Use conservative pool for testing
-    poolInfo = deployment.pools.find(p => p.configKey === "conservative");
+    // Use HMESS pool for testing
+    poolInfo = deployment.pools.find(p => p.configKey === "hmess");
     if (!poolInfo) {
-      throw new Error("Conservative pool not found in deployment");
+      throw new Error("HMESS pool not found in deployment");
     }
 
     pool = await ethers.getContractAt("HokusaiAMM", poolInfo.ammAddress);

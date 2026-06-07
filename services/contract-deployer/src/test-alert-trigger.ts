@@ -72,7 +72,7 @@ async function sendTestAlert() {
       <div class="info-box">
         <strong>ℹ️ Example: Reserve Drop Alert</strong>
         <p>
-          <strong>Pool:</strong> model-conservative-001<br>
+          <strong>Pool:</strong> 28<br>
           <strong>Address:</strong> 0x58565F787C49F09C7Bf33990e7C5B7208580901a<br>
           <strong>Issue:</strong> Reserve balance dropped by 12% in the last hour<br>
           <strong>Current Reserve:</strong> $8,800 USDC<br>
@@ -132,7 +132,7 @@ Alert Details:
 - Timestamp: ${new Date().toISOString()}
 
 Example Scenario:
-Pool: model-conservative-001
+Pool: 28
 Address: 0x58565F787C49F09C7Bf33990e7C5B7208580901a
 Issue: Reserve balance dropped by 12% in the last hour
 Current Reserve: $8,800 USDC

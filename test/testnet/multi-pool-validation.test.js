@@ -73,13 +73,13 @@ describe("Testnet Multi-Pool Validation", function () {
     console.log(`  ✅ Loaded ${Object.keys(tokens).length} tokens\n`);
   });
 
-  describe("Pool 1: Conservative (30% CRR)", function () {
+  describe("Pool 1: HMESS", function () {
     let pool, token, poolInfo;
 
     before(function () {
-      pool = pools.conservative.contract;
-      token = tokens.conservative.contract;
-      poolInfo = pools.conservative.info;
+      pool = pools.hmess.contract;
+      token = tokens.hmess.contract;
+      poolInfo = pools.hmess.info;
     });
 
     it("Should have correct initial parameters", async function () {
@@ -90,7 +90,7 @@ describe("Testnet Multi-Pool Validation", function () {
       expect(state.reserve).to.equal(parseUnits("10000", 6), "Reserve should be $10k");
       expect(state.supply).to.equal(parseEther("1000000"), "Supply should be 1M tokens");
 
-      console.log(`      ✅ Conservative pool parameters validated`);
+      console.log(`      ✅ HMESS pool parameters validated`);
       console.log(`         CRR: ${Number(state.reserveRatio) / 10000}%`);
       console.log(`         Trade Fee: ${Number(state.tradeFeeRate) / 100}%`);
       console.log(`         Reserve: $${ethers.formatUnits(state.reserve, 6)}`);
@@ -103,7 +103,7 @@ describe("Testnet Multi-Pool Validation", function () {
 
       expect(quote).to.be.gt(0, "Quote should be > 0");
 
-      console.log(`      💰 Buy quote: $1,000 → ${ethers.formatEther(quote)} HKS-CON tokens`);
+      console.log(`      💰 Buy quote: $1,000 → ${ethers.formatEther(quote)} HMESS tokens`);
     });
 
     it("Should calculate spot price correctly", async function () {
@@ -170,13 +170,13 @@ describe("Testnet Multi-Pool Validation", function () {
     });
   });
 
-  describe("Pool 2: Aggressive (10% CRR)", function () {
+  describe("Pool 2: HLEAD", function () {
     let pool, token, poolInfo;
 
     before(function () {
-      pool = pools.aggressive.contract;
-      token = tokens.aggressive.contract;
-      poolInfo = pools.aggressive.info;
+      pool = pools.hlead.contract;
+      token = tokens.hlead.contract;
+      poolInfo = pools.hlead.info;
     });
 
     it("Should have correct initial parameters", async function () {
@@ -187,29 +187,29 @@ describe("Testnet Multi-Pool Validation", function () {
       expect(state.reserve).to.equal(parseUnits("50000", 6), "Reserve should be $50k");
       expect(state.supply).to.equal(parseEther("500000"), "Supply should be 500k tokens");
 
-      console.log(`      ✅ Aggressive pool parameters validated`);
+      console.log(`      ✅ HLEAD pool parameters validated`);
       console.log(`         CRR: ${Number(state.reserveRatio) / 10000}%`);
       console.log(`         Trade Fee: ${Number(state.tradeFeeRate) / 100}%`);
       console.log(`         Reserve: $${ethers.formatUnits(state.reserve, 6)}`);
       console.log(`         Supply: ${ethers.formatEther(state.supply)} tokens`);
     });
 
-    it("Should have higher volatility than conservative pool", async function () {
-      const conservativePool = pools.conservative.contract;
-      const aggressivePool = pools.aggressive.contract;
+    it("Should have different price dynamics from HMESS pool", async function () {
+      const hmessPool = pools.hmess.contract;
+      const hleadPool = pools.hlead.contract;
 
       const buyAmount = parseUnits("1000", 6); // $1k
-      const conservativeQuote = await conservativePool.getBuyQuote(buyAmount);
-      const aggressiveQuote = await aggressivePool.getBuyQuote(buyAmount);
+      const hmessQuote = await hmessPool.getBuyQuote(buyAmount);
+      const hleadQuote = await hleadPool.getBuyQuote(buyAmount);
 
       // Lower CRR = more volatile = different price dynamics
       console.log(`      📊 Price comparison for $1,000 buy:`);
-      console.log(`         Conservative (30% CRR): ${ethers.formatEther(conservativeQuote)} tokens`);
-      console.log(`         Aggressive (10% CRR):   ${ethers.formatEther(aggressiveQuote)} tokens`);
+      console.log(`         HMESS: ${ethers.formatEther(hmessQuote)} tokens`);
+      console.log(`         HLEAD:   ${ethers.formatEther(hleadQuote)} tokens`);
 
       // Both should return positive amounts
-      expect(conservativeQuote).to.be.gt(0);
-      expect(aggressiveQuote).to.be.gt(0);
+      expect(hmessQuote).to.be.gt(0);
+      expect(hleadQuote).to.be.gt(0);
     });
 
     it("Should calculate spot price correctly", async function () {
@@ -224,13 +224,13 @@ describe("Testnet Multi-Pool Validation", function () {
     });
   });
 
-  describe("Pool 3: Balanced (20% CRR)", function () {
+  describe("Pool 3: HROUT", function () {
     let pool, token, poolInfo;
 
     before(function () {
-      pool = pools.balanced.contract;
-      token = tokens.balanced.contract;
-      poolInfo = pools.balanced.info;
+      pool = pools.hrout.contract;
+      token = tokens.hrout.contract;
+      poolInfo = pools.hrout.info;
     });
 
     it("Should have correct initial parameters", async function () {
@@ -241,27 +241,27 @@ describe("Testnet Multi-Pool Validation", function () {
       expect(state.reserve).to.equal(parseUnits("25000", 6), "Reserve should be $25k");
       expect(state.supply).to.equal(parseEther("2000000"), "Supply should be 2M tokens");
 
-      console.log(`      ✅ Balanced pool parameters validated`);
+      console.log(`      ✅ HROUT pool parameters validated`);
       console.log(`         CRR: ${Number(state.reserveRatio) / 10000}%`);
       console.log(`         Trade Fee: ${Number(state.tradeFeeRate) / 100}%`);
       console.log(`         Reserve: $${ethers.formatUnits(state.reserve, 6)}`);
       console.log(`         Supply: ${ethers.formatEther(state.supply)} tokens`);
     });
 
-    it("Should have parameters between conservative and aggressive", async function () {
+    it("Should have parameters between HMESS and HLEAD", async function () {
       const state = await pool.getPoolState();
-      const conservativeState = await pools.conservative.contract.getPoolState();
-      const aggressiveState = await pools.aggressive.contract.getPoolState();
+      const hmessState = await pools.hmess.contract.getPoolState();
+      const hleadState = await pools.hlead.contract.getPoolState();
 
-      // CRR should be between conservative (30%) and aggressive (10%)
-      expect(state.reserveRatio).to.be.gt(aggressiveState.reserveRatio);
-      expect(state.reserveRatio).to.be.lt(conservativeState.reserveRatio);
+      // CRR should be between HMESS and HLEAD
+      expect(state.reserveRatio).to.be.gt(hleadState.reserveRatio);
+      expect(state.reserveRatio).to.be.lt(hmessState.reserveRatio);
 
-      // Trade fee should be between conservative (0.25%) and aggressive (0.50%)
-      expect(state.tradeFeeRate).to.be.gt(conservativeState.tradeFeeRate);
-      expect(state.tradeFeeRate).to.be.lt(aggressiveState.tradeFeeRate);
+      // Trade fee should be between HMESS and HLEAD
+      expect(state.tradeFeeRate).to.be.gt(hmessState.tradeFeeRate);
+      expect(state.tradeFeeRate).to.be.lt(hleadState.tradeFeeRate);
 
-      console.log(`      ✅ Balanced pool parameters are between conservative and aggressive`);
+      console.log(`      ✅ HROUT pool parameters are between HMESS and HLEAD`);
     });
 
     it("Should calculate spot price correctly", async function () {
@@ -284,8 +284,8 @@ describe("Testnet Multi-Pool Validation", function () {
         this.skip();
       }
 
-      const pool1 = pools.conservative.contract;
-      const pool2 = pools.aggressive.contract;
+      const pool1 = pools.hmess.contract;
+      const pool2 = pools.hlead.contract;
 
       // Get pool2 state before pool1 trade
       const pool2Before = await pool2.getPoolState();
@@ -308,7 +308,7 @@ describe("Testnet Multi-Pool Validation", function () {
         const buyTx = await pool1.connect(traderSigner).buy(buyAmount, 0, traderSigner.address, deadline);
         await buyTx.wait();
 
-        console.log(`      💰 Executed $1,000 buy on conservative pool`);
+        console.log(`      💰 Executed $1,000 buy on HMESS pool`);
       } else {
         console.log(`      ⚠️  Skipping trade - insufficient USDC`);
       }
@@ -318,32 +318,32 @@ describe("Testnet Multi-Pool Validation", function () {
       expect(pool2After.reserve).to.equal(pool2Before.reserve);
       expect(pool2After.price).to.equal(pool2Before.price);
 
-      console.log(`      ✅ Aggressive pool unaffected by conservative pool trade`);
+      console.log(`      ✅ HLEAD pool unaffected by HMESS pool trade`);
       console.log(`         Reserve: $${ethers.formatUnits(pool2After.reserve, 6)} (unchanged)`);
       console.log(`         Spot Price: $${ethers.formatUnits(pool2After.price, 6)} (unchanged)`);
     });
 
     it("Should track different token balances independently", async function () {
-      const conservativeToken = tokens.conservative.contract;
-      const aggressiveToken = tokens.aggressive.contract;
-      const balancedToken = tokens.balanced.contract;
+      const hmessToken = tokens.hmess.contract;
+      const hleadToken = tokens.hlead.contract;
+      const hroutToken = tokens.hrout.contract;
 
       // Get trader signer (use deployer for testnet, second signer for local)
       const signers = await ethers.getSigners();
       const traderSigner = signers.length > 1 && hre.network.name === "hardhat" ? signers[1] : signers[0];
 
-      const traderConservativeBalance = await conservativeToken.balanceOf(traderSigner.address);
-      const traderAggressiveBalance = await aggressiveToken.balanceOf(traderSigner.address);
-      const traderBalancedBalance = await balancedToken.balanceOf(traderSigner.address);
+      const traderHmessBalance = await hmessToken.balanceOf(traderSigner.address);
+      const traderHleadBalance = await hleadToken.balanceOf(traderSigner.address);
+      const traderHroutBalance = await hroutToken.balanceOf(traderSigner.address);
 
       console.log(`      📊 Trader token balances:`);
-      console.log(`         HKS-CON: ${ethers.formatEther(traderConservativeBalance)}`);
-      console.log(`         HKS-AGG: ${ethers.formatEther(traderAggressiveBalance)}`);
-      console.log(`         HKS-BAL: ${ethers.formatEther(traderBalancedBalance)}`);
+      console.log(`         HMESS: ${ethers.formatEther(traderHmessBalance)}`);
+      console.log(`         HLEAD: ${ethers.formatEther(traderHleadBalance)}`);
+      console.log(`         HROUT: ${ethers.formatEther(traderHroutBalance)}`);
 
       // Tokens are different contracts
-      expect(await conservativeToken.getAddress()).to.not.equal(await aggressiveToken.getAddress());
-      expect(await aggressiveToken.getAddress()).to.not.equal(await balancedToken.getAddress());
+      expect(await hmessToken.getAddress()).to.not.equal(await hleadToken.getAddress());
+      expect(await hleadToken.getAddress()).to.not.equal(await hroutToken.getAddress());
 
       console.log(`      ✅ All pools use separate token contracts`);
     });

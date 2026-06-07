@@ -55,10 +55,10 @@ describe("Real Sell Transactions", function () {
     console.log(`\n  📦 Loaded deployment from: ${deploymentPath}`);
     console.log(`  🌐 Network: ${deployment.network} (chainId: ${deployment.chainId})`);
 
-    // Use balanced pool for testing (good reserve balance)
-    poolInfo = deployment.pools.find(p => p.configKey === "balanced");
+    // Use HROUT pool for testing (good reserve balance)
+    poolInfo = deployment.pools.find(p => p.configKey === "hrout");
     if (!poolInfo) {
-      throw new Error("Balanced pool not found in deployment");
+      throw new Error("HROUT pool not found in deployment");
     }
 
     pool = await ethers.getContractAt("HokusaiAMM", poolInfo.ammAddress);

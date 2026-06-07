@@ -666,9 +666,18 @@ async function main() {
     await infrastructureReserve.hasRole(depositorRole, contracts.UsageFeeRouter),
     { usageFeeRouter: contracts.UsageFeeRouter },
   );
-  recorder.assert("Deployment signer has InfrastructureReserve PAYER_ROLE", await infrastructureReserve.hasRole(payerRole, deployer), {
-    signer: deployer,
-  });
+  const expectedPayers = deployment.roles?.InfrastructureReserve?.PAYER_ROLE || [];
+  const payerChecks = await Promise.all(
+    expectedPayers.map(async (payer) => ({
+      payer,
+      hasRole: await infrastructureReserve.hasRole(payerRole, payer),
+    })),
+  );
+  recorder.assert(
+    "InfrastructureReserve grants PAYER_ROLE to artifact payers",
+    payerChecks.length > 0 && payerChecks.every((check) => check.hasRole),
+    { payerChecks },
+  );
 
   const govRole = await costOracle.GOV_ROLE();
   recorder.assert("Deployment signer has InfrastructureCostOracle GOV_ROLE", await costOracle.hasRole(govRole, deployer), {

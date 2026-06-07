@@ -13,7 +13,19 @@ const { ethers } = hre;
 const DEFAULT_DEPLOYMENT_PATH = path.join(__dirname, "..", "deployments", "mainnet-latest.json");
 const DEFAULT_CONFIG_PATH = path.join(__dirname, "configs", "mainnet-launch-tokens.json");
 const DEFAULT_PENDING_ACTIONS_PATH = path.join(__dirname, "..", "deployments", "mainnet-pending-actions.json");
-const POOLS_TO_CREATE = ["conservative", "aggressive", "balanced"];
+
+function getLaunchTokenKeyFilter() {
+  if (!process.env.LAUNCH_TOKEN_KEYS) {
+    return null;
+  }
+
+  const keys = process.env.LAUNCH_TOKEN_KEYS
+    .split(",")
+    .map((key) => key.trim())
+    .filter(Boolean);
+
+  return keys.length > 0 ? new Set(keys) : null;
+}
 
 class LaunchWhitelistConfigError extends Error {
   constructor(message) {
@@ -244,12 +256,15 @@ async function runLaunchDeploy({
     signerAddress: deployer.address,
   });
 
+  const tokenKeyFilter = getLaunchTokenKeyFilter();
   const scaledEntries = launchConfig.tokens
-    .filter((entry) => POOLS_TO_CREATE.includes(entry.configKey))
+    .filter((entry) => !tokenKeyFilter || tokenKeyFilter.has(entry.configKey))
     .map(scaleTokenEntry);
 
-  if (scaledEntries.length !== POOLS_TO_CREATE.length) {
-    throw new Error(`Expected ${POOLS_TO_CREATE.length} configured launch tokens, found ${scaledEntries.length}`);
+  if (tokenKeyFilter && scaledEntries.length !== tokenKeyFilter.size) {
+    const foundKeys = new Set(scaledEntries.map((entry) => entry.configKey));
+    const missingKeys = [...tokenKeyFilter].filter((key) => !foundKeys.has(key));
+    throw new Error(`Configured launch token keys not found: ${missingKeys.join(", ")}`);
   }
 
   const { address: purchaserWhitelistAddress, source: purchaserWhitelistSource } =

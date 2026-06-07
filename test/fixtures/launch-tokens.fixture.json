@@ -2,10 +2,10 @@
   "version": 1,
   "tokens": [
     {
-      "configKey": "conservative",
+      "configKey": "hmess",
       "modelId": "1001",
-      "name": "Hokusai Conservative",
-      "symbol": "HKS-CON",
+      "name": "Hokusai Messaging",
+      "symbol": "HMESS",
       "supplierRecipient": "__SUPPLIER_1__",
       "supplierAllocation": "2500000",
       "investorAllocation": "10000000",
@@ -23,7 +23,7 @@
       },
       "distributionTiming": "pre-launch",
       "pool": {
-        "name": "Conservative Pool (30% CRR)",
+        "name": "HMESS Pool",
         "performanceMetric": "accuracy",
         "initialReserveUsdc": "10000",
         "crr": 300000,
@@ -34,10 +34,10 @@
       }
     },
     {
-      "configKey": "aggressive",
+      "configKey": "hlead",
       "modelId": "1002",
-      "name": "Hokusai Aggressive",
-      "symbol": "HKS-AGG",
+      "name": "Hokusai Sales Lead Scoring",
+      "symbol": "HLEAD",
       "supplierRecipient": "__SUPPLIER_2__",
       "supplierAllocation": "1250000",
       "investorAllocation": "5000000",
@@ -55,7 +55,7 @@
       },
       "distributionTiming": "post-verification",
       "pool": {
-        "name": "Aggressive Pool (10% CRR)",
+        "name": "HLEAD Pool",
         "performanceMetric": "accuracy",
         "initialReserveUsdc": "50000",
         "crr": 100000,
@@ -66,10 +66,10 @@
       }
     },
     {
-      "configKey": "balanced",
+      "configKey": "hrout",
       "modelId": "1003",
-      "name": "Hokusai Balanced",
-      "symbol": "HKS-BAL",
+      "name": "Hokusai Task Routing",
+      "symbol": "HROUT",
       "supplierRecipient": "__SUPPLIER_3__",
       "supplierAllocation": "5000000",
       "investorAllocation": "20000000",
@@ -87,7 +87,7 @@
       },
       "distributionTiming": "post-verification",
       "pool": {
-        "name": "Balanced Pool (20% CRR)",
+        "name": "HROUT Pool",
         "performanceMetric": "accuracy",
         "initialReserveUsdc": "25000",
         "crr": 200000,

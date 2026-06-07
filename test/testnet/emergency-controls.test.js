@@ -61,10 +61,10 @@ describe("Emergency Control Validation", function () {
     console.log(`\n  📦 Loaded deployment from: ${deploymentPath}`);
     console.log(`  🌐 Network: ${deployment.network} (chainId: ${deployment.chainId})`);
 
-    // Use conservative pool for testing
-    poolInfo = deployment.pools.find(p => p.configKey === "conservative");
+    // Use HMESS pool for testing
+    poolInfo = deployment.pools.find(p => p.configKey === "hmess");
     if (!poolInfo) {
-      throw new Error("Conservative pool not found in deployment");
+      throw new Error("HMESS pool not found in deployment");
     }
 
     pool = await ethers.getContractAt("HokusaiAMM", poolInfo.ammAddress);
@@ -450,23 +450,23 @@ describe("Emergency Control Validation", function () {
       }
 
       // Get another pool
-      const aggressivePoolInfo = deployment.pools.find(p => p.configKey === "aggressive");
-      if (!aggressivePoolInfo) {
-        console.log(`      ⚠️  Skipping - aggressive pool not found`);
+      const hleadPoolInfo = deployment.pools.find(p => p.configKey === "hlead");
+      if (!hleadPoolInfo) {
+        console.log(`      ⚠️  Skipping - HLEAD pool not found`);
         this.skip();
       }
 
-      const pool2 = await ethers.getContractAt("HokusaiAMM", aggressivePoolInfo.ammAddress);
+      const pool2 = await ethers.getContractAt("HokusaiAMM", hleadPoolInfo.ammAddress);
 
-      // Pause conservative pool
+      // Pause HMESS pool
       await pool.pause();
-      console.log(`      ⏸️  Paused conservative pool`);
+      console.log(`      ⏸️  Paused HMESS pool`);
 
-      // Check aggressive pool is still unpaused
+      // Check HLEAD pool is still unpaused
       const pool2Paused = await pool2.paused();
       expect(pool2Paused).to.be.false;
 
-      console.log(`      ✅ Aggressive pool unaffected by conservative pool pause`);
+      console.log(`      ✅ HLEAD pool unaffected by HMESS pool pause`);
       console.log(`         Conservative paused: ${await pool.paused()}`);
       console.log(`         Aggressive paused: ${pool2Paused}`);
 

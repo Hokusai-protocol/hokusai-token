@@ -6,7 +6,21 @@ const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 export interface MintRequestContributor {
   wallet_address: string;
   weight_bps: number;
+  // Optional provenance fields emitted by the pipeline's MintRequestContributor
+  // (serialized via model_dump_json(by_alias=True), so they arrive camelCased and may be null).
+  // The contract only consumes wallet_address + weight_bps; these are accepted and ignored. See HOK-2099.
+  submissionId?: string | null;
+  contributionBatchId?: string | null;
 }
+
+// Single source of truth for the contributor keys the consumer accepts. Used by the
+// cross-repo conformance test to catch any future drift in the pipeline contributor object.
+export const ACCEPTED_CONTRIBUTOR_KEYS = [
+  'wallet_address',
+  'weight_bps',
+  'submissionId',
+  'contributionBatchId',
+] as const;
 
 export interface MintRequestEvaluation {
   metric_name: string;
@@ -63,6 +77,11 @@ export interface MintRequestSettlement {
 const contributorSchema = Joi.object<MintRequestContributor>({
   wallet_address: Joi.string().pattern(ADDRESS_REGEX).required(),
   weight_bps: Joi.number().integer().min(1).max(10000).required(),
+  // Accept-and-ignore the pipeline's per-contributor provenance fields so a real published
+  // MintRequest is not rejected at the consumer boundary (HOK-2099). They may be a non-empty
+  // string or null (the publisher does not exclude None values).
+  submissionId: Joi.string().min(1).allow(null).optional(),
+  contributionBatchId: Joi.string().min(1).allow(null).optional(),
 });
 
 export function deriveTotalSamples(evaluation: MintRequestEvaluation): number | null {

@@ -20,7 +20,7 @@ const scenarios = {
     priority: 'HIGH',
     description: 'Pool reserve dropped below threshold',
     details: {
-      pool: 'model-conservative-001',
+      pool: '28',
       currentReserve: '$8,500 USDC',
       previousReserve: '$10,000 USDC',
       dropPercentage: '15%',
@@ -32,7 +32,7 @@ const scenarios = {
     priority: 'MEDIUM',
     description: 'Unusually large trade detected',
     details: {
-      pool: 'model-aggressive-002',
+      pool: '27',
       tradeType: 'BUY',
       tradeSize: '$15,000 USDC',
       buyer: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
@@ -44,7 +44,7 @@ const scenarios = {
     priority: 'CRITICAL',
     description: 'AMM pool has been paused',
     details: {
-      pool: 'model-balanced-003',
+      pool: '30',
       pausedBy: '0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B',
       timestamp: new Date().toISOString(),
       reason: 'Manual pause by owner'
@@ -55,7 +55,7 @@ const scenarios = {
     priority: 'LOW',
     description: 'Unusual trading volume detected',
     details: {
-      pool: 'model-conservative-001',
+      pool: '28',
       trades24h: 156,
       volume24h: '$45,000 USDC',
       averageTradeSize: '$288 USDC',
@@ -67,7 +67,7 @@ const scenarios = {
     priority: 'HIGH',
     description: 'Price slippage exceeded threshold',
     details: {
-      pool: 'model-aggressive-002',
+      pool: '27',
       previousPrice: '$0.0120',
       currentPrice: '$0.0105',
       slippage: '12.5%',

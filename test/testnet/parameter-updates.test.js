@@ -39,8 +39,8 @@ describe("Parameter Updates", function () {
     console.log(`\n  📦 Network: ${deployment.network}`);
     console.log(`  👤 Governor: ${governor.address}\n`);
 
-    // Use conservative pool's token for testing
-    const poolInfo = deployment.pools.find(p => p.configKey === "conservative");
+    // Use HMESS pool's token for testing
+    const poolInfo = deployment.pools.find(p => p.configKey === "hmess");
     tokenAddress = poolInfo.tokenAddress;
 
     token = await ethers.getContractAt("HokusaiToken", tokenAddress);

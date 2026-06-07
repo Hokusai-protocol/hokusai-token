@@ -2,7 +2,7 @@
   "version": 1,
   "tokens": [
     {
-      "configKey": "conservative",
+      "configKey": "hmess",
       "modelId": "28",
       "name": "Hokusai Messaging",
       "symbol": "HMESS",
@@ -34,7 +34,7 @@
       }
     },
     {
-      "configKey": "aggressive",
+      "configKey": "hlead",
       "modelId": "27",
       "name": "Hokusai Sales Lead Scoring",
       "symbol": "HLEAD",
@@ -66,7 +66,7 @@
       }
     },
     {
-      "configKey": "balanced",
+      "configKey": "hrout",
       "modelId": "30",
       "name": "Hokusai Task Routing",
       "symbol": "HROUT",

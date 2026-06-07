@@ -37,7 +37,7 @@ describe("Real Buy Transactions", function () {
   let poolInfo;
 
   // Test configuration
-  // Note: Conservative pool has ~$2000 max trade size (20% of reserve)
+  // Note: HMESS pool has ~$2000 max trade size (20% of reserve)
   const buyTests = [
     { label: "Small", amount: "100", expectedMinTokens: 0n },
     { label: "Medium", amount: "1000", expectedMinTokens: 0n },
@@ -63,10 +63,10 @@ describe("Real Buy Transactions", function () {
     console.log(`\n  📦 Loaded deployment from: ${deploymentPath}`);
     console.log(`  🌐 Network: ${deployment.network} (chainId: ${deployment.chainId})`);
 
-    // Use conservative pool for testing
-    poolInfo = deployment.pools.find(p => p.configKey === "conservative");
+    // Use HMESS pool for testing
+    poolInfo = deployment.pools.find(p => p.configKey === "hmess");
     if (!poolInfo) {
-      throw new Error("Conservative pool not found in deployment");
+      throw new Error("HMESS pool not found in deployment");
     }
 
     pool = await ethers.getContractAt("HokusaiAMM", poolInfo.ammAddress);
@@ -258,8 +258,8 @@ describe("Real Buy Transactions", function () {
       const buyAmount = parseUnits("100", 6);
 
       for (const poolConfig of deployment.pools) {
-        // Skip conservative pool as we've already tested it extensively above
-        if (poolConfig.configKey === "conservative") {
+        // Skip HMESS pool as we've already tested it extensively above
+        if (poolConfig.configKey === "hmess") {
           console.log(`\n      ⏭️  Skipping ${poolConfig.configKey} (already tested)...`);
           continue;
         }

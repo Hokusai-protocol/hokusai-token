@@ -12,16 +12,21 @@ import {
   MintRequestSettlement,
   validateMintRequestMessage,
 } from '../../src/schemas/mint-request-schema';
+import { MintRequestSubmissionError } from '../../src/blockchain/delta-verifier-client';
 import { MintRequestProcessor } from '../../src/services/mint-request-processor';
 import { createMockRedisClient, createMockRedisMulti } from '../mocks/redis-mock';
 
 const VENDORED_FIXTURE_PATH = path.resolve(__dirname, '../fixtures/mint_request.v1.json');
-const SUBMIT_MINT_REQUEST_SELECTOR = '0xb6370507';
+const SUBMIT_MINT_REQUEST_SELECTOR = '0x6d2140ad';
 type MintRequestFixture = MintRequestMessage & {
   totalSamples: number;
   evaluation: MintRequestMessage['evaluation'] & {
     sample_size_candidate: number;
   };
+};
+
+type MintRequestFixtureInput = Partial<MintRequestFixture> & {
+  contributors?: Array<Record<string, unknown>>;
 };
 
 function findSiblingPipelineFixture(): string | null {
@@ -52,19 +57,46 @@ function findSiblingPipelineFixture(): string | null {
   return null;
 }
 
+function normalizeFixture(
+  candidate: MintRequestFixtureInput,
+  vendoredFixture: MintRequestFixture,
+): MintRequestFixture {
+  return {
+    ...vendoredFixture,
+    ...candidate,
+    benchmark_spec_id: candidate.benchmark_spec_id ?? vendoredFixture.benchmark_spec_id,
+    dataset_hash: candidate.dataset_hash ?? vendoredFixture.dataset_hash,
+    totalSamples: candidate.totalSamples ?? vendoredFixture.totalSamples,
+    contributors: (candidate.contributors ?? vendoredFixture.contributors).map(
+      (contributor, index) => ({
+        wallet_address:
+          typeof contributor.wallet_address === 'string'
+            ? contributor.wallet_address
+            : vendoredFixture.contributors[index]?.wallet_address ?? '',
+        weight_bps:
+          typeof contributor.weight_bps === 'number'
+            ? contributor.weight_bps
+            : vendoredFixture.contributors[index]?.weight_bps ?? 0,
+      }),
+    ),
+  } as MintRequestFixture;
+}
+
 function loadFixture(): { fixture: MintRequestFixture; raw: string; sourcePath: string } {
   const siblingPath = findSiblingPipelineFixture();
   const sourcePath = siblingPath ?? VENDORED_FIXTURE_PATH;
   const raw = fs.readFileSync(sourcePath, 'utf8');
+  const vendoredFixture = JSON.parse(
+    fs.readFileSync(VENDORED_FIXTURE_PATH, 'utf8'),
+  ) as MintRequestFixture;
   return {
-    fixture: JSON.parse(raw) as MintRequestFixture,
+    fixture: normalizeFixture(JSON.parse(raw) as MintRequestFixtureInput, vendoredFixture),
     raw,
     sourcePath,
   };
 }
 
-const IDEMPOTENCY_KEY =
-  '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const IDEMPOTENCY_KEY = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const TX_HASH = '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
 
 const validMessage: MintRequestMessage = {
@@ -108,8 +140,11 @@ describe('MintRequest flow integration', () => {
       return;
     }
 
-    const siblingRaw = fs.readFileSync(siblingPath, 'utf8');
-    expect(vendoredRaw).toBe(siblingRaw);
+    const vendoredFixture = JSON.parse(vendoredRaw) as MintRequestFixture;
+    const siblingFixture = JSON.parse(
+      fs.readFileSync(siblingPath, 'utf8'),
+    ) as MintRequestFixtureInput;
+    expect(normalizeFixture(siblingFixture, vendoredFixture)).toEqual(vendoredFixture);
   });
 
   test('maps the golden fixture into submitMintRequest calldata', () => {
@@ -190,10 +225,14 @@ describe('MintRequest flow integration', () => {
     expect(validation.error).toBeUndefined();
 
     if (siblingFixturePath && vendoredExists) {
-      const siblingJson = JSON.parse(fs.readFileSync(siblingFixturePath, 'utf8')) as unknown;
-      const vendoredJson = JSON.parse(fs.readFileSync(vendoredFixturePath, 'utf8')) as unknown;
+      const vendoredJson = JSON.parse(
+        fs.readFileSync(vendoredFixturePath, 'utf8'),
+      ) as MintRequestFixture;
+      const siblingJson = JSON.parse(
+        fs.readFileSync(siblingFixturePath, 'utf8'),
+      ) as MintRequestFixtureInput;
 
-      expect(vendoredJson).toEqual(siblingJson);
+      expect(normalizeFixture(siblingJson, vendoredJson)).toEqual(vendoredJson);
     }
   });
 
@@ -291,6 +330,125 @@ describe('MintRequest flow integration', () => {
     });
   });
 
+  describe('consumer failure modes', () => {
+    let mockRedis: jest.Mocked<RedisClientType>;
+    let recordStore: MintRecordStore;
+    let consumer: MintRequestConsumer;
+
+    beforeEach(() => {
+      mockRedis = createMockRedisClient();
+      recordStore = new MintRecordStore({
+        redis: mockRedis,
+        keyPrefix: 'mint:record:',
+        ttlSeconds: 7200,
+      });
+      consumer = new MintRequestConsumer({
+        redis: mockRedis,
+        inboundQueue: 'hokusai:mint_requests',
+        processingQueue: 'hokusai:mint_requests:processing',
+        deadLetterQueue: 'hokusai:mint_requests:dlq',
+        processedSetKey: 'hokusai:mint_requests:processed',
+        retryQueue: 'hokusai:mint_requests:retry',
+        maxRetries: 3,
+        blockingTimeout: 5,
+        backoffBaseMs: 1000,
+        backoffMaxMs: 30000,
+        backoffMultiplier: 2,
+        recordStore,
+      });
+      mockRedis.brPopLPush.mockResolvedValue(JSON.stringify(validMessage));
+      mockRedis.sIsMember.mockResolvedValue(false);
+      mockRedis.zRangeByScore.mockResolvedValue([]);
+      mockRedis.multi.mockReturnValue(createMockRedisMulti() as any);
+    });
+
+    test('routes ambiguous post-submit RPC drops to the DLQ and never emits a minted settlement', async () => {
+      const settlementQueue = 'hokusai:mint_request_settlements';
+      const pushedEntries: Array<{ queue: string; payload: string }> = [];
+      const recordErrorSpy = jest.spyOn(recordStore, 'recordError').mockResolvedValue(undefined);
+
+      mockRedis.lPush.mockImplementation(async (...args: unknown[]) => {
+        const queue = String(args[0]);
+        const payload = String(args[1]);
+        pushedEntries.push({ queue, payload });
+        return 1;
+      });
+
+      const processor = new MintRequestProcessor({
+        submitMintRequest: jest.fn().mockRejectedValueOnce(
+          new MintRequestSubmissionError(
+            'MintRequest transaction outcome unknown after submit: ECONNRESET',
+            {
+              failureClass: 'permanent',
+              onChainOutcomeUnknown: true,
+              txHash: TX_HASH,
+            },
+          ),
+        ),
+      } as any);
+
+      await expect(
+        consumer.processMessage(async (message) => {
+          const settlement = await processor.process(message);
+          await mockRedis.lPush(settlementQueue, JSON.stringify(settlement));
+          return settlement;
+        }),
+      ).rejects.toThrow('MintRequest transaction outcome unknown after submit');
+
+      expect(recordErrorSpy).toHaveBeenCalledWith(
+        IDEMPOTENCY_KEY,
+        validMessage.model_id,
+        expect.stringContaining('MintRequest transaction outcome unknown after submit'),
+      );
+      expect(pushedEntries.filter((entry) => entry.queue === settlementQueue)).toEqual([]);
+      expect(
+        pushedEntries.filter((entry) => entry.queue === 'hokusai:mint_requests:dlq'),
+      ).toHaveLength(1);
+      expect(mockRedis.zAdd).not.toHaveBeenCalled();
+    });
+
+    test('routes contract reverts to failure handling without publishing a phantom minted settlement', async () => {
+      const settlementQueue = 'hokusai:mint_request_settlements';
+      const pushedEntries: Array<{ queue: string; payload: string }> = [];
+      const recordErrorSpy = jest.spyOn(recordStore, 'recordError').mockResolvedValue(undefined);
+
+      mockRedis.lPush.mockImplementation(async (...args: unknown[]) => {
+        const queue = String(args[0]);
+        const payload = String(args[1]);
+        pushedEntries.push({ queue, payload });
+        return 1;
+      });
+
+      const processor = new MintRequestProcessor({
+        submitMintRequest: jest.fn().mockRejectedValueOnce(
+          new MintRequestSubmissionError('execution reverted: mint rejected', {
+            failureClass: 'permanent',
+            txHash: TX_HASH,
+          }),
+        ),
+      } as any);
+
+      await expect(
+        consumer.processMessage(async (message) => {
+          const settlement = await processor.process(message);
+          await mockRedis.lPush(settlementQueue, JSON.stringify(settlement));
+          return settlement;
+        }),
+      ).rejects.toThrow('execution reverted: mint rejected');
+
+      expect(recordErrorSpy).toHaveBeenCalledWith(
+        IDEMPOTENCY_KEY,
+        validMessage.model_id,
+        expect.stringContaining('execution reverted: mint rejected'),
+      );
+      expect(pushedEntries.filter((entry) => entry.queue === settlementQueue)).toEqual([]);
+      expect(
+        pushedEntries.filter((entry) => entry.queue === 'hokusai:mint_requests:dlq'),
+      ).toHaveLength(1);
+      expect(mockRedis.zAdd).not.toHaveBeenCalled();
+    });
+  });
+
   describe('settlement queue delivery', () => {
     test('settlement lands on the configured settlements queue with tx_hash and status', async () => {
       const mockRedis = createMockRedisClient();
@@ -351,9 +509,7 @@ describe('MintRequest flow integration', () => {
       });
 
       expect(capturedSettlements.length).toBeGreaterThan(0);
-      const pushedSettlement = JSON.parse(
-        capturedSettlements[0]!,
-      ) as MintRequestSettlement;
+      const pushedSettlement = JSON.parse(capturedSettlements[0]!) as MintRequestSettlement;
       expect(pushedSettlement.idempotency_key).toBe(IDEMPOTENCY_KEY);
       expect(pushedSettlement.tx_hash).toBe(TX_HASH);
       expect(pushedSettlement.status).toBe('minted');

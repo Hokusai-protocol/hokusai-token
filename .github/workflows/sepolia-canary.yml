@@ -1,0 +1,35 @@
+name: Sepolia Canary
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sepolia-canary
+  cancel-in-progress: false
+
+jobs:
+  sepolia-write-canary:
+    runs-on: ubuntu-latest
+    env:
+      SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+      PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+      SEPOLIA_PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+      E2E_DEPLOYMENT_FILE: ${{ vars.E2E_DEPLOYMENT_FILE || 'deployments/sepolia-latest.json' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx hardhat compile
+
+      - run: SEPOLIA_E2E_WRITE=1 npx hardhat test test/e2e/sepolia-end-to-end.test.js --network sepolia

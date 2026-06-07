@@ -15,6 +15,14 @@ describe('retry-policy', () => {
     expect(classifyError(error)).toBe('transient');
   });
 
+  test('classifies ambiguous post-submit outcomes as permanent to force DLQ review', () => {
+    const error = Object.assign(new Error('receipt wait lost'), {
+      failureClass: 'permanent',
+      onChainOutcomeUnknown: true,
+    });
+    expect(classifyError(error)).toBe('permanent');
+  });
+
   test('defaults unknown failures to transient', () => {
     expect(classifyError(new Error('unexpected failure'))).toBe('transient');
   });

@@ -14,7 +14,10 @@ describeIfSepolia('UsageFeeRouter - Sepolia Integration', () => {
   let deploymentConfig: any;
 
   beforeAll(() => {
-    const deploymentPath = path.resolve(__dirname, '../../../../deployments/sepolia-v2-latest.json');
+    const deploymentPath = path.resolve(
+      __dirname,
+      '../../../../deployments/sepolia-v2-latest.json',
+    );
     deploymentConfig = JSON.parse(fs.readFileSync(deploymentPath, 'utf-8'));
 
     const routerAddress = deploymentConfig.contracts.UsageFeeRouter;
@@ -41,8 +44,11 @@ describeIfSepolia('UsageFeeRouter - Sepolia Integration', () => {
     const reserveTokenAddress = await (usageFeeRouter as any).reserveToken();
     const reserveToken = new ethers.Contract(
       reserveTokenAddress,
-      ['function approve(address,uint256) returns (bool)', 'function balanceOf(address) view returns (uint256)'],
-      signer
+      [
+        'function approve(address,uint256) returns (bool)',
+        'function balanceOf(address) view returns (uint256)',
+      ],
+      signer,
     );
 
     const depositAmount = ethers.parseUnits('1', 6);
@@ -52,7 +58,10 @@ describeIfSepolia('UsageFeeRouter - Sepolia Integration', () => {
       return;
     }
 
-    const approveTx = await (reserveToken as any).approve(await usageFeeRouter.getAddress(), depositAmount);
+    const approveTx = await (reserveToken as any).approve(
+      await usageFeeRouter.getAddress(),
+      depositAmount,
+    );
     await approveTx.wait(1);
 
     const tx = await (usageFeeRouter as any).depositFee(modelId, depositAmount, 1);
@@ -78,7 +87,7 @@ describeIfSepolia('UsageFeeRouter - Sepolia Integration', () => {
     const depositAmount = ethers.parseUnits('1', 6);
 
     await expect(
-      (usageFeeRouter as any).depositFee('nonexistent_model_xyz', depositAmount, 1)
+      (usageFeeRouter as any).depositFee('nonexistent_model_xyz', depositAmount, 1),
     ).rejects.toThrow();
   }, 30_000);
 });

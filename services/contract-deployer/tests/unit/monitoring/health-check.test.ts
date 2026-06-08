@@ -14,12 +14,12 @@ describe('HealthCheckService', () => {
   beforeEach(() => {
     mockRedis = createMockRedisClient();
     mockProvider = createMockProvider();
-    
+
     healthService = new HealthCheckService({
       redis: mockRedis,
       provider: mockProvider,
       registryAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
-      tokenManagerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d'
+      tokenManagerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
     });
 
     app = express();
@@ -32,23 +32,23 @@ describe('HealthCheckService', () => {
     test('should return healthy when all services are up', async () => {
       mockRedis.ping.mockResolvedValue('PONG');
       mockProvider.getBlockNumber.mockResolvedValue(12345678);
-      
+
       const response = await request(app).get('/health');
-      
+
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         status: 'healthy',
         timestamp: expect.any(String),
-        uptime: expect.any(Number)
+        uptime: expect.any(Number),
       });
     });
 
     test('should return unhealthy when Redis is down', async () => {
       mockRedis.ping.mockRejectedValue(new Error('Connection refused'));
       mockProvider.getBlockNumber.mockResolvedValue(12345678);
-      
+
       const response = await request(app).get('/health');
-      
+
       expect(response.status).toBe(503);
       expect(response.body.status).toBe('unhealthy');
     });
@@ -56,9 +56,9 @@ describe('HealthCheckService', () => {
     test('should return unhealthy when blockchain is down', async () => {
       mockRedis.ping.mockResolvedValue('PONG');
       mockProvider.getBlockNumber.mockRejectedValue(new Error('Network error'));
-      
+
       const response = await request(app).get('/health');
-      
+
       expect(response.status).toBe(503);
       expect(response.body.status).toBe('unhealthy');
     });
@@ -71,9 +71,9 @@ describe('HealthCheckService', () => {
       mockProvider.getBlockNumber.mockResolvedValue(12345678);
       mockProvider.getNetwork.mockResolvedValue({ chainId: 137n, name: 'polygon' });
       mockProvider.getBalance.mockResolvedValue(ethers.toBigInt('1000000000000000000'));
-      
+
       const response = await request(app).get('/health/detailed');
-      
+
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         status: 'healthy',
@@ -87,8 +87,8 @@ describe('HealthCheckService', () => {
               inbound: 5,
               processing: 5,
               deadLetter: 5,
-              outbound: 5
-            }
+              outbound: 5,
+            },
           },
           blockchain: {
             status: 'healthy',
@@ -96,18 +96,18 @@ describe('HealthCheckService', () => {
             chainId: 137,
             blockNumber: 12345678,
             latency: expect.any(Number),
-            deployerBalance: '1000000000000000000'
+            deployerBalance: '1000000000000000000',
           },
           contracts: {
             registry: {
               status: 'healthy',
-              address: '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+              address: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
             },
             tokenManager: {
               status: 'healthy',
-              address: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d'
-            }
-          }
+              address: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
+            },
+          },
         },
         metrics: {
           messagesProcessed: expect.any(Number),
@@ -116,8 +116,8 @@ describe('HealthCheckService', () => {
           averageDeploymentTime: expect.any(Number),
           lastDeploymentTime: expect.any(String),
           totalGasUsed: expect.any(String),
-          failureReasons: expect.any(Object)
-        }
+          failureReasons: expect.any(Object),
+        },
       });
     });
 
@@ -128,7 +128,7 @@ describe('HealthCheckService', () => {
       mockProvider.getNetwork.mockResolvedValue({ chainId: 137n, name: 'polygon' });
       mockProvider.getCode.mockResolvedValue('0x123'); // Contracts deployed
       mockProvider.getBalance.mockResolvedValue(ethers.toBigInt('100000000000000')); // Low balance
-      
+
       const response = await request(app).get('/health/detailed');
 
       // A degraded component yields overall 'degraded', which the detailed
@@ -146,18 +146,18 @@ describe('HealthCheckService', () => {
         modelId: 'model_123',
         tokenAddress: '0x123',
         deploymentTime: 45000,
-        gasUsed: '2845632'
+        gasUsed: '2845632',
       });
-      
+
       healthService.recordDeployment({
         modelId: 'model_456',
         tokenAddress: '0x456',
         deploymentTime: 35000,
-        gasUsed: '2645632'
+        gasUsed: '2645632',
       });
-      
+
       const metrics = healthService.getMetrics();
-      
+
       expect(metrics.tokensDeployed).toBe(2);
       expect(metrics.averageDeploymentTime).toBe(40000);
       expect(metrics.totalGasUsed).toBe('5491264');
@@ -167,14 +167,14 @@ describe('HealthCheckService', () => {
       healthService.recordFailure({
         modelId: 'model_123',
         error: 'Insufficient gas',
-        stage: 'deployment'
+        stage: 'deployment',
       });
-      
+
       const metrics = healthService.getMetrics();
-      
+
       expect(metrics.messagesFaile).toBe(1);
       expect(metrics.failureReasons).toEqual({
-        'Insufficient gas': 1
+        'Insufficient gas': 1,
       });
     });
   });
@@ -184,9 +184,9 @@ describe('HealthCheckService', () => {
       mockRedis.ping.mockResolvedValue('PONG');
       mockProvider.getNetwork.mockResolvedValue({ chainId: 137n, name: 'polygon' });
       mockProvider.getCode.mockResolvedValue('0x123'); // Contract exists
-      
+
       const ready = await healthService.isReady();
-      
+
       expect(ready).toBe(true);
     });
 
@@ -194,9 +194,9 @@ describe('HealthCheckService', () => {
       mockRedis.ping.mockResolvedValue('PONG');
       mockProvider.getNetwork.mockResolvedValue({ chainId: 137n, name: 'polygon' });
       mockProvider.getCode.mockResolvedValue('0x'); // No contract
-      
+
       const ready = await healthService.isReady();
-      
+
       expect(ready).toBe(false);
     });
   });
@@ -204,7 +204,7 @@ describe('HealthCheckService', () => {
   describe('Liveness check', () => {
     test('should implement liveness probe', async () => {
       const response = await request(app).get('/health/live');
-      
+
       expect(response.status).toBe(200);
       expect(response.body.alive).toBe(true);
     });
@@ -214,36 +214,36 @@ describe('HealthCheckService', () => {
     test('should trigger alerts on threshold breach', () => {
       const alertHandler = jest.fn();
       healthService.onAlert(alertHandler);
-      
+
       // Simulate high queue depth
       for (let i = 0; i < 1000; i++) {
         healthService.recordQueueDepth('inbound', 100 + i);
       }
-      
+
       expect(alertHandler).toHaveBeenCalledWith({
         type: 'queue_depth_high',
         queue: 'inbound',
         depth: expect.any(Number),
-        threshold: expect.any(Number)
+        threshold: expect.any(Number),
       });
     });
 
     test('should alert on consecutive failures', () => {
       const alertHandler = jest.fn();
       healthService.onAlert(alertHandler);
-      
+
       for (let i = 0; i < 5; i++) {
         healthService.recordFailure({
           modelId: `model_${i}`,
           error: 'Deployment failed',
-          stage: 'deployment'
+          stage: 'deployment',
         });
       }
-      
+
       expect(alertHandler).toHaveBeenCalledWith({
         type: 'high_failure_rate',
         failures: 5,
-        window: '5m'
+        window: '5m',
       });
     });
   });

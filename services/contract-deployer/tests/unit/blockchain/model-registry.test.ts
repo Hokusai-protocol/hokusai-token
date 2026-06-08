@@ -14,19 +14,19 @@ describe('ModelRegistryService', () => {
     registryAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
     provider: null as any,
     signer: null as any,
-    confirmations: 2
+    confirmations: 2,
   };
 
   beforeEach(() => {
     mockContract = createMockContract();
     mockProvider = createMockProvider();
     mockSigner = createMockSigner();
-    
+
     config.provider = mockProvider;
     config.signer = mockSigner;
 
-    jest.spyOn(ethers, 'Contract').mockReturnValue(mockContract as any);
-    
+    jest.spyOn(ethers, 'Contract').mockReturnValue(mockContract);
+
     registryService = new ModelRegistryService(config);
   });
 
@@ -39,7 +39,7 @@ describe('ModelRegistryService', () => {
       modelId: 'model_123',
       tokenAddress: '0x1234567890123456789012345678901234567890',
       metricName: 'accuracy',
-      mlflowRunId: 'run_abc123'
+      mlflowRunId: 'run_abc123',
     };
 
     test('should successfully register a model', async () => {
@@ -48,12 +48,12 @@ describe('ModelRegistryService', () => {
         hash: txHash,
         blockNumber: 12345678,
         gasUsed: ethers.toBigInt('150000'),
-        status: 1
+        status: 1,
       };
 
       mockContract.registerModel.mockResolvedValue({
         hash: txHash,
-        wait: jest.fn().mockResolvedValue(receipt)
+        wait: jest.fn().mockResolvedValue(receipt),
       });
 
       const result = await registryService.registerModel(modelData);
@@ -62,14 +62,14 @@ describe('ModelRegistryService', () => {
         modelData.modelId,
         modelData.tokenAddress,
         modelData.metricName,
-        modelData.mlflowRunId
+        modelData.mlflowRunId,
       );
 
       expect(result).toEqual({
         transactionHash: txHash,
         blockNumber: receipt.blockNumber,
         gasUsed: '150000',
-        success: true
+        success: true,
       });
     });
 
@@ -79,14 +79,14 @@ describe('ModelRegistryService', () => {
         hash: txHash,
         blockNumber: 12345678,
         gasUsed: ethers.toBigInt('150000'),
-        status: 1
+        status: 1,
       };
 
       mockContract.registerModel
         .mockRejectedValueOnce(new Error('Nonce too low'))
         .mockResolvedValueOnce({
           hash: txHash,
-          wait: jest.fn().mockResolvedValue(receipt)
+          wait: jest.fn().mockResolvedValue(receipt),
         });
 
       const result = await registryService.registerModel(modelData);
@@ -96,12 +96,11 @@ describe('ModelRegistryService', () => {
     });
 
     test('should handle registration failure', async () => {
-      mockContract.registerModel.mockRejectedValue(
-        new Error('Model already registered')
-      );
+      mockContract.registerModel.mockRejectedValue(new Error('Model already registered'));
 
-      await expect(registryService.registerModel(modelData))
-        .rejects.toThrow('Model already registered');
+      await expect(registryService.registerModel(modelData)).rejects.toThrow(
+        'Model already registered',
+      );
     });
 
     test('should handle transaction revert', async () => {
@@ -110,16 +109,17 @@ describe('ModelRegistryService', () => {
         hash: txHash,
         blockNumber: 12345678,
         gasUsed: ethers.toBigInt('150000'),
-        status: 0 // Failed transaction
+        status: 0, // Failed transaction
       };
 
       mockContract.registerModel.mockResolvedValue({
         hash: txHash,
-        wait: jest.fn().mockResolvedValue(receipt)
+        wait: jest.fn().mockResolvedValue(receipt),
       });
 
-      await expect(registryService.registerModel(modelData))
-        .rejects.toThrow('Transaction reverted');
+      await expect(registryService.registerModel(modelData)).rejects.toThrow(
+        'Transaction reverted',
+      );
     });
   });
 
@@ -145,8 +145,7 @@ describe('ModelRegistryService', () => {
     test('should handle query errors', async () => {
       mockContract.getTokenAddress.mockRejectedValue(new Error('Network error'));
 
-      await expect(registryService.checkModelExists('model_123'))
-        .rejects.toThrow('Network error');
+      await expect(registryService.checkModelExists('model_123')).rejects.toThrow('Network error');
     });
   });
 
@@ -157,7 +156,7 @@ describe('ModelRegistryService', () => {
         metricName: 'accuracy',
         mlflowRunId: 'run_abc123',
         registrationTime: ethers.toBigInt('1706352090'),
-        isActive: true
+        isActive: true,
       };
 
       mockContract.getModelInfo.mockResolvedValue(modelInfo);
@@ -169,7 +168,7 @@ describe('ModelRegistryService', () => {
         metricName: modelInfo.metricName,
         mlflowRunId: modelInfo.mlflowRunId,
         registrationTime: new Date(Number(modelInfo.registrationTime) * 1000),
-        isActive: modelInfo.isActive
+        isActive: modelInfo.isActive,
       });
     });
 
@@ -179,7 +178,7 @@ describe('ModelRegistryService', () => {
         metricName: '',
         mlflowRunId: '',
         registrationTime: ethers.toBigInt('0'),
-        isActive: false
+        isActive: false,
       });
 
       const result = await registryService.getModelInfo('model_456');
@@ -197,7 +196,7 @@ describe('ModelRegistryService', () => {
         modelId: 'model_123',
         tokenAddress: '0x1234567890123456789012345678901234567890',
         metricName: 'accuracy',
-        mlflowRunId: 'run_abc123'
+        mlflowRunId: 'run_abc123',
       });
 
       expect(gasEstimate).toBe('120000');
@@ -227,25 +226,23 @@ describe('ModelRegistryService', () => {
     test('should listen for ModelRegistered events', async () => {
       const eventHandler = jest.fn();
       const filter = { address: config.registryAddress };
-      
+
       mockContract.filters.ModelRegistered.mockReturnValue(filter);
-      mockContract.on.mockImplementation(
-        (event: any, handler: (...args: any[]) => void) => {
-          // The source obtains the filter via getEvent('ModelRegistered')()
-          // (which returns the mocked `filter`) and subscribes with it, so the
-          // first arg to `on` is the filter object rather than the event name.
-          if (event === filter) {
-            // Simulate an event
-            handler(
-              'model_123',
-              '0x1234567890123456789012345678901234567890',
-              'accuracy',
-              'run_abc123',
-              { blockNumber: 12345678 }
-            );
-          }
+      mockContract.on.mockImplementation((event: any, handler: (...args: any[]) => void) => {
+        // The source obtains the filter via getEvent('ModelRegistered')()
+        // (which returns the mocked `filter`) and subscribes with it, so the
+        // first arg to `on` is the filter object rather than the event name.
+        if (event === filter) {
+          // Simulate an event
+          handler(
+            'model_123',
+            '0x1234567890123456789012345678901234567890',
+            'accuracy',
+            'run_abc123',
+            { blockNumber: 12345678 },
+          );
         }
-      );
+      });
 
       await registryService.onModelRegistered(eventHandler);
 
@@ -255,27 +252,25 @@ describe('ModelRegistryService', () => {
         tokenAddress: '0x1234567890123456789012345678901234567890',
         metricName: 'accuracy',
         mlflowRunId: 'run_abc123',
-        blockNumber: 12345678
+        blockNumber: 12345678,
       });
     });
 
     test('should handle event listener errors', async () => {
       const eventHandler = jest.fn();
       const errorHandler = jest.fn();
-      
+
       mockContract.filters.ModelRegistered.mockReturnValue({});
-      mockContract.on.mockImplementation(
-        (event: any, handler: (...args: any[]) => void) => {
-          if (event === 'error') {
-            handler(new Error('Event subscription failed'));
-          }
+      mockContract.on.mockImplementation((event: any, handler: (...args: any[]) => void) => {
+        if (event === 'error') {
+          handler(new Error('Event subscription failed'));
         }
-      );
+      });
 
       await registryService.onModelRegistered(eventHandler, errorHandler);
 
       expect(errorHandler).toHaveBeenCalledWith(
-        expect.objectContaining({ message: 'Event subscription failed' })
+        expect.objectContaining({ message: 'Event subscription failed' }),
       );
     });
   });

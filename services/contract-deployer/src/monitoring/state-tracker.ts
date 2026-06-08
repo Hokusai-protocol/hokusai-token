@@ -26,30 +26,37 @@ export interface PoolState {
   blockNumber: number;
 
   // Core state
-  reserveBalance: bigint;      // USDC in pool (6 decimals)
-  spotPrice: bigint;           // Current price (6 decimals)
-  tokenSupply: bigint;         // Total token supply (18 decimals)
-  paused: boolean;             // Emergency pause state
+  reserveBalance: bigint; // USDC in pool (6 decimals)
+  spotPrice: bigint; // Current price (6 decimals)
+  tokenSupply: bigint; // Total token supply (18 decimals)
+  paused: boolean; // Emergency pause state
 
   // Phase information
-  pricingPhase: 0 | 1;         // 0 = FLAT_PRICE, 1 = BONDING_CURVE
-  flatCurveThreshold: bigint;  // Reserve threshold for phase transition
-  flatCurvePrice: bigint;      // Fixed price during flat phase
+  pricingPhase: 0 | 1; // 0 = FLAT_PRICE, 1 = BONDING_CURVE
+  flatCurveThreshold: bigint; // Reserve threshold for phase transition
+  flatCurvePrice: bigint; // Fixed price during flat phase
 
   // Derived metrics
-  reserveUSD: number;          // Reserve in USD (formatted)
-  priceUSD: number;            // Price in USD (formatted)
-  supplyFormatted: number;     // Supply in tokens (formatted)
-  marketCapUSD: number;        // Approximate market cap
-  reserveRatio: number;        // Actual reserve ratio (vs theoretical CRR)
+  reserveUSD: number; // Reserve in USD (formatted)
+  priceUSD: number; // Price in USD (formatted)
+  supplyFormatted: number; // Supply in tokens (formatted)
+  marketCapUSD: number; // Approximate market cap
+  reserveRatio: number; // Actual reserve ratio (vs theoretical CRR)
 
   // Contract balances
   contractUSDCBalance: bigint; // Actual USDC held by contract
-  treasuryFees: bigint;        // Fees not yet withdrawn
+  treasuryFees: bigint; // Fees not yet withdrawn
 }
 
 export interface StateAlert {
-  type: 'reserve_drop' | 'price_spike' | 'supply_anomaly' | 'true_supply_mismatch' | 'paused' | 'low_reserve' | 'high_fees';
+  type:
+    | 'reserve_drop'
+    | 'price_spike'
+    | 'supply_anomaly'
+    | 'true_supply_mismatch'
+    | 'paused'
+    | 'low_reserve'
+    | 'high_fees';
   priority: 'critical' | 'high' | 'medium';
   poolAddress: string;
   modelId: string;
@@ -78,9 +85,9 @@ export class StateTracker {
 
   // Cache for immutable pool data (reduces RPC calls)
   private tokenAddressCache: Map<string, string> = new Map(); // poolAddress -> tokenAddress
-  private usdcAddressCache: Map<string, string> = new Map();  // poolAddress -> usdcAddress
+  private usdcAddressCache: Map<string, string> = new Map(); // poolAddress -> usdcAddress
   private flatCurveThresholdCache: Map<string, bigint> = new Map(); // poolAddress -> threshold
-  private flatCurvePriceCache: Map<string, bigint> = new Map();     // poolAddress -> flatPrice
+  private flatCurvePriceCache: Map<string, bigint> = new Map(); // poolAddress -> flatPrice
 
   // Statistics for suppressed alerts
   private suppressedAlertCount: number = 0;
@@ -107,24 +114,22 @@ export class StateTracker {
     'event Buy(address indexed buyer, uint256 reserveIn, uint256 tokensOut, uint256 fee, uint256 spotPrice)',
     'event Sell(address indexed seller, uint256 tokensIn, uint256 reserveOut, uint256 fee, uint256 spotPrice)',
     'event FeesDeposited(address indexed depositor, uint256 amount, uint256 newReserveBalance, uint256 newSpotPrice)',
-    'event PhaseTransition(uint8 indexed fromPhase, uint8 indexed toPhase, uint256 reserveBalance, uint256 timestamp)'
+    'event PhaseTransition(uint8 indexed fromPhase, uint8 indexed toPhase, uint256 reserveBalance, uint256 timestamp)',
   ];
 
   // ERC20 Token ABI
   private static readonly TOKEN_ABI = [
     'function totalSupply() view returns (uint256)',
-    'function balanceOf(address) view returns (uint256)'
+    'function balanceOf(address) view returns (uint256)',
   ];
 
   // USDC ABI
-  private static readonly USDC_ABI = [
-    'function balanceOf(address) view returns (uint256)'
-  ];
+  private static readonly USDC_ABI = ['function balanceOf(address) view returns (uint256)'];
 
   constructor(
     provider: ethers.Provider,
     thresholds: AlertThresholds,
-    callbacks: StateTrackerCallbacks = {}
+    callbacks: StateTrackerCallbacks = {},
   ) {
     this.provider = provider;
     this.thresholds = thresholds;
@@ -143,7 +148,9 @@ export class StateTracker {
       return;
     }
 
-    logger.info(`Starting state tracking for ${modelId} (${ammAddress}), mode: event-driven + periodic fallback`);
+    logger.info(
+      `Starting state tracking for ${modelId} (${ammAddress}), mode: event-driven + periodic fallback`,
+    );
 
     // Initial state fetch
     await this.pollPoolState(poolConfig);
@@ -182,7 +189,9 @@ export class StateTracker {
     this.pollingIntervals.set(ammAddress, interval);
     this.isTracking = true;
 
-    logger.info(`State tracking started for ${modelId} (event-driven + ${fallbackIntervalMs}ms fallback)`);
+    logger.info(
+      `State tracking started for ${modelId} (event-driven + ${fallbackIntervalMs}ms fallback)`,
+    );
   }
 
   /**
@@ -204,7 +213,15 @@ export class StateTracker {
     }
 
     // Clear all active alerts for this pool
-    const alertTypes = ['reserve_drop', 'price_spike', 'supply_anomaly', 'low_reserve', 'paused', 'high_fees', 'true_supply_mismatch'];
+    const alertTypes = [
+      'reserve_drop',
+      'price_spike',
+      'supply_anomaly',
+      'low_reserve',
+      'paused',
+      'high_fees',
+      'true_supply_mismatch',
+    ];
     for (const alertType of alertTypes) {
       this.clearAlert(poolAddress, alertType);
     }
@@ -306,8 +323,16 @@ export class StateTracker {
         throw new Error('Token contract methods not found');
       }
 
-      const [reserveBalance, spotPrice, paused, tokenSupply, contractUSDCBalance,
-             currentPhase, fetchedThreshold, fetchedPrice] = await Promise.all([
+      const [
+        reserveBalance,
+        spotPrice,
+        paused,
+        tokenSupply,
+        contractUSDCBalance,
+        currentPhase,
+        fetchedThreshold,
+        fetchedPrice,
+      ] = await Promise.all([
         reserveBalanceFn(),
         spotPriceFn(),
         pausedFn(),
@@ -315,19 +340,23 @@ export class StateTracker {
         balanceOfFn(ammAddress),
         getCurrentPhaseFn(),
         flatCurveThreshold ? Promise.resolve(flatCurveThreshold) : getThresholdFn(),
-        flatCurvePrice ? Promise.resolve(flatCurvePrice) : getPriceFn()
+        flatCurvePrice ? Promise.resolve(flatCurvePrice) : getPriceFn(),
       ]);
 
       // Cache immutable phase parameters
       if (!flatCurveThreshold) {
         this.flatCurveThresholdCache.set(ammAddress, fetchedThreshold);
         flatCurveThreshold = fetchedThreshold;
-        logger.debug(`Cached flat curve threshold for ${modelId}: ${ethers.formatUnits(fetchedThreshold, 6)} USDC`);
+        logger.debug(
+          `Cached flat curve threshold for ${modelId}: ${ethers.formatUnits(fetchedThreshold, 6)} USDC`,
+        );
       }
       if (!flatCurvePrice) {
         this.flatCurvePriceCache.set(ammAddress, fetchedPrice);
         flatCurvePrice = fetchedPrice;
-        logger.debug(`Cached flat curve price for ${modelId}: $${ethers.formatUnits(fetchedPrice, 6)}`);
+        logger.debug(
+          `Cached flat curve price for ${modelId}: $${ethers.formatUnits(fetchedPrice, 6)}`,
+        );
       }
 
       // Calculate derived metrics
@@ -344,7 +373,8 @@ export class StateTracker {
       // This should match CRR if bonding curve is working correctly
       let reserveRatio = 0;
       if (spotPrice > 0n && tokenSupply > 0n) {
-        reserveRatio = Number(reserveBalance) * 1e18 / (Number(spotPrice) * Number(tokenSupply) * 1e6);
+        reserveRatio =
+          (Number(reserveBalance) * 1e18) / (Number(spotPrice) * Number(tokenSupply) * 1e6);
       }
 
       // Treasury fees = contract balance - tracked reserve
@@ -369,7 +399,7 @@ export class StateTracker {
         marketCapUSD,
         reserveRatio,
         contractUSDCBalance,
-        treasuryFees
+        treasuryFees,
       };
 
       // Store state
@@ -382,7 +412,6 @@ export class StateTracker {
       if (this.callbacks.onStateUpdate) {
         await this.callbacks.onStateUpdate(state);
       }
-
     } catch (error) {
       logger.error(`Failed to poll state for ${modelId} at ${ammAddress}:`, error);
       throw error;
@@ -447,7 +476,7 @@ export class StateTracker {
     logger.debug(`Checking anomalies for ${currentState.modelId}`, {
       phase: isBootstrapPhase ? 'FLAT_PRICE' : 'BONDING_CURVE',
       reserveUSD: currentState.reserveUSD,
-      threshold: Number(ethers.formatUnits(currentState.flatCurveThreshold, 6))
+      threshold: Number(ethers.formatUnits(currentState.flatCurveThreshold, 6)),
     });
 
     // ALWAYS CHECK: Critical security alerts (all phases)
@@ -456,7 +485,8 @@ export class StateTracker {
     const pausedAlertType = 'paused';
     if (currentState.paused) {
       const pausedDuration = this.getPausedDuration(currentState.poolAddress);
-      const isPausedConditionMet = pausedDuration > this.thresholds.pausedDurationHours * 60 * 60 * 1000;
+      const isPausedConditionMet =
+        pausedDuration > this.thresholds.pausedDurationHours * 60 * 60 * 1000;
 
       if (isPausedConditionMet && !this.isAlertActive(currentState.poolAddress, pausedAlertType)) {
         this.setAlertActive(currentState.poolAddress, pausedAlertType);
@@ -467,7 +497,7 @@ export class StateTracker {
           modelId: currentState.modelId,
           message: `Pool has been paused for ${(pausedDuration / (60 * 60 * 1000)).toFixed(1)} hours`,
           currentState,
-          metadata: { pausedDurationMs: pausedDuration }
+          metadata: { pausedDurationMs: pausedDuration },
         });
       }
     } else {
@@ -487,11 +517,15 @@ export class StateTracker {
 
       // Check reserve drop
       const reserveDropAlert = this.checkReserveDrop(currentState, history);
-      if (reserveDropAlert) alerts.push(reserveDropAlert);
+      if (reserveDropAlert) {
+        alerts.push(reserveDropAlert);
+      }
 
       // Check low reserve (absolute minimum)
       const lowReserveAlertType = 'low_reserve';
-      const isLowReserveConditionMet = currentState.reserveUSD < this.thresholds.minReserveUSD && this.thresholds.minReserveUSD > 0;
+      const isLowReserveConditionMet =
+        currentState.reserveUSD < this.thresholds.minReserveUSD &&
+        this.thresholds.minReserveUSD > 0;
 
       if (isLowReserveConditionMet) {
         if (!this.isAlertActive(currentState.poolAddress, lowReserveAlertType)) {
@@ -502,7 +536,7 @@ export class StateTracker {
             poolAddress: currentState.poolAddress,
             modelId: currentState.modelId,
             message: `Reserve below minimum: $${currentState.reserveUSD.toFixed(2)} < $${this.thresholds.minReserveUSD}`,
-            currentState
+            currentState,
           });
         }
       } else {
@@ -511,11 +545,15 @@ export class StateTracker {
 
       // Check price volatility
       const priceAlert = this.checkPriceVolatility(currentState, history);
-      if (priceAlert) alerts.push(priceAlert);
+      if (priceAlert) {
+        alerts.push(priceAlert);
+      }
 
       // Check supply anomaly (renamed from supply_mismatch)
       const supplyAlert = this.checkSupplyAnomaly(currentState, history);
-      if (supplyAlert) alerts.push(supplyAlert);
+      if (supplyAlert) {
+        alerts.push(supplyAlert);
+      }
     } else {
       // Bootstrap phase: Count which alerts were suppressed
       logger.debug(`Suppressing percentage-based alerts for ${currentState.modelId} (flat phase)`);
@@ -525,7 +563,7 @@ export class StateTracker {
         this.suppressedAlertCount++;
         this.suppressedAlertsByType.set(
           alertType,
-          (this.suppressedAlertsByType.get(alertType) || 0) + 1
+          (this.suppressedAlertsByType.get(alertType) || 0) + 1,
         );
       }
     }
@@ -545,7 +583,7 @@ export class StateTracker {
           modelId: currentState.modelId,
           message: `High treasury fees: $${treasuryFeesUSD.toFixed(2)} (threshold: $${this.thresholds.treasuryFeesThresholdUSD})`,
           currentState,
-          metadata: { treasuryFeesUSD }
+          metadata: { treasuryFeesUSD },
         });
       }
     } else {
@@ -565,16 +603,20 @@ export class StateTracker {
    */
   private checkReserveDrop(currentState: PoolState, history: PoolState[]): StateAlert | null {
     const windowMs = this.thresholds.reserveDropWindowMs;
-    const cutoffTime = currentState.timestamp - (windowMs / 1000);
+    const cutoffTime = currentState.timestamp - windowMs / 1000;
 
     // Find state from ~1 hour ago
-    const oldState = history.find(s => s.timestamp >= cutoffTime);
-    if (!oldState) return null;
+    const oldState = history.find((s) => s.timestamp >= cutoffTime);
+    if (!oldState) {
+      return null;
+    }
 
     const oldReserve = Number(oldState.reserveBalance);
     const currentReserve = Number(currentState.reserveBalance);
 
-    if (oldReserve === 0) return null; // Avoid division by zero
+    if (oldReserve === 0) {
+      return null;
+    } // Avoid division by zero
 
     const dropPercentage = ((oldReserve - currentReserve) / oldReserve) * 100;
 
@@ -593,7 +635,11 @@ export class StateTracker {
           message: `Reserve dropped ${dropPercentage.toFixed(1)}% in ${windowMs / (60 * 60 * 1000)}h: $${oldState.reserveUSD.toFixed(2)} → $${currentState.reserveUSD.toFixed(2)}`,
           currentState,
           previousState: oldState,
-          metadata: { dropPercentage, oldReserveUSD: oldState.reserveUSD, newReserveUSD: currentState.reserveUSD }
+          metadata: {
+            dropPercentage,
+            oldReserveUSD: oldState.reserveUSD,
+            newReserveUSD: currentState.reserveUSD,
+          },
         };
       }
     } else {
@@ -609,13 +655,17 @@ export class StateTracker {
    */
   private checkPriceVolatility(currentState: PoolState, history: PoolState[]): StateAlert | null {
     const oneHourAgo = currentState.timestamp - 3600;
-    const oldState = history.find(s => s.timestamp >= oneHourAgo);
-    if (!oldState) return null;
+    const oldState = history.find((s) => s.timestamp >= oneHourAgo);
+    if (!oldState) {
+      return null;
+    }
 
     const oldPrice = Number(oldState.spotPrice);
     const currentPrice = Number(currentState.spotPrice);
 
-    if (oldPrice === 0) return null;
+    if (oldPrice === 0) {
+      return null;
+    }
 
     const changePercentage = Math.abs(((currentPrice - oldPrice) / oldPrice) * 100);
 
@@ -634,7 +684,11 @@ export class StateTracker {
           message: `Price changed ${changePercentage.toFixed(1)}% in 1h: $${oldState.priceUSD.toFixed(6)} → $${currentState.priceUSD.toFixed(6)}`,
           currentState,
           previousState: oldState,
-          metadata: { changePercentage, oldPriceUSD: oldState.priceUSD, newPriceUSD: currentState.priceUSD }
+          metadata: {
+            changePercentage,
+            oldPriceUSD: oldState.priceUSD,
+            newPriceUSD: currentState.priceUSD,
+          },
         };
       }
     } else {
@@ -650,13 +704,17 @@ export class StateTracker {
    */
   private checkSupplyAnomaly(currentState: PoolState, history: PoolState[]): StateAlert | null {
     const oneHourAgo = currentState.timestamp - 3600;
-    const oldState = history.find(s => s.timestamp >= oneHourAgo);
-    if (!oldState) return null;
+    const oldState = history.find((s) => s.timestamp >= oneHourAgo);
+    if (!oldState) {
+      return null;
+    }
 
     const oldSupply = Number(oldState.tokenSupply);
     const currentSupply = Number(currentState.tokenSupply);
 
-    if (oldSupply === 0) return null;
+    if (oldSupply === 0) {
+      return null;
+    }
 
     const changePercentage = Math.abs(((currentSupply - oldSupply) / oldSupply) * 100);
 
@@ -675,7 +733,11 @@ export class StateTracker {
           message: `Supply changed ${changePercentage.toFixed(1)}% in 1h: ${oldState.supplyFormatted.toFixed(0)} → ${currentState.supplyFormatted.toFixed(0)} tokens`,
           currentState,
           previousState: oldState,
-          metadata: { changePercentage, oldSupply: oldState.supplyFormatted, newSupply: currentState.supplyFormatted }
+          metadata: {
+            changePercentage,
+            oldSupply: oldState.supplyFormatted,
+            newSupply: currentState.supplyFormatted,
+          },
         };
       }
     } else {
@@ -712,7 +774,9 @@ export class StateTracker {
     // In flat phase, supply invariant is complex due to fixed pricing
     // For MVP, only validate in bonding curve phase where math is well-defined
     if (pricingPhase === 0) {
-      logger.debug(`Skipping supply invariant check for ${currentState.modelId} (flat phase - complex validation)`);
+      logger.debug(
+        `Skipping supply invariant check for ${currentState.modelId} (flat phase - complex validation)`,
+      );
       this.clearAlert(currentState.poolAddress, alertType);
       return null;
     }
@@ -729,7 +793,9 @@ export class StateTracker {
     const minReserveForValidation = thresholdUSD * (1 + marginPercent);
 
     if (currentState.reserveUSD < minReserveForValidation) {
-      logger.debug(`Skipping supply invariant check for ${currentState.modelId} (recently graduated, reserve ${currentState.reserveUSD} < ${minReserveForValidation.toFixed(0)} validation threshold)`);
+      logger.debug(
+        `Skipping supply invariant check for ${currentState.modelId} (recently graduated, reserve ${currentState.reserveUSD} < ${minReserveForValidation.toFixed(0)} validation threshold)`,
+      );
       this.clearAlert(currentState.poolAddress, alertType);
       return null;
     }
@@ -759,7 +825,7 @@ export class StateTracker {
           deviationPercent: (deviation * 100).toFixed(2),
           reserveUSD: currentState.reserveUSD,
           supplyFormatted: currentState.supplyFormatted,
-          priceUSD: currentState.priceUSD
+          priceUSD: currentState.priceUSD,
         });
 
         return {
@@ -776,8 +842,8 @@ export class StateTracker {
             crr,
             reserveBalance: reserveBalance.toString(),
             tokenSupply: tokenSupply.toString(),
-            spotPrice: spotPrice.toString()
-          }
+            spotPrice: spotPrice.toString(),
+          },
         };
       }
     } else {
@@ -789,7 +855,7 @@ export class StateTracker {
     logger.debug(`Supply invariant OK for ${currentState.modelId}`, {
       expectedRatio: expectedRatio.toFixed(4),
       actualRatio: actualRatio.toFixed(4),
-      deviation: (deviation * 100).toFixed(2) + '%'
+      deviation: (deviation * 100).toFixed(2) + '%',
     });
 
     return null;
@@ -808,15 +874,15 @@ export class StateTracker {
         // Found first non-paused state, calculate duration since then
         const pausedSince = history[i + 1];
         if (pausedSince) {
-          return Date.now() - (pausedSince.timestamp * 1000);
+          return Date.now() - pausedSince.timestamp * 1000;
         }
       }
     }
 
     // If all history is paused, use oldest timestamp
     const firstState = history[0];
-    if (history.length > 0 && firstState && firstState.paused) {
-      return Date.now() - (firstState.timestamp * 1000);
+    if (history.length > 0 && firstState?.paused) {
+      return Date.now() - firstState.timestamp * 1000;
     }
 
     return 0;
@@ -830,7 +896,9 @@ export class StateTracker {
     // Mainnet USDC: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
     // This will be provided by monitoring config
     const chainId = (await this.provider.getNetwork()).chainId;
-    return chainId === 1n ? '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' : '0x7A9F8817EbF9815B9388E6bbFE7e4C46cef382e3'; // Sepolia MockUSDC
+    return chainId === 1n
+      ? '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+      : '0x7A9F8817EbF9815B9388E6bbFE7e4C46cef382e3'; // Sepolia MockUSDC
   }
 
   /**
@@ -879,7 +947,7 @@ export class StateTracker {
   getSuppressedAlertStats() {
     return {
       total: this.suppressedAlertCount,
-      byType: Object.fromEntries(this.suppressedAlertsByType)
+      byType: Object.fromEntries(this.suppressedAlertsByType),
     };
   }
 }

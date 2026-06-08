@@ -25,7 +25,7 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
       res.json({
         success: true,
         data: status,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -33,8 +33,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         error: {
           code: 'STATUS_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -50,9 +50,9 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         success: true,
         data: {
           models,
-          count: models.length
+          count: models.length,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -60,8 +60,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         error: {
           code: 'MODELS_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -79,8 +79,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'INVALID_REQUEST',
             message: 'Missing required path parameter: modelId',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -95,8 +95,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'MODEL_NOT_FOUND',
             message: `No variance data for model ${modelId}`,
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -107,9 +107,9 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           modelId,
           current,
           history,
-          historyCount: history.length
+          historyCount: history.length,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -117,8 +117,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         error: {
           code: 'VARIANCE_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -136,8 +136,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'INVALID_REQUEST',
             message: 'Missing required path parameter: modelId',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -152,8 +152,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'NO_RECOMMENDATIONS',
             message: `No recommendations for model ${modelId}`,
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -164,9 +164,9 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           modelId,
           latest,
           recommendations,
-          count: recommendations.length
+          count: recommendations.length,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -174,8 +174,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         error: {
           code: 'RECOMMENDATIONS_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -193,8 +193,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'INVALID_REQUEST',
             message: 'Missing required path parameter: modelId',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -208,8 +208,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'NO_COSTS',
             message: `No cost history for model ${modelId}`,
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -219,9 +219,9 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         data: {
           modelId,
           costs,
-          count: costs.length
+          count: costs.length,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -229,8 +229,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         error: {
           code: 'COSTS_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -262,8 +262,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'INVALID_REQUEST',
             message: 'Missing required path parameter: modelId',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -275,8 +275,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'INVALID_REQUEST',
             message: 'Missing required fields: provider, amount, period',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -287,8 +287,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'INVALID_REQUEST',
             message: 'Period must have start and end dates',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -301,8 +301,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'INVALID_AMOUNT',
             message: 'Amount must be a valid positive number',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -316,8 +316,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'INVALID_DATES',
             message: 'Period start and end must be valid dates',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -328,8 +328,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
           error: {
             code: 'INVALID_PERIOD',
             message: 'Period end must be after period start',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -341,19 +341,19 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         amount: parsedAmount,
         period: {
           start: startDate,
-          end: endDate
+          end: endDate,
         },
         invoiceId,
-        metadata
+        metadata,
       });
 
       res.json({
         success: true,
         data: {
           modelId,
-          message: 'Costs ingested successfully'
+          message: 'Costs ingested successfully',
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -361,8 +361,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         error: {
           code: 'INGEST_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -375,24 +375,28 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
     try {
       const models = reconciliationService.getTrackedModels();
 
-      const summary = models.map(modelId => {
+      const summary = models.map((modelId) => {
         const variance = reconciliationService.getCurrentVariance(modelId);
         const recommendation = reconciliationService.getLatestRecommendation(modelId);
         const costs = reconciliationService.getCostHistory(modelId, 1);
 
         return {
           modelId,
-          variance: variance ? {
-            variancePercent: variance.variancePercent,
-            actual: variance.actual,
-            estimated: variance.estimated
-          } : null,
-          recommendation: recommendation ? {
-            currentEstimate: recommendation.currentEstimate,
-            recommendedEstimate: recommendation.recommendedEstimate,
-            adjustmentPercent: recommendation.adjustmentPercent
-          } : null,
-          latestCost: costs.length > 0 ? costs[0] : null
+          variance: variance
+            ? {
+                variancePercent: variance.variancePercent,
+                actual: variance.actual,
+                estimated: variance.estimated,
+              }
+            : null,
+          recommendation: recommendation
+            ? {
+                currentEstimate: recommendation.currentEstimate,
+                recommendedEstimate: recommendation.recommendedEstimate,
+                adjustmentPercent: recommendation.adjustmentPercent,
+              }
+            : null,
+          latestCost: costs.length > 0 ? costs[0] : null,
         };
       });
 
@@ -400,9 +404,9 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         success: true,
         data: {
           models: summary,
-          count: summary.length
+          count: summary.length,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -410,8 +414,8 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         error: {
           code: 'SUMMARY_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });

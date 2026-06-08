@@ -1,7 +1,14 @@
 import { ethers } from 'ethers';
-import { ContractDeployer, ContractDeployerConfig } from '../../../src/blockchain/contract-deployer';
+import {
+  ContractDeployer,
+  ContractDeployerConfig,
+} from '../../../src/blockchain/contract-deployer';
 import { ModelReadyToDeployMessage } from '../../../src/schemas/message-schemas';
-import { createMockProvider, createMockSigner, createMockTransactionResponse } from '../../mocks/ethers-mock';
+import {
+  createMockProvider,
+  createMockSigner,
+  createMockTransactionResponse,
+} from '../../mocks/ethers-mock';
 
 describe('ContractDeployer', () => {
   let deployer: ContractDeployer;
@@ -84,7 +91,7 @@ describe('ContractDeployer', () => {
 
     jest.spyOn(ethers, 'JsonRpcProvider').mockReturnValue(mockProvider as any);
     jest.spyOn(ethers, 'Wallet').mockReturnValue(mockSigner as any);
-    jest.spyOn(ethers, 'Contract').mockReturnValue(mockTokenManager as any);
+    jest.spyOn(ethers, 'Contract').mockReturnValue(mockTokenManager);
 
     mockSigner.connect.mockReturnValue(mockSigner);
     mockProvider.getFeeData.mockResolvedValue({
@@ -108,7 +115,7 @@ describe('ContractDeployer', () => {
       expect(ethers.Contract).toHaveBeenCalledWith(
         config.tokenManagerAddress,
         expect.any(Array),
-        mockSigner
+        mockSigner,
       );
 
       expect(mockTokenManager.deployTokenWithAllocations).toHaveBeenCalledWith(
@@ -127,7 +134,7 @@ describe('ContractDeployer', () => {
             immediateUnlockBps: 10000,
           }),
         }),
-        expect.objectContaining({ gasPrice: expect.any(BigInt) })
+        expect.objectContaining({ gasPrice: expect.any(BigInt) }),
       );
 
       expect(result).toEqual({
@@ -154,7 +161,7 @@ describe('ContractDeployer', () => {
       mockTokenManager.interface.parseLog.mockReturnValue(null);
 
       await expect(deployer.deployToken(validMessage)).rejects.toThrow(
-        'TokenDeployed event not found in receipt'
+        'TokenDeployed event not found in receipt',
       );
     });
 
@@ -174,7 +181,7 @@ describe('ContractDeployer', () => {
 
     test('should fail after max retries', async () => {
       mockTokenManager.deployTokenWithAllocations.mockRejectedValue(
-        new Error('Insufficient funds')
+        new Error('Insufficient funds'),
       );
 
       await expect(deployer.deployToken(validMessage)).rejects.toThrow('Insufficient funds');
@@ -202,7 +209,7 @@ describe('ContractDeployer', () => {
         expect.any(Object),
         expect.objectContaining({
           gasPrice: ethers.toBigInt(config.maxGasPrice),
-        })
+        }),
       );
     });
   });

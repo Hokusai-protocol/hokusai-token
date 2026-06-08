@@ -59,9 +59,7 @@ describe('DeltaVerifier ABI sync guard', () => {
       inputs.map((input: any) => ({
         name: input.name,
         type: input.type,
-        ...(input.components
-          ? { components: normalizeInputs(input.components) }
-          : {}),
+        ...(input.components ? { components: normalizeInputs(input.components) } : {}),
       }));
 
     expect(normalizeInputs((serviceFragment as any).inputs)).toEqual(

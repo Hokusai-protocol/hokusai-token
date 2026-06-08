@@ -53,7 +53,7 @@ async function ingestCosts(csvPath: string, config: IngestConfig): Promise<void>
   const records = parse(csvContent, {
     columns: true,
     skip_empty_lines: true,
-    trim: true
+    trim: true,
   }) as CsvRow[];
 
   console.log(`Found ${records.length} cost records`);
@@ -84,9 +84,9 @@ async function ingestCosts(csvPath: string, config: IngestConfig): Promise<void>
         amount: parseFloat(record.amount),
         period: {
           start: new Date(record.periodStart).toISOString(),
-          end: new Date(record.periodEnd).toISOString()
+          end: new Date(record.periodEnd).toISOString(),
         },
-        invoiceId: record.invoiceId || undefined
+        invoiceId: record.invoiceId || undefined,
       };
 
       console.log(`Ingesting costs for ${record.modelId}...`);
@@ -96,10 +96,10 @@ async function ingestCosts(csvPath: string, config: IngestConfig): Promise<void>
         {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify(payload)
-        }
+          body: JSON.stringify(payload),
+        },
       );
 
       if (!response.ok) {
@@ -125,9 +125,11 @@ async function ingestCosts(csvPath: string, config: IngestConfig): Promise<void>
           : 'OK';
       console.log(`  ✓ Success: ${message}`);
       successCount++;
-
     } catch (error) {
-      console.error(`  ✗ Error ingesting ${record.modelId}:`, error instanceof Error ? error.message : error);
+      console.error(
+        `  ✗ Error ingesting ${record.modelId}:`,
+        error instanceof Error ? error.message : error,
+      );
       errorCount++;
     }
   }
@@ -170,14 +172,13 @@ Environment:
     process.exit(1);
   }
   const dryRun = args.includes('--dry-run');
-  const apiUrlArg = args.find(arg => arg.startsWith('--api-url='));
+  const apiUrlArg = args.find((arg) => arg.startsWith('--api-url='));
   const apiUrlFromArg = apiUrlArg?.split('=')[1];
-  const apiUrl =
-    apiUrlFromArg || process.env.RECONCILIATION_API_URL || 'http://localhost:8002';
+  const apiUrl = apiUrlFromArg || process.env.RECONCILIATION_API_URL || 'http://localhost:8002';
 
   const config: IngestConfig = {
     apiUrl,
-    dryRun
+    dryRun,
   };
 
   console.log(`API URL: ${config.apiUrl}`);

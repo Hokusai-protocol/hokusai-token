@@ -1,7 +1,7 @@
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { logger } from '../utils/logger';
 import { StateAlert } from './state-tracker';
-import { EventAlert, TradeEvent, SecurityEvent, FeeEvent } from './event-listener';
+import { EventAlert } from './event-listener';
 
 /**
  * Alert Manager
@@ -48,7 +48,7 @@ export class AlertManager {
     totalAlertsDropped: 0,
     totalAlertsDeduplicated: 0,
     alertsByType: new Map<string, number>(),
-    alertsByPriority: new Map<string, number>()
+    alertsByPriority: new Map<string, number>(),
   };
 
   constructor(config: AlertManagerConfig) {
@@ -56,7 +56,7 @@ export class AlertManager {
 
     // Initialize SES client
     this.sesClient = new SESClient({
-      region: config.awsSesRegion
+      region: config.awsSesRegion,
     });
 
     // Start cleanup interval (every 5 minutes)
@@ -66,7 +66,7 @@ export class AlertManager {
       emailEnabled: config.emailEnabled,
       recipients: config.emailRecipients,
       maxAlertsPerHour: config.maxAlertsPerHour,
-      deduplicationWindowMs: config.deduplicationWindowMs
+      deduplicationWindowMs: config.deduplicationWindowMs,
     });
   }
 
@@ -91,7 +91,7 @@ export class AlertManager {
       this.stats.totalAlertsDropped++;
       logger.warn(`Alert dropped due to rate limit: ${alert.type}`, {
         priority: alert.priority,
-        message: alert.message
+        message: alert.message,
       });
       return false;
     }
@@ -115,7 +115,10 @@ export class AlertManager {
     // Update statistics
     const typeKey = alert.type;
     this.stats.alertsByType.set(typeKey, (this.stats.alertsByType.get(typeKey) || 0) + 1);
-    this.stats.alertsByPriority.set(alert.priority, (this.stats.alertsByPriority.get(alert.priority) || 0) + 1);
+    this.stats.alertsByPriority.set(
+      alert.priority,
+      (this.stats.alertsByPriority.get(alert.priority) || 0) + 1,
+    );
 
     return sent;
   }
@@ -130,25 +133,25 @@ export class AlertManager {
     const command = new SendEmailCommand({
       Source: this.config.emailFrom,
       Destination: {
-        ToAddresses: this.config.emailRecipients
+        ToAddresses: this.config.emailRecipients,
       },
       Message: {
         Subject: {
           Data: subject,
-          Charset: 'UTF-8'
+          Charset: 'UTF-8',
         },
         Body: {
           Html: {
             Data: body,
-            Charset: 'UTF-8'
-          }
-        }
-      }
+            Charset: 'UTF-8',
+          },
+        },
+      },
     });
 
     await this.sesClient.send(command);
     logger.info(`Email alert sent: ${subject}`, {
-      recipients: this.config.emailRecipients
+      recipients: this.config.emailRecipients,
     });
   }
 
@@ -159,7 +162,7 @@ export class AlertManager {
     const priorityPrefix = {
       critical: '🚨 CRITICAL',
       high: '⚠️  HIGH',
-      medium: '📊 MEDIUM'
+      medium: '📊 MEDIUM',
     };
 
     const prefix = priorityPrefix[alert.priority];
@@ -173,7 +176,7 @@ export class AlertManager {
     const priorityColor = {
       critical: '#DC2626',
       high: '#EA580C',
-      medium: '#2563EB'
+      medium: '#2563EB',
     };
 
     const color = priorityColor[alert.priority];
@@ -184,10 +187,10 @@ export class AlertManager {
     // Build details based on alert type
     if ('poolAddress' in alert) {
       // StateAlert
-      detailsHtml = this.buildStateAlertDetails(alert as StateAlert);
+      detailsHtml = this.buildStateAlertDetails(alert);
     } else {
       // EventAlert
-      detailsHtml = this.buildEventAlertDetails(alert as EventAlert);
+      detailsHtml = this.buildEventAlertDetails(alert);
     }
 
     return `
@@ -254,12 +257,15 @@ export class AlertManager {
     const { currentState, previousState } = alert;
 
     // Add phase information
-    const phaseName = currentState.pricingPhase === 0 ? 'Flat Price (Bootstrap)' : 'Bonding Curve (Active)';
+    const phaseName =
+      currentState.pricingPhase === 0 ? 'Flat Price (Bootstrap)' : 'Bonding Curve (Active)';
     const phaseColor = currentState.pricingPhase === 0 ? '#10B981' : '#3B82F6';
     const thresholdUSD = Number(currentState.flatCurveThreshold) / 1e6;
 
     // Special formatting for TRUE_SUPPLY_MISMATCH
-    const supplyMismatchWarning = alert.type === 'true_supply_mismatch' && alert.metadata ? `
+    const supplyMismatchWarning =
+      alert.type === 'true_supply_mismatch' && alert.metadata
+        ? `
       <div class="details" style="background-color: #FEE2E2; border: 2px solid #DC2626; padding: 15px; margin-bottom: 20px;">
         <h3 style="color: #DC2626; margin-top: 0;">⚠️ CRITICAL: Supply Invariant Violation Detected</h3>
         <p style="color: #991B1B; font-weight: bold;">
@@ -290,7 +296,8 @@ export class AlertManager {
           <span class="detail-value">${alert.metadata.spotPrice || 'N/A'}</span>
         </div>
       </div>
-    ` : '';
+    `
+        : '';
 
     return `
       ${supplyMismatchWarning}
@@ -339,7 +346,9 @@ export class AlertManager {
         </div>
       </div>
 
-      ${previousState ? `
+      ${
+        previousState
+          ? `
         <div class="details">
           <h3>Previous State (for comparison)</h3>
           <div class="detail-row">
@@ -355,7 +364,9 @@ export class AlertManager {
             <span class="detail-value">${this.calculateChangePercent(previousState.reserveUSD, currentState.reserveUSD)}%</span>
           </div>
         </div>
-      ` : ''}
+      `
+          : ''
+      }
     `;
   }
 
@@ -367,7 +378,7 @@ export class AlertManager {
 
     if ('reserveAmount' in event) {
       // TradeEvent
-      const trade = event as TradeEvent;
+      const trade = event;
       return `
         <div class="details">
           <h3>Trade Details</h3>
@@ -411,7 +422,7 @@ export class AlertManager {
       `;
     } else if ('contractAddress' in event) {
       // SecurityEvent
-      const security = event as SecurityEvent;
+      const security = event;
       return `
         <div class="details">
           <h3>Security Event Details</h3>
@@ -431,17 +442,21 @@ export class AlertManager {
             <span class="detail-label">Transaction:</span>
             <span class="detail-value"><code>${security.transactionHash}</code></span>
           </div>
-          ${security.details ? `
+          ${
+            security.details
+              ? `
             <div class="detail-row">
               <span class="detail-label">Details:</span>
               <span class="detail-value">${JSON.stringify(security.details, null, 2)}</span>
             </div>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
       `;
     } else {
       // FeeEvent
-      const fee = event as FeeEvent;
+      const fee = event;
       return `
         <div class="details">
           <h3>Fee Deposit Details</h3>
@@ -474,7 +489,9 @@ export class AlertManager {
    * Calculate percentage change
    */
   private calculateChangePercent(oldValue: number, newValue: number): string {
-    if (oldValue === 0) return 'N/A';
+    if (oldValue === 0) {
+      return 'N/A';
+    }
     const change = ((newValue - oldValue) / oldValue) * 100;
     const sign = change > 0 ? '+' : '';
     return `${sign}${change.toFixed(2)}`;
@@ -525,16 +542,16 @@ export class AlertManager {
     const history = this.alertHistory.get(alertType)!;
 
     // Count alerts in last hour
-    const oneHourAgo = now - (60 * 60 * 1000);
-    const alertsLastHour = history.filter(r => r.timestamp >= oneHourAgo).length;
+    const oneHourAgo = now - 60 * 60 * 1000;
+    const alertsLastHour = history.filter((r) => r.timestamp >= oneHourAgo).length;
 
     if (alertsLastHour >= this.config.maxAlertsPerHour) {
       return true;
     }
 
     // Count alerts in last day
-    const oneDayAgo = now - (24 * 60 * 60 * 1000);
-    const alertsLastDay = history.filter(r => r.timestamp >= oneDayAgo).length;
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
+    const alertsLastDay = history.filter((r) => r.timestamp >= oneDayAgo).length;
 
     if (alertsLastDay >= this.config.maxAlertsPerDay) {
       return true;
@@ -559,7 +576,7 @@ export class AlertManager {
       alert,
       timestamp: now,
       sentCount: 1,
-      lastSentTime: now
+      lastSentTime: now,
     });
   }
 
@@ -567,16 +584,16 @@ export class AlertManager {
    * Clean up old alerts from history
    */
   private cleanupOldAlerts(): void {
-    const cutoff = Date.now() - (24 * 60 * 60 * 1000); // Keep 24 hours
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000; // Keep 24 hours
 
     for (const [type, history] of this.alertHistory.entries()) {
-      const filtered = history.filter(r => r.timestamp >= cutoff);
+      const filtered = history.filter((r) => r.timestamp >= cutoff);
       this.alertHistory.set(type, filtered);
     }
 
     logger.debug('Alert history cleanup completed', {
       totalTypes: this.alertHistory.size,
-      totalRecords: Array.from(this.alertHistory.values()).reduce((sum, h) => sum + h.length, 0)
+      totalRecords: Array.from(this.alertHistory.values()).reduce((sum, h) => sum + h.length, 0),
     });
   }
 
@@ -588,8 +605,11 @@ export class AlertManager {
       ...this.stats,
       alertsByType: Object.fromEntries(this.stats.alertsByType),
       alertsByPriority: Object.fromEntries(this.stats.alertsByPriority),
-      alertHistorySize: Array.from(this.alertHistory.values()).reduce((sum, h) => sum + h.length, 0),
-      recentAlertsSize: this.recentAlerts.size
+      alertHistorySize: Array.from(this.alertHistory.values()).reduce(
+        (sum, h) => sum + h.length,
+        0,
+      ),
+      recentAlertsSize: this.recentAlerts.size,
     };
   }
 
@@ -602,7 +622,7 @@ export class AlertManager {
       totalAlertsDropped: 0,
       totalAlertsDeduplicated: 0,
       alertsByType: new Map<string, number>(),
-      alertsByPriority: new Map<string, number>()
+      alertsByPriority: new Map<string, number>(),
     };
   }
 }

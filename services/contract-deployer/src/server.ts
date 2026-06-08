@@ -118,7 +118,7 @@ async function createServer(): Promise<express.Application> {
       licenseHash: config.LICENSE_HASH,
       licenseURI: config.LICENSE_URI,
       governor: config.GOVERNOR_ADDRESS,
-    }
+    },
   });
 
   // Initialize deployment service (only if queue is available)

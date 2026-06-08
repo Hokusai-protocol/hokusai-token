@@ -19,25 +19,31 @@ export interface TradeEvent {
   poolAddress: string;
   modelId: string;
   trader: string;
-  reserveAmount: bigint;      // USDC in/out (6 decimals)
-  tokenAmount: bigint;         // Tokens out/in (18 decimals)
-  feeAmount: bigint;           // Fee collected (6 decimals USDC)
-  spotPrice: bigint;           // Price after trade (6 decimals)
-  reserveAmountUSD: number;    // Formatted USD amount
+  reserveAmount: bigint; // USDC in/out (6 decimals)
+  tokenAmount: bigint; // Tokens out/in (18 decimals)
+  feeAmount: bigint; // Fee collected (6 decimals USDC)
+  spotPrice: bigint; // Price after trade (6 decimals)
+  reserveAmountUSD: number; // Formatted USD amount
   tokenAmountFormatted: number; // Formatted token amount
-  feeAmountUSD: number;        // Formatted fee in USD
-  spotPriceUSD: number;        // Formatted spot price
+  feeAmountUSD: number; // Formatted fee in USD
+  spotPriceUSD: number; // Formatted spot price
   blockNumber: number;
   transactionHash: string;
   timestamp: number;
 }
 
 export interface SecurityEvent {
-  type: 'paused' | 'unpaused' | 'ownership_transferred' | 'parameters_updated' | 'role_granted' | 'role_revoked';
+  type:
+    | 'paused'
+    | 'unpaused'
+    | 'ownership_transferred'
+    | 'parameters_updated'
+    | 'role_granted'
+    | 'role_revoked';
   poolAddress?: string;
   contractAddress: string;
   modelId?: string;
-  actor: string;               // Who triggered the event
+  actor: string; // Who triggered the event
   details: Record<string, any>;
   blockNumber: number;
   transactionHash: string;
@@ -48,8 +54,8 @@ export interface FeeEvent {
   poolAddress: string;
   modelId: string;
   depositor: string;
-  amount: bigint;              // USDC deposited (6 decimals)
-  amountUSD: number;           // Formatted USD
+  amount: bigint; // USDC deposited (6 decimals)
+  amountUSD: number; // Formatted USD
   newReserveBalance: bigint;
   newSpotPrice: bigint;
   blockNumber: number;
@@ -89,7 +95,7 @@ export class EventListener {
     'event Unpaused(address account)',
     'event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)',
     'event ParametersUpdated(uint256 newCrr, uint256 newTradeFee, uint16 newProtocolFee)',
-    'function modelId() view returns (string)'
+    'function modelId() view returns (string)',
   ];
 
   // TokenManager ABI - Events (reserved for future use)
@@ -103,7 +109,7 @@ export class EventListener {
   constructor(
     provider: ethers.Provider,
     thresholds: AlertThresholds,
-    callbacks: EventListenerCallbacks = {}
+    callbacks: EventListenerCallbacks = {},
   ) {
     this.provider = provider;
     this.thresholds = thresholds;
@@ -134,7 +140,7 @@ export class EventListener {
         tokensOut,
         fee,
         spotPrice,
-        event
+        event,
       });
     });
 
@@ -146,7 +152,7 @@ export class EventListener {
         reserveOut,
         fee,
         spotPrice,
-        event
+        event,
       });
     });
 
@@ -157,7 +163,7 @@ export class EventListener {
         amount,
         newReserveBalance,
         newSpotPrice,
-        event
+        event,
       });
     });
 
@@ -182,7 +188,7 @@ export class EventListener {
         newCrr,
         newTradeFee,
         newProtocolFee,
-        event
+        event,
       });
     });
 
@@ -218,14 +224,17 @@ export class EventListener {
   /**
    * Handle Buy event
    */
-  private async handleBuyEvent(poolConfig: PoolConfig, data: {
-    buyer: string;
-    reserveIn: bigint;
-    tokensOut: bigint;
-    fee: bigint;
-    spotPrice: bigint;
-    event: ethers.EventLog;
-  }): Promise<void> {
+  private async handleBuyEvent(
+    poolConfig: PoolConfig,
+    data: {
+      buyer: string;
+      reserveIn: bigint;
+      tokensOut: bigint;
+      fee: bigint;
+      spotPrice: bigint;
+      event: ethers.EventLog;
+    },
+  ): Promise<void> {
     const { buyer, reserveIn, tokensOut, fee, spotPrice, event } = data;
 
     const tradeEvent: TradeEvent = {
@@ -243,11 +252,15 @@ export class EventListener {
       spotPriceUSD: Number(ethers.formatUnits(spotPrice, 6)),
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000)
+      timestamp: Math.floor(Date.now() / 1000),
     };
 
-    logger.info(`🟢 BUY: ${tradeEvent.modelId} - $${tradeEvent.reserveAmountUSD.toFixed(2)} → ${tradeEvent.tokenAmountFormatted.toFixed(2)} tokens`);
-    logger.debug(`   Trader: ${buyer}, Fee: $${tradeEvent.feeAmountUSD.toFixed(2)}, New Price: $${tradeEvent.spotPriceUSD.toFixed(6)}`);
+    logger.info(
+      `🟢 BUY: ${tradeEvent.modelId} - $${tradeEvent.reserveAmountUSD.toFixed(2)} → ${tradeEvent.tokenAmountFormatted.toFixed(2)} tokens`,
+    );
+    logger.debug(
+      `   Trader: ${buyer}, Fee: $${tradeEvent.feeAmountUSD.toFixed(2)}, New Price: $${tradeEvent.spotPriceUSD.toFixed(6)}`,
+    );
 
     // Check for whale trade
     if (tradeEvent.reserveAmountUSD > this.thresholds.largeTradeUSD) {
@@ -258,8 +271,8 @@ export class EventListener {
         event: tradeEvent,
         metadata: {
           tradeUSD: tradeEvent.reserveAmountUSD,
-          threshold: this.thresholds.largeTradeUSD
-        }
+          threshold: this.thresholds.largeTradeUSD,
+        },
       };
 
       if (this.callbacks.onAlert) {
@@ -276,14 +289,17 @@ export class EventListener {
   /**
    * Handle Sell event
    */
-  private async handleSellEvent(poolConfig: PoolConfig, data: {
-    seller: string;
-    tokensIn: bigint;
-    reserveOut: bigint;
-    fee: bigint;
-    spotPrice: bigint;
-    event: ethers.EventLog;
-  }): Promise<void> {
+  private async handleSellEvent(
+    poolConfig: PoolConfig,
+    data: {
+      seller: string;
+      tokensIn: bigint;
+      reserveOut: bigint;
+      fee: bigint;
+      spotPrice: bigint;
+      event: ethers.EventLog;
+    },
+  ): Promise<void> {
     const { seller, tokensIn, reserveOut, fee, spotPrice, event } = data;
 
     const tradeEvent: TradeEvent = {
@@ -301,11 +317,15 @@ export class EventListener {
       spotPriceUSD: Number(ethers.formatUnits(spotPrice, 6)),
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000)
+      timestamp: Math.floor(Date.now() / 1000),
     };
 
-    logger.info(`🔴 SELL: ${tradeEvent.modelId} - ${tradeEvent.tokenAmountFormatted.toFixed(2)} tokens → $${tradeEvent.reserveAmountUSD.toFixed(2)}`);
-    logger.debug(`   Trader: ${seller}, Fee: $${tradeEvent.feeAmountUSD.toFixed(2)}, New Price: $${tradeEvent.spotPriceUSD.toFixed(6)}`);
+    logger.info(
+      `🔴 SELL: ${tradeEvent.modelId} - ${tradeEvent.tokenAmountFormatted.toFixed(2)} tokens → $${tradeEvent.reserveAmountUSD.toFixed(2)}`,
+    );
+    logger.debug(
+      `   Trader: ${seller}, Fee: $${tradeEvent.feeAmountUSD.toFixed(2)}, New Price: $${tradeEvent.spotPriceUSD.toFixed(6)}`,
+    );
 
     // Check for whale trade
     if (tradeEvent.reserveAmountUSD > this.thresholds.largeTradeUSD) {
@@ -316,8 +336,8 @@ export class EventListener {
         event: tradeEvent,
         metadata: {
           tradeUSD: tradeEvent.reserveAmountUSD,
-          threshold: this.thresholds.largeTradeUSD
-        }
+          threshold: this.thresholds.largeTradeUSD,
+        },
       };
 
       if (this.callbacks.onAlert) {
@@ -334,13 +354,16 @@ export class EventListener {
   /**
    * Handle FeesDeposited event
    */
-  private async handleFeesDepositedEvent(poolConfig: PoolConfig, data: {
-    depositor: string;
-    amount: bigint;
-    newReserveBalance: bigint;
-    newSpotPrice: bigint;
-    event: ethers.EventLog;
-  }): Promise<void> {
+  private async handleFeesDepositedEvent(
+    poolConfig: PoolConfig,
+    data: {
+      depositor: string;
+      amount: bigint;
+      newReserveBalance: bigint;
+      newSpotPrice: bigint;
+      event: ethers.EventLog;
+    },
+  ): Promise<void> {
     const { depositor, amount, newReserveBalance, newSpotPrice, event } = data;
 
     const feeEvent: FeeEvent = {
@@ -353,11 +376,13 @@ export class EventListener {
       newSpotPrice,
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000)
+      timestamp: Math.floor(Date.now() / 1000),
     };
 
     logger.info(`💰 FEES DEPOSITED: ${feeEvent.modelId} - $${feeEvent.amountUSD.toFixed(2)}`);
-    logger.debug(`   Depositor: ${depositor}, New Reserve: $${Number(ethers.formatUnits(newReserveBalance, 6)).toFixed(2)}`);
+    logger.debug(
+      `   Depositor: ${depositor}, New Reserve: $${Number(ethers.formatUnits(newReserveBalance, 6)).toFixed(2)}`,
+    );
 
     // Notify callback
     if (this.callbacks.onFeeEvent) {
@@ -372,7 +397,7 @@ export class EventListener {
     poolConfig: PoolConfig,
     account: string,
     event: ethers.EventLog,
-    isPaused: boolean
+    isPaused: boolean,
   ): Promise<void> {
     const securityEvent: SecurityEvent = {
       type: isPaused ? 'paused' : 'unpaused',
@@ -383,7 +408,7 @@ export class EventListener {
       details: { paused: isPaused },
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000)
+      timestamp: Math.floor(Date.now() / 1000),
     };
 
     logger.warn(`🚨 ${isPaused ? 'PAUSED' : 'UNPAUSED'}: ${poolConfig.modelId} by ${account}`);
@@ -394,7 +419,7 @@ export class EventListener {
       type: 'security_event',
       priority: 'critical',
       message: `🚨 ${isPaused ? 'PAUSED' : 'UNPAUSED'}: ${poolConfig.modelId} by ${account}`,
-      event: securityEvent
+      event: securityEvent,
     };
 
     if (this.callbacks.onAlert) {
@@ -414,7 +439,7 @@ export class EventListener {
     poolConfig: PoolConfig,
     previousOwner: string,
     newOwner: string,
-    event: ethers.EventLog
+    event: ethers.EventLog,
   ): Promise<void> {
     const securityEvent: SecurityEvent = {
       type: 'ownership_transferred',
@@ -425,7 +450,7 @@ export class EventListener {
       details: { previousOwner, newOwner },
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000)
+      timestamp: Math.floor(Date.now() / 1000),
     };
 
     logger.warn(`🚨 OWNERSHIP TRANSFERRED: ${poolConfig.modelId}`);
@@ -437,7 +462,7 @@ export class EventListener {
       type: 'security_event',
       priority: 'critical',
       message: `🚨 OWNERSHIP TRANSFERRED: ${poolConfig.modelId} from ${previousOwner} to ${newOwner}`,
-      event: securityEvent
+      event: securityEvent,
     };
 
     if (this.callbacks.onAlert) {
@@ -453,12 +478,15 @@ export class EventListener {
   /**
    * Handle ParametersUpdated event
    */
-  private async handleParametersUpdatedEvent(poolConfig: PoolConfig, data: {
-    newCrr: bigint;
-    newTradeFee: bigint;
-    newProtocolFee: number;
-    event: ethers.EventLog;
-  }): Promise<void> {
+  private async handleParametersUpdatedEvent(
+    poolConfig: PoolConfig,
+    data: {
+      newCrr: bigint;
+      newTradeFee: bigint;
+      newProtocolFee: number;
+      event: ethers.EventLog;
+    },
+  ): Promise<void> {
     const { newCrr, newTradeFee, newProtocolFee, event } = data;
 
     const securityEvent: SecurityEvent = {
@@ -473,11 +501,11 @@ export class EventListener {
         oldTradeFee: poolConfig.tradeFee,
         newTradeFee: Number(newTradeFee),
         oldProtocolFee: poolConfig.protocolFee,
-        newProtocolFee
+        newProtocolFee,
       },
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000)
+      timestamp: Math.floor(Date.now() / 1000),
     };
 
     logger.warn(`⚙️  PARAMETERS UPDATED: ${poolConfig.modelId}`);
@@ -490,7 +518,7 @@ export class EventListener {
       type: 'security_event',
       priority: 'high',
       message: `⚙️  PARAMETERS UPDATED: ${poolConfig.modelId}`,
-      event: securityEvent
+      event: securityEvent,
     };
 
     if (this.callbacks.onAlert) {

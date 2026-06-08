@@ -29,17 +29,13 @@ export class PoolDiscovery {
   private static readonly FACTORY_ABI = [
     'event PoolCreated(string indexed modelId, address indexed poolAddress, address indexed tokenAddress, uint256 crr, uint256 tradeFee, uint16 protocolFeeBps, uint256 ibrDuration)',
     'function getPoolByModelId(string modelId) view returns (address)',
-    'function getAllPools() view returns (address[])'
+    'function getAllPools() view returns (address[])',
   ];
 
   constructor(provider: ethers.Provider, factoryAddress: string) {
     this.provider = provider;
     this.factoryAddress = factoryAddress;
-    this.factoryContract = new ethers.Contract(
-      factoryAddress,
-      PoolDiscovery.FACTORY_ABI,
-      provider
-    );
+    this.factoryContract = new ethers.Contract(factoryAddress, PoolDiscovery.FACTORY_ABI, provider);
   }
 
   /**
@@ -110,7 +106,6 @@ export class PoolDiscovery {
       } catch (error) {
         logger.warn('Factory.getAllPools() not available, will rely on events only');
       }
-
     } catch (error) {
       logger.error('Failed to discover existing pools:', error);
     }
@@ -129,27 +124,30 @@ export class PoolDiscovery {
 
     try {
       // Listen for PoolCreated events
-      this.factoryContract.on('PoolCreated', async (
-        modelId: string,
-        poolAddress: string,
-        tokenAddress: string,
-        crr: bigint,
-        tradeFee: bigint,
-        protocolFeeBps: number,
-        ibrDuration: bigint,
-        event: ethers.EventLog
-      ) => {
-        await this.handlePoolCreated({
-          modelId,
-          poolAddress,
-          tokenAddress,
-          crr: Number(crr),
-          tradeFee: Number(tradeFee),
-          protocolFeeBps,
-          ibrDuration: Number(ibrDuration),
-          event
-        });
-      });
+      this.factoryContract.on(
+        'PoolCreated',
+        async (
+          modelId: string,
+          poolAddress: string,
+          tokenAddress: string,
+          crr: bigint,
+          tradeFee: bigint,
+          protocolFeeBps: number,
+          ibrDuration: bigint,
+          event: ethers.EventLog,
+        ) => {
+          await this.handlePoolCreated({
+            modelId,
+            poolAddress,
+            tokenAddress,
+            crr: Number(crr),
+            tradeFee: Number(tradeFee),
+            protocolFeeBps,
+            ibrDuration: Number(ibrDuration),
+            event,
+          });
+        },
+      );
 
       this.isListening = true;
       logger.info('Pool discovery listener started');
@@ -158,7 +156,6 @@ export class PoolDiscovery {
       if (fromBlock !== 'latest') {
         await this.queryHistoricalPoolCreatedEvents(fromBlock);
       }
-
     } catch (error) {
       logger.error('Failed to start pool discovery listener:', error);
       throw error;
@@ -185,10 +182,12 @@ export class PoolDiscovery {
   private async queryHistoricalPoolCreatedEvents(fromBlock: number): Promise<void> {
     try {
       const currentBlock = await this.provider.getBlockNumber();
-      logger.info(`Querying historical PoolCreated events from block ${fromBlock} to ${currentBlock}`);
+      logger.info(
+        `Querying historical PoolCreated events from block ${fromBlock} to ${currentBlock}`,
+      );
 
       const filters = this.factoryContract.filters;
-      if (!filters || !filters.PoolCreated) {
+      if (!filters?.PoolCreated) {
         throw new Error('PoolCreated filter not found on factory contract');
       }
       const filter = filters.PoolCreated();
@@ -198,7 +197,8 @@ export class PoolDiscovery {
 
       for (const event of events) {
         if (event instanceof ethers.EventLog) {
-          const { modelId, poolAddress, tokenAddress, crr, tradeFee, protocolFeeBps, ibrDuration } = event.args;
+          const { modelId, poolAddress, tokenAddress, crr, tradeFee, protocolFeeBps, ibrDuration } =
+            event.args;
           await this.handlePoolCreated({
             modelId,
             poolAddress,
@@ -207,11 +207,10 @@ export class PoolDiscovery {
             tradeFee: Number(tradeFee),
             protocolFeeBps: Number(protocolFeeBps),
             ibrDuration: Number(ibrDuration),
-            event
+            event,
           });
         }
       }
-
     } catch (error) {
       logger.error('Failed to query historical PoolCreated events:', error);
     }
@@ -230,7 +229,16 @@ export class PoolDiscovery {
     ibrDuration: number;
     event: ethers.EventLog;
   }): Promise<void> {
-    const { modelId, poolAddress, tokenAddress, crr, tradeFee, protocolFeeBps, ibrDuration, event } = data;
+    const {
+      modelId,
+      poolAddress,
+      tokenAddress,
+      crr,
+      tradeFee,
+      protocolFeeBps,
+      ibrDuration,
+      event,
+    } = data;
 
     // Check if already discovered
     if (this.discoveredPools.has(poolAddress)) {
@@ -251,10 +259,14 @@ export class PoolDiscovery {
     const ibrEndsAt = new Date((block.timestamp + ibrDuration) * 1000).toISOString();
 
     // Fetch phase parameters from pool contract
-    const pool = new ethers.Contract(poolAddress, [
-      'function FLAT_CURVE_THRESHOLD() view returns (uint256)',
-      'function FLAT_CURVE_PRICE() view returns (uint256)'
-    ], this.provider);
+    const pool = new ethers.Contract(
+      poolAddress,
+      [
+        'function FLAT_CURVE_THRESHOLD() view returns (uint256)',
+        'function FLAT_CURVE_PRICE() view returns (uint256)',
+      ],
+      this.provider,
+    );
 
     const thresholdFn = pool.FLAT_CURVE_THRESHOLD;
     const priceFn = pool.FLAT_CURVE_PRICE;
@@ -280,7 +292,7 @@ export class PoolDiscovery {
       ibrDuration,
       ibrEndsAt,
       flatCurveThreshold: flatCurveThreshold.toString(),
-      flatCurvePrice: flatCurvePrice.toString()
+      flatCurvePrice: flatCurvePrice.toString(),
     };
 
     // Store pool
@@ -289,7 +301,9 @@ export class PoolDiscovery {
     // Notify callbacks
     await this.notifyCallbacks(poolConfig);
 
-    logger.info(`✅ Pool ${modelId} added to monitoring (${this.discoveredPools.size} total pools)`);
+    logger.info(
+      `✅ Pool ${modelId} added to monitoring (${this.discoveredPools.size} total pools)`,
+    );
   }
 
   /**
@@ -305,7 +319,7 @@ export class PoolDiscovery {
         'function protocolFeeBps() view returns (uint16)',
         'function buyOnlyUntil() view returns (uint256)',
         'function FLAT_CURVE_THRESHOLD() view returns (uint256)',
-        'function FLAT_CURVE_PRICE() view returns (uint256)'
+        'function FLAT_CURVE_PRICE() view returns (uint256)',
       ];
 
       const pool = new ethers.Contract(poolAddress, poolAbi, this.provider);
@@ -329,7 +343,16 @@ export class PoolDiscovery {
         throw new Error('Phase parameter methods not found');
       }
 
-      const [modelId, tokenAddress, crr, tradeFee, protocolFeeBps, buyOnlyUntil, flatCurveThreshold, flatCurvePrice] = await Promise.all([
+      const [
+        modelId,
+        tokenAddress,
+        crr,
+        tradeFee,
+        protocolFeeBps,
+        buyOnlyUntil,
+        flatCurveThreshold,
+        flatCurvePrice,
+      ] = await Promise.all([
         modelIdFn(),
         tokenFn(),
         crrFn(),
@@ -337,11 +360,12 @@ export class PoolDiscovery {
         protocolFeeFn(),
         ibrFn(),
         thresholdFn(),
-        priceFn()
+        priceFn(),
       ]);
 
       const currentTime = Math.floor(Date.now() / 1000);
-      const ibrDuration = Number(buyOnlyUntil) > currentTime ? Number(buyOnlyUntil) - currentTime : 0;
+      const ibrDuration =
+        Number(buyOnlyUntil) > currentTime ? Number(buyOnlyUntil) - currentTime : 0;
       const ibrEndsAt = new Date(Number(buyOnlyUntil) * 1000).toISOString();
 
       return {
@@ -354,9 +378,8 @@ export class PoolDiscovery {
         ibrDuration,
         ibrEndsAt,
         flatCurveThreshold: flatCurveThreshold.toString(),
-        flatCurvePrice: flatCurvePrice.toString()
+        flatCurvePrice: flatCurvePrice.toString(),
       };
-
     } catch (error) {
       logger.error(`Failed to get pool config for ${poolAddress}:`, error);
       return null;

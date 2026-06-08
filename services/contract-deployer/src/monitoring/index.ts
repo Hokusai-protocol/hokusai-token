@@ -10,22 +10,9 @@ export { AMMMonitor, AMMMonitorHealth } from './amm-monitor';
 // Components
 export { PoolDiscovery, PoolDiscoveredCallback } from './pool-discovery';
 export { StateTracker, PoolState, StateAlert } from './state-tracker';
-export {
-  EventListener,
-  TradeEvent,
-  SecurityEvent,
-  FeeEvent,
-  EventAlert
-} from './event-listener';
-export {
-  MetricsCollector,
-  PoolMetrics,
-  SystemMetrics
-} from './metrics-collector';
-export {
-  AlertManager,
-  AlertManagerConfig
-} from './alert-manager';
+export { EventListener, TradeEvent, SecurityEvent, FeeEvent, EventAlert } from './event-listener';
+export { MetricsCollector, PoolMetrics, SystemMetrics } from './metrics-collector';
+export { AlertManager, AlertManagerConfig } from './alert-manager';
 
 // Infrastructure monitoring (NEW)
 export {
@@ -33,7 +20,7 @@ export {
   InfrastructureState,
   InfrastructureAlert,
   InfrastructureThresholds,
-  InfrastructureMonitorCallbacks
+  InfrastructureMonitorCallbacks,
 } from './infrastructure-monitor';
 
 // Configuration
@@ -45,7 +32,7 @@ export {
   createMonitoringConfig,
   loadDeploymentConfig,
   getConfigSummary,
-  DEFAULT_THRESHOLDS
+  DEFAULT_THRESHOLDS,
 } from '../config/monitoring-config';
 
 // Health check (existing)

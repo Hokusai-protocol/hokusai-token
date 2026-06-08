@@ -11,41 +11,41 @@ export function createMockProvider(): jest.Mocked<ethers.Provider> {
     getCode: jest.fn(),
     getStorage: jest.fn(),
     getLogs: jest.fn(),
-    
+
     // Gas estimation
     estimateGas: jest.fn(),
     getFeeData: jest.fn(),
     getGasPrice: jest.fn(),
-    
+
     // ENS
     resolveName: jest.fn(),
     lookupAddress: jest.fn(),
-    
+
     // Events
     on: jest.fn(),
     off: jest.fn(),
     once: jest.fn(),
     emit: jest.fn(),
     removeAllListeners: jest.fn(),
-    
+
     // Calls
     call: jest.fn(),
     broadcastTransaction: jest.fn(),
-    
+
     // Block methods
     waitForBlock: jest.fn(),
     waitForTransaction: jest.fn(),
-    
+
     // Network detection
     detectNetwork: jest.fn(),
-    
+
     // Provider info
     connection: {
-      url: 'http://localhost:8545'
+      url: 'http://localhost:8545',
     },
-    
+
     destroy: jest.fn(),
-    
+
     // Required properties
     _isProvider: true,
   } as any;
@@ -59,7 +59,7 @@ export function createMockSigner(): jest.Mocked<ethers.Signer> {
     signTransaction: jest.fn(),
     signTypedData: jest.fn(),
     connect: jest.fn(),
-    
+
     // Transaction methods
     sendTransaction: jest.fn(),
     getBalance: jest.fn(),
@@ -67,13 +67,13 @@ export function createMockSigner(): jest.Mocked<ethers.Signer> {
     estimateGas: jest.fn(),
     call: jest.fn(),
     resolveName: jest.fn(),
-    
+
     // Chain ID
     getChainId: jest.fn(),
-    
+
     // Nonce management
     getNonce: jest.fn(),
-    
+
     // Required properties
     _isSigner: true,
   } as any;
@@ -170,7 +170,7 @@ export function createMockContract(): jest.Mocked<ethers.Contract> {
     return filters[name];
   });
 
-  return mock as any;
+  return mock;
 }
 
 export function createMockContractFactory(): jest.Mocked<ethers.ContractFactory> {
@@ -178,12 +178,12 @@ export function createMockContractFactory(): jest.Mocked<ethers.ContractFactory>
     deploy: jest.fn(),
     attach: jest.fn(),
     connect: jest.fn().mockReturnThis(),
-    
+
     // Factory properties
     interface: {} as any,
     bytecode: '0x',
     signer: createMockSigner(),
-    
+
     // Deployment helpers
     getDeployTransaction: jest.fn(),
   } as any;
@@ -200,21 +200,21 @@ export function createMockTransactionResponse(): any {
     value: ethers.toBigInt('0'),
     data: '0x',
     chainId: 137n,
-    
+
     // Methods
     wait: jest.fn(),
     confirmations: jest.fn(),
-    
+
     // Required properties
     type: 2,
     accessList: null,
     maxPriorityFeePerGas: null,
     maxFeePerGas: null,
   };
-  
+
   // Add private fields as symbols to satisfy TypeScript
   Object.defineProperty(tx, Symbol.for('private'), { value: {} });
-  
+
   return tx;
 }
 
@@ -231,7 +231,7 @@ export function createMockTransactionReceipt(): jest.Mocked<ethers.TransactionRe
     gasPrice: ethers.toBigInt('35000000000'),
     status: 1,
     confirmations: jest.fn(),
-    
+
     // Required properties
     index: 0,
     type: 2,

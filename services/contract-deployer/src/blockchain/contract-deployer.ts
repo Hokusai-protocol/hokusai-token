@@ -56,9 +56,7 @@ export class ContractDeployer {
   private createProvider(): ethers.Provider {
     for (let i = 0; i < this.config.rpcUrls.length; i++) {
       try {
-        const provider = new ethers.JsonRpcProvider(
-          this.config.rpcUrls[this.currentRpcIndex]
-        );
+        const provider = new ethers.JsonRpcProvider(this.config.rpcUrls[this.currentRpcIndex]);
 
         // Test connection
         provider.getNetwork().catch(() => {
@@ -67,7 +65,9 @@ export class ContractDeployer {
 
         return provider;
       } catch (error) {
-        logger.warn(`Failed to connect to RPC ${this.config.rpcUrls[this.currentRpcIndex]}`, { error });
+        logger.warn(`Failed to connect to RPC ${this.config.rpcUrls[this.currentRpcIndex]}`, {
+          error,
+        });
         this.currentRpcIndex = (this.currentRpcIndex + 1) % this.config.rpcUrls.length;
       }
     }
@@ -83,7 +83,7 @@ export class ContractDeployer {
     logger.info('Deploying token via TokenManager.deployTokenWithAllocations', {
       modelId: message.model_id,
       tokenName,
-      tokenSymbol
+      tokenSymbol,
     });
 
     let attempts = 0;
@@ -94,7 +94,7 @@ export class ContractDeployer {
         const tokenManager = new ethers.Contract(
           this.config.tokenManagerAddress,
           TokenManagerABI.abi,
-          this.signer
+          this.signer,
         );
 
         const feeData = await this.provider.getFeeData();
@@ -115,13 +115,15 @@ export class ContractDeployer {
             enabled: false,
             immediateUnlockBps: 10000,
             vestingDurationSeconds: 0,
-            cliffSeconds: 0
-          }
+            cliffSeconds: 0,
+          },
         };
 
-        const tx = await (tokenManager as ethers.Contract & {
-          deployTokenWithAllocations: (...args: unknown[]) => Promise<ethers.TransactionResponse>;
-        }).deployTokenWithAllocations(
+        const tx = await (
+          tokenManager as ethers.Contract & {
+            deployTokenWithAllocations: (...args: unknown[]) => Promise<ethers.TransactionResponse>;
+          }
+        ).deployTokenWithAllocations(
           message.model_id,
           tokenName,
           tokenSymbol,
@@ -129,7 +131,7 @@ export class ContractDeployer {
           params.modelSupplierRecipient,
           params.investorAllocation,
           initialParams,
-          { gasPrice }
+          { gasPrice },
         );
 
         const receipt = await tx.wait(this.config.confirmations);
@@ -155,7 +157,7 @@ export class ContractDeployer {
 
         logger.info('Token deployed successfully', {
           tokenAddress,
-          transactionHash: receipt.hash
+          transactionHash: receipt.hash,
         });
 
         return {
@@ -163,21 +165,20 @@ export class ContractDeployer {
           transactionHash: receipt.hash,
           blockNumber: receipt.blockNumber,
           gasUsed: receipt.gasUsed.toString(),
-          gasPrice: receipt.gasPrice?.toString() || gasPrice.toString()
+          gasPrice: receipt.gasPrice?.toString() || gasPrice.toString(),
         };
-
       } catch (error: any) {
         attempts++;
         logger.error(`Deployment attempt ${attempts} failed`, {
           error: error.message,
-          modelId: message.model_id
+          modelId: message.model_id,
         });
 
         if (attempts >= maxAttempts) {
           throw error;
         }
 
-        await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
+        await new Promise((resolve) => setTimeout(resolve, 2000 * attempts));
       }
     }
 
@@ -193,7 +194,7 @@ export class ContractDeployer {
       network: network.name,
       chainId: Number(network.chainId),
       deployerAddress,
-      deployerBalance: deployerBalance.toString()
+      deployerBalance: deployerBalance.toString(),
     };
   }
 }

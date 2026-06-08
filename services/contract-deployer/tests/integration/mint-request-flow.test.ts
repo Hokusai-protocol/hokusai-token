@@ -73,11 +73,11 @@ function normalizeFixture(
         wallet_address:
           typeof contributor.wallet_address === 'string'
             ? contributor.wallet_address
-            : vendoredFixture.contributors[index]?.wallet_address ?? '',
+            : (vendoredFixture.contributors[index]?.wallet_address ?? ''),
         weight_bps:
           typeof contributor.weight_bps === 'number'
             ? contributor.weight_bps
-            : vendoredFixture.contributors[index]?.weight_bps ?? 0,
+            : (vendoredFixture.contributors[index]?.weight_bps ?? 0),
       }),
     ),
   } as MintRequestFixture;
@@ -526,7 +526,7 @@ describe('MintRequest flow integration', () => {
       });
 
       expect(capturedSettlements.length).toBeGreaterThan(0);
-      const pushedSettlement = JSON.parse(capturedSettlements[0]!) as MintRequestSettlement;
+      const pushedSettlement = JSON.parse(capturedSettlements[0]) as MintRequestSettlement;
       expect(pushedSettlement.idempotency_key).toBe(IDEMPOTENCY_KEY);
       expect(pushedSettlement.tx_hash).toBe(TX_HASH);
       expect(pushedSettlement.status).toBe('minted');

@@ -14,13 +14,13 @@ import { logger } from '../utils/logger';
 const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
 
 const MULTICALL3_ABI = [
-  'function aggregate3(tuple(address target, bool allowFailure, bytes callData)[] calls) payable returns (tuple(bool success, bytes returnData)[] returnData)'
+  'function aggregate3(tuple(address target, bool allowFailure, bytes callData)[] calls) payable returns (tuple(bool success, bytes returnData)[] returnData)',
 ];
 
 export interface Call {
-  target: string;      // Contract address
+  target: string; // Contract address
   allowFailure: boolean; // Whether to continue if this call fails
-  callData: string;    // Encoded function call
+  callData: string; // Encoded function call
 }
 
 export interface Result {
@@ -54,7 +54,7 @@ export class MulticallHelper {
       const results = await aggregate3(calls);
       return results.map((r: any) => ({
         success: r.success,
-        returnData: r.returnData
+        returnData: r.returnData,
       }));
     } catch (error) {
       logger.error('Multicall aggregate failed:', error);
@@ -68,13 +68,15 @@ export class MulticallHelper {
    */
   async batchReadPoolStates(
     poolAddresses: string[],
-    tokenAddresses: string[]
-  ): Promise<Array<{
-    reserveBalance: bigint;
-    spotPrice: bigint;
-    paused: boolean;
-    tokenSupply: bigint;
-  } | null>> {
+    tokenAddresses: string[],
+  ): Promise<
+    Array<{
+      reserveBalance: bigint;
+      spotPrice: bigint;
+      paused: boolean;
+      tokenSupply: bigint;
+    } | null>
+  > {
     if (poolAddresses.length !== tokenAddresses.length) {
       throw new Error('Pool and token address arrays must have same length');
     }
@@ -82,12 +84,10 @@ export class MulticallHelper {
     const poolInterface = new ethers.Interface([
       'function reserveBalance() view returns (uint256)',
       'function spotPrice() view returns (uint256)',
-      'function paused() view returns (bool)'
+      'function paused() view returns (bool)',
     ]);
 
-    const tokenInterface = new ethers.Interface([
-      'function totalSupply() view returns (uint256)'
-    ]);
+    const tokenInterface = new ethers.Interface(['function totalSupply() view returns (uint256)']);
 
     // Build calls array
     const calls: Call[] = [];
@@ -104,22 +104,22 @@ export class MulticallHelper {
       calls.push({
         target: poolAddr,
         allowFailure: true,
-        callData: poolInterface.encodeFunctionData('reserveBalance')
+        callData: poolInterface.encodeFunctionData('reserveBalance'),
       });
       calls.push({
         target: poolAddr,
         allowFailure: true,
-        callData: poolInterface.encodeFunctionData('spotPrice')
+        callData: poolInterface.encodeFunctionData('spotPrice'),
       });
       calls.push({
         target: poolAddr,
         allowFailure: true,
-        callData: poolInterface.encodeFunctionData('paused')
+        callData: poolInterface.encodeFunctionData('paused'),
       });
       calls.push({
         target: tokenAddr,
         allowFailure: true,
-        callData: tokenInterface.encodeFunctionData('totalSupply')
+        callData: tokenInterface.encodeFunctionData('totalSupply'),
       });
     }
 
@@ -136,9 +136,16 @@ export class MulticallHelper {
       const supplyResult = results[baseIdx + 3];
 
       // If any call failed, return null for this pool
-      if (!reserveResult || !priceResult || !pausedResult || !supplyResult ||
-          !reserveResult.success || !priceResult.success ||
-          !pausedResult.success || !supplyResult.success) {
+      if (
+        !reserveResult ||
+        !priceResult ||
+        !pausedResult ||
+        !supplyResult ||
+        !reserveResult.success ||
+        !priceResult.success ||
+        !pausedResult.success ||
+        !supplyResult.success
+      ) {
         logger.warn(`Failed to read state for pool ${poolAddresses[i]}`);
         poolStates.push(null);
         continue;
@@ -146,10 +153,16 @@ export class MulticallHelper {
 
       try {
         poolStates.push({
-          reserveBalance: poolInterface.decodeFunctionResult('reserveBalance', reserveResult.returnData)[0],
+          reserveBalance: poolInterface.decodeFunctionResult(
+            'reserveBalance',
+            reserveResult.returnData,
+          )[0],
           spotPrice: poolInterface.decodeFunctionResult('spotPrice', priceResult.returnData)[0],
           paused: poolInterface.decodeFunctionResult('paused', pausedResult.returnData)[0],
-          tokenSupply: tokenInterface.decodeFunctionResult('totalSupply', supplyResult.returnData)[0]
+          tokenSupply: tokenInterface.decodeFunctionResult(
+            'totalSupply',
+            supplyResult.returnData,
+          )[0],
         });
       } catch (error) {
         logger.error(`Failed to decode results for pool ${poolAddresses[i]}:`, error);

@@ -64,7 +64,7 @@ async function main() {
 
       if (health.errors && health.errors.length > 0) {
         logger.warn('Recent Errors:');
-        health.errors.forEach(err => logger.warn(`  • ${err}`));
+        health.errors.forEach((err) => logger.warn(`  • ${err}`));
       }
 
       logger.info('='.repeat(70) + '\n');
@@ -89,7 +89,6 @@ async function main() {
 
     // Keep running
     logger.info('Monitoring running... Press Ctrl+C to stop\n');
-
   } catch (error) {
     logger.error('Failed to start monitoring:', error);
     process.exit(1);

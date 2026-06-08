@@ -3,7 +3,7 @@ import { DeployTokenRequest } from '../types/api.types';
 
 // Validation patterns
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
-const TOKEN_SYMBOL_REGEX = /^[A-Z0-9\-]{1,10}$/;
+const TOKEN_SYMBOL_REGEX = /^[A-Z0-9-]{1,10}$/;
 const TOKEN_NAME_REGEX = /^[a-zA-Z0-9\s\-_]{1,50}$/;
 const JWT_REGEX = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/;
 const MODEL_ID_REGEX = /^[a-zA-Z0-9\-_]{1,64}$/;
@@ -13,70 +13,51 @@ const DECIMAL_STRING_REGEX = /^\d+(\.\d+)?$/;
  * Joi schema for validating deploy token requests
  */
 export const deployTokenRequestSchema = Joi.object<DeployTokenRequest>({
-  token: Joi.string()
-    .pattern(JWT_REGEX)
-    .required()
-    .messages({
-      'string.pattern.base': 'Invalid JWT token format',
-      'any.required': 'Authentication token is required'
-    }),
-    
-  modelId: Joi.string()
-    .pattern(MODEL_ID_REGEX)
-    .required()
-    .messages({
-      'string.pattern.base': 'Model ID must contain only alphanumeric characters, hyphens, and underscores (1-64 characters)',
-      'any.required': 'Model ID is required'
-    }),
-    
-  userAddress: Joi.string()
-    .pattern(ETH_ADDRESS_REGEX)
-    .required()
-    .messages({
-      'string.pattern.base': 'Invalid Ethereum address format',
-      'any.required': 'User address is required'
-    }),
-    
-  tokenName: Joi.string()
-    .pattern(TOKEN_NAME_REGEX)
-    .optional()
-    .messages({
-      'string.pattern.base': 'Token name must be 1-50 characters containing only letters, numbers, spaces, hyphens, and underscores'
-    }),
-    
-  tokenSymbol: Joi.string()
-    .pattern(TOKEN_SYMBOL_REGEX)
-    .optional()
-    .messages({
-      'string.pattern.base': 'Token symbol must be 1-10 uppercase characters, numbers, or hyphens'
-    }),
-    
-  initialSupply: Joi.string()
-    .pattern(DECIMAL_STRING_REGEX)
-    .optional()
-    .messages({
-      'string.pattern.base': 'Initial supply must be a valid decimal number as string'
-    }),
-    
+  token: Joi.string().pattern(JWT_REGEX).required().messages({
+    'string.pattern.base': 'Invalid JWT token format',
+    'any.required': 'Authentication token is required',
+  }),
+
+  modelId: Joi.string().pattern(MODEL_ID_REGEX).required().messages({
+    'string.pattern.base':
+      'Model ID must contain only alphanumeric characters, hyphens, and underscores (1-64 characters)',
+    'any.required': 'Model ID is required',
+  }),
+
+  userAddress: Joi.string().pattern(ETH_ADDRESS_REGEX).required().messages({
+    'string.pattern.base': 'Invalid Ethereum address format',
+    'any.required': 'User address is required',
+  }),
+
+  tokenName: Joi.string().pattern(TOKEN_NAME_REGEX).optional().messages({
+    'string.pattern.base':
+      'Token name must be 1-50 characters containing only letters, numbers, spaces, hyphens, and underscores',
+  }),
+
+  tokenSymbol: Joi.string().pattern(TOKEN_SYMBOL_REGEX).optional().messages({
+    'string.pattern.base': 'Token symbol must be 1-10 uppercase characters, numbers, or hyphens',
+  }),
+
+  initialSupply: Joi.string().pattern(DECIMAL_STRING_REGEX).optional().messages({
+    'string.pattern.base': 'Initial supply must be a valid decimal number as string',
+  }),
+
   metadata: Joi.object({
     description: Joi.string().max(500).optional(),
     website: Joi.string().uri().optional(),
     whitepaper: Joi.string().uri().optional(),
-    tags: Joi.object().pattern(Joi.string(), Joi.string()).optional()
-  }).optional()
+    tags: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
+  }).optional(),
 });
 
 /**
  * Joi schema for query parameters in deployment status requests
  */
 export const deploymentStatusQuerySchema = Joi.object({
-  requestId: Joi.string()
-    .guid({ version: 'uuidv4' })
-    .required()
-    .messages({
-      'string.guid': 'Request ID must be a valid UUID',
-      'any.required': 'Request ID is required'
-    })
+  requestId: Joi.string().guid({ version: 'uuidv4' }).required().messages({
+    'string.guid': 'Request ID must be a valid UUID',
+    'any.required': 'Request ID is required',
+  }),
 });
 
 /**
@@ -89,21 +70,18 @@ export const deploymentListQuerySchema = Joi.object({
   modelId: Joi.string().pattern(MODEL_ID_REGEX).optional(),
   userAddress: Joi.string().pattern(ETH_ADDRESS_REGEX).optional(),
   startDate: Joi.date().iso().optional(),
-  endDate: Joi.date().iso().min(Joi.ref('startDate')).optional()
+  endDate: Joi.date().iso().min(Joi.ref('startDate')).optional(),
 });
 
 /**
  * Joi schema for cancel deployment request
  */
 export const cancelDeploymentSchema = Joi.object({
-  requestId: Joi.string()
-    .guid({ version: 'uuidv4' })
-    .required()
-    .messages({
-      'string.guid': 'Request ID must be a valid UUID',
-      'any.required': 'Request ID is required'
-    }),
-  reason: Joi.string().max(200).optional()
+  requestId: Joi.string().guid({ version: 'uuidv4' }).required().messages({
+    'string.guid': 'Request ID must be a valid UUID',
+    'any.required': 'Request ID is required',
+  }),
+  reason: Joi.string().max(200).optional(),
 });
 
 /**
@@ -115,7 +93,7 @@ export const jwtTokenSchema = Joi.object({
   email: Joi.string().email().optional(),
   exp: Joi.number().integer().positive().required(),
   iat: Joi.number().integer().positive().optional(),
-  iss: Joi.string().optional()
+  iss: Joi.string().optional(),
 });
 
 /**
@@ -128,7 +106,7 @@ export class ValidationHelpers {
   static validateDeployTokenRequest(data: unknown): Joi.ValidationResult<DeployTokenRequest> {
     return deployTokenRequestSchema.validate(data, {
       abortEarly: false,
-      stripUnknown: true
+      stripUnknown: true,
     });
   }
 
@@ -138,7 +116,7 @@ export class ValidationHelpers {
   static validateDeploymentStatusQuery(data: unknown): Joi.ValidationResult<{ requestId: string }> {
     return deploymentStatusQuerySchema.validate(data, {
       abortEarly: false,
-      stripUnknown: true
+      stripUnknown: true,
     });
   }
 
@@ -156,7 +134,7 @@ export class ValidationHelpers {
   }> {
     return deploymentListQuerySchema.validate(data, {
       abortEarly: false,
-      stripUnknown: true
+      stripUnknown: true,
     });
   }
 
@@ -169,7 +147,7 @@ export class ValidationHelpers {
   }> {
     return cancelDeploymentSchema.validate(data, {
       abortEarly: false,
-      stripUnknown: true
+      stripUnknown: true,
     });
   }
 
@@ -186,7 +164,7 @@ export class ValidationHelpers {
   }> {
     return jwtTokenSchema.validate(data, {
       abortEarly: false,
-      stripUnknown: true
+      stripUnknown: true,
     });
   }
 
@@ -234,12 +212,12 @@ export class ValidationHelpers {
       error: {
         code: 'VALIDATION_ERROR',
         message: 'Request validation failed',
-        details: error.details.map(detail => ({
+        details: error.details.map((detail) => ({
           field: detail.path.join('.'),
           message: detail.message,
-          value: detail.context?.value
-        }))
-      }
+          value: detail.context?.value,
+        })),
+      },
     };
   }
 }

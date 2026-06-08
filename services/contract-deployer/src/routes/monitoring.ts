@@ -10,11 +10,11 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    */
   router.get('/health', async (_req: Request, res: Response) => {
     try {
-      const health = await ammMonitor.getHealth();
+      const health = ammMonitor.getHealth();
       res.json({
         success: true,
         data: health,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -22,8 +22,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         error: {
           code: 'MONITORING_HEALTH_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -34,11 +34,11 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    */
   router.get('/metrics', async (_req: Request, res: Response) => {
     try {
-      const metrics = await ammMonitor.getMetrics();
+      const metrics = ammMonitor.getMetrics();
       res.json({
         success: true,
         data: metrics,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -46,8 +46,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         error: {
           code: 'METRICS_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -63,9 +63,9 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         success: true,
         data: {
           pools,
-          count: pools.length
+          count: pools.length,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -73,8 +73,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         error: {
           code: 'POOLS_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -92,8 +92,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
           error: {
             code: 'MISSING_PARAMETER',
             message: 'Pool address is required',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -106,8 +106,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
           error: {
             code: 'POOL_NOT_FOUND',
             message: `Pool ${poolAddress} not found or not being tracked`,
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -115,7 +115,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
       res.json({
         success: true,
         data: state,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -123,8 +123,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         error: {
           code: 'POOL_STATE_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -142,8 +142,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
           error: {
             code: 'MISSING_PARAMETER',
             message: 'Pool address is required',
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -158,8 +158,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
           error: {
             code: 'POOL_NOT_FOUND',
             message: `Pool ${poolAddress} not found or has no history`,
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -169,9 +169,9 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         data: {
           poolAddress,
           history,
-          count: history.length
+          count: history.length,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -179,8 +179,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         error: {
           code: 'POOL_HISTORY_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -196,9 +196,9 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         success: true,
         data: {
           alerts,
-          count: alerts.length
+          count: alerts.length,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -206,8 +206,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         error: {
           code: 'ALERTS_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -230,10 +230,10 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
           count: events.length,
           filters: {
             limit,
-            type: type || 'all'
-          }
+            type: type || 'all',
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -241,8 +241,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         error: {
           code: 'EVENTS_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -257,7 +257,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
       res.json({
         success: true,
         data: stats,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -265,8 +265,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         error: {
           code: 'ALERT_STATS_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });
@@ -277,40 +277,40 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    */
   router.get('/summary', async (_req: Request, res: Response) => {
     try {
-      const metrics = await ammMonitor.getMetrics();
+      const metrics = ammMonitor.getMetrics();
       const pools = ammMonitor.getDiscoveredPools();
-      const health = await ammMonitor.getHealth();
+      const health = ammMonitor.getHealth();
       const recentAlerts = ammMonitor.getRecentAlerts();
       const alertStats = ammMonitor.getAlertStats();
 
       const summary = {
         pools: {
           total: pools.length,
-          list: pools.map(p => ({
+          list: pools.map((p) => ({
             address: p.ammAddress,
             modelId: p.modelId,
-            tokenAddress: p.tokenAddress
-          }))
+            tokenAddress: p.tokenAddress,
+          })),
         },
         systemMetrics: metrics.systemMetrics,
         health: {
           status: health.isHealthy ? 'healthy' : 'unhealthy',
           uptime: health.uptime,
-          components: health.components
+          components: health.components,
         },
         alerts: {
           last24h: recentAlerts.length,
-          critical: recentAlerts.filter(a => a.priority === 'critical').length,
-          high: recentAlerts.filter(a => a.priority === 'high').length,
-          medium: recentAlerts.filter(a => a.priority === 'medium').length,
-          stats: alertStats
-        }
+          critical: recentAlerts.filter((a) => a.priority === 'critical').length,
+          high: recentAlerts.filter((a) => a.priority === 'high').length,
+          medium: recentAlerts.filter((a) => a.priority === 'medium').length,
+          stats: alertStats,
+        },
       };
 
       res.json({
         success: true,
         data: summary,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
@@ -318,8 +318,8 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         error: {
           code: 'SUMMARY_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   });

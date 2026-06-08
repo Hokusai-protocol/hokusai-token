@@ -1,9 +1,9 @@
-import { 
-  ModelReadyToDeployMessage, 
+import {
+  ModelReadyToDeployMessage,
   TokenDeployedMessage,
   validateModelReadyToDeployMessage,
   validateTokenDeployedMessage,
-  createTokenDeployedMessage
+  createTokenDeployedMessage,
 } from '../../../src/schemas/message-schemas';
 
 describe('Message Schemas', () => {
@@ -22,7 +22,7 @@ describe('Message Schemas', () => {
       experiment_name: 'iris_classification',
       tags: { framework: 'tensorflow', dataset: 'iris' },
       timestamp: '2024-01-27T10:00:00.000Z',
-      message_version: '1.0'
+      message_version: '1.0',
     };
 
     test('should validate a correct message', () => {
@@ -97,7 +97,8 @@ describe('Message Schemas', () => {
       token_symbol: 'HKAI-123',
       token_name: 'Hokusai Model 123',
       transaction_hash: '0x7b1203ad2b29d6f24b07b46ec2f970eb37e1e9c8f2a3d4e5f6789012345678ab',
-      registry_transaction_hash: '0x8c2314be3c30e7d35c18c57fd3f081fc48f2f0d9d3b4e5d67890123456789abc',
+      registry_transaction_hash:
+        '0x8c2314be3c30e7d35c18c57fd3f081fc48f2f0d9d3b4e5d67890123456789abc',
       mlflow_run_id: 'run_abc123',
       model_name: 'enhanced_classifier_v1',
       model_version: '1.1.0',
@@ -110,7 +111,7 @@ describe('Message Schemas', () => {
       contributor_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
       performance_metric: 'accuracy',
       performance_improvement: 3.51,
-      message_version: '1.0'
+      message_version: '1.0',
     };
 
     test('should validate a correct message', () => {
@@ -160,7 +161,8 @@ describe('Message Schemas', () => {
         token_symbol: 'HKAI-123',
         token_name: 'Hokusai Model 123',
         transaction_hash: '0x7b1203ad2b29d6f24b07b46ec2f970eb37e1e9c8f2a3d4e5f6789012345678ab',
-        registry_transaction_hash: '0x8c2314be3c30e7d35c18c57fd3f081fc48f2f0d9d3b4e5d67890123456789abc',
+        registry_transaction_hash:
+          '0x8c2314be3c30e7d35c18c57fd3f081fc48f2f0d9d3b4e5d67890123456789abc',
         mlflow_run_id: 'run_abc123',
         model_name: 'enhanced_classifier_v1',
         model_version: '1.1.0',
@@ -171,11 +173,11 @@ describe('Message Schemas', () => {
         gas_price: '35000000000',
         contributor_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
         performance_metric: 'accuracy',
-        performance_improvement: 3.51
+        performance_improvement: 3.51,
       };
 
       const message = createTokenDeployedMessage(deploymentData);
-      
+
       expect(message.event_type).toBe('token_deployed');
       expect(message.model_id).toBe(deploymentData.model_id);
       expect(message.token_address).toBe(deploymentData.token_address);
@@ -190,7 +192,8 @@ describe('Message Schemas', () => {
         token_symbol: 'HKAI-123',
         token_name: 'Hokusai Model 123',
         transaction_hash: '0x7b1203ad2b29d6f24b07b46ec2f970eb37e1e9c8f2a3d4e5f6789012345678ab',
-        registry_transaction_hash: '0x8c2314be3c30e7d35c18c57fd3f081fc48f2f0d9d3b4e5d67890123456789abc',
+        registry_transaction_hash:
+          '0x8c2314be3c30e7d35c18c57fd3f081fc48f2f0d9d3b4e5d67890123456789abc',
         mlflow_run_id: 'run_abc123',
         model_name: 'enhanced_classifier_v1',
         model_version: '1.1.0',
@@ -200,7 +203,7 @@ describe('Message Schemas', () => {
         gas_used: '2845632',
         gas_price: '35000000000',
         performance_metric: 'accuracy',
-        performance_improvement: 3.51
+        performance_improvement: 3.51,
       };
 
       const message = createTokenDeployedMessage(minimalData);

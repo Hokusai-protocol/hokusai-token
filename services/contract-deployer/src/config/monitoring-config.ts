@@ -32,39 +32,39 @@ export interface PoolConfig {
   ibrDuration: number;
   ibrEndsAt?: string;
   // Two-phase pricing parameters
-  flatCurveThreshold: string;  // e.g., "25000000000" (25k USDC, 6 decimals)
-  flatCurvePrice: string;       // e.g., "10000" ($0.01 USDC, 6 decimals)
+  flatCurveThreshold: string; // e.g., "25000000000" (25k USDC, 6 decimals)
+  flatCurvePrice: string; // e.g., "10000" ($0.01 USDC, 6 decimals)
 }
 
 export interface AlertThresholds {
   // Reserve monitoring
-  minReserveUSD: number;              // Minimum reserve in USD (set to 0 to disable absolute minimum alerts)
-                                       // Recommend: Use reserveDropPercentage instead for better anomaly detection
-  reserveDropPercentage: number;      // Alert if reserve drops >X% in time window (detects exploits, bank runs)
-  reserveDropWindowMs: number;        // Time window for reserve drop detection (ms)
+  minReserveUSD: number; // Minimum reserve in USD (set to 0 to disable absolute minimum alerts)
+  // Recommend: Use reserveDropPercentage instead for better anomaly detection
+  reserveDropPercentage: number; // Alert if reserve drops >X% in time window (detects exploits, bank runs)
+  reserveDropWindowMs: number; // Time window for reserve drop detection (ms)
 
   // Price volatility
-  priceChange1hPercentage: number;    // Alert if price changes >X% in 1 hour
-  priceChange24hPercentage: number;   // Alert if price changes >X% in 24 hours
+  priceChange1hPercentage: number; // Alert if price changes >X% in 1 hour
+  priceChange24hPercentage: number; // Alert if price changes >X% in 24 hours
 
   // Trade size monitoring
-  largeTradeUSD: number;              // Alert on trades >X USD
+  largeTradeUSD: number; // Alert on trades >X USD
 
   // Supply anomalies
-  supplyChange1hPercentage: number;   // Alert if supply changes >X% in 1 hour
+  supplyChange1hPercentage: number; // Alert if supply changes >X% in 1 hour
 
   // Gas monitoring
-  highGasGwei: number;                // Warning if gas >X Gwei
-  extremeGasGwei: number;             // Critical if gas >X Gwei
+  highGasGwei: number; // Warning if gas >X Gwei
+  extremeGasGwei: number; // Critical if gas >X Gwei
 
   // Fee accumulation
-  treasuryFeesThresholdUSD: number;   // Alert if treasury accumulates >X USD
+  treasuryFeesThresholdUSD: number; // Alert if treasury accumulates >X USD
 
   // IBR monitoring
-  ibrEndingInHours: number;           // Alert X hours before IBR ends
+  ibrEndingInHours: number; // Alert X hours before IBR ends
 
   // Pause monitoring
-  pausedDurationHours: number;        // Alert if paused >X hours
+  pausedDurationHours: number; // Alert if paused >X hours
 }
 
 export interface MonitoringConfig {
@@ -79,8 +79,8 @@ export interface MonitoringConfig {
   thresholds: AlertThresholds;
 
   // Polling configuration (OPTIMIZED)
-  statePollingIntervalMs: number;     // Fallback polling interval (default: 5 min, was 12s)
-                                      // Note: State updates are now event-driven, polling is just fallback
+  statePollingIntervalMs: number; // Fallback polling interval (default: 5 min, was 12s)
+  // Note: State updates are now event-driven, polling is just fallback
   eventPollingFromBlock: number | 'latest';
 
   // Alert configuration
@@ -89,10 +89,10 @@ export interface MonitoringConfig {
 
   // Monitoring toggles
   enabled: boolean;
-  poolDiscoveryEnabled: boolean;      // Auto-discover new pools
-  eventListenersEnabled: boolean;     // Listen for blockchain events
-  statePollingEnabled: boolean;       // Poll pool state
-  alertsEnabled: boolean;             // Send alerts
+  poolDiscoveryEnabled: boolean; // Auto-discover new pools
+  eventListenersEnabled: boolean; // Listen for blockchain events
+  statePollingEnabled: boolean; // Poll pool state
+  alertsEnabled: boolean; // Send alerts
 }
 
 /**
@@ -105,8 +105,8 @@ export interface MonitoringConfig {
  * To enable, set ALERT_RESERVE_MIN_USD environment variable
  */
 export const DEFAULT_THRESHOLDS: AlertThresholds = {
-  minReserveUSD: 0,  // DISABLED: Use reserveDropPercentage for anomaly detection
-  reserveDropPercentage: 20,  // Alert if reserve drops >20% in 1h (detects exploits/bank runs)
+  minReserveUSD: 0, // DISABLED: Use reserveDropPercentage for anomaly detection
+  reserveDropPercentage: 20, // Alert if reserve drops >20% in 1h (detects exploits/bank runs)
   reserveDropWindowMs: 60 * 60 * 1000, // 1 hour
 
   priceChange1hPercentage: 20,
@@ -123,19 +123,22 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
 
   ibrEndingInHours: 24,
 
-  pausedDurationHours: 1
+  pausedDurationHours: 1,
 };
 
 /**
  * Load deployment configuration from file
  */
-export function loadDeploymentConfig(network: string): { contracts: ContractAddresses, pools: PoolConfig[] } {
+export function loadDeploymentConfig(network: string): {
+  contracts: ContractAddresses;
+  pools: PoolConfig[];
+} {
   try {
     // Try multiple possible deployment paths (for Docker vs local development)
     const possiblePaths = [
       join(process.cwd(), 'deployments', `${network}-latest.json`), // Docker: /app/deployments
       join(process.cwd(), '..', '..', 'deployments', `${network}-latest.json`), // Local dev
-      join(__dirname, '..', '..', 'deployments', `${network}-latest.json`) // Relative to compiled code
+      join(__dirname, '..', '..', 'deployments', `${network}-latest.json`), // Relative to compiled code
     ];
 
     let deploymentPath: string | undefined;
@@ -151,7 +154,9 @@ export function loadDeploymentConfig(network: string): { contracts: ContractAddr
     }
 
     if (!deploymentPath) {
-      throw new Error(`Could not find deployment file for ${network} in any of the expected locations`);
+      throw new Error(
+        `Could not find deployment file for ${network} in any of the expected locations`,
+      );
     }
 
     const deployment = JSON.parse(readFileSync(deploymentPath, 'utf8'));
@@ -168,7 +173,7 @@ export function loadDeploymentConfig(network: string): { contracts: ContractAddr
       ibrEndsAt: p.ibrEndsAt,
       // Phase parameters (with defaults for legacy deployments)
       flatCurveThreshold: p.flatCurveThreshold || '0',
-      flatCurvePrice: p.flatCurvePrice || '0'
+      flatCurvePrice: p.flatCurvePrice || '0',
     }));
 
     return {
@@ -179,9 +184,12 @@ export function loadDeploymentConfig(network: string): { contracts: ContractAddr
         ammFactory: deployment.contracts.HokusaiAMMFactory,
         usageFeeRouter: deployment.contracts.UsageFeeRouter,
         deltaVerifier: deployment.contracts.DeltaVerifier,
-        usdc: deployment.config?.usdcAddress || deployment.contracts.MockUSDC || deployment.contracts.USDC
+        usdc:
+          deployment.config?.usdcAddress ||
+          deployment.contracts.MockUSDC ||
+          deployment.contracts.USDC,
       },
-      pools
+      pools,
     };
   } catch (error) {
     throw new Error(`Failed to load deployment config for ${network}: ${error}`);
@@ -199,20 +207,21 @@ export function createMonitoringConfig(): MonitoringConfig {
   const { contracts, pools } = loadDeploymentConfig(network);
   const hasContractEnvOverrides = Boolean(
     process.env.MODEL_REGISTRY_ADDRESS ||
-    process.env.TOKEN_MANAGER_ADDRESS ||
-    process.env.FACTORY_ADDRESS ||
-    process.env.AMM_FACTORY_ADDRESS ||
-    process.env.USAGE_FEE_ROUTER_ADDRESS ||
-    process.env.USDC_ADDRESS
+      process.env.TOKEN_MANAGER_ADDRESS ||
+      process.env.FACTORY_ADDRESS ||
+      process.env.AMM_FACTORY_ADDRESS ||
+      process.env.USAGE_FEE_ROUTER_ADDRESS ||
+      process.env.USDC_ADDRESS,
   );
   const configuredContracts: ContractAddresses = {
     modelRegistry: process.env.MODEL_REGISTRY_ADDRESS || contracts.modelRegistry,
     tokenManager: process.env.TOKEN_MANAGER_ADDRESS || contracts.tokenManager,
     hokusaiParams: process.env.HOKUSAI_PARAMS_ADDRESS || contracts.hokusaiParams,
-    ammFactory: process.env.FACTORY_ADDRESS || process.env.AMM_FACTORY_ADDRESS || contracts.ammFactory,
+    ammFactory:
+      process.env.FACTORY_ADDRESS || process.env.AMM_FACTORY_ADDRESS || contracts.ammFactory,
     usageFeeRouter: process.env.USAGE_FEE_ROUTER_ADDRESS || contracts.usageFeeRouter,
     deltaVerifier: process.env.DELTA_VERIFIER_ADDRESS || contracts.deltaVerifier,
-    usdc: process.env.USDC_ADDRESS || contracts.usdc
+    usdc: process.env.USDC_ADDRESS || contracts.usdc,
   };
 
   // Build configuration
@@ -226,30 +235,56 @@ export function createMonitoringConfig(): MonitoringConfig {
     initialPools: hasContractEnvOverrides ? [] : pools,
 
     thresholds: {
-      minReserveUSD: parseFloat(process.env.ALERT_RESERVE_MIN_USD || String(DEFAULT_THRESHOLDS.minReserveUSD)),
-      reserveDropPercentage: parseFloat(process.env.ALERT_RESERVE_DROP_PCT || String(DEFAULT_THRESHOLDS.reserveDropPercentage)),
+      minReserveUSD: parseFloat(
+        process.env.ALERT_RESERVE_MIN_USD || String(DEFAULT_THRESHOLDS.minReserveUSD),
+      ),
+      reserveDropPercentage: parseFloat(
+        process.env.ALERT_RESERVE_DROP_PCT || String(DEFAULT_THRESHOLDS.reserveDropPercentage),
+      ),
       reserveDropWindowMs: DEFAULT_THRESHOLDS.reserveDropWindowMs,
 
-      priceChange1hPercentage: parseFloat(process.env.ALERT_PRICE_CHANGE_1H_PCT || String(DEFAULT_THRESHOLDS.priceChange1hPercentage)),
-      priceChange24hPercentage: parseFloat(process.env.ALERT_PRICE_CHANGE_24H_PCT || String(DEFAULT_THRESHOLDS.priceChange24hPercentage)),
+      priceChange1hPercentage: parseFloat(
+        process.env.ALERT_PRICE_CHANGE_1H_PCT || String(DEFAULT_THRESHOLDS.priceChange1hPercentage),
+      ),
+      priceChange24hPercentage: parseFloat(
+        process.env.ALERT_PRICE_CHANGE_24H_PCT ||
+          String(DEFAULT_THRESHOLDS.priceChange24hPercentage),
+      ),
 
-      largeTradeUSD: parseFloat(process.env.ALERT_LARGE_TRADE_USD || String(DEFAULT_THRESHOLDS.largeTradeUSD)),
+      largeTradeUSD: parseFloat(
+        process.env.ALERT_LARGE_TRADE_USD || String(DEFAULT_THRESHOLDS.largeTradeUSD),
+      ),
 
-      supplyChange1hPercentage: parseFloat(process.env.ALERT_SUPPLY_CHANGE_1H_PCT || String(DEFAULT_THRESHOLDS.supplyChange1hPercentage)),
+      supplyChange1hPercentage: parseFloat(
+        process.env.ALERT_SUPPLY_CHANGE_1H_PCT ||
+          String(DEFAULT_THRESHOLDS.supplyChange1hPercentage),
+      ),
 
-      highGasGwei: parseFloat(process.env.ALERT_HIGH_GAS_GWEI || String(DEFAULT_THRESHOLDS.highGasGwei)),
-      extremeGasGwei: parseFloat(process.env.ALERT_EXTREME_GAS_GWEI || String(DEFAULT_THRESHOLDS.extremeGasGwei)),
+      highGasGwei: parseFloat(
+        process.env.ALERT_HIGH_GAS_GWEI || String(DEFAULT_THRESHOLDS.highGasGwei),
+      ),
+      extremeGasGwei: parseFloat(
+        process.env.ALERT_EXTREME_GAS_GWEI || String(DEFAULT_THRESHOLDS.extremeGasGwei),
+      ),
 
-      treasuryFeesThresholdUSD: parseFloat(process.env.ALERT_TREASURY_FEES_USD || String(DEFAULT_THRESHOLDS.treasuryFeesThresholdUSD)),
+      treasuryFeesThresholdUSD: parseFloat(
+        process.env.ALERT_TREASURY_FEES_USD || String(DEFAULT_THRESHOLDS.treasuryFeesThresholdUSD),
+      ),
 
-      ibrEndingInHours: parseFloat(process.env.ALERT_IBR_ENDING_HOURS || String(DEFAULT_THRESHOLDS.ibrEndingInHours)),
+      ibrEndingInHours: parseFloat(
+        process.env.ALERT_IBR_ENDING_HOURS || String(DEFAULT_THRESHOLDS.ibrEndingInHours),
+      ),
 
-      pausedDurationHours: parseFloat(process.env.ALERT_PAUSED_DURATION_HOURS || String(DEFAULT_THRESHOLDS.pausedDurationHours))
+      pausedDurationHours: parseFloat(
+        process.env.ALERT_PAUSED_DURATION_HOURS || String(DEFAULT_THRESHOLDS.pausedDurationHours),
+      ),
     },
 
     statePollingIntervalMs: parseInt(process.env.MONITORING_INTERVAL_MS || '300000'), // 5 minutes fallback (was 12s)
-    eventPollingFromBlock: !process.env.MONITORING_START_BLOCK || process.env.MONITORING_START_BLOCK === 'latest' ? 'latest' :
-                           parseInt(process.env.MONITORING_START_BLOCK, 10),
+    eventPollingFromBlock:
+      !process.env.MONITORING_START_BLOCK || process.env.MONITORING_START_BLOCK === 'latest'
+        ? 'latest'
+        : parseInt(process.env.MONITORING_START_BLOCK, 10),
 
     alertEmail: process.env.ALERT_EMAIL || '',
     awsSesRegion: process.env.AWS_SES_REGION || 'us-east-1',
@@ -258,7 +293,7 @@ export function createMonitoringConfig(): MonitoringConfig {
     poolDiscoveryEnabled: process.env.POOL_DISCOVERY_ENABLED !== 'false',
     eventListenersEnabled: process.env.EVENT_LISTENERS_ENABLED !== 'false',
     statePollingEnabled: process.env.STATE_POLLING_ENABLED !== 'false',
-    alertsEnabled: process.env.ALERTS_ENABLED !== 'false'
+    alertsEnabled: process.env.ALERTS_ENABLED !== 'false',
   };
 
   // Validate configuration
@@ -325,11 +360,17 @@ Contracts:
   USDC:             ${config.contracts.usdc}
 
 Initial Pools:    ${config.initialPools.length} pools
-  ${config.initialPools.map(p => {
-    const threshold = p.flatCurveThreshold !== '0' ? `$${(Number(p.flatCurveThreshold) / 1e6).toLocaleString()}` : 'N/A';
-    const price = p.flatCurvePrice !== '0' ? `$${(Number(p.flatCurvePrice) / 1e6).toFixed(2)}` : 'N/A';
-    return `- ${p.modelId}: ${p.ammAddress}\n    Threshold: ${threshold}, Flat Price: ${price}`;
-  }).join('\n  ')}
+  ${config.initialPools
+    .map((p) => {
+      const threshold =
+        p.flatCurveThreshold !== '0'
+          ? `$${(Number(p.flatCurveThreshold) / 1e6).toLocaleString()}`
+          : 'N/A';
+      const price =
+        p.flatCurvePrice !== '0' ? `$${(Number(p.flatCurvePrice) / 1e6).toFixed(2)}` : 'N/A';
+      return `- ${p.modelId}: ${p.ammAddress}\n    Threshold: ${threshold}, Flat Price: ${price}`;
+    })
+    .join('\n  ')}
 
 Alert Thresholds:
   Reserve Drop:     >${config.thresholds.reserveDropPercentage}% in 1h

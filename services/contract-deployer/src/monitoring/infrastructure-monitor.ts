@@ -23,26 +23,32 @@ export interface InfrastructureState {
   blockNumber: number;
 
   // Reserve balances
-  accrued: bigint;                    // Net infrastructure accrued (after payments)
-  paid: bigint;                       // Cumulative paid to providers
-  provider: string;                   // Current infrastructure provider address
+  accrued: bigint; // Net infrastructure accrued (after payments)
+  paid: bigint; // Cumulative paid to providers
+  provider: string; // Current infrastructure provider address
 
   // Derived metrics
-  accruedUSD: number;                 // Accrued in USD
-  paidUSD: number;                    // Total paid in USD
-  netAccrualUSD: number;              // Net accrual (accrued - paid)
+  accruedUSD: number; // Accrued in USD
+  paidUSD: number; // Total paid in USD
+  netAccrualUSD: number; // Net accrual (accrued - paid)
 
   // Accrual rate (from HokusaiParams)
-  infrastructureAccrualBps: number;   // Current split (e.g., 8000 = 80%)
-  profitShareBps: number;             // Profit to token holders (e.g., 2000 = 20%)
+  infrastructureAccrualBps: number; // Current split (e.g., 8000 = 80%)
+  profitShareBps: number; // Profit to token holders (e.g., 2000 = 20%)
 
   // Runway calculation
-  dailyBurnRateUSD?: number;          // Estimated daily infrastructure cost
-  runwayDays?: number;                // Days until accrual depleted
+  dailyBurnRateUSD?: number; // Estimated daily infrastructure cost
+  runwayDays?: number; // Days until accrual depleted
 }
 
 export interface InfrastructureAlert {
-  type: 'critical_runway' | 'low_runway' | 'large_payment' | 'split_change' | 'no_provider' | 'payment_failed';
+  type:
+    | 'critical_runway'
+    | 'low_runway'
+    | 'large_payment'
+    | 'split_change'
+    | 'no_provider'
+    | 'payment_failed';
   priority: 'critical' | 'high' | 'medium';
   modelId: string;
   message: string;
@@ -57,17 +63,17 @@ export interface InfrastructureMonitorCallbacks {
 
 export interface InfrastructureThresholds {
   // Runway alerts
-  criticalRunwayDays: number;         // Critical alert if runway < X days (default: 3)
-  lowRunwayDays: number;              // Warning alert if runway < X days (default: 7)
+  criticalRunwayDays: number; // Critical alert if runway < X days (default: 3)
+  lowRunwayDays: number; // Warning alert if runway < X days (default: 7)
 
   // Payment monitoring
-  largePaymentPercentage: number;     // Alert if payment > X% of accrued (default: 50)
+  largePaymentPercentage: number; // Alert if payment > X% of accrued (default: 50)
 
   // Accrual rate changes
-  alertOnSplitChange: boolean;        // Alert governance when split changes
+  alertOnSplitChange: boolean; // Alert governance when split changes
 
   // Provider monitoring
-  alertNoProvider: boolean;           // Alert if provider not set
+  alertNoProvider: boolean; // Alert if provider not set
 }
 
 export class InfrastructureMonitor {
@@ -97,14 +103,14 @@ export class InfrastructureMonitor {
     // Events
     'event InfrastructureDeposited(string indexed modelId, uint256 amount, uint256 newAccruedBalance, address indexed depositor)',
     'event InfrastructureCostPaid(string indexed modelId, address indexed payee, uint256 amount, bytes32 indexed invoiceHash, string memo)',
-    'event ProviderSet(string indexed modelId, address indexed oldProvider, address indexed newProvider)'
+    'event ProviderSet(string indexed modelId, address indexed oldProvider, address indexed newProvider)',
   ];
 
   // HokusaiParams ABI
   private static readonly PARAMS_ABI = [
     'function infrastructureAccrualBps() view returns (uint16)',
     'function getProfitShareBps() view returns (uint16)',
-    'event InfrastructureAccrualBpsSet(uint16 indexed oldBps, uint16 indexed newBps, address indexed updatedBy)'
+    'event InfrastructureAccrualBpsSet(uint16 indexed oldBps, uint16 indexed newBps, address indexed updatedBy)',
   ];
 
   constructor(
@@ -115,9 +121,9 @@ export class InfrastructureMonitor {
       lowRunwayDays: 7,
       largePaymentPercentage: 50,
       alertOnSplitChange: true,
-      alertNoProvider: true
+      alertNoProvider: true,
     },
-    callbacks: InfrastructureMonitorCallbacks = {}
+    callbacks: InfrastructureMonitorCallbacks = {},
   ) {
     this.provider = provider;
     this.thresholds = thresholds;
@@ -126,7 +132,7 @@ export class InfrastructureMonitor {
     this.infraReserveContract = new ethers.Contract(
       infraReserveAddress,
       InfrastructureMonitor.INFRA_RESERVE_ABI,
-      provider
+      provider,
     );
   }
 
@@ -137,7 +143,7 @@ export class InfrastructureMonitor {
     modelId: string,
     paramsAddress: string,
     pollingIntervalMs: number = 60000, // 1 minute default
-    dailyBurnRateUSD?: number
+    dailyBurnRateUSD?: number,
   ): Promise<void> {
     if (this.pollingIntervals.has(modelId)) {
       logger.warn(`Already monitoring infrastructure for ${modelId}`);
@@ -147,14 +153,14 @@ export class InfrastructureMonitor {
     logger.info(`Starting infrastructure monitoring for ${modelId}`, {
       paramsAddress,
       pollingIntervalMs,
-      dailyBurnRateUSD
+      dailyBurnRateUSD,
     });
 
     // Cache params contract
     const paramsContract = new ethers.Contract(
       paramsAddress,
       InfrastructureMonitor.PARAMS_ABI,
-      this.provider
+      this.provider,
     );
     this.paramsContracts.set(modelId, paramsContract);
 
@@ -245,14 +251,18 @@ export class InfrastructureMonitor {
         return;
       }
 
-      const infrastructureAccrualBps = await paramsContract.getFunction('infrastructureAccrualBps')();
+      const infrastructureAccrualBps = await paramsContract.getFunction(
+        'infrastructureAccrualBps',
+      )();
       const profitShareBps = 10000 - infrastructureAccrualBps;
 
       // Calculate runway if daily burn rate provided
       let runwayDays: number | undefined;
       if (dailyBurnRateUSD && dailyBurnRateUSD > 0) {
         const dailyBurnRateWei = ethers.parseUnits(dailyBurnRateUSD.toString(), 6);
-        runwayDays = Number(await infraReserveContract.getFunction('getAccrualRunway')(modelId, dailyBurnRateWei));
+        runwayDays = Number(
+          await infraReserveContract.getFunction('getAccrualRunway')(modelId, dailyBurnRateWei),
+        );
       }
 
       const state: InfrastructureState = {
@@ -268,7 +278,7 @@ export class InfrastructureMonitor {
         infrastructureAccrualBps,
         profitShareBps,
         dailyBurnRateUSD,
-        runwayDays
+        runwayDays,
       };
 
       // Store state
@@ -281,7 +291,6 @@ export class InfrastructureMonitor {
       if (this.callbacks.onStateUpdate) {
         await this.callbacks.onStateUpdate(state);
       }
-
     } catch (error) {
       logger.error(`Error fetching infrastructure state for ${modelId}:`, error);
     }
@@ -292,7 +301,9 @@ export class InfrastructureMonitor {
    */
   private setupEventListeners(modelId: string): void {
     const infraReserveContract = this.infraReserveContract;
-    if (!infraReserveContract) return;
+    if (!infraReserveContract) {
+      return;
+    }
 
     // Listen for deposits
     infraReserveContract.on(
@@ -300,10 +311,10 @@ export class InfrastructureMonitor {
       async (_modelIdEvent, amount, newBalance, depositor, _event) => {
         logger.info(`Infrastructure deposited for ${modelId}: $${ethers.formatUnits(amount, 6)}`, {
           newBalance: ethers.formatUnits(newBalance, 6),
-          depositor
+          depositor,
         });
         await this.pollInfrastructureState(modelId);
-      }
+      },
     );
 
     // Listen for payments
@@ -313,7 +324,7 @@ export class InfrastructureMonitor {
         logger.info(`Infrastructure paid for ${modelId}: $${ethers.formatUnits(amount, 6)}`, {
           payee,
           invoiceHash,
-          memo
+          memo,
         });
 
         // Check if this is a large payment
@@ -332,14 +343,14 @@ export class InfrastructureMonitor {
                 payee,
                 invoiceHash,
                 memo,
-                percentOfAccrued: paymentPercent
-              }
+                percentOfAccrued: paymentPercent,
+              },
             });
           }
         }
 
         await this.pollInfrastructureState(modelId);
-      }
+      },
     );
 
     // Listen for provider changes
@@ -348,10 +359,10 @@ export class InfrastructureMonitor {
       async (_modelIdEvent, oldProvider, newProvider, _event) => {
         logger.info(`Provider changed for ${modelId}`, {
           oldProvider,
-          newProvider
+          newProvider,
         });
         await this.pollInfrastructureState(modelId);
-      }
+      },
     );
 
     // Listen for split changes
@@ -373,12 +384,12 @@ export class InfrastructureMonitor {
                 newBps,
                 updatedBy,
                 oldSplit: `${oldBps / 100}/${(10000 - oldBps) / 100}`,
-                newSplit: `${newBps / 100}/${(10000 - newBps) / 100}`
-              }
+                newSplit: `${newBps / 100}/${(10000 - newBps) / 100}`,
+              },
             });
           }
           await this.pollInfrastructureState(modelId);
-        }
+        },
       );
     }
   }
@@ -398,8 +409,8 @@ export class InfrastructureMonitor {
         metadata: {
           runwayDays: state.runwayDays,
           accruedUSD: state.accruedUSD,
-          dailyBurnRateUSD: state.dailyBurnRateUSD
-        }
+          dailyBurnRateUSD: state.dailyBurnRateUSD,
+        },
       });
     }
     // Low runway warning (<7 days)
@@ -414,8 +425,8 @@ export class InfrastructureMonitor {
           runwayDays: state.runwayDays,
           accruedUSD: state.accruedUSD,
           dailyBurnRateUSD: state.dailyBurnRateUSD,
-          recommendation: 'Consider increasing infrastructure accrual rate or reducing costs'
-        }
+          recommendation: 'Consider increasing infrastructure accrual rate or reducing costs',
+        },
       });
     }
 
@@ -429,8 +440,8 @@ export class InfrastructureMonitor {
         currentState: state,
         metadata: {
           accruedUSD: state.accruedUSD,
-          recommendation: 'Set provider address via infraReserve.setProvider()'
-        }
+          recommendation: 'Set provider address via infraReserve.setProvider()',
+        },
       });
     }
   }
@@ -497,7 +508,7 @@ export class InfrastructureMonitor {
     return {
       isMonitoring: this.isMonitoring,
       modelsMonitored: this.pollingIntervals.size,
-      models: Array.from(this.pollingIntervals.keys())
+      models: Array.from(this.pollingIntervals.keys()),
     };
   }
 }

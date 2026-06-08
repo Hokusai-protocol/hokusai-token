@@ -38,7 +38,10 @@ export class BlockchainService {
     return this.provider.getTransactionReceipt(txHash);
   }
 
-  async waitForConfirmations(txHash: string, confirmations: number): Promise<ethers.TransactionReceipt | null> {
+  async waitForConfirmations(
+    txHash: string,
+    confirmations: number,
+  ): Promise<ethers.TransactionReceipt | null> {
     const receipt = await this.provider.waitForTransaction(txHash, confirmations);
     return receipt;
   }

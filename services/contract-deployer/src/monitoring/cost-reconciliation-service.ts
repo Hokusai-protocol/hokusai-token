@@ -18,7 +18,7 @@ import { AlertManager } from './alert-manager';
 export interface ActualCost {
   modelId: string;
   provider: string;
-  amount: number;           // USD amount
+  amount: number; // USD amount
   period: {
     start: Date;
     end: Date;
@@ -33,18 +33,18 @@ export interface CostVariance {
     start: Date;
     end: Date;
   };
-  actual: number;           // Actual cost in USD
-  estimated: number;        // Estimated cost in USD
-  variance: number;         // Variance in USD (actual - estimated)
-  variancePercent: number;  // Variance as percentage
-  callCount?: number;       // Number of API calls in period
+  actual: number; // Actual cost in USD
+  estimated: number; // Estimated cost in USD
+  variance: number; // Variance in USD (actual - estimated)
+  variancePercent: number; // Variance as percentage
+  callCount?: number; // Number of API calls in period
   actualCostPerCall?: number;
   estimatedCostPerCall?: number;
 }
 
 export interface CostAdjustmentRecommendation {
   modelId: string;
-  currentEstimate: number;  // Current estimated cost per 1000 calls (USD)
+  currentEstimate: number; // Current estimated cost per 1000 calls (USD)
   recommendedEstimate: number; // Recommended new estimate (USD)
   adjustmentPercent: number;
   variance: CostVariance;
@@ -54,9 +54,9 @@ export interface CostAdjustmentRecommendation {
 
 export interface RunwayMetrics {
   modelId: string;
-  currentBalance: number;   // Current accrued balance (USD)
-  dailyBurnRate: number;    // Current daily cost (USD)
-  runwayDays: number;       // Days until balance depleted
+  currentBalance: number; // Current accrued balance (USD)
+  dailyBurnRate: number; // Current daily cost (USD)
+  runwayDays: number; // Days until balance depleted
   projectedDepletionDate: Date;
   status: 'healthy' | 'warning' | 'critical';
 }
@@ -77,10 +77,10 @@ export interface CostReconciliationConfig {
   alertManager?: AlertManager;
 
   // Thresholds
-  varianceWarningPercent: number;   // Default: 10%
-  varianceCriticalPercent: number;  // Default: 20%
-  runwayWarningDays: number;        // Default: 7
-  runwayCriticalDays: number;       // Default: 3
+  varianceWarningPercent: number; // Default: 10%
+  varianceCriticalPercent: number; // Default: 20%
+  runwayWarningDays: number; // Default: 7
+  runwayCriticalDays: number; // Default: 3
 
   // Scheduling
   reconciliationIntervalMs: number; // Default: daily (86400000ms)
@@ -132,7 +132,7 @@ export class CostReconciliationService {
     this.infraReserveContract = new ethers.Contract(
       config.infraReserveAddress,
       CostReconciliationService.INFRA_RESERVE_ABI,
-      config.provider
+      config.provider,
     );
 
     // Initialize Cost Oracle contract (if available)
@@ -140,7 +140,7 @@ export class CostReconciliationService {
       this.infraCostOracleContract = new ethers.Contract(
         config.infraCostOracleAddress,
         CostReconciliationService.INFRA_COST_ORACLE_ABI,
-        config.provider
+        config.provider,
       );
     }
 
@@ -149,7 +149,7 @@ export class CostReconciliationService {
       infraCostOracleAddress: config.infraCostOracleAddress,
       costOracleConfigured: this.infraCostOracleContract !== undefined,
       varianceWarningPercent: config.varianceWarningPercent,
-      reconciliationIntervalMs: config.reconciliationIntervalMs
+      reconciliationIntervalMs: config.reconciliationIntervalMs,
     });
   }
 
@@ -260,7 +260,6 @@ export class CostReconciliationService {
       if (runway) {
         await this.checkRunwayAlerts(modelId, runway);
       }
-
     } catch (error) {
       logger.error(`Error reconciling model ${modelId}:`, error);
     }
@@ -276,7 +275,7 @@ export class CostReconciliationService {
     logger.info(`Ingesting actual costs for ${cost.modelId}`, {
       amount: cost.amount,
       period: cost.period,
-      provider: cost.provider
+      provider: cost.provider,
     });
 
     // Store cost record
@@ -304,12 +303,12 @@ export class CostReconciliationService {
     modelId: string,
     amount: number,
     invoiceHash: string,
-    memo: string
+    memo: string,
   ): Promise<void> {
     logger.info(`Recording actual costs on-chain for ${modelId}`, {
       amount,
       invoiceHash,
-      memo
+      memo,
     });
 
     // TODO: Implement when InfrastructureReserve.recordActualCosts() is available
@@ -363,7 +362,7 @@ export class CostReconciliationService {
 
     const period = {
       start: firstCost.period.start,
-      end: lastCost.period.end
+      end: lastCost.period.end,
     };
 
     return {
@@ -372,7 +371,7 @@ export class CostReconciliationService {
       actual,
       estimated,
       variance: varianceAmount,
-      variancePercent
+      variancePercent,
     };
   }
 
@@ -381,7 +380,7 @@ export class CostReconciliationService {
    */
   private async generateAdjustmentRecommendation(
     modelId: string,
-    variance: CostVariance
+    variance: CostVariance,
   ): Promise<CostAdjustmentRecommendation> {
     // TODO: Use InfrastructureCostOracle.suggestCostAdjustment() when available
 
@@ -390,9 +389,10 @@ export class CostReconciliationService {
     const recommendedEstimate: number = variance.actual; // Use actual as new estimate
     const adjustmentPercent: number = variance.variancePercent;
 
-    const rationale = variance.variancePercent > 0
-      ? `Actual costs ${variance.variancePercent.toFixed(1)}% above estimate. Recommend increasing estimate from $${currentEstimate.toFixed(2)} to $${recommendedEstimate.toFixed(2)} per period.`
-      : `Actual costs ${Math.abs(variance.variancePercent).toFixed(1)}% below estimate. Recommend decreasing estimate from $${currentEstimate.toFixed(2)} to $${recommendedEstimate.toFixed(2)} per period.`;
+    const rationale =
+      variance.variancePercent > 0
+        ? `Actual costs ${variance.variancePercent.toFixed(1)}% above estimate. Recommend increasing estimate from $${currentEstimate.toFixed(2)} to $${recommendedEstimate.toFixed(2)} per period.`
+        : `Actual costs ${Math.abs(variance.variancePercent).toFixed(1)}% below estimate. Recommend decreasing estimate from $${currentEstimate.toFixed(2)} to $${recommendedEstimate.toFixed(2)} per period.`;
 
     return {
       modelId,
@@ -401,7 +401,7 @@ export class CostReconciliationService {
       adjustmentPercent,
       variance,
       rationale,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
   }
 
@@ -415,7 +415,8 @@ export class CostReconciliationService {
       }
 
       // Get current accrued balance
-      const [accruedAmount, , ] = await this.infraReserveContract.getFunction('getModelAccounting')(modelId);
+      const [accruedAmount, ,] =
+        await this.infraReserveContract.getFunction('getModelAccounting')(modelId);
       const currentBalance = Number(ethers.formatUnits(accruedAmount, 6));
 
       // Calculate daily burn rate from recent costs
@@ -427,7 +428,8 @@ export class CostReconciliationService {
       // Calculate total days by summing individual period durations
       const totalCost = recentCosts.reduce((sum, c) => sum + c.amount, 0);
       const totalDays = recentCosts.reduce((sum, c) => {
-        const periodDays = (c.period.end.getTime() - c.period.start.getTime()) / (1000 * 60 * 60 * 24);
+        const periodDays =
+          (c.period.end.getTime() - c.period.start.getTime()) / (1000 * 60 * 60 * 24);
         return sum + periodDays;
       }, 0);
 
@@ -460,7 +462,7 @@ export class CostReconciliationService {
         dailyBurnRate,
         runwayDays,
         projectedDepletionDate,
-        status
+        status,
       };
     } catch (error) {
       logger.error(`Error calculating runway for ${modelId}:`, error);
@@ -485,8 +487,8 @@ export class CostReconciliationService {
           variancePercent: variance.variancePercent,
           actual: variance.actual,
           estimated: variance.estimated,
-          threshold: this.config.varianceCriticalPercent
-        }
+          threshold: this.config.varianceCriticalPercent,
+        },
       });
     } else if (absVariance >= this.config.varianceWarningPercent) {
       await this.sendAlert({
@@ -499,8 +501,8 @@ export class CostReconciliationService {
           variancePercent: variance.variancePercent,
           actual: variance.actual,
           estimated: variance.estimated,
-          threshold: this.config.varianceWarningPercent
-        }
+          threshold: this.config.varianceWarningPercent,
+        },
       });
     }
   }
@@ -520,8 +522,8 @@ export class CostReconciliationService {
           currentBalance: runway.currentBalance,
           dailyBurnRate: runway.dailyBurnRate,
           projectedDepletionDate: runway.projectedDepletionDate.toISOString(),
-          threshold: this.config.runwayCriticalDays
-        }
+          threshold: this.config.runwayCriticalDays,
+        },
       });
     } else if (runway.status === 'warning') {
       await this.sendAlert({
@@ -535,8 +537,8 @@ export class CostReconciliationService {
           dailyBurnRate: runway.dailyBurnRate,
           projectedDepletionDate: runway.projectedDepletionDate.toISOString(),
           threshold: this.config.runwayWarningDays,
-          recommendation: 'Consider replenishing infrastructure reserve'
-        }
+          recommendation: 'Consider replenishing infrastructure reserve',
+        },
       });
     }
   }
@@ -548,7 +550,7 @@ export class CostReconciliationService {
     logger.info(`Reconciliation alert: ${alert.type}`, {
       modelId: alert.modelId,
       priority: alert.priority,
-      message: alert.message
+      message: alert.message,
     });
 
     // Send via AlertManager if configured
@@ -560,7 +562,7 @@ export class CostReconciliationService {
         message: alert.message,
         poolAddress: alert.modelId, // Use modelId as identifier
         metadata: alert.metadata,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       } as any); // Type assertion due to different alert interfaces
     }
   }
@@ -617,7 +619,7 @@ export class CostReconciliationService {
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
     const history = this.costHistory.get(modelId) || [];
-    return history.filter(c => c.period.end >= cutoffDate);
+    return history.filter((c) => c.period.end >= cutoffDate);
   }
 
   /**
@@ -640,8 +642,8 @@ export class CostReconciliationService {
         varianceCriticalPercent: this.config.varianceCriticalPercent,
         runwayWarningDays: this.config.runwayWarningDays,
         runwayCriticalDays: this.config.runwayCriticalDays,
-        reconciliationIntervalMs: this.config.reconciliationIntervalMs
-      }
+        reconciliationIntervalMs: this.config.reconciliationIntervalMs,
+      },
     };
   }
 

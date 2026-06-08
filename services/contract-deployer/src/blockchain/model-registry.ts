@@ -6,7 +6,7 @@ const MODEL_REGISTRY_ABI = [
   'function getTokenAddress(string modelId) view returns (address)',
   'function getModelInfo(string modelId) view returns (address tokenAddress, string metricName, string mlflowRunId, uint256 registrationTime, bool isActive)',
   'function owner() view returns (address)',
-  'event ModelRegistered(string indexed modelId, address tokenAddress, string metricName, string mlflowRunId)'
+  'event ModelRegistered(string indexed modelId, address tokenAddress, string metricName, string mlflowRunId)',
 ];
 
 export interface ModelRegistryConfig {
@@ -44,11 +44,7 @@ export class ModelRegistryService {
 
   constructor(config: ModelRegistryConfig) {
     this.config = config;
-    this.contract = new ethers.Contract(
-      config.registryAddress,
-      MODEL_REGISTRY_ABI,
-      config.signer
-    );
+    this.contract = new ethers.Contract(config.registryAddress, MODEL_REGISTRY_ABI, config.signer);
   }
 
   async registerModel(data: RegistrationData): Promise<RegistrationResult> {
@@ -63,7 +59,7 @@ export class ModelRegistryService {
           data.modelId,
           data.tokenAddress,
           data.metricName,
-          data.mlflowRunId
+          data.mlflowRunId,
         );
 
         const receipt = await tx.wait(this.config.confirmations);
@@ -74,21 +70,20 @@ export class ModelRegistryService {
 
         logger.info('Model registered successfully', {
           modelId: data.modelId,
-          transactionHash: receipt.hash
+          transactionHash: receipt.hash,
         });
 
         return {
           transactionHash: receipt.hash,
           blockNumber: receipt.blockNumber,
           gasUsed: receipt.gasUsed.toString(),
-          success: true
+          success: true,
         };
-
       } catch (error: any) {
         attempts++;
         logger.error(`Registration attempt ${attempts} failed`, {
           error: error.message,
-          modelId: data.modelId
+          modelId: data.modelId,
         });
 
         if (attempts >= maxAttempts || error.message.includes('already registered')) {
@@ -96,7 +91,7 @@ export class ModelRegistryService {
         }
 
         // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
+        await new Promise((resolve) => setTimeout(resolve, 2000 * attempts));
       }
     }
 
@@ -116,7 +111,7 @@ export class ModelRegistryService {
   async getModelInfo(modelId: string): Promise<ModelInfo | null> {
     try {
       const info = await this.contract.getFunction('getModelInfo')(modelId);
-      
+
       if (info.tokenAddress === ethers.ZeroAddress) {
         return null;
       }
@@ -126,7 +121,7 @@ export class ModelRegistryService {
         metricName: info.metricName,
         mlflowRunId: info.mlflowRunId,
         registrationTime: new Date(Number(info.registrationTime) * 1000),
-        isActive: info.isActive
+        isActive: info.isActive,
       };
     } catch (error) {
       logger.error('Failed to get model info', { error, modelId });
@@ -136,12 +131,9 @@ export class ModelRegistryService {
 
   async estimateRegistrationGas(data: RegistrationData): Promise<string> {
     try {
-      const estimatedGas = await this.contract.getFunction('registerModel').estimateGas(
-        data.modelId,
-        data.tokenAddress,
-        data.metricName,
-        data.mlflowRunId
-      );
+      const estimatedGas = await this.contract
+        .getFunction('registerModel')
+        .estimateGas(data.modelId, data.tokenAddress, data.metricName, data.mlflowRunId);
       return estimatedGas.toString();
     } catch (error) {
       logger.error('Failed to estimate gas', { error, modelId: data.modelId });
@@ -161,18 +153,18 @@ export class ModelRegistryService {
 
   async onModelRegistered(
     handler: (event: any) => void,
-    errorHandler?: (error: Error) => void
+    errorHandler?: (error: Error) => void,
   ): Promise<void> {
     try {
       const filter = this.contract.getEvent('ModelRegistered')();
-      
+
       this.contract.on(filter, (modelId, tokenAddress, metricName, mlflowRunId, event) => {
         handler({
           modelId,
           tokenAddress,
           metricName,
           mlflowRunId,
-          blockNumber: event.blockNumber
+          blockNumber: event.blockNumber,
         });
       });
 

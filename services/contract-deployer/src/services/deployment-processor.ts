@@ -56,7 +56,7 @@ export class DeploymentProcessor {
   private async processMessage(message: QueueMessage): Promise<void> {
     this.logger.info(`Processing queue message: ${message.id}`, {
       type: message.type,
-      attempts: message.attempts
+      attempts: message.attempts,
     });
 
     try {
@@ -64,14 +64,14 @@ export class DeploymentProcessor {
         await this.processDeployment(message.payload as DeploymentRequest);
       } else {
         this.logger.warn(`Unknown message type: ${message.type}`, {
-          messageId: message.id
+          messageId: message.id,
         });
       }
     } catch (error) {
       this.logger.error(`Failed to process message: ${message.id}`, {
         error,
         messageType: message.type,
-        attempts: message.attempts
+        attempts: message.attempts,
       });
 
       // TODO: Implement retry logic with exponential backoff
@@ -82,20 +82,20 @@ export class DeploymentProcessor {
   private async processDeployment(request: DeploymentRequest): Promise<void> {
     this.logger.info(`Processing deployment request: ${request.id}`, {
       modelId: request.modelId,
-      retryCount: request.retryCount
+      retryCount: request.retryCount,
     });
 
     try {
       await this.deploymentService.processDeployment(request);
-      
+
       this.logger.info(`Deployment completed successfully: ${request.id}`, {
-        modelId: request.modelId
+        modelId: request.modelId,
       });
     } catch (error) {
       this.logger.error(`Deployment failed: ${request.id}`, {
         error,
         modelId: request.modelId,
-        retryCount: request.retryCount
+        retryCount: request.retryCount,
       });
 
       // The DeploymentService handles status updates on failure

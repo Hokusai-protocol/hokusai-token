@@ -47,6 +47,36 @@ describe('MintRequest schema', () => {
     expect(result.value).toEqual(validMessage);
   });
 
+  // Guards the cross-repo seam (HOK-2099): the pipeline serializes contributors with
+  // model_dump_json(by_alias=True) and NO exclude_none, so EVERY provenance field is
+  // always present on the wire — null when unset. The committed example fixture omits
+  // them, which is why earlier drift (submissionId/contributionBatchId, then contributorId)
+  // slipped past fixture-based tests. Assert the schema accepts the full pipeline contributor
+  // shape with all provenance fields present, both as values and as null.
+  test('accepts the full pipeline contributor shape (all provenance fields, incl. null)', () => {
+    const withProvenance = {
+      ...validMessage,
+      contributors: [
+        {
+          wallet_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
+          weight_bps: 6000,
+          submissionId: 'sub-1',
+          contributionBatchId: 'batch-1',
+          contributorId: 'contrib-1',
+        },
+        {
+          wallet_address: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+          weight_bps: 4000,
+          submissionId: null,
+          contributionBatchId: null,
+          contributorId: null,
+        },
+      ],
+    };
+    const result = validateMintRequestMessage(withProvenance);
+    expect(result.error).toBeUndefined();
+  });
+
   test('accepts the canonical statistical metadata fields', () => {
     const result = validateMintRequestMessage({
       ...validMessage,

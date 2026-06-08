@@ -4,7 +4,9 @@ import { createMockContract, createMockProvider, createMockSigner } from '../../
 
 describe('ModelRegistryService', () => {
   let registryService: ModelRegistryService;
-  let mockContract: jest.Mocked<ethers.Contract>;
+  // Typed as `any`: the mock object carries jest mock fns on ethers method/event members
+  // (estimateGas, filters.X, on) that ethers v6's static Contract type does not expose. See HOK-2100.
+  let mockContract: any;
   let mockProvider: jest.Mocked<ethers.Provider>;
   let mockSigner: jest.Mocked<ethers.Signer>;
 

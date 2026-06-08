@@ -147,6 +147,7 @@ export class CostReconciliationService {
     logger.info('CostReconciliationService initialized', {
       infraReserveAddress: config.infraReserveAddress,
       infraCostOracleAddress: config.infraCostOracleAddress,
+      costOracleConfigured: this.infraCostOracleContract !== undefined,
       varianceWarningPercent: config.varianceWarningPercent,
       reconciliationIntervalMs: config.reconciliationIntervalMs
     });

@@ -32,11 +32,9 @@ describe('SSMParameterStore', () => {
       });
 
       const result = await ssm.getParameter('deployer_key');
-      
+
       expect(result).toBe('0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12');
-      expect(mockSSMClient.send).toHaveBeenCalledWith(
-        expect.any(GetParameterCommand)
-      );
+      expect(mockSSMClient.send).toHaveBeenCalledWith(expect.any(GetParameterCommand));
     });
 
     it('should throw error for missing required parameter', async () => {
@@ -47,8 +45,9 @@ describe('SSMParameterStore', () => {
         pathPrefix: '/hokusai/development/contracts/',
       });
 
-      await expect(ssm.getParameter('missing_param', true))
-        .rejects.toThrow('Required SSM parameter not found');
+      await expect(ssm.getParameter('missing_param', true)).rejects.toThrow(
+        'Required SSM parameter not found',
+      );
     });
 
     it('should return undefined for missing optional parameter', async () => {
@@ -72,9 +71,7 @@ describe('SSMParameterStore', () => {
         },
       };
 
-      mockSSMClient.send
-        .mockRejectedValueOnce(mockError)
-        .mockResolvedValueOnce(mockResponse);
+      mockSSMClient.send.mockRejectedValueOnce(mockError).mockResolvedValueOnce(mockResponse);
 
       const ssm = new SSMParameterStore({
         pathPrefix: '/hokusai/development/contracts/',
@@ -114,7 +111,7 @@ describe('SSMParameterStore', () => {
       });
 
       const result = await ssm.getParameters(['deployer_key', 'token_manager_address']);
-      
+
       expect(result).toEqual({
         deployer_key: 'deployer-key-value',
         token_manager_address: '0x1234567890123456789012345678901234567890',
@@ -139,7 +136,7 @@ describe('SSMParameterStore', () => {
       });
 
       const result = await ssm.getParameters(['deployer_key', 'invalid_param']);
-      
+
       expect(result).toEqual({
         deployer_key: 'deployer-key-value',
       });
@@ -237,8 +234,7 @@ describe('SSMParameterStore', () => {
         pathPrefix: '/hokusai/development/contracts/',
       });
 
-      await expect(ssm.getAllParameters())
-        .rejects.toThrow('Missing required SSM parameters');
+      await expect(ssm.getAllParameters()).rejects.toThrow('Missing required SSM parameters');
     });
   });
 

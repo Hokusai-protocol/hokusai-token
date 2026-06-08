@@ -35,10 +35,10 @@ async function main(): Promise<void> {
       'USDC_ADDRESS',
       'ALERT_EMAIL_FROM',
       'ALERT_EMAIL_TO',
-      'AWS_REGION'
+      'AWS_REGION',
     ];
 
-    const missing = requiredVars.filter(v => !process.env[v]);
+    const missing = requiredVars.filter((v) => !process.env[v]);
     if (missing.length > 0) {
       throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
     }
@@ -47,7 +47,9 @@ async function main(): Promise<void> {
     logger.info('[MONITORING-SERVER] Creating Ethereum provider...');
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
     const network = await provider.getNetwork();
-    logger.info(`[MONITORING-SERVER] Connected to network: ${network.name} (chainId: ${network.chainId})`);
+    logger.info(
+      `[MONITORING-SERVER] Connected to network: ${network.name} (chainId: ${network.chainId})`,
+    );
 
     if (process.env.REDIS_URL) {
       try {
@@ -61,7 +63,10 @@ async function main(): Promise<void> {
         ]);
         logger.info('[MONITORING-SERVER] Redis connected');
       } catch (error) {
-        logger.warn('[MONITORING-SERVER] Redis connection failed; readiness will report degraded', error);
+        logger.warn(
+          '[MONITORING-SERVER] Redis connection failed; readiness will report degraded',
+          error,
+        );
         if (redis) {
           await redis.disconnect().catch(() => undefined);
         }
@@ -98,7 +103,7 @@ async function main(): Promise<void> {
       varianceCriticalPercent: parseFloat(process.env.COST_VARIANCE_CRITICAL_PCT || '20'),
       runwayWarningDays: parseInt(process.env.RUNWAY_WARNING_DAYS || '7'),
       runwayCriticalDays: parseInt(process.env.RUNWAY_CRITICAL_DAYS || '3'),
-      reconciliationIntervalMs: parseInt(process.env.RECONCILIATION_INTERVAL_MS || '86400000') // Daily
+      reconciliationIntervalMs: parseInt(process.env.RECONCILIATION_INTERVAL_MS || '86400000'), // Daily
     });
 
     // Start reconciliation service if infrastructure reserve address is configured
@@ -111,7 +116,9 @@ async function main(): Promise<void> {
         logger.warn('[MONITORING-SERVER] Continuing without reconciliation service');
       }
     } else {
-      logger.warn('[MONITORING-SERVER] INFRASTRUCTURE_RESERVE_ADDRESS not set, reconciliation service disabled');
+      logger.warn(
+        '[MONITORING-SERVER] INFRASTRUCTURE_RESERVE_ADDRESS not set, reconciliation service disabled',
+      );
     }
 
     // Create Express app
@@ -120,10 +127,12 @@ async function main(): Promise<void> {
 
     // Middleware
     app.use(helmet());
-    app.use(cors({
-      origin: process.env.CORS_ORIGINS?.split(',') || '*',
-      credentials: true
-    }));
+    app.use(
+      cors({
+        origin: process.env.CORS_ORIGINS?.split(',') || '*',
+        credentials: true,
+      }),
+    );
     app.use(express.json());
 
     // Request logging
@@ -134,12 +143,12 @@ async function main(): Promise<void> {
 
     // Health check endpoint
     app.get('/health', async (_req: Request, res: Response) => {
-      const health = await ammMonitor.getHealth();
+      const health = ammMonitor.getHealth();
       res.status(health.isHealthy ? 200 : 503).json({
         status: health.isHealthy ? 'healthy' : 'unhealthy',
         uptime: health.uptime,
         components: health.components,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     });
 
@@ -167,8 +176,8 @@ async function main(): Promise<void> {
         error: {
           code: 'NOT_FOUND',
           message: 'Endpoint not found',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     });
 
@@ -199,7 +208,6 @@ async function main(): Promise<void> {
       }
       process.exit(0);
     });
-
   } catch (error) {
     logger.error('[MONITORING-SERVER] Fatal error:', error);
     process.exit(1);
@@ -302,7 +310,13 @@ async function getSignerReadiness(
 async function getDeltaVerifierRoleReadiness(
   provider: ethers.JsonRpcProvider,
   signerAddress?: string,
-): Promise<{ ok: boolean; address?: string; signer?: string; hasSubmitterRole?: boolean; error?: string }> {
+): Promise<{
+  ok: boolean;
+  address?: string;
+  signer?: string;
+  hasSubmitterRole?: boolean;
+  error?: string;
+}> {
   try {
     const deltaVerifierAddress = process.env.DELTA_VERIFIER_ADDRESS;
     if (!deltaVerifierAddress) {

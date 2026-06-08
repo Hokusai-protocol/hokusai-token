@@ -12,14 +12,18 @@ export class QueueService {
     private readonly logger: Logger,
     redisUrl?: string,
   ) {
-    this.client = createClient(redisUrl ? {
-      url: redisUrl,
-    } : {
-      socket: {
-        host: this.host,
-        port: this.port,
-      },
-    });
+    this.client = createClient(
+      redisUrl
+        ? {
+            url: redisUrl,
+          }
+        : {
+            socket: {
+              host: this.host,
+              port: this.port,
+            },
+          },
+    );
 
     this.client.on('error', (err) => {
       this.logger.error('Redis client error:', err);

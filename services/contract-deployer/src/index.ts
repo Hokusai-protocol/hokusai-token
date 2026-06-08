@@ -56,7 +56,7 @@ async function main(): Promise<void> {
             licenseHash: config.LICENSE_HASH,
             licenseURI: config.LICENSE_URI,
             governor: config.GOVERNOR_ADDRESS,
-          }
+          },
         },
         queues: {
           inbound: process.env.INBOUND_QUEUE || 'hokusai:model_ready_queue',

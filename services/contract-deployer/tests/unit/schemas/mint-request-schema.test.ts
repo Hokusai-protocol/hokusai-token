@@ -370,9 +370,7 @@ describe('MintRequest schema', () => {
       },
     });
     expect(result.error).toBeDefined();
-    expect(
-      result.error?.details.some((d) => d.message.includes('does not match')),
-    ).toBe(true);
+    expect(result.error?.details.some((d) => d.message.includes('does not match'))).toBe(true);
   });
 
   test('accepts totalSamples when sample_size_candidate is absent', () => {

@@ -30,8 +30,8 @@ const scenarios = {
       currentReserve: '$8,500 USDC',
       previousReserve: '$10,000 USDC',
       dropPercentage: '15%',
-      threshold: '10%'
-    }
+      threshold: '10%',
+    },
   },
   'large-trade': {
     title: '📊 Large Trade Detected',
@@ -46,8 +46,8 @@ const scenarios = {
       tradeType: 'BUY',
       tradeSize: '$15,000 USDC',
       buyer: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
-      priceImpact: '3.2%'
-    }
+      priceImpact: '3.2%',
+    },
   },
   'pool-paused': {
     title: '🛑 Pool Paused',
@@ -61,8 +61,8 @@ const scenarios = {
       poolContract: '0x76A59583430243D595E8985cA089a00Cc18B73af',
       pausedBy: '0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B',
       timestamp: new Date().toISOString(),
-      reason: 'Manual pause by owner'
-    }
+      reason: 'Manual pause by owner',
+    },
   },
   'high-volume': {
     title: '📈 High Trading Volume',
@@ -77,8 +77,8 @@ const scenarios = {
       trades24h: '156',
       volume24h: '$45,000 USDC',
       averageTradeSize: '$288 USDC',
-      threshold: '100 trades/day'
-    }
+      threshold: '100 trades/day',
+    },
   },
   'price-slippage': {
     title: '💱 High Price Slippage',
@@ -94,9 +94,9 @@ const scenarios = {
       currentPrice: '$0.0105',
       slippage: '12.5%',
       threshold: '5%',
-      timeWindow: '5 minutes'
-    }
-  }
+      timeWindow: '5 minutes',
+    },
+  },
 };
 
 type ScenarioKey = keyof typeof scenarios;
@@ -161,9 +161,13 @@ async function sendAlert(scenarioKey: string): Promise<boolean> {
 
       <h3>Details</h3>
       <div class="details">
-        ${Object.entries(scenario.details).map(([key, value]) => `
+        ${Object.entries(scenario.details)
+          .map(
+            ([key, value]) => `
           <p><strong>${formatKey(key)}:</strong> ${value}</p>
-        `).join('')}
+        `,
+          )
+          .join('')}
       </div>
       <p><strong>Timestamp:</strong> ${new Date().toISOString()}</p>
     </div>
@@ -198,7 +202,9 @@ Etherscan Links (Sepolia):
 DETAILS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${Object.entries(scenario.details).map(([key, value]) => `${formatKey(key)}: ${value}`).join('\n')}
+${Object.entries(scenario.details)
+  .map(([key, value]) => `${formatKey(key)}: ${value}`)
+  .join('\n')}
 
 Timestamp: ${new Date().toISOString()}
 
@@ -216,9 +222,9 @@ Hokusai AMM Monitoring - Testnet (Sepolia)
         Subject: { Data: subject, Charset: 'UTF-8' },
         Body: {
           Html: { Data: htmlBody, Charset: 'UTF-8' },
-          Text: { Data: textBody, Charset: 'UTF-8' }
-        }
-      }
+          Text: { Data: textBody, Charset: 'UTF-8' },
+        },
+      },
     });
 
     const response = await sesClient.send(command);
@@ -232,10 +238,10 @@ Hokusai AMM Monitoring - Testnet (Sepolia)
 
 function getPriorityColor(priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'): string {
   const colors = {
-    'CRITICAL': 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
-    'HIGH': 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-    'MEDIUM': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    'LOW': 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+    CRITICAL: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
+    HIGH: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+    MEDIUM: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    LOW: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
   };
   return colors[priority] || colors['MEDIUM'];
 }
@@ -243,7 +249,7 @@ function getPriorityColor(priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'): str
 function formatKey(key: string): string {
   return key
     .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, str => str.toUpperCase())
+    .replace(/^./, (str) => str.toUpperCase())
     .replace(/24h/, '24h')
     .trim();
 }
@@ -256,7 +262,7 @@ async function main(): Promise<void> {
     console.log('\n🧪 Hokusai Alert Test Script\n');
     console.log('Usage: npx tsx src/test-alerts.ts [scenario] [scenario2...]\n');
     console.log('Available scenarios:');
-    Object.keys(scenarios).forEach(key => {
+    Object.keys(scenarios).forEach((key) => {
       const scenario = scenarios[key as ScenarioKey];
       console.log(`  - ${key}: ${scenario.description}`);
     });
@@ -277,17 +283,22 @@ async function main(): Promise<void> {
 
   for (const scenario of toTest) {
     const success = await sendAlert(scenario);
-    if (success) sent++;
-    else failed++;
+    if (success) {
+      sent++;
+    } else {
+      failed++;
+    }
 
     // Small delay between emails
     if (toTest.length > 1) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
   }
 
   console.log(`\n✅ Sent: ${sent}`);
-  if (failed > 0) console.log(`❌ Failed: ${failed}`);
+  if (failed > 0) {
+    console.log(`❌ Failed: ${failed}`);
+  }
   console.log(`\n📬 Check your inbox at ${emailTo}\n`);
 }
 

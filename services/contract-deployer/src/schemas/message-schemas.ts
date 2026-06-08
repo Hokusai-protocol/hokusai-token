@@ -3,7 +3,7 @@ import Joi from 'joi';
 // Ethereum address validation regex
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const ETH_HASH_REGEX = /^0x[a-fA-F0-9]{64}$/;
-const TOKEN_SYMBOL_REGEX = /^[A-Z0-9\-]{1,10}$/;
+const TOKEN_SYMBOL_REGEX = /^[A-Z0-9-]{1,10}$/;
 
 export interface ModelReadyToDeployMessage {
   model_id: string;
@@ -67,7 +67,7 @@ const modelReadySchema = Joi.object<ModelReadyToDeployMessage>({
   tags: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
   timestamp: Joi.string().isoDate().required(),
   message_version: Joi.string().valid('1.0').required(),
-  _retryCount: Joi.number().integer().min(0).optional()
+  _retryCount: Joi.number().integer().min(0).optional(),
 });
 
 const tokenDeployedSchema = Joi.object<TokenDeployedMessage>({
@@ -94,15 +94,19 @@ const tokenDeployedSchema = Joi.object<TokenDeployedMessage>({
   _metadata: Joi.object({
     correlationId: Joi.string().optional(),
     source: Joi.string().optional(),
-    publishedAt: Joi.string().isoDate().optional()
-  }).optional()
+    publishedAt: Joi.string().isoDate().optional(),
+  }).optional(),
 });
 
-export function validateModelReadyToDeployMessage(message: unknown): Joi.ValidationResult<ModelReadyToDeployMessage> {
+export function validateModelReadyToDeployMessage(
+  message: unknown,
+): Joi.ValidationResult<ModelReadyToDeployMessage> {
   return modelReadySchema.validate(message);
 }
 
-export function validateTokenDeployedMessage(message: unknown): Joi.ValidationResult<TokenDeployedMessage> {
+export function validateTokenDeployedMessage(
+  message: unknown,
+): Joi.ValidationResult<TokenDeployedMessage> {
   return tokenDeployedSchema.validate(message);
 }
 
@@ -147,6 +151,6 @@ export function createTokenDeployedMessage(data: DeploymentData): TokenDeployedM
     contributor_address: data.contributor_address,
     performance_metric: data.performance_metric,
     performance_improvement: data.performance_improvement,
-    message_version: '1.0'
+    message_version: '1.0',
   };
 }

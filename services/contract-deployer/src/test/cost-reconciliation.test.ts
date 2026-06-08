@@ -22,30 +22,30 @@ describe('CostReconciliationService', () => {
     // Mock Ethereum provider
     mockProvider = {
       getBlockNumber: jest.fn().mockResolvedValue(12345),
-      getNetwork: jest.fn().mockResolvedValue({ chainId: 11155111n, name: 'sepolia' })
+      getNetwork: jest.fn().mockResolvedValue({ chainId: 11155111n, name: 'sepolia' }),
     };
 
     // Mock contract with getModelAccounting
     mockContract = {
       getModelAccounting: jest.fn().mockResolvedValue([
         ethers.parseUnits('10000', 6), // accrued: $10,000
-        ethers.parseUnits('5000', 6),  // paid: $5,000
-        '0x1234567890123456789012345678901234567890' // provider
-      ])
+        ethers.parseUnits('5000', 6), // paid: $5,000
+        '0x1234567890123456789012345678901234567890', // provider
+      ]),
     };
 
     // Mock Contract constructor
-    jest.spyOn(ethers, 'Contract').mockReturnValue(mockContract as any);
+    jest.spyOn(ethers, 'Contract').mockReturnValue(mockContract);
 
     // Create service
     service = new CostReconciliationService({
-      provider: mockProvider as any,
+      provider: mockProvider,
       infraReserveAddress: '0x1111111111111111111111111111111111111111',
       varianceWarningPercent: 10,
       varianceCriticalPercent: 20,
       runwayWarningDays: 7,
       runwayCriticalDays: 3,
-      reconciliationIntervalMs: 86400000 // Daily
+      reconciliationIntervalMs: 86400000, // Daily
     });
   });
 
@@ -62,9 +62,9 @@ describe('CostReconciliationService', () => {
         amount: 1234.56,
         period: {
           start: new Date('2026-03-01'),
-          end: new Date('2026-03-31')
+          end: new Date('2026-03-31'),
         },
-        invoiceId: 'INV-2026-03'
+        invoiceId: 'INV-2026-03',
       };
 
       await service.ingestActualCosts(cost);
@@ -79,14 +79,14 @@ describe('CostReconciliationService', () => {
         modelId: 'gpt-4',
         provider: 'AWS',
         amount: 1000,
-        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') }
+        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') },
       });
 
       await service.ingestActualCosts({
         modelId: 'claude-3',
         provider: 'AWS',
         amount: 2000,
-        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') }
+        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') },
       });
 
       const models = service.getTrackedModels();
@@ -106,8 +106,8 @@ describe('CostReconciliationService', () => {
           amount: 1000 + i,
           period: {
             start: new Date(`2025-${String(i + 1).padStart(2, '0')}-01`),
-            end: new Date(`2025-${String(i + 1).padStart(2, '0')}-28`)
-          }
+            end: new Date(`2025-${String(i + 1).padStart(2, '0')}-28`),
+          },
         });
       }
 
@@ -128,14 +128,14 @@ describe('CostReconciliationService', () => {
         modelId,
         provider: 'AWS',
         amount: 1000,
-        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') }
+        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') },
       });
 
       await service.ingestActualCosts({
         modelId,
         provider: 'AWS',
         amount: 1100,
-        period: { start: new Date('2026-04-01'), end: new Date('2026-04-30') }
+        period: { start: new Date('2026-04-01'), end: new Date('2026-04-30') },
       });
 
       // Note: Variance calculation is internal and runs during reconciliation
@@ -211,7 +211,7 @@ describe('CostReconciliationService', () => {
         modelId: 'gpt-4',
         provider: 'AWS',
         amount: 1000,
-        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') }
+        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') },
       });
 
       const status = service.getStatus();
@@ -235,7 +235,7 @@ describe('CostReconciliationService', () => {
         modelId: 'test-model',
         provider: 'AWS',
         amount: 1000,
-        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') }
+        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') },
       });
     });
 
@@ -267,7 +267,7 @@ describe('CostReconciliationService', () => {
         modelId: 'minimal-model',
         provider: 'AWS',
         amount: 500,
-        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') }
+        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') },
         // No invoiceId, no metadata
       });
 
@@ -282,7 +282,7 @@ describe('CostReconciliationService', () => {
         modelId: 'zero-cost',
         provider: 'AWS',
         amount: 0,
-        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') }
+        period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') },
       });
 
       const history = service.getCostHistory('zero-cost');

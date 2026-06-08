@@ -3,7 +3,7 @@ import { logger } from '../utils/logger';
 import {
   MonitoringConfig,
   createMonitoringConfig,
-  getConfigSummary
+  getConfigSummary,
 } from '../config/monitoring-config';
 import { PoolDiscovery } from './pool-discovery';
 import { StateTracker, StateAlert } from './state-tracker';
@@ -99,44 +99,33 @@ export class AMMMonitor {
     }
 
     // Initialize components
-    this.poolDiscovery = new PoolDiscovery(
-      this.provider,
-      this.config.contracts.ammFactory
-    );
+    this.poolDiscovery = new PoolDiscovery(this.provider, this.config.contracts.ammFactory);
 
-    this.stateTracker = new StateTracker(
-      this.provider,
-      this.config.thresholds,
-      {
-        onStateUpdate: async (state) => {
-          this.metricsCollector.updatePoolState(state);
-        },
-        onAlert: async (alert) => {
-          await this.handleAlert(alert);
-        }
-      }
-    );
+    this.stateTracker = new StateTracker(this.provider, this.config.thresholds, {
+      onStateUpdate: async (state) => {
+        this.metricsCollector.updatePoolState(state);
+      },
+      onAlert: async (alert) => {
+        await this.handleAlert(alert);
+      },
+    });
 
-    this.eventListener = new EventListener(
-      this.provider,
-      this.config.thresholds,
-      {
-        onTradeEvent: async (event) => {
-          this.metricsCollector.recordTrade(event);
-          await this.logTradeEvent(event);
-        },
-        onSecurityEvent: async (event) => {
-          await this.logSecurityEvent(event);
-        },
-        onFeeEvent: async (event) => {
-          this.metricsCollector.recordFeeDeposit(event);
-          await this.logFeeEvent(event);
-        },
-        onAlert: async (alert) => {
-          await this.handleAlert(alert);
-        }
-      }
-    );
+    this.eventListener = new EventListener(this.provider, this.config.thresholds, {
+      onTradeEvent: async (event) => {
+        this.metricsCollector.recordTrade(event);
+        await this.logTradeEvent(event);
+      },
+      onSecurityEvent: async (event) => {
+        await this.logSecurityEvent(event);
+      },
+      onFeeEvent: async (event) => {
+        this.metricsCollector.recordFeeDeposit(event);
+        await this.logFeeEvent(event);
+      },
+      onAlert: async (alert) => {
+        await this.handleAlert(alert);
+      },
+    });
 
     this.metricsCollector = new MetricsCollector();
 
@@ -149,7 +138,7 @@ export class AMMMonitor {
       awsSesRegion: this.config.awsSesRegion,
       maxAlertsPerHour: parseInt(process.env.MAX_ALERTS_PER_HOUR || '10', 10),
       maxAlertsPerDay: parseInt(process.env.MAX_ALERTS_PER_DAY || '50', 10),
-      deduplicationWindowMs: parseInt(process.env.ALERT_DEDUP_WINDOW_MS || '300000', 10) // 5 minutes default
+      deduplicationWindowMs: parseInt(process.env.ALERT_DEDUP_WINDOW_MS || '300000', 10), // 5 minutes default
     };
 
     this.alertManager = new AlertManager(alertManagerConfig);
@@ -205,7 +194,6 @@ export class AMMMonitor {
       this.logStartupSummary();
 
       logger.info('✅ AMM Monitor started successfully');
-
     } catch (error) {
       logger.error('Failed to start AMM Monitor:', error);
       this.isRunning = false;
@@ -236,7 +224,6 @@ export class AMMMonitor {
       logger.info(this.metricsCollector.getMetricsSummary());
 
       logger.info('✅ AMM Monitor stopped');
-
     } catch (error) {
       logger.error('Error stopping AMM Monitor:', error);
       throw error;
@@ -276,12 +263,12 @@ export class AMMMonitor {
               crr: pool.crr,
               tradeFee: pool.tradeFee,
               protocolFee: pool.protocolFee,
-              ibrDuration: pool.ibrDuration
+              ibrDuration: pool.ibrDuration,
             },
             blockNumber: 0,
             transactionHash: '',
-            timestamp: Math.floor(Date.now() / 1000)
-          }
+            timestamp: Math.floor(Date.now() / 1000),
+          },
         });
       }
     });
@@ -301,10 +288,7 @@ export class AMMMonitor {
 
       // Start state tracking (if enabled)
       if (this.config.statePollingEnabled) {
-        await this.stateTracker.startTracking(
-          poolConfig,
-          this.config.statePollingIntervalMs
-        );
+        await this.stateTracker.startTracking(poolConfig, this.config.statePollingIntervalMs);
       }
 
       // Start event listening (if enabled)
@@ -313,7 +297,6 @@ export class AMMMonitor {
       }
 
       logger.info(`✅ Monitoring started for ${poolConfig.modelId}`);
-
     } catch (error) {
       logger.error(`Failed to start monitoring for ${poolConfig.modelId}:`, error);
       this.errors.push(`Failed to monitor ${poolConfig.modelId}: ${error}`);
@@ -334,10 +317,9 @@ export class AMMMonitor {
       // Verify chain ID matches config
       if (Number(network.chainId) !== this.config.chainId) {
         throw new Error(
-          `Chain ID mismatch! Expected ${this.config.chainId}, got ${network.chainId}`
+          `Chain ID mismatch! Expected ${this.config.chainId}, got ${network.chainId}`,
         );
       }
-
     } catch (error) {
       logger.error('Failed to connect to RPC provider:', error);
 
@@ -370,7 +352,6 @@ export class AMMMonitor {
       // Recreate components with new provider
       // Note: This is simplified - in production, components should support provider switching
       logger.warn('Provider switched - monitoring may be temporarily interrupted');
-
     } catch (error) {
       logger.error('Backup provider also failed:', error);
       throw error;
@@ -385,10 +366,12 @@ export class AMMMonitor {
     const priorityEmoji = {
       critical: '🚨',
       high: '⚠️',
-      medium: '📊'
+      medium: '📊',
     };
 
-    logger.warn(`${priorityEmoji[alert.priority]} ALERT [${alert.priority.toUpperCase()}]: ${alert.message}`);
+    logger.warn(
+      `${priorityEmoji[alert.priority]} ALERT [${alert.priority.toUpperCase()}]: ${alert.message}`,
+    );
 
     // Store alert for API access (keep last 100)
     this.alerts.push(alert);
@@ -444,10 +427,10 @@ export class AMMMonitor {
 
     logger.info(
       `${emoji} ${action}: ${event.modelId} | ` +
-      `$${event.reserveAmountUSD.toFixed(2)} | ` +
-      `${event.tokenAmountFormatted.toFixed(2)} tokens | ` +
-      `Fee: $${event.feeAmountUSD.toFixed(2)} | ` +
-      `Price: $${event.spotPriceUSD.toFixed(6)}`
+        `$${event.reserveAmountUSD.toFixed(2)} | ` +
+        `${event.tokenAmountFormatted.toFixed(2)} tokens | ` +
+        `Fee: $${event.feeAmountUSD.toFixed(2)} | ` +
+        `Price: $${event.spotPriceUSD.toFixed(6)}`,
     );
   }
 
@@ -480,8 +463,8 @@ export class AMMMonitor {
 
     logger.info(
       `💰 FEE DEPOSIT: ${event.modelId} | ` +
-      `$${event.amountUSD.toFixed(2)} | ` +
-      `New Reserve: $${Number(ethers.formatUnits(event.newReserveBalance, 6)).toFixed(2)}`
+        `$${event.amountUSD.toFixed(2)} | ` +
+        `New Reserve: $${Number(ethers.formatUnits(event.newReserveBalance, 6)).toFixed(2)}`,
     );
   }
 
@@ -495,9 +478,15 @@ export class AMMMonitor {
     logger.info('AMM Monitor Status');
     logger.info('='.repeat(70));
     logger.info(`Pools Monitored:       ${pools.length}`);
-    logger.info(`State Polling:         ${this.config.statePollingEnabled ? 'ENABLED' : 'DISABLED'} (${this.config.statePollingIntervalMs}ms)`);
-    logger.info(`Event Listeners:       ${this.config.eventListenersEnabled ? 'ENABLED' : 'DISABLED'}`);
-    logger.info(`Pool Discovery:        ${this.config.poolDiscoveryEnabled ? 'ENABLED' : 'DISABLED'}`);
+    logger.info(
+      `State Polling:         ${this.config.statePollingEnabled ? 'ENABLED' : 'DISABLED'} (${this.config.statePollingIntervalMs}ms)`,
+    );
+    logger.info(
+      `Event Listeners:       ${this.config.eventListenersEnabled ? 'ENABLED' : 'DISABLED'}`,
+    );
+    logger.info(
+      `Pool Discovery:        ${this.config.poolDiscoveryEnabled ? 'ENABLED' : 'DISABLED'}`,
+    );
     logger.info(`Alerts:                ${this.config.alertsEnabled ? 'ENABLED' : 'DISABLED'}`);
     logger.info(`Alert Email:           ${this.config.alertEmail}`);
     logger.info(`Backup RPC:            ${this.config.backupRpcUrl ? 'CONFIGURED' : 'NONE'}`);
@@ -506,7 +495,9 @@ export class AMMMonitor {
     logger.info('\nMonitored Pools:');
     for (const pool of pools) {
       logger.info(`  • ${pool.modelId} (${pool.ammAddress})`);
-      logger.info(`    CRR: ${pool.crr / 10000}% | Fee: ${pool.tradeFee / 100}% | IBR: ${pool.ibrDuration / 86400}d`);
+      logger.info(
+        `    CRR: ${pool.crr / 10000}% | Fee: ${pool.tradeFee / 100}% | IBR: ${pool.ibrDuration / 86400}d`,
+      );
     }
 
     logger.info('='.repeat(70) + '\n');
@@ -518,16 +509,17 @@ export class AMMMonitor {
   getHealth(): AMMMonitorHealth {
     const uptime = this.isRunning ? Date.now() - this.startTime : 0;
 
-    const status: 'healthy' | 'degraded' | 'unhealthy' =
-      !this.isRunning ? 'unhealthy' :
-      this.errors.length > 5 ? 'degraded' :
-      'healthy';
+    const status: 'healthy' | 'degraded' | 'unhealthy' = !this.isRunning
+      ? 'unhealthy'
+      : this.errors.length > 5
+        ? 'degraded'
+        : 'healthy';
 
     const components = {
       poolDiscovery: this.poolDiscovery.getPoolCount() > 0,
       stateTracking: this.stateTracker.getTrackedPoolCount() > 0,
       eventListening: this.eventListener.getListeningPoolCount() > 0,
-      metricsCollection: this.metricsCollector.getAllPoolMetrics().length > 0
+      metricsCollection: this.metricsCollector.getAllPoolMetrics().length > 0,
     };
 
     return {
@@ -538,7 +530,7 @@ export class AMMMonitor {
       components,
       componentsStatus: components, // Alias for backwards compatibility
       lastUpdateTime: Date.now(),
-      errors: this.errors.length > 0 ? [...this.errors] : undefined
+      errors: this.errors.length > 0 ? [...this.errors] : undefined,
     };
   }
 
@@ -549,7 +541,7 @@ export class AMMMonitor {
     const systemMetrics = this.metricsCollector.getSystemMetrics();
     return {
       systemMetrics,
-      poolMetrics: Array.from(systemMetrics.poolMetrics.values())
+      poolMetrics: Array.from(systemMetrics.poolMetrics.values()),
     };
   }
 
@@ -592,12 +584,14 @@ export class AMMMonitor {
    * Get recent alerts (last 24 hours)
    */
   getRecentAlerts() {
-    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     // Add timestamp to alerts when retrieving
-    return this.alerts.map((alert, idx) => ({
-      ...alert,
-      timestamp: (alert as any).timestamp || (Date.now() - ((this.alerts.length - idx) * 60000)) // Estimate if not present
-    })).filter((alert: any) => alert.timestamp >= oneDayAgo);
+    return this.alerts
+      .map((alert, idx) => ({
+        ...alert,
+        timestamp: (alert as any).timestamp || Date.now() - (this.alerts.length - idx) * 60000, // Estimate if not present
+      }))
+      .filter((alert: any) => alert.timestamp >= oneDayAgo);
   }
 
   /**

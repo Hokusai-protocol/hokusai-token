@@ -7,11 +7,11 @@ describe('RedisQueueConsumer', () => {
   let consumer: RedisQueueConsumer;
   let mockRedis: jest.Mocked<RedisClientType>;
   let processMessageSpy: jest.Mock;
-  
+
   const INBOUND_QUEUE = 'hokusai:model_ready_queue';
   const PROCESSING_QUEUE = 'hokusai:processing_queue';
   const DLQ = 'hokusai:dlq';
-  
+
   const validMessage: ModelReadyToDeployMessage = {
     model_id: 'model_123',
     token_symbol: 'HKAI-123',
@@ -23,7 +23,7 @@ describe('RedisQueueConsumer', () => {
     mlflow_run_id: 'run_abc123',
     improvement_percentage: 3.51,
     timestamp: '2024-01-27T10:00:00Z',
-    message_version: '1.0'
+    message_version: '1.0',
   };
 
   beforeEach(() => {
@@ -35,7 +35,7 @@ describe('RedisQueueConsumer', () => {
       processingQueue: PROCESSING_QUEUE,
       deadLetterQueue: DLQ,
       maxRetries: 3,
-      blockingTimeout: 5
+      blockingTimeout: 5,
     });
   });
 
@@ -57,7 +57,7 @@ describe('RedisQueueConsumer', () => {
       // the validated/normalized message.
       expect(processMessageSpy).toHaveBeenCalledWith({
         ...validMessage,
-        timestamp: new Date(validMessage.timestamp).toISOString()
+        timestamp: new Date(validMessage.timestamp).toISOString(),
       });
       expect(mockRedis.lRem).toHaveBeenCalledWith(PROCESSING_QUEUE, 1, messageStr);
     });
@@ -83,11 +83,7 @@ describe('RedisQueueConsumer', () => {
   });
 
   describe('Message validation', () => {
-    // TODO(HOK-2100): production bug — moveToDeadLetterQueue() re-runs
-    // JSON.parse(messageStr) on the raw string, which throws on malformed JSON
-    // and is re-thrown by the outer catch (also JSON.parse). Fixing this is a
-    // production-behavior change outside this OOM/busy-loop fix's scope.
-    test.skip('should reject malformed JSON messages', async () => {
+    test('should reject malformed JSON messages', async () => {
       const invalidJson = 'not valid json';
       mockRedis.brPopLPush.mockResolvedValueOnce(invalidJson);
       mockRedis.lRem.mockResolvedValueOnce(1);
@@ -118,7 +114,7 @@ describe('RedisQueueConsumer', () => {
     test('should retry failed messages up to maxRetries', async () => {
       const messageWithRetry = { ...validMessage, _retryCount: 2 };
       const messageStr = JSON.stringify(messageWithRetry);
-      
+
       mockRedis.brPopLPush.mockResolvedValueOnce(messageStr);
       processMessageSpy.mockRejectedValueOnce(new Error('Temporary failure'));
       mockRedis.lPush.mockResolvedValueOnce(1);
@@ -127,14 +123,14 @@ describe('RedisQueueConsumer', () => {
 
       expect(mockRedis.lPush).toHaveBeenCalledWith(
         INBOUND_QUEUE,
-        JSON.stringify({ ...messageWithRetry, _retryCount: 3 })
+        JSON.stringify({ ...messageWithRetry, _retryCount: 3 }),
       );
     });
 
     test('should move to DLQ after exceeding maxRetries', async () => {
       const messageWithMaxRetries = { ...validMessage, _retryCount: 3 };
       const messageStr = JSON.stringify(messageWithMaxRetries);
-      
+
       mockRedis.brPopLPush.mockResolvedValueOnce(messageStr);
       processMessageSpy.mockRejectedValueOnce(new Error('Permanent failure'));
       mockRedis.lRem.mockResolvedValueOnce(1);
@@ -149,7 +145,8 @@ describe('RedisQueueConsumer', () => {
 
   describe('Queue operations', () => {
     test('should get queue depths', async () => {
-      mockRedis.lLen.mockResolvedValueOnce(10)
+      mockRedis.lLen
+        .mockResolvedValueOnce(10)
         .mockResolvedValueOnce(2)
         .mockResolvedValueOnce(1)
         .mockResolvedValueOnce(5);
@@ -160,7 +157,7 @@ describe('RedisQueueConsumer', () => {
         inbound: 10,
         processing: 2,
         deadLetter: 1,
-        outbound: 5
+        outbound: 5,
       });
     });
 
@@ -225,7 +222,7 @@ describe('RedisQueueConsumer', () => {
 
       processMessageSpy.mockImplementation(async () => {
         processingMessage = true;
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
         processingMessage = false;
       });
 
@@ -237,7 +234,7 @@ describe('RedisQueueConsumer', () => {
       expect(processingMessage).toBe(false);
       expect(processMessageSpy).toHaveBeenCalledWith({
         ...validMessage,
-        timestamp: new Date(validMessage.timestamp).toISOString()
+        timestamp: new Date(validMessage.timestamp).toISOString(),
       });
       expect(mockRedis.lRem).toHaveBeenCalled();
       expect(consumer.isRunning()).toBe(false);
@@ -248,22 +245,20 @@ describe('RedisQueueConsumer', () => {
     test('should handle Redis connection errors', async () => {
       mockRedis.brPopLPush.mockRejectedValueOnce(new Error('Redis connection lost'));
 
-      await expect(consumer.processMessage(processMessageSpy)).rejects.toThrow('Redis connection lost');
+      await expect(consumer.processMessage(processMessageSpy)).rejects.toThrow(
+        'Redis connection lost',
+      );
     });
 
-    // TODO(HOK-2100): processMessage only emits 'error' from the
-    // message-processing catch (after a message is parsed); a brPopLPush poll
-    // rejection propagates without emitting. Aligning this requires a
-    // production-behavior change outside this OOM/busy-loop fix's scope.
-    test.skip('should emit error events', async () => {
+    test('should emit error events', async () => {
       const errorHandler = jest.fn();
       consumer.on('error', errorHandler);
-      
+
       const error = new Error('Test error');
       mockRedis.brPopLPush.mockRejectedValueOnce(error);
-      
+
       await expect(consumer.processMessage(processMessageSpy)).rejects.toThrow();
-      
+
       expect(errorHandler).toHaveBeenCalledWith(error);
     });
   });

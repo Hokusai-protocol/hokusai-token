@@ -50,6 +50,11 @@ jobs:
 
       - run: npm ci
 
+      # ESLint over src + tests (errors block; the type-aware/async debt is tracked as
+      # warnings in HOK-2102 and does not fail the build).
+      - name: Lint
+        run: npm run lint
+
       # Production source must type-check (was ~90 errors before HOK-2100).
       - name: Typecheck
         run: npm run typecheck

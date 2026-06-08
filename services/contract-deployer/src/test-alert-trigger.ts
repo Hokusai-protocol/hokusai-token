@@ -152,24 +152,24 @@ Service: hokusai-monitor-testnet | Region: us-east-1
     const command = new SendEmailCommand({
       Source: emailFrom,
       Destination: {
-        ToAddresses: [emailTo]
+        ToAddresses: [emailTo],
       },
       Message: {
         Subject: {
           Data: subject,
-          Charset: 'UTF-8'
+          Charset: 'UTF-8',
         },
         Body: {
           Html: {
             Data: htmlBody,
-            Charset: 'UTF-8'
+            Charset: 'UTF-8',
           },
           Text: {
             Data: textBody,
-            Charset: 'UTF-8'
-          }
-        }
-      }
+            Charset: 'UTF-8',
+          },
+        },
+      },
     });
 
     const response = await sesClient.send(command);

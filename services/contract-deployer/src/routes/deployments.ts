@@ -5,10 +5,12 @@ import { DeploymentService } from '../services/deployment.service';
 import { apiKeyAuth, validateUserAddress } from '../middleware/auth';
 import { ValidationHelpers } from '../schemas/api-schemas';
 import { ApiErrorFactory, toApiError } from '../types/errors';
-import { DeployTokenRequest } from '../types/api.types';
 import { createLogger } from '../utils/logger';
 
 const logger = createLogger('deployment-routes');
+
+// Canonical UUID v4 form for deployment ids; shared by the status and legacy routes.
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function deploymentRouter(
   _queueService: QueueService,
@@ -24,75 +26,78 @@ export function deploymentRouter(
    * POST /api/deployments
    * Create a new token deployment
    */
-  router.post('/', validateUserAddress, async (req: Request, res: Response, _next: NextFunction) => {
-    try {
-      logger.info('Deployment request received', {
-        correlationId: req.correlationId,
-        userId: req.user?.userId,
-        userAddress: req.body?.userAddress,
-        modelId: req.body?.modelId
-      });
-
-      // Validate request body
-      const validation = ValidationHelpers.validateDeployTokenRequest(req.body);
-      
-      if (validation.error) {
-        logger.warn('Deployment request validation failed', {
+  router.post(
+    '/',
+    validateUserAddress,
+    async (req: Request, res: Response, _next: NextFunction) => {
+      try {
+        logger.info('Deployment request received', {
           correlationId: req.correlationId,
-          errors: validation.error.details
+          userId: req.user?.userId,
+          userAddress: req.body?.userAddress,
+          modelId: req.body?.modelId,
         });
 
-        const errorResponse = ValidationHelpers.createValidationErrorResponse(validation.error);
-        return res.status(400).json(errorResponse);
-      }
+        // Validate request body
+        const validation = ValidationHelpers.validateDeployTokenRequest(req.body);
 
-      const deployRequest = validation.value as DeployTokenRequest;
+        if (validation.error) {
+          logger.warn('Deployment request validation failed', {
+            correlationId: req.correlationId,
+            errors: validation.error.details,
+          });
 
-      // Ensure user is authenticated
-      if (!req.user) {
-        const error = ApiErrorFactory.unauthorized(req.correlationId);
-        return res.status(error.statusCode).json({
-          success: false,
-          error: error.toApiResponse()
-        });
-      }
-
-      // Create deployment
-      const deploymentResponse = await deploymentService.createDeployment(
-        deployRequest,
-        req.user,
-        req.correlationId
-      );
-
-      logger.info('Deployment created successfully', {
-        correlationId: req.correlationId,
-        requestId: deploymentResponse.requestId,
-        status: deploymentResponse.status
-      });
-
-      return res.status(202).json({
-        success: true,
-        data: deploymentResponse,
-        meta: {
-          requestId: req.correlationId || 'unknown',
-          timestamp: new Date().toISOString(),
-          version: '1.0'
+          const errorResponse = ValidationHelpers.createValidationErrorResponse(validation.error);
+          return res.status(400).json(errorResponse);
         }
-      });
 
-    } catch (error) {
-      logger.error('Deployment creation failed', {
-        correlationId: req.correlationId,
-        error
-      });
+        const deployRequest = validation.value;
 
-      const apiError = toApiError(error, req.correlationId);
-      return res.status(apiError.statusCode).json({
-        success: false,
-        error: apiError.toApiResponse()
-      });
-    }
-  });
+        // Ensure user is authenticated
+        if (!req.user) {
+          const error = ApiErrorFactory.unauthorized(req.correlationId);
+          return res.status(error.statusCode).json({
+            success: false,
+            error: error.toApiResponse(),
+          });
+        }
+
+        // Create deployment
+        const deploymentResponse = await deploymentService.createDeployment(
+          deployRequest,
+          req.user,
+          req.correlationId,
+        );
+
+        logger.info('Deployment created successfully', {
+          correlationId: req.correlationId,
+          requestId: deploymentResponse.requestId,
+          status: deploymentResponse.status,
+        });
+
+        return res.status(202).json({
+          success: true,
+          data: deploymentResponse,
+          meta: {
+            requestId: req.correlationId || 'unknown',
+            timestamp: new Date().toISOString(),
+            version: '1.0',
+          },
+        });
+      } catch (error) {
+        logger.error('Deployment creation failed', {
+          correlationId: req.correlationId,
+          error,
+        });
+
+        const apiError = toApiError(error, req.correlationId);
+        return res.status(apiError.statusCode).json({
+          success: false,
+          error: apiError.toApiResponse(),
+        });
+      }
+    },
+  );
 
   /**
    * GET /api/deployments/:id/status
@@ -105,31 +110,28 @@ export function deploymentRouter(
       logger.info('Deployment status request received', {
         correlationId: req.correlationId,
         deploymentId,
-        userId: req.user?.userId
+        userId: req.user?.userId,
       });
 
       // Validate deployment ID format
-      if (!deploymentId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deploymentId)) {
+      if (!deploymentId || !UUID_V4_REGEX.test(deploymentId)) {
         const error = ApiErrorFactory.validationError(
           'Invalid deployment ID format. Must be a valid UUID.',
-          req.correlationId
+          req.correlationId,
         );
         return res.status(error.statusCode).json({
           success: false,
-          error: error.toApiResponse()
+          error: error.toApiResponse(),
         });
       }
 
       // Get deployment status
-      const status = await deploymentService.getDeploymentStatus(
-        deploymentId,
-        req.correlationId
-      );
+      const status = await deploymentService.getDeploymentStatus(deploymentId, req.correlationId);
 
       logger.info('Deployment status retrieved', {
         correlationId: req.correlationId,
         deploymentId,
-        status: status.status
+        status: status.status,
       });
 
       return res.status(200).json({
@@ -138,21 +140,20 @@ export function deploymentRouter(
         meta: {
           requestId: req.correlationId || 'unknown',
           timestamp: new Date().toISOString(),
-          version: '1.0'
-        }
+          version: '1.0',
+        },
       });
-
     } catch (error) {
       logger.error('Failed to get deployment status', {
         correlationId: req.correlationId,
         deploymentId: req.params.id,
-        error
+        error,
       });
 
       const apiError = toApiError(error, req.correlationId);
       return res.status(apiError.statusCode).json({
         success: false,
-        error: apiError.toApiResponse()
+        error: apiError.toApiResponse(),
       });
     }
   });
@@ -163,25 +164,39 @@ export function deploymentRouter(
    */
   router.get('/:id', async (req: Request, res: Response, _next: NextFunction) => {
     try {
+      const deploymentId = req.params.id;
+
       logger.info('Legacy deployment endpoint accessed', {
         correlationId: req.correlationId,
-        deploymentId: req.params.id
+        deploymentId,
       });
 
-      // Redirect to status endpoint
-      const statusUrl = `/api/deployments/${req.params.id}/status`;
-      res.redirect(301, statusUrl);
+      // Reject malformed ids (e.g. a collapsed empty path segment) instead of
+      // redirecting to another non-existent resource. Mirrors GET /:id/status.
+      if (!deploymentId || !UUID_V4_REGEX.test(deploymentId)) {
+        const error = ApiErrorFactory.validationError(
+          'Invalid deployment ID format. Must be a valid UUID.',
+          req.correlationId,
+        );
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.toApiResponse(),
+        });
+      }
 
+      // Redirect to status endpoint
+      const statusUrl = `/api/deployments/${deploymentId}/status`;
+      return res.redirect(301, statusUrl);
     } catch (error) {
       logger.error('Legacy endpoint redirect failed', {
         correlationId: req.correlationId,
-        error
+        error,
       });
 
       const apiError = toApiError(error, req.correlationId);
       res.status(apiError.statusCode).json({
         success: false,
-        error: apiError.toApiResponse()
+        error: apiError.toApiResponse(),
       });
     }
   });

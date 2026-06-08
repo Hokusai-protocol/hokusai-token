@@ -48,7 +48,7 @@ export const ERROR_CODES = {
   DATABASE_ERROR: 'DATABASE_ERROR',
   QUEUE_ERROR: 'QUEUE_ERROR',
   TIMEOUT_ERROR: 'TIMEOUT_ERROR',
-  CONFIGURATION_ERROR: 'CONFIGURATION_ERROR'
+  CONFIGURATION_ERROR: 'CONFIGURATION_ERROR',
 } as const;
 
 /**
@@ -60,7 +60,7 @@ export enum ErrorType {
   BUSINESS_LOGIC = 'business_logic',
   RATE_LIMITING = 'rate_limiting',
   BLOCKCHAIN = 'blockchain',
-  SYSTEM = 'system'
+  SYSTEM = 'system',
 }
 
 /**
@@ -70,7 +70,7 @@ export enum ErrorSeverity {
   LOW = 'low',
   MEDIUM = 'medium',
   HIGH = 'high',
-  CRITICAL = 'critical'
+  CRITICAL = 'critical',
 }
 
 /**
@@ -101,7 +101,7 @@ export class ApiError extends Error {
     cause?: Error;
   }) {
     super(options.message);
-    
+
     this.name = 'ApiError';
     this.code = options.code;
     this.type = options.type;
@@ -134,9 +134,9 @@ export class ApiError extends Error {
       ...(process.env.NODE_ENV === 'development' && {
         technical: {
           stack: this.stack,
-          originalError: this.originalError?.message
-        }
-      })
+          originalError: this.originalError?.message,
+        },
+      }),
     };
   }
 
@@ -179,7 +179,7 @@ export class ApiErrorFactory {
       retryable: false,
       details,
       suggestions: ['Please provide a valid JWT token', 'Check if your token has expired'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -192,7 +192,7 @@ export class ApiErrorFactory {
       statusCode: 401,
       retryable: false,
       suggestions: ['Please refresh your authentication token'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -205,7 +205,7 @@ export class ApiErrorFactory {
       statusCode: 403,
       retryable: false,
       suggestions: ['Ensure you have the required permissions'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -222,7 +222,7 @@ export class ApiErrorFactory {
       retryable: false,
       details,
       suggestions: ['Check the request format and required fields'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -235,8 +235,10 @@ export class ApiErrorFactory {
       statusCode: 400,
       retryable: false,
       details: `Model ID "${modelId}" does not match required format`,
-      suggestions: ['Model ID must contain only alphanumeric characters, hyphens, and underscores (1-64 characters)'],
-      correlationId
+      suggestions: [
+        'Model ID must contain only alphanumeric characters, hyphens, and underscores (1-64 characters)',
+      ],
+      correlationId,
     });
   }
 
@@ -252,8 +254,11 @@ export class ApiErrorFactory {
       statusCode: 404,
       retryable: false,
       details: `Model with ID "${modelId}" does not exist`,
-      suggestions: ['Verify the model ID is correct', 'Ensure the model has been properly registered'],
-      correlationId
+      suggestions: [
+        'Verify the model ID is correct',
+        'Ensure the model has been properly registered',
+      ],
+      correlationId,
     });
   }
 
@@ -267,7 +272,7 @@ export class ApiErrorFactory {
       retryable: false,
       details: `A token has already been deployed for model "${modelId}"`,
       suggestions: ['Use the existing token', 'Check deployment status'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -281,7 +286,7 @@ export class ApiErrorFactory {
       retryable: false,
       details: `Deployment with ID "${requestId}" does not exist`,
       suggestions: ['Verify the deployment ID is correct'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -298,7 +303,7 @@ export class ApiErrorFactory {
       retryable: true,
       details: `Too many requests. Retry after ${retryAfter} seconds`,
       suggestions: [`Wait ${retryAfter} seconds before retrying`],
-      correlationId
+      correlationId,
     });
   }
 
@@ -315,7 +320,7 @@ export class ApiErrorFactory {
       retryable: true,
       details,
       suggestions: ['Try again in a few moments', 'Check blockchain network status'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -329,7 +334,7 @@ export class ApiErrorFactory {
       retryable: false,
       details: `Transaction ${txHash || 'unknown'} failed: ${reason || 'unknown reason'}`,
       suggestions: ['Check transaction details', 'Ensure sufficient gas and balance'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -342,7 +347,7 @@ export class ApiErrorFactory {
       statusCode: 400,
       retryable: true,
       suggestions: ['Increase gas limit', 'Check current gas prices'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -360,7 +365,7 @@ export class ApiErrorFactory {
       details,
       suggestions: ['Try again later', 'Contact support if the issue persists'],
       correlationId,
-      cause
+      cause,
     });
   }
 
@@ -374,7 +379,7 @@ export class ApiErrorFactory {
       retryable: true,
       details: `${service} service is currently unavailable`,
       suggestions: ['Try again in a few moments'],
-      correlationId
+      correlationId,
     });
   }
 
@@ -388,7 +393,7 @@ export class ApiErrorFactory {
       retryable: true,
       details: `${operation} operation exceeded timeout limit`,
       suggestions: ['Try again with a longer timeout', 'Check system load'],
-      correlationId
+      correlationId,
     });
   }
 }
@@ -415,6 +420,6 @@ export function toApiError(error: unknown, correlationId?: string): ApiError {
   return ApiErrorFactory.internalError(
     typeof error === 'string' ? error : 'Unknown error occurred',
     undefined,
-    correlationId
+    correlationId,
   );
 }

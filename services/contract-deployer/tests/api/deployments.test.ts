@@ -1,6 +1,10 @@
 import request from 'supertest';
 import { createServer } from '../../src/server';
-import { DeployTokenRequest, DeployTokenResponse, DeploymentStatusResponse } from '../../src/types/api.types';
+import {
+  DeployTokenRequest,
+  DeployTokenResponse,
+  DeploymentStatusResponse,
+} from '../../src/types/api.types';
 import { ValidationHelpers } from '../../src/schemas/api-schemas';
 import { ApiErrorFactory } from '../../src/types/errors';
 
@@ -74,7 +78,8 @@ describe('Deployment API Endpoints', () => {
     process.env.MODEL_REGISTRY_ADDRESS = '0x1234567890123456789012345678901234567890';
     process.env.TOKEN_MANAGER_ADDRESS = '0x0987654321098765432109876543210987654321';
     // Must be exactly 64 hex chars after the 0x prefix to satisfy env validation.
-    process.env.DEPLOYER_PRIVATE_KEY = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+    process.env.DEPLOYER_PRIVATE_KEY =
+      '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
     process.env.REDIS_HOST = 'localhost';
     process.env.REDIS_PORT = '6379';
     process.env.VALID_API_KEYS = 'test-key,test-key-2';
@@ -86,9 +91,11 @@ describe('Deployment API Endpoints', () => {
     // Wire the mocked service constructors to return our singleton instances
     // BEFORE createServer() runs, so the deployment route is mounted with the
     // instances the tests control (and not the 503 fallback).
+    /* eslint-disable @typescript-eslint/no-var-requires -- require() returns the jest auto-mocked constructors here */
     const { QueueService } = require('../../src/services/queue.service');
     const { BlockchainService } = require('../../src/services/blockchain.service');
     const { DeploymentService } = require('../../src/services/deployment.service');
+    /* eslint-enable @typescript-eslint/no-var-requires */
 
     QueueService.mockImplementation(() => mockQueueService);
     BlockchainService.mockImplementation(() => mockBlockchainService);
@@ -108,7 +115,8 @@ describe('Deployment API Endpoints', () => {
 
   describe('POST /api/deployments', () => {
     const validDeployRequest: DeployTokenRequest = {
-      token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIiLCJhZGRyZXNzIjoiMHg3NDJkMzVjYzY2MzFjMDUzMjkyNWEzYjhkNzU2ZDJiZThiNmM2ZGQ5IiwiZXhwIjoxNzA5MjA4MDAwfQ.test',
+      token:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIiLCJhZGRyZXNzIjoiMHg3NDJkMzVjYzY2MzFjMDUzMjkyNWEzYjhkNzU2ZDJiZThiNmM2ZGQ5IiwiZXhwIjoxNzA5MjA4MDAwfQ.test',
       modelId: 'sentiment-analysis-v1',
       userAddress: '0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9',
       tokenName: 'Sentiment Analysis Token',
@@ -119,9 +127,9 @@ describe('Deployment API Endpoints', () => {
         website: 'https://example.com',
         tags: {
           'model-type': 'nlp',
-          'category': 'sentiment'
-        }
-      }
+          category: 'sentiment',
+        },
+      },
     };
 
     const mockDeploymentResponse: DeployTokenResponse = {
@@ -130,8 +138,8 @@ describe('Deployment API Endpoints', () => {
       estimatedCompletionTime: 300,
       message: 'Deployment request queued successfully',
       links: {
-        status: '/api/deployments/123e4567-e89b-42d3-a456-426614174000/status'
-      }
+        status: '/api/deployments/123e4567-e89b-42d3-a456-426614174000/status',
+      },
     };
 
     describe('Successful deployment request', () => {
@@ -157,9 +165,9 @@ describe('Deployment API Endpoints', () => {
           expect.objectContaining({
             userId: 'api_user',
             address: '0x0000000000000000000000000000000000000000',
-            exp: expect.any(Number)
+            exp: expect.any(Number),
           }),
-          expect.any(String)
+          expect.any(String),
         );
       });
 
@@ -167,7 +175,7 @@ describe('Deployment API Endpoints', () => {
         const minimalRequest = {
           token: validDeployRequest.token,
           modelId: validDeployRequest.modelId,
-          userAddress: validDeployRequest.userAddress
+          userAddress: validDeployRequest.userAddress,
         };
 
         mockDeploymentService.createDeployment.mockResolvedValue(mockDeploymentResponse);
@@ -248,16 +256,16 @@ describe('Deployment API Endpoints', () => {
           expect.arrayContaining([
             expect.objectContaining({
               field: 'modelId',
-              message: expect.stringContaining('required')
-            })
-          ])
+              message: expect.stringContaining('required'),
+            }),
+          ]),
         );
       });
 
       it('should reject request with invalid modelId format', async () => {
         const invalidRequest = {
           ...validDeployRequest,
-          modelId: 'invalid model id with spaces!'
+          modelId: 'invalid model id with spaces!',
         };
 
         const response = await request(app)
@@ -272,9 +280,9 @@ describe('Deployment API Endpoints', () => {
           expect.arrayContaining([
             expect.objectContaining({
               field: 'modelId',
-              message: expect.stringContaining('alphanumeric characters')
-            })
-          ])
+              message: expect.stringContaining('alphanumeric characters'),
+            }),
+          ]),
         );
       });
 
@@ -300,7 +308,7 @@ describe('Deployment API Endpoints', () => {
       it('should reject request with invalid Ethereum address', async () => {
         const invalidRequest = {
           ...validDeployRequest,
-          userAddress: 'invalid-address'
+          userAddress: 'invalid-address',
         };
 
         const response = await request(app)
@@ -319,7 +327,7 @@ describe('Deployment API Endpoints', () => {
       it('should reject request with invalid token symbol', async () => {
         const invalidRequest = {
           ...validDeployRequest,
-          tokenSymbol: 'lowercase-symbol'
+          tokenSymbol: 'lowercase-symbol',
         };
 
         const response = await request(app)
@@ -334,16 +342,16 @@ describe('Deployment API Endpoints', () => {
           expect.arrayContaining([
             expect.objectContaining({
               field: 'tokenSymbol',
-              message: expect.stringContaining('uppercase')
-            })
-          ])
+              message: expect.stringContaining('uppercase'),
+            }),
+          ]),
         );
       });
 
       it('should reject request with invalid token name', async () => {
         const invalidRequest = {
           ...validDeployRequest,
-          tokenName: 'A'.repeat(51) // Too long
+          tokenName: 'A'.repeat(51), // Too long
         };
 
         const response = await request(app)
@@ -359,7 +367,7 @@ describe('Deployment API Endpoints', () => {
       it('should reject request with invalid initialSupply', async () => {
         const invalidRequest = {
           ...validDeployRequest,
-          initialSupply: 'invalid-amount'
+          initialSupply: 'invalid-amount',
         };
 
         const response = await request(app)
@@ -374,9 +382,9 @@ describe('Deployment API Endpoints', () => {
           expect.arrayContaining([
             expect.objectContaining({
               field: 'initialSupply',
-              message: expect.stringContaining('decimal number')
-            })
-          ])
+              message: expect.stringContaining('decimal number'),
+            }),
+          ]),
         );
       });
 
@@ -389,7 +397,7 @@ describe('Deployment API Endpoints', () => {
           modelId: 'invalid model!',
           userAddress: validDeployRequest.userAddress,
           tokenSymbol: 'lowercase',
-          initialSupply: 'not-a-number'
+          initialSupply: 'not-a-number',
         };
 
         const response = await request(app)
@@ -402,15 +410,16 @@ describe('Deployment API Endpoints', () => {
         expect(response.body.error.code).toBe('VALIDATION_ERROR');
         expect(response.body.error.details).toHaveLength(3); // modelId, tokenSymbol, initialSupply
         const fields = response.body.error.details.map((d: any) => d.field);
-        expect(fields).toEqual(
-          expect.arrayContaining(['modelId', 'tokenSymbol', 'initialSupply'])
-        );
+        expect(fields).toEqual(expect.arrayContaining(['modelId', 'tokenSymbol', 'initialSupply']));
       });
     });
 
     describe('Business logic errors', () => {
       it('should handle token already exists error', async () => {
-        const tokenExistsError = ApiErrorFactory.tokenAlreadyExists('sentiment-analysis-v1', 'test-correlation-id');
+        const tokenExistsError = ApiErrorFactory.tokenAlreadyExists(
+          'sentiment-analysis-v1',
+          'test-correlation-id',
+        );
         mockDeploymentService.createDeployment.mockRejectedValue(tokenExistsError);
 
         const response = await request(app)
@@ -425,7 +434,10 @@ describe('Deployment API Endpoints', () => {
       });
 
       it('should handle model not found error', async () => {
-        const modelNotFoundError = ApiErrorFactory.modelNotFound('non-existent-model', 'test-correlation-id');
+        const modelNotFoundError = ApiErrorFactory.modelNotFound(
+          'non-existent-model',
+          'test-correlation-id',
+        );
         mockDeploymentService.createDeployment.mockRejectedValue(modelNotFoundError);
 
         const response = await request(app)
@@ -440,7 +452,10 @@ describe('Deployment API Endpoints', () => {
       });
 
       it('should handle blockchain connection error', async () => {
-        const blockchainError = ApiErrorFactory.blockchainConnectionError('RPC connection failed', 'test-correlation-id');
+        const blockchainError = ApiErrorFactory.blockchainConnectionError(
+          'RPC connection failed',
+          'test-correlation-id',
+        );
         mockDeploymentService.createDeployment.mockRejectedValue(blockchainError);
 
         const response = await request(app)
@@ -473,7 +488,7 @@ describe('Deployment API Endpoints', () => {
 
   describe('GET /api/deployments/:id/status', () => {
     const validUUID = '123e4567-e89b-42d3-a456-426614174000';
-    
+
     const mockStatusResponse: DeploymentStatusResponse = {
       requestId: validUUID,
       status: 'deployed',
@@ -485,13 +500,14 @@ describe('Deployment API Endpoints', () => {
         tokenName: 'Sentiment Analysis Token',
         tokenSymbol: 'SAT',
         transactionHash: '0x123abc456def789abc123def456789abc123def456789abc123def456789abc123',
-        registryTransactionHash: '0x456def789abc123def456789abc123def456789abc123def456789abc123def456',
+        registryTransactionHash:
+          '0x456def789abc123def456789abc123def456789abc123def456789abc123def456',
         blockNumber: 12345,
         gasUsed: '150000',
         gasPrice: '20000000000',
         deploymentTime: '2024-01-01T12:00:00.000Z',
-        network: 'localhost'
-      }
+        network: 'localhost',
+      },
     };
 
     describe('Successful status retrieval', () => {
@@ -508,7 +524,9 @@ describe('Deployment API Endpoints', () => {
         expect(response.body.data.status).toBe('deployed');
         expect(response.body.data.progress).toBe(100);
         expect(response.body.data.tokenDetails).toBeDefined();
-        expect(response.body.data.tokenDetails.tokenAddress).toBe('0xabc123def456789abc123def456789abc123def456');
+        expect(response.body.data.tokenDetails.tokenAddress).toBe(
+          '0xabc123def456789abc123def456789abc123def456',
+        );
         expect(response.body.meta.requestId).toBeDefined();
         expect(response.body.meta.timestamp).toBeDefined();
       });
@@ -519,7 +537,7 @@ describe('Deployment API Endpoints', () => {
           status: 'pending' as const,
           progress: 10,
           currentStep: 'Queued for deployment',
-          tokenDetails: undefined
+          tokenDetails: undefined,
         };
         mockDeploymentService.getDeploymentStatus.mockResolvedValue(pendingResponse);
 
@@ -540,7 +558,7 @@ describe('Deployment API Endpoints', () => {
           status: 'processing' as const,
           progress: 50,
           currentStep: 'Deploying smart contract',
-          tokenDetails: undefined
+          tokenDetails: undefined,
         };
         mockDeploymentService.getDeploymentStatus.mockResolvedValue(processingResponse);
 
@@ -568,8 +586,8 @@ describe('Deployment API Endpoints', () => {
             details: 'Insufficient gas for execution',
             suggestions: ['Increase gas limit', 'Check transaction parameters'],
             timestamp: '2024-01-01T12:00:00.000Z',
-            retryable: true
-          }
+            retryable: true,
+          },
         };
         mockDeploymentService.getDeploymentStatus.mockResolvedValue(failedResponse);
 
@@ -588,9 +606,7 @@ describe('Deployment API Endpoints', () => {
 
     describe('Authentication errors', () => {
       it('should reject request without authentication', async () => {
-        const response = await request(app)
-          .get(`/api/deployments/${validUUID}/status`)
-          .expect(401);
+        const response = await request(app).get(`/api/deployments/${validUUID}/status`).expect(401);
 
         expect(response.body.success).toBe(false);
         expect(response.body.error.code).toBe('INVALID_TOKEN');
@@ -632,26 +648,26 @@ describe('Deployment API Endpoints', () => {
         expect(response.body.error.code).toBe('VALIDATION_ERROR');
       });
 
-      // TODO(HOK-2100): GET /api/deployments//status does not 404. Express collapses
-      // the empty path segment so the request matches the legacy GET /:id route with
-      // id='status' and returns a 301 redirect to /api/deployments/status/status. The
-      // test's expectation (404 NOT_FOUND) cannot be satisfied without adding routing
-      // changes to reject empty/collapsed id segments — a product behavior decision,
-      // not a test-setup fix.
-      it.skip('should return 400 for empty deployment ID', async () => {
+      it('should return 400 for empty deployment ID', async () => {
+        // `//status` collapses to `/status`, matching the legacy GET /:id route with
+        // id='status' (not a valid UUID). That route now rejects malformed ids with a
+        // 400 VALIDATION_ERROR instead of blindly redirecting (HOK-2102).
         const response = await request(app)
           .get('/api/deployments//status')
           .set('X-API-Key', 'test-key')
-          .expect(404); // Express routing will treat this as not found
+          .expect(400);
 
         expect(response.body.success).toBe(false);
-        expect(response.body.error.code).toBe('NOT_FOUND');
+        expect(response.body.error.code).toBe('VALIDATION_ERROR');
       });
     });
 
     describe('Business logic errors', () => {
       it('should return 404 for non-existent deployment', async () => {
-        const deploymentNotFoundError = ApiErrorFactory.deploymentNotFound(validUUID, 'test-correlation-id');
+        const deploymentNotFoundError = ApiErrorFactory.deploymentNotFound(
+          validUUID,
+          'test-correlation-id',
+        );
         mockDeploymentService.getDeploymentStatus.mockRejectedValue(deploymentNotFoundError);
 
         const response = await request(app)
@@ -665,7 +681,10 @@ describe('Deployment API Endpoints', () => {
       });
 
       it('should handle service unavailable error', async () => {
-        const serviceUnavailableError = ApiErrorFactory.serviceUnavailable('Redis', 'test-correlation-id');
+        const serviceUnavailableError = ApiErrorFactory.serviceUnavailable(
+          'Redis',
+          'test-correlation-id',
+        );
         mockDeploymentService.getDeploymentStatus.mockRejectedValue(serviceUnavailableError);
 
         const response = await request(app)
@@ -706,16 +725,18 @@ describe('Deployment API Endpoints', () => {
       expect(response.headers.location).toBe(`/api/deployments/${validUUID}/status`);
     });
 
-    it('should handle redirect error gracefully', async () => {
-      // This test ensures the redirect error handling works
+    it('should reject a malformed deployment id instead of redirecting', async () => {
+      // The legacy endpoint validates the id rather than redirecting a malformed
+      // value to another non-existent resource (HOK-2102).
       const invalidUUID = 'invalid-uuid';
-      
+
       const response = await request(app)
         .get(`/api/deployments/${invalidUUID}`)
         .set('X-API-Key', 'test-key')
-        .expect(301);
+        .expect(400);
 
-      expect(response.headers.location).toBe(`/api/deployments/${invalidUUID}/status`);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
     });
   });
 
@@ -744,14 +765,19 @@ describe('Deployment API Endpoints', () => {
     it('should handle very large request body', async () => {
       const largeRequest = {
         ...{
-          token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIiLCJhZGRyZXNzIjoiMHg3NDJkMzVjYzY2MzFjMDUzMjkyNWEzYjhkNzU2ZDJiZThiNmM2ZGQ5IiwiZXhwIjoxNzA5MjA4MDAwfQ.test',
+          token:
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIiLCJhZGRyZXNzIjoiMHg3NDJkMzVjYzY2MzFjMDUzMjkyNWEzYjhkNzU2ZDJiZThiNmM2ZGQ5IiwiZXhwIjoxNzA5MjA4MDAwfQ.test',
           modelId: 'test-model',
           userAddress: '0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9',
         },
         metadata: {
           description: 'A'.repeat(1000), // Very long description
-          tags: Object.fromEntries(Array(100).fill(0).map((_, i) => [`tag${i}`, `value${i}`])) // Many tags
-        }
+          tags: Object.fromEntries(
+            Array(100)
+              .fill(0)
+              .map((_, i) => [`tag${i}`, `value${i}`]),
+          ), // Many tags
+        },
       };
 
       const response = await request(app)
@@ -766,7 +792,7 @@ describe('Deployment API Endpoints', () => {
 
     it('should preserve correlation ID in error responses', async () => {
       const customCorrelationId = 'custom-correlation-123';
-      
+
       const response = await request(app)
         .post('/api/deployments')
         .set('X-API-Key', 'test-key')
@@ -786,22 +812,24 @@ describe('Deployment API Endpoints', () => {
         status: 'processing',
         progress: 75,
         currentStep: 'Verifying contract',
-        lastUpdated: '2024-01-01T12:00:00.000Z'
+        lastUpdated: '2024-01-01T12:00:00.000Z',
       };
 
       mockDeploymentService.getDeploymentStatus.mockResolvedValue(mockResponse);
 
       // Make multiple concurrent requests
-      const promises = Array(5).fill(0).map(() => 
-        request(app)
-          .get(`/api/deployments/${validUUID}/status`)
-          .set('X-API-Key', 'test-key')
-          .expect(200)
-      );
+      const promises = Array(5)
+        .fill(0)
+        .map(() =>
+          request(app)
+            .get(`/api/deployments/${validUUID}/status`)
+            .set('X-API-Key', 'test-key')
+            .expect(200),
+        );
 
       const responses = await Promise.all(promises);
-      
-      responses.forEach(response => {
+
+      responses.forEach((response) => {
         expect(response.body.success).toBe(true);
         expect(response.body.data.requestId).toBe(validUUID);
         expect(response.body.data.status).toBe('processing');
@@ -816,14 +844,14 @@ describe('Deployment API Endpoints', () => {
       const validRequest = {
         token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIifQ.test',
         modelId: 'test-model',
-        userAddress: '0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9'
+        userAddress: '0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9',
       };
 
       mockDeploymentService.createDeployment.mockResolvedValue({
         requestId: '123e4567-e89b-42d3-a456-426614174000',
         status: 'pending',
         message: 'Test message',
-        links: { status: '/test' }
+        links: { status: '/test' },
       });
 
       const response = await request(app)
@@ -867,7 +895,7 @@ describe('Validation Helper Unit Tests', () => {
       const validRequest = {
         token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIifQ.test',
         modelId: 'test-model-123',
-        userAddress: '0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9'
+        userAddress: '0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9',
       };
 
       const result = ValidationHelpers.validateDeployTokenRequest(validRequest);
@@ -879,7 +907,7 @@ describe('Validation Helper Unit Tests', () => {
       const invalidRequest = {
         token: 'not-a-jwt-token',
         modelId: 'test-model',
-        userAddress: '0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9'
+        userAddress: '0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9',
       };
 
       const result = ValidationHelpers.validateDeployTokenRequest(invalidRequest);
@@ -892,7 +920,7 @@ describe('Validation Helper Unit Tests', () => {
         token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIifQ.test',
         modelId: 'test-model',
         userAddress: '0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9',
-        unknownField: 'should-be-stripped'
+        unknownField: 'should-be-stripped',
       };
 
       const result = ValidationHelpers.validateDeployTokenRequest(requestWithUnknownFields);
@@ -903,8 +931,12 @@ describe('Validation Helper Unit Tests', () => {
 
   describe('Helper function tests', () => {
     it('should validate Ethereum addresses correctly', () => {
-      expect(ValidationHelpers.isValidEthereumAddress('0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9')).toBe(true);
-      expect(ValidationHelpers.isValidEthereumAddress('0x742D35Cc6631C0532925a3b8D756d2bE8b6c6DD9')).toBe(true);
+      expect(
+        ValidationHelpers.isValidEthereumAddress('0x742d35cc6631c0532925a3b8d756d2be8b6c6dd9'),
+      ).toBe(true);
+      expect(
+        ValidationHelpers.isValidEthereumAddress('0x742D35Cc6631C0532925a3b8D756d2bE8b6c6DD9'),
+      ).toBe(true);
       expect(ValidationHelpers.isValidEthereumAddress('invalid-address')).toBe(false);
       expect(ValidationHelpers.isValidEthereumAddress('0x123')).toBe(false);
       expect(ValidationHelpers.isValidEthereumAddress('')).toBe(false);
@@ -954,18 +986,18 @@ describe('Validation Helper Unit Tests', () => {
           {
             path: ['modelId'],
             message: 'Model ID is required',
-            context: { value: undefined }
+            context: { value: undefined },
           },
           {
             path: ['userAddress'],
             message: 'Invalid Ethereum address format',
-            context: { value: 'invalid-address' }
-          }
-        ]
+            context: { value: 'invalid-address' },
+          },
+        ],
       } as any;
 
       const response = ValidationHelpers.createValidationErrorResponse(mockError);
-      
+
       expect(response.success).toBe(false);
       expect(response.error.code).toBe('VALIDATION_ERROR');
       expect(response.error.message).toBe('Request validation failed');
@@ -973,12 +1005,12 @@ describe('Validation Helper Unit Tests', () => {
       expect(response.error.details[0]).toEqual({
         field: 'modelId',
         message: 'Model ID is required',
-        value: undefined
+        value: undefined,
       });
       expect(response.error.details[1]).toEqual({
         field: 'userAddress',
         message: 'Invalid Ethereum address format',
-        value: 'invalid-address'
+        value: 'invalid-address',
       });
     });
   });

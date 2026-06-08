@@ -18,24 +18,24 @@ export interface PoolMetrics {
   modelId: string;
 
   // Trading activity
-  totalBuyVolume: number;          // Cumulative buy volume in USD
-  totalSellVolume: number;         // Cumulative sell volume in USD
-  totalTradeCount: number;         // Total number of trades
-  buyCount: number;                // Number of buy trades
-  sellCount: number;               // Number of sell trades
+  totalBuyVolume: number; // Cumulative buy volume in USD
+  totalSellVolume: number; // Cumulative sell volume in USD
+  totalTradeCount: number; // Total number of trades
+  buyCount: number; // Number of buy trades
+  sellCount: number; // Number of sell trades
 
   // Trader analytics
-  uniqueTraders: Set<string>;      // Unique trader addresses
-  uniqueTraderCount: number;       // Cached count
+  uniqueTraders: Set<string>; // Unique trader addresses
+  uniqueTraderCount: number; // Cached count
 
   // Fee metrics
-  totalFeesCollected: number;      // Total fees in USD
-  totalFeesDeposited: number;      // Total fees deposited to pool
+  totalFeesCollected: number; // Total fees in USD
+  totalFeesDeposited: number; // Total fees deposited to pool
 
   // Recent activity (24h rolling window)
-  volume24h: number;               // 24h trading volume
-  trades24h: number;               // 24h trade count
-  uniqueTraders24h: Set<string>;   // 24h unique traders
+  volume24h: number; // 24h trading volume
+  trades24h: number; // 24h trade count
+  uniqueTraders24h: Set<string>; // 24h unique traders
 
   // Current state (from last state update)
   currentReserveUSD: number;
@@ -44,19 +44,19 @@ export interface PoolMetrics {
   currentMarketCapUSD: number;
 
   // Timestamps
-  firstTradeTime?: number;         // First trade timestamp
-  lastTradeTime?: number;          // Last trade timestamp
-  lastUpdateTime: number;          // Last metrics update
+  firstTradeTime?: number; // First trade timestamp
+  lastTradeTime?: number; // Last trade timestamp
+  lastUpdateTime: number; // Last metrics update
 }
 
 export interface SystemMetrics {
   // Aggregate metrics across all pools
-  totalTVL: number;                // Total value locked (sum of all reserves)
-  totalVolume24h: number;          // 24h volume across all pools
-  totalTrades24h: number;          // 24h trades across all pools
-  totalPoolCount: number;          // Number of active pools
-  totalUniqueTraders24h: number;   // Unique traders across all pools (24h)
-  totalFeesCollected24h: number;   // Total fees collected (24h)
+  totalTVL: number; // Total value locked (sum of all reserves)
+  totalVolume24h: number; // 24h volume across all pools
+  totalTrades24h: number; // 24h trades across all pools
+  totalPoolCount: number; // Number of active pools
+  totalUniqueTraders24h: number; // Unique traders across all pools (24h)
+  totalFeesCollected24h: number; // Total fees collected (24h)
 
   // Per-pool breakdown
   poolMetrics: Map<string, PoolMetrics>;
@@ -79,9 +79,12 @@ export class MetricsCollector {
 
   constructor() {
     // Start cleanup interval for old trades (every hour)
-    setInterval(() => {
-      this.cleanupOldTrades();
-    }, 60 * 60 * 1000);
+    setInterval(
+      () => {
+        this.cleanupOldTrades();
+      },
+      60 * 60 * 1000,
+    );
   }
 
   /**
@@ -112,7 +115,7 @@ export class MetricsCollector {
       currentPriceUSD: 0,
       currentSupply: 0,
       currentMarketCapUSD: 0,
-      lastUpdateTime: Date.now()
+      lastUpdateTime: Date.now(),
     };
 
     this.poolMetrics.set(poolAddress, metrics);
@@ -158,7 +161,7 @@ export class MetricsCollector {
       timestamp: event.timestamp,
       volumeUSD: event.reserveAmountUSD,
       trader: event.trader,
-      type: event.type
+      type: event.type,
     };
 
     const trades = this.recentTrades.get(event.poolAddress) || [];
@@ -168,7 +171,9 @@ export class MetricsCollector {
     // Recalculate 24h metrics
     this.update24hMetrics(event.poolAddress);
 
-    logger.debug(`Trade recorded for ${metrics.modelId}: ${event.type} $${event.reserveAmountUSD.toFixed(2)}`);
+    logger.debug(
+      `Trade recorded for ${metrics.modelId}: ${event.type} $${event.reserveAmountUSD.toFixed(2)}`,
+    );
   }
 
   /**
@@ -211,22 +216,26 @@ export class MetricsCollector {
    */
   private update24hMetrics(poolAddress: string): void {
     const metrics = this.poolMetrics.get(poolAddress);
-    if (!metrics) return;
+    if (!metrics) {
+      return;
+    }
 
     const trades = this.recentTrades.get(poolAddress) || [];
     const now = Date.now() / 1000; // Convert to seconds
-    const cutoff = now - (this.trade24hWindowMs / 1000);
+    const cutoff = now - this.trade24hWindowMs / 1000;
 
     // Filter trades from last 24h
-    const recent = trades.filter(t => t.timestamp >= cutoff);
+    const recent = trades.filter((t) => t.timestamp >= cutoff);
 
     // Calculate 24h metrics
     metrics.volume24h = recent.reduce((sum, t) => sum + t.volumeUSD, 0);
     metrics.trades24h = recent.length;
 
-    metrics.uniqueTraders24h = new Set(recent.map(t => t.trader));
+    metrics.uniqueTraders24h = new Set(recent.map((t) => t.trader));
 
-    logger.debug(`24h metrics updated for ${metrics.modelId}: $${metrics.volume24h.toFixed(2)} volume, ${metrics.trades24h} trades`);
+    logger.debug(
+      `24h metrics updated for ${metrics.modelId}: $${metrics.volume24h.toFixed(2)} volume, ${metrics.trades24h} trades`,
+    );
   }
 
   /**
@@ -234,13 +243,15 @@ export class MetricsCollector {
    */
   private cleanupOldTrades(): void {
     const now = Date.now() / 1000;
-    const cutoff = now - (this.trade24hWindowMs / 1000);
+    const cutoff = now - this.trade24hWindowMs / 1000;
 
     for (const [poolAddress, trades] of this.recentTrades) {
-      const filtered = trades.filter(t => t.timestamp >= cutoff);
+      const filtered = trades.filter((t) => t.timestamp >= cutoff);
       this.recentTrades.set(poolAddress, filtered);
 
-      logger.debug(`Cleaned up old trades for pool ${poolAddress}: ${trades.length - filtered.length} removed`);
+      logger.debug(
+        `Cleaned up old trades for pool ${poolAddress}: ${trades.length - filtered.length} removed`,
+      );
     }
   }
 
@@ -268,18 +279,19 @@ export class MetricsCollector {
       totalTrades24h += metrics.trades24h;
 
       // Add unique traders (24h)
-      metrics.uniqueTraders24h.forEach(trader => allTraders24h.add(trader));
+      metrics.uniqueTraders24h.forEach((trader) => allTraders24h.add(trader));
 
       // Calculate 24h fees (approximate from recent trades)
       const trades = this.recentTrades.get(metrics.poolAddress) || [];
       const now = Date.now() / 1000;
-      const cutoff = now - (this.trade24hWindowMs / 1000);
-      const recent24hTrades = trades.filter(t => t.timestamp >= cutoff);
+      const cutoff = now - this.trade24hWindowMs / 1000;
+      const recent24hTrades = trades.filter((t) => t.timestamp >= cutoff);
 
       // Assume fee rate from total fees / total volume (rough approximation)
-      const feeRate = metrics.totalTradeCount > 0 ?
-        metrics.totalFeesCollected / (metrics.totalBuyVolume + metrics.totalSellVolume) :
-        0;
+      const feeRate =
+        metrics.totalTradeCount > 0
+          ? metrics.totalFeesCollected / (metrics.totalBuyVolume + metrics.totalSellVolume)
+          : 0;
 
       const volume24h = recent24hTrades.reduce((sum, t) => sum + t.volumeUSD, 0);
       totalFeesCollected24h += volume24h * feeRate;
@@ -293,7 +305,7 @@ export class MetricsCollector {
       totalUniqueTraders24h: allTraders24h.size,
       totalFeesCollected24h,
       poolMetrics: this.poolMetrics,
-      lastUpdateTime: Date.now()
+      lastUpdateTime: Date.now(),
     };
   }
 

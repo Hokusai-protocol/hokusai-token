@@ -25,10 +25,11 @@ async function checkReadiness() {
   } else {
     try {
       const provider = new ethers.JsonRpcProvider(rpcUrl);
-      const [network, blockNumber] = await withTimeout(Promise.all([
-        provider.getNetwork(),
-        provider.getBlockNumber(),
-      ]), 5000, 'RPC readiness check timeout');
+      const [network, blockNumber] = await withTimeout(
+        Promise.all([provider.getNetwork(), provider.getBlockNumber()]),
+        5000,
+        'RPC readiness check timeout',
+      );
       checks.rpc = {
         ok: true,
         chainId: Number(network.chainId),
@@ -44,14 +45,16 @@ async function checkReadiness() {
         const balance = await withTimeout(
           provider.getBalance(wallet.address),
           5000,
-          'Signer balance check timeout'
+          'Signer balance check timeout',
         );
         checks.signer = {
           ok: balance > 0n,
           address: wallet.address,
           balanceEth: ethers.formatEther(balance),
         };
-        if (balance === 0n) ready = false;
+        if (balance === 0n) {
+          ready = false;
+        }
 
         const deltaVerifierAddress = process.env.DELTA_VERIFIER_ADDRESS;
         if (!deltaVerifierAddress) {
@@ -61,7 +64,7 @@ async function checkReadiness() {
           const deltaVerifier = new ethers.Contract(
             deltaVerifierAddress,
             DELTA_VERIFIER_ABI,
-            provider
+            provider,
           ) as unknown as {
             SUBMITTER_ROLE(): Promise<string>;
             hasRole(role: string, account: string): Promise<boolean>;
@@ -69,19 +72,21 @@ async function checkReadiness() {
           const role = await withTimeout(
             deltaVerifier.SUBMITTER_ROLE(),
             5000,
-            'DeltaVerifier role lookup timeout'
+            'DeltaVerifier role lookup timeout',
           );
           const hasSubmitterRole = await withTimeout(
             deltaVerifier.hasRole(role, wallet.address),
             5000,
-            'DeltaVerifier submitter role check timeout'
+            'DeltaVerifier submitter role check timeout',
           );
           checks.deltaVerifier = {
             ok: hasSubmitterRole,
             address: deltaVerifierAddress,
             signerHasSubmitterRole: hasSubmitterRole,
           };
-          if (!hasSubmitterRole) ready = false;
+          if (!hasSubmitterRole) {
+            ready = false;
+          }
         }
       }
     } catch (error) {
@@ -104,7 +109,7 @@ async function checkReadiness() {
         process.env.MINT_REQUEST_SETTLEMENT_QUEUE || 'hokusai:mint_request_settlements',
       ];
       const depths = Object.fromEntries(
-        await Promise.all(queueNames.map(async queue => [queue, await redis.lLen(queue)]))
+        await Promise.all(queueNames.map(async (queue) => [queue, await redis.lLen(queue)])),
       );
       checks.redis = { ok: true, queues: depths };
     } catch (error) {

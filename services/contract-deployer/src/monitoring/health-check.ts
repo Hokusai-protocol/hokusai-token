@@ -46,7 +46,7 @@ export class HealthCheckService {
     totalDeploymentTime: 0,
     totalGasUsed: 0n,
     failureReasons: new Map(),
-    queueDepths: new Map()
+    queueDepths: new Map(),
   };
   private alertHandlers: ((alert: any) => void)[] = [];
 
@@ -59,17 +59,17 @@ export class HealthCheckService {
       try {
         const isHealthy = await this.checkBasicHealth();
         const status = isHealthy ? 200 : 503;
-        
+
         res.status(status).json({
           status: isHealthy ? 'healthy' : 'unhealthy',
           timestamp: new Date().toISOString(),
-          uptime: Date.now() - this.startTime.getTime()
+          uptime: Date.now() - this.startTime.getTime(),
         });
       } catch (error) {
         res.status(503).json({
           status: 'unhealthy',
           timestamp: new Date().toISOString(),
-          error: 'Health check failed'
+          error: 'Health check failed',
         });
       }
     };
@@ -80,13 +80,13 @@ export class HealthCheckService {
       try {
         const health = await this.getDetailedHealth();
         const status = health.status === 'healthy' ? 200 : 503;
-        
+
         res.status(status).json(health);
       } catch (error) {
         res.status(503).json({
           status: 'unhealthy',
           timestamp: new Date().toISOString(),
-          error: 'Detailed health check failed'
+          error: 'Detailed health check failed',
         });
       }
     };
@@ -97,7 +97,7 @@ export class HealthCheckService {
       res.status(200).json({
         alive: true,
         timestamp: new Date().toISOString(),
-        uptime: Date.now() - this.startTime.getTime()
+        uptime: Date.now() - this.startTime.getTime(),
       });
     };
   }
@@ -106,10 +106,10 @@ export class HealthCheckService {
     try {
       // Check Redis
       await this.config.redis.ping();
-      
+
       // Check blockchain
       await this.config.provider.getBlockNumber();
-      
+
       return true;
     } catch (error) {
       logger.error('Basic health check failed', { error });
@@ -121,12 +121,12 @@ export class HealthCheckService {
     const redisHealth = await this.checkRedisHealth();
     const blockchainHealth = await this.checkBlockchainHealth();
     const contractsHealth = await this.checkContractsHealth();
-    
+
     const overallStatus = this.calculateOverallStatus([
       redisHealth.status,
       blockchainHealth.status,
       contractsHealth.registry.status,
-      contractsHealth.tokenManager.status
+      contractsHealth.tokenManager.status,
     ]);
 
     return {
@@ -136,70 +136,70 @@ export class HealthCheckService {
       components: {
         redis: redisHealth,
         blockchain: blockchainHealth,
-        contracts: contractsHealth
+        contracts: contractsHealth,
       },
-      metrics: this.getMetrics()
+      metrics: this.getMetrics(),
     };
   }
 
   private async checkRedisHealth(): Promise<any> {
     const startTime = Date.now();
-    
+
     try {
       await this.config.redis.ping();
       const latency = Date.now() - startTime;
-      
+
       // Get queue depths
       const [inbound, processing, deadLetter, outbound] = await Promise.all([
         this.config.redis.lLen('hokusai:model_ready_queue'),
         this.config.redis.lLen('hokusai:processing_queue'),
         this.config.redis.lLen('hokusai:dlq'),
-        this.config.redis.lLen('hokusai:token_deployed_queue')
+        this.config.redis.lLen('hokusai:token_deployed_queue'),
       ]);
-      
+
       const queues = { inbound, processing, deadLetter, outbound };
-      
+
       // Check for degraded state
       let status: ComponentHealth['status'] = 'healthy';
       if (inbound > 100 || processing > 50 || deadLetter > 10) {
         status = 'degraded';
       }
-      
+
       return {
         status,
         latency,
-        queues
+        queues,
       };
     } catch (error: any) {
       return {
         status: 'unhealthy',
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   private async checkBlockchainHealth(): Promise<any> {
     const startTime = Date.now();
-    
+
     try {
       const [network, blockNumber] = await Promise.all([
         this.config.provider.getNetwork(),
-        this.config.provider.getBlockNumber()
+        this.config.provider.getBlockNumber(),
       ]);
-      
+
       // For health check, we don't have a signer, so use a dummy address
       const deployerAddress = '0x0000000000000000000000000000000000000000';
-      
+
       const balance = await this.config.provider.getBalance(deployerAddress);
       const latency = Date.now() - startTime;
-      
+
       const warnings: string[] = [];
-      
+
       // Check for low balance (less than 0.1 ETH/MATIC)
       if (balance < ethers.parseEther('0.1')) {
         warnings.push('Low deployer balance');
       }
-      
+
       return {
         status: warnings.length > 0 ? 'degraded' : 'healthy',
         network: network.name,
@@ -207,12 +207,12 @@ export class HealthCheckService {
         blockNumber,
         latency,
         deployerBalance: balance.toString(),
-        ...(warnings.length > 0 && { warnings })
+        ...(warnings.length > 0 && { warnings }),
       };
     } catch (error: any) {
       return {
         status: 'unhealthy',
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -223,31 +223,35 @@ export class HealthCheckService {
         const code = await this.config.provider.getCode(address);
         return {
           status: code !== '0x' ? 'healthy' : 'unhealthy',
-          address
+          address,
         };
       } catch (error) {
         return {
           status: 'unhealthy',
           address,
-          error: 'Failed to check contract'
+          error: 'Failed to check contract',
         };
       }
     };
 
     const [registry, tokenManager] = await Promise.all([
       checkContract(this.config.registryAddress, 'ModelRegistry'),
-      checkContract(this.config.tokenManagerAddress, 'TokenManager')
+      checkContract(this.config.tokenManagerAddress, 'TokenManager'),
     ]);
 
     return {
       registry,
-      tokenManager
+      tokenManager,
     };
   }
 
   private calculateOverallStatus(statuses: ComponentHealth['status'][]): ComponentHealth['status'] {
-    if (statuses.includes('unhealthy')) return 'unhealthy';
-    if (statuses.includes('degraded')) return 'degraded';
+    if (statuses.includes('unhealthy')) {
+      return 'unhealthy';
+    }
+    if (statuses.includes('degraded')) {
+      return 'degraded';
+    }
     return 'healthy';
   }
 
@@ -264,22 +268,18 @@ export class HealthCheckService {
     this.metrics.totalGasUsed += BigInt(data.gasUsed);
   }
 
-  recordFailure(data: {
-    modelId: string;
-    error: string;
-    stage: string;
-  }): void {
+  recordFailure(data: { modelId: string; error: string; stage: string }): void {
     this.metrics.messagesFailed++;
-    
+
     const count = this.metrics.failureReasons.get(data.error) || 0;
     this.metrics.failureReasons.set(data.error, count + 1);
-    
+
     // Check for high failure rate
     if (this.metrics.messagesFailed >= 5) {
       this.triggerAlert({
         type: 'high_failure_rate',
         failures: this.metrics.messagesFailed,
-        window: '5m'
+        window: '5m',
       });
     }
   }
@@ -288,15 +288,15 @@ export class HealthCheckService {
     if (!this.metrics.queueDepths.has(queue)) {
       this.metrics.queueDepths.set(queue, []);
     }
-    
+
     const depths = this.metrics.queueDepths.get(queue)!;
     depths.push(depth);
-    
+
     // Keep only last 100 measurements
     if (depths.length > 100) {
       depths.shift();
     }
-    
+
     // Check for high queue depth
     const threshold = queue === 'inbound' ? 100 : 50;
     if (depth > threshold) {
@@ -304,15 +304,16 @@ export class HealthCheckService {
         type: 'queue_depth_high',
         queue,
         depth,
-        threshold
+        threshold,
       });
     }
   }
 
   getMetrics(): DeploymentMetrics {
-    const avgDeploymentTime = this.metrics.tokensDeployed > 0
-      ? this.metrics.totalDeploymentTime / this.metrics.tokensDeployed
-      : 0;
+    const avgDeploymentTime =
+      this.metrics.tokensDeployed > 0
+        ? this.metrics.totalDeploymentTime / this.metrics.tokensDeployed
+        : 0;
 
     const failureReasons: Record<string, number> = {};
     this.metrics.failureReasons.forEach((count, reason) => {
@@ -326,7 +327,7 @@ export class HealthCheckService {
       averageDeploymentTime: avgDeploymentTime,
       lastDeploymentTime: this.metrics.lastDeploymentTime?.toISOString() || 'never',
       totalGasUsed: this.metrics.totalGasUsed.toString(),
-      failureReasons
+      failureReasons,
     };
   }
 
@@ -334,16 +335,16 @@ export class HealthCheckService {
     try {
       // Check Redis
       await this.config.redis.ping();
-      
+
       // Check blockchain
       await this.config.provider.getNetwork();
-      
+
       // Check contracts deployed
       const [registryCode, managerCode] = await Promise.all([
         this.config.provider.getCode(this.config.registryAddress),
-        this.config.provider.getCode(this.config.tokenManagerAddress)
+        this.config.provider.getCode(this.config.tokenManagerAddress),
       ]);
-      
+
       return registryCode !== '0x' && managerCode !== '0x';
     } catch (error) {
       return false;
@@ -355,7 +356,7 @@ export class HealthCheckService {
   }
 
   private triggerAlert(alert: any): void {
-    this.alertHandlers.forEach(handler => {
+    this.alertHandlers.forEach((handler) => {
       try {
         handler(alert);
       } catch (error) {

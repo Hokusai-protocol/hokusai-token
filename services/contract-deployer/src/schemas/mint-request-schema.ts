@@ -7,10 +7,12 @@ export interface MintRequestContributor {
   wallet_address: string;
   weight_bps: number;
   // Optional provenance fields emitted by the pipeline's MintRequestContributor
-  // (serialized via model_dump_json(by_alias=True), so they arrive camelCased and may be null).
-  // The contract only consumes wallet_address + weight_bps; these are accepted and ignored. See HOK-2099.
+  // (serialized via model_dump_json(by_alias=True) with no exclude_none, so they arrive
+  // camelCased and are ALWAYS present — null when unset). The contract only consumes
+  // wallet_address + weight_bps; these are accepted and ignored. See HOK-2099.
   submissionId?: string | null;
   contributionBatchId?: string | null;
+  contributorId?: string | null;
 }
 
 // Single source of truth for the contributor keys the consumer accepts. Used by the
@@ -20,6 +22,7 @@ export const ACCEPTED_CONTRIBUTOR_KEYS = [
   'weight_bps',
   'submissionId',
   'contributionBatchId',
+  'contributorId',
 ] as const;
 
 export interface MintRequestEvaluation {
@@ -82,6 +85,7 @@ const contributorSchema = Joi.object<MintRequestContributor>({
   // string or null (the publisher does not exclude None values).
   submissionId: Joi.string().min(1).allow(null).optional(),
   contributionBatchId: Joi.string().min(1).allow(null).optional(),
+  contributorId: Joi.string().min(1).allow(null).optional(),
 });
 
 export function deriveTotalSamples(evaluation: MintRequestEvaluation): number | null {

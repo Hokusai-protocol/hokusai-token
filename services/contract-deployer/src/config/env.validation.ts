@@ -55,6 +55,7 @@ const envSchema = Joi.object({
   // Transaction configuration
   CONFIRMATION_BLOCKS: Joi.number().min(1).max(50).default(2),
   CONFIRMATION_TIMEOUT_MS: Joi.number().default(300000), // 5 minutes
+  RETRY_DELAY_MS: Joi.number().integer().min(0).default(1000), // delay before retrying queue processing
 
   // Queue configuration
   QUEUE_NAME: Joi.string().default('contract-deployments'),
@@ -151,6 +152,7 @@ export interface Config {
   DEFAULT_GAS_LIMIT: number;
   CONFIRMATION_BLOCKS: number;
   CONFIRMATION_TIMEOUT_MS: number;
+  RETRY_DELAY_MS: number;
   QUEUE_NAME: string;
   QUEUE_PREFIX: string;
   MINT_REQUEST_QUEUE: string;

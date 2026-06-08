@@ -229,21 +229,27 @@ describe('ModelRegistryService', () => {
       const filter = { address: config.registryAddress };
       
       mockContract.filters.ModelRegistered.mockReturnValue(filter);
-      mockContract.on.mockImplementation((event, handler) => {
-        if (event === 'ModelRegistered') {
-          // Simulate an event
-          handler(
-            'model_123',
-            '0x1234567890123456789012345678901234567890',
-            'accuracy',
-            'run_abc123',
-            { blockNumber: 12345678 }
-          );
+      mockContract.on.mockImplementation(
+        (event: any, handler: (...args: any[]) => void) => {
+          // The source obtains the filter via getEvent('ModelRegistered')()
+          // (which returns the mocked `filter`) and subscribes with it, so the
+          // first arg to `on` is the filter object rather than the event name.
+          if (event === filter) {
+            // Simulate an event
+            handler(
+              'model_123',
+              '0x1234567890123456789012345678901234567890',
+              'accuracy',
+              'run_abc123',
+              { blockNumber: 12345678 }
+            );
+          }
         }
-      });
+      );
 
       await registryService.onModelRegistered(eventHandler);
 
+      expect(mockContract.getEvent).toHaveBeenCalledWith('ModelRegistered');
       expect(eventHandler).toHaveBeenCalledWith({
         modelId: 'model_123',
         tokenAddress: '0x1234567890123456789012345678901234567890',
@@ -258,11 +264,13 @@ describe('ModelRegistryService', () => {
       const errorHandler = jest.fn();
       
       mockContract.filters.ModelRegistered.mockReturnValue({});
-      mockContract.on.mockImplementation((event, handler) => {
-        if (event === 'error') {
-          handler(new Error('Event subscription failed'));
+      mockContract.on.mockImplementation(
+        (event: any, handler: (...args: any[]) => void) => {
+          if (event === 'error') {
+            handler(new Error('Event subscription failed'));
+          }
         }
-      });
+      );
 
       await registryService.onModelRegistered(eventHandler, errorHandler);
 

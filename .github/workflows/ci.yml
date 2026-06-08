@@ -1,0 +1,63 @@
+name: CI
+
+# Blocking pre-mainnet test gate (HOK-2100). Runs the Hardhat contract suite and the
+# contract-deployer consumer suite (typecheck + build + jest) on every PR and push to main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Hardhat contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - run: npx hardhat compile
+
+      - run: npx hardhat test
+
+  contract-deployer:
+    name: Contract-deployer service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/contract-deployer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: services/contract-deployer/package-lock.json
+
+      - run: npm ci
+
+      # Production source must type-check (was ~90 errors before HOK-2100).
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Compile to dist/ — the same build the Docker image now runs.
+      - name: Build
+        run: npm run build
+
+      # Unit + integration suites (mint-path conformance, consumer, schemas, etc.).
+      - name: Test
+        run: npm test -- --ci

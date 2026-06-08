@@ -10,19 +10,21 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm ci --only=production && \
-    cp -R node_modules prod_node_modules
+# Install ALL dependencies (including dev) so TypeScript can be compiled in-image
+RUN npm ci
 
-# Copy source code and pre-built files
+# Copy source code and assets
 COPY src ./src
-COPY dist ./dist
 COPY contracts ./contracts
 COPY deployments ./deployments
 
+# Compile TypeScript -> dist in-image (no longer relies on a locally pre-built dist,
+# which is gitignored and absent from clean checkouts/CI). Fails the build on type errors.
+RUN npm run build
 
-# Skip build for now - using pre-built dist
-# RUN npm run build
+# Reduce to production-only dependencies for the runtime image
+RUN npm prune --omit=dev && \
+    cp -R node_modules prod_node_modules
 
 # Runtime stage
 FROM node:18-alpine

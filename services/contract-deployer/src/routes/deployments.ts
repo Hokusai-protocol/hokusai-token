@@ -11,8 +11,8 @@ import { createLogger } from '../utils/logger';
 const logger = createLogger('deployment-routes');
 
 export function deploymentRouter(
-  queueService: QueueService,
-  blockchainService: BlockchainService,
+  _queueService: QueueService,
+  _blockchainService: BlockchainService,
   deploymentService: DeploymentService,
 ): Router {
   const router = Router();
@@ -24,7 +24,7 @@ export function deploymentRouter(
    * POST /api/deployments
    * Create a new token deployment
    */
-  router.post('/', validateUserAddress, async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/', validateUserAddress, async (req: Request, res: Response, _next: NextFunction) => {
     try {
       logger.info('Deployment request received', {
         correlationId: req.correlationId,
@@ -70,7 +70,7 @@ export function deploymentRouter(
         status: deploymentResponse.status
       });
 
-      res.status(202).json({
+      return res.status(202).json({
         success: true,
         data: deploymentResponse,
         meta: {
@@ -87,7 +87,7 @@ export function deploymentRouter(
       });
 
       const apiError = toApiError(error, req.correlationId);
-      res.status(apiError.statusCode).json({
+      return res.status(apiError.statusCode).json({
         success: false,
         error: apiError.toApiResponse()
       });
@@ -98,7 +98,7 @@ export function deploymentRouter(
    * GET /api/deployments/:id/status
    * Get deployment status
    */
-  router.get('/:id/status', async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/:id/status', async (req: Request, res: Response, _next: NextFunction) => {
     try {
       const deploymentId = req.params.id;
 
@@ -132,7 +132,7 @@ export function deploymentRouter(
         status: status.status
       });
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         data: status,
         meta: {
@@ -150,7 +150,7 @@ export function deploymentRouter(
       });
 
       const apiError = toApiError(error, req.correlationId);
-      res.status(apiError.statusCode).json({
+      return res.status(apiError.statusCode).json({
         success: false,
         error: apiError.toApiResponse()
       });
@@ -161,7 +161,7 @@ export function deploymentRouter(
    * GET /api/deployments/:id
    * Legacy endpoint - redirects to status endpoint
    */
-  router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/:id', async (req: Request, res: Response, _next: NextFunction) => {
     try {
       logger.info('Legacy deployment endpoint accessed', {
         correlationId: req.correlationId,

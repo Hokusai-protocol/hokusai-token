@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
 import { logger } from '../utils/logger';
-import { PoolConfig } from '../config/monitoring-config';
 
 /**
  * Infrastructure Reserve Monitor
@@ -73,7 +72,6 @@ export interface InfrastructureThresholds {
 
 export class InfrastructureMonitor {
   private provider: ethers.Provider;
-  private infraReserveAddress: string;
   private thresholds: InfrastructureThresholds;
   private callbacks: InfrastructureMonitorCallbacks;
 
@@ -122,7 +120,6 @@ export class InfrastructureMonitor {
     callbacks: InfrastructureMonitorCallbacks = {}
   ) {
     this.provider = provider;
-    this.infraReserveAddress = infraReserveAddress;
     this.thresholds = thresholds;
     this.callbacks = callbacks;
 
@@ -230,11 +227,16 @@ export class InfrastructureMonitor {
    */
   private async pollInfrastructureState(modelId: string, dailyBurnRateUSD?: number): Promise<void> {
     try {
+      const infraReserveContract = this.infraReserveContract;
+      if (!infraReserveContract) {
+        throw new Error('infraReserveContract not initialized');
+      }
+
       const blockNumber = await this.provider.getBlockNumber();
 
       // Fetch infrastructure state
       const [accruedAmount, paidAmount, currentProvider] =
-        await this.infraReserveContract!.getModelAccounting(modelId);
+        await infraReserveContract.getFunction('getModelAccounting')(modelId);
 
       // Get accrual rate from params
       const paramsContract = this.paramsContracts.get(modelId);
@@ -243,14 +245,14 @@ export class InfrastructureMonitor {
         return;
       }
 
-      const infrastructureAccrualBps = await paramsContract.infrastructureAccrualBps();
+      const infrastructureAccrualBps = await paramsContract.getFunction('infrastructureAccrualBps')();
       const profitShareBps = 10000 - infrastructureAccrualBps;
 
       // Calculate runway if daily burn rate provided
       let runwayDays: number | undefined;
       if (dailyBurnRateUSD && dailyBurnRateUSD > 0) {
         const dailyBurnRateWei = ethers.parseUnits(dailyBurnRateUSD.toString(), 6);
-        runwayDays = Number(await this.infraReserveContract!.getAccrualRunway(modelId, dailyBurnRateWei));
+        runwayDays = Number(await infraReserveContract.getFunction('getAccrualRunway')(modelId, dailyBurnRateWei));
       }
 
       const state: InfrastructureState = {
@@ -289,12 +291,13 @@ export class InfrastructureMonitor {
    * Setup event listeners for real-time updates
    */
   private setupEventListeners(modelId: string): void {
-    if (!this.infraReserveContract) return;
+    const infraReserveContract = this.infraReserveContract;
+    if (!infraReserveContract) return;
 
     // Listen for deposits
-    this.infraReserveContract.on(
-      this.infraReserveContract.filters.InfrastructureDeposited(modelId),
-      async (modelIdEvent, amount, newBalance, depositor, event) => {
+    infraReserveContract.on(
+      infraReserveContract.getEvent('InfrastructureDeposited')(modelId),
+      async (_modelIdEvent, amount, newBalance, depositor, _event) => {
         logger.info(`Infrastructure deposited for ${modelId}: $${ethers.formatUnits(amount, 6)}`, {
           newBalance: ethers.formatUnits(newBalance, 6),
           depositor
@@ -304,9 +307,9 @@ export class InfrastructureMonitor {
     );
 
     // Listen for payments
-    this.infraReserveContract.on(
-      this.infraReserveContract.filters.InfrastructureCostPaid(modelId),
-      async (modelIdEvent, payee, amount, invoiceHash, memo, event) => {
+    infraReserveContract.on(
+      infraReserveContract.getEvent('InfrastructureCostPaid')(modelId),
+      async (_modelIdEvent, payee, amount, invoiceHash, memo, _event) => {
         logger.info(`Infrastructure paid for ${modelId}: $${ethers.formatUnits(amount, 6)}`, {
           payee,
           invoiceHash,
@@ -340,9 +343,9 @@ export class InfrastructureMonitor {
     );
 
     // Listen for provider changes
-    this.infraReserveContract.on(
-      this.infraReserveContract.filters.ProviderSet(modelId),
-      async (modelIdEvent, oldProvider, newProvider, event) => {
+    infraReserveContract.on(
+      infraReserveContract.getEvent('ProviderSet')(modelId),
+      async (_modelIdEvent, oldProvider, newProvider, _event) => {
         logger.info(`Provider changed for ${modelId}`, {
           oldProvider,
           newProvider
@@ -356,7 +359,7 @@ export class InfrastructureMonitor {
     if (paramsContract && this.thresholds.alertOnSplitChange) {
       paramsContract.on(
         'InfrastructureAccrualBpsSet',
-        async (oldBps, newBps, updatedBy, event) => {
+        async (oldBps, newBps, updatedBy, _event) => {
           const currentState = this.getCurrentState(modelId);
           if (currentState) {
             await this.sendAlert({
@@ -479,8 +482,9 @@ export class InfrastructureMonitor {
   getAllCurrentStates(): Map<string, InfrastructureState> {
     const states = new Map<string, InfrastructureState>();
     for (const [modelId, history] of this.modelStates.entries()) {
-      if (history.length > 0) {
-        states.set(modelId, history[history.length - 1]);
+      const latest = history[history.length - 1];
+      if (latest) {
+        states.set(modelId, latest);
       }
     }
     return states;

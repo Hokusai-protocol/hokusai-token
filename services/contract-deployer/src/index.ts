@@ -155,10 +155,10 @@ async function main(): Promise<void> {
     // Set up health check endpoints
     app.get('/health', healthCheck.getHealthHandler());
     app.get('/health/detailed', healthCheck.getDetailedHealthHandler());
-    app.get('/health/live', (req, res) => {
+    app.get('/health/live', (_req, res) => {
       res.json({ alive: true });
     });
-    app.get('/health/ready', async (req, res) => {
+    app.get('/health/ready', async (_req, res) => {
       const ready = await healthCheck.isReady();
       res.status(ready ? 200 : 503).json({ ready });
     });

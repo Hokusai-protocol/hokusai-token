@@ -355,9 +355,15 @@ export class CostReconciliationService {
     const varianceAmount: number = actual - estimated;
     const variancePercent: number = estimated === 0 ? 0 : (varianceAmount / estimated) * 100;
 
+    const firstCost = recentCosts[0];
+    const lastCost = recentCosts[recentCosts.length - 1];
+    if (!firstCost || !lastCost) {
+      return null;
+    }
+
     const period = {
-      start: recentCosts[0].period.start,
-      end: recentCosts[recentCosts.length - 1].period.end
+      start: firstCost.period.start,
+      end: lastCost.period.end
     };
 
     return {
@@ -409,7 +415,7 @@ export class CostReconciliationService {
       }
 
       // Get current accrued balance
-      const [accruedAmount, , ] = await this.infraReserveContract.getModelAccounting(modelId);
+      const [accruedAmount, , ] = await this.infraReserveContract.getFunction('getModelAccounting')(modelId);
       const currentBalance = Number(ethers.formatUnits(accruedAmount, 6));
 
       // Calculate daily burn rate from recent costs

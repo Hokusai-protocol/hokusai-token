@@ -45,8 +45,13 @@ export class MulticallHelper {
       return [];
     }
 
+    const aggregate3 = this.multicall?.aggregate3;
+    if (!aggregate3) {
+      throw new Error('Multicall contract is not initialized');
+    }
+
     try {
-      const results = await this.multicall.aggregate3(calls);
+      const results = await aggregate3(calls);
       return results.map((r: any) => ({
         success: r.success,
         returnData: r.returnData
@@ -91,6 +96,10 @@ export class MulticallHelper {
       const poolAddr = poolAddresses[i];
       const tokenAddr = tokenAddresses[i];
 
+      if (!poolAddr || !tokenAddr) {
+        continue;
+      }
+
       // 3 calls per pool + 1 token call = 4 calls per pool
       calls.push({
         target: poolAddr,
@@ -127,7 +136,8 @@ export class MulticallHelper {
       const supplyResult = results[baseIdx + 3];
 
       // If any call failed, return null for this pool
-      if (!reserveResult.success || !priceResult.success ||
+      if (!reserveResult || !priceResult || !pausedResult || !supplyResult ||
+          !reserveResult.success || !priceResult.success ||
           !pausedResult.success || !supplyResult.success) {
         logger.warn(`Failed to read state for pool ${poolAddresses[i]}`);
         poolStates.push(null);

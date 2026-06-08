@@ -92,6 +92,16 @@ export class HealthCheckService {
     };
   }
 
+  getLivenessHandler() {
+    return (_req: Request, res: Response) => {
+      res.status(200).json({
+        alive: true,
+        timestamp: new Date().toISOString(),
+        uptime: Date.now() - this.startTime.getTime()
+      });
+    };
+  }
+
   private async checkBasicHealth(): Promise<boolean> {
     try {
       // Check Redis

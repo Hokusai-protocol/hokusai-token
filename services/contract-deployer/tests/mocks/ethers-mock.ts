@@ -80,52 +80,97 @@ export function createMockSigner(): jest.Mocked<ethers.Signer> {
 }
 
 export function createMockContract(): jest.Mocked<ethers.Contract> {
-  return {
+  // Helper to create a contract-method jest.fn that also carries an
+  // `.estimateGas` jest.fn, matching ethers v6's getFunction(name) accessor
+  // which returns a callable with an attached estimateGas method.
+  const makeMethodFn = (): jest.Mock => {
+    const fn: any = jest.fn();
+    fn.estimateGas = jest.fn();
+    return fn;
+  };
+
+  const registerModel = makeMethodFn();
+  const getTokenAddress = makeMethodFn();
+  const getModelInfo = makeMethodFn();
+  const owner = makeMethodFn();
+  const setContributor = makeMethodFn();
+
+  // Cache of lazily-created functions for names not predefined above, so that
+  // getFunction('x') returns a stable jest.fn across calls within a test.
+  const lazyFns: Record<string, jest.Mock> = {};
+
+  const filters = {
+    ModelRegistered: jest.fn(),
+    Transfer: jest.fn(),
+    Approval: jest.fn(),
+  } as Record<string, jest.Mock>;
+
+  const mock: any = {
     // Contract properties
     address: '0x1234567890123456789012345678901234567890',
     interface: {} as any,
     provider: createMockProvider(),
     signer: createMockSigner(),
-    
+
     // Deployment
     deploymentTransaction: jest.fn(),
     waitForDeployment: jest.fn(),
     getAddress: jest.fn(),
-    
+
     // Contract methods (can be customized per test)
-    registerModel: jest.fn(),
-    getTokenAddress: jest.fn(),
-    getModelInfo: jest.fn(),
-    owner: jest.fn(),
-    setContributor: jest.fn(),
-    
+    registerModel,
+    getTokenAddress,
+    getModelInfo,
+    owner,
+    setContributor,
+
     // Event handling
     on: jest.fn(),
     off: jest.fn(),
     once: jest.fn(),
     emit: jest.fn(),
     removeAllListeners: jest.fn(),
-    filters: {
-      ModelRegistered: jest.fn(),
-      Transfer: jest.fn(),
-      Approval: jest.fn(),
-    },
+    filters,
     queryFilter: jest.fn(),
-    
+
     // Transaction methods
     connect: jest.fn().mockReturnThis(),
     attach: jest.fn().mockReturnThis(),
     deployed: jest.fn().mockReturnThis(),
-    
+
     // Estimation
     estimateGas: {},
     callStatic: {},
     functions: {},
     populateTransaction: {},
-    
+
     // Fallback
     fallback: jest.fn(),
-  } as any;
+  };
+
+  // ethers v6 accessors. getFunction(name) returns the SAME jest.fn already
+  // defined for that method name, so tests that configure mockContract.X via
+  // mockResolvedValue / estimateGas still control what getFunction('X') returns.
+  mock.getFunction = jest.fn((name: string): jest.Mock => {
+    if (mock[name] && typeof mock[name] === 'function') {
+      return mock[name];
+    }
+    if (!lazyFns[name]) {
+      lazyFns[name] = makeMethodFn();
+    }
+    return lazyFns[name];
+  });
+
+  // getEvent(name) returns the corresponding filters[name] jest.fn so that
+  // configuring mockContract.filters.X drives getEvent('X')().
+  mock.getEvent = jest.fn((name: string): jest.Mock => {
+    if (!filters[name]) {
+      filters[name] = jest.fn();
+    }
+    return filters[name];
+  });
+
+  return mock as any;
 }
 
 export function createMockContractFactory(): jest.Mocked<ethers.ContractFactory> {

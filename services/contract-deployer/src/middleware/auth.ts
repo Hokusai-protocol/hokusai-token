@@ -48,10 +48,11 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
         'Authentication token is required',
         req.correlationId
       );
-      return res.status(error.statusCode).json({
+      res.status(error.statusCode).json({
         success: false,
         error: error.toApiResponse()
       });
+      return;
     }
     
     // For API key auth (temporary)
@@ -68,10 +69,11 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
           'Invalid API key',
           req.correlationId
         );
-        return res.status(error.statusCode).json({
+        res.status(error.statusCode).json({
           success: false,
           error: error.toApiResponse()
         });
+        return;
       }
       
       // Create a mock user for API key auth
@@ -114,10 +116,11 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
           'Invalid token format',
           req.correlationId
         );
-        return res.status(error.statusCode).json({
+        res.status(error.statusCode).json({
           success: false,
           error: error.toApiResponse()
         });
+        return;
       }
       
       const payload = validation.value!;
@@ -131,10 +134,11 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
         });
         
         const error = ApiErrorFactory.tokenExpired(req.correlationId);
-        return res.status(error.statusCode).json({
+        res.status(error.statusCode).json({
           success: false,
           error: error.toApiResponse()
         });
+        return;
       }
       
       req.user = {
@@ -161,10 +165,11 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
         'Token verification failed',
         req.correlationId
       );
-      return res.status(error.statusCode).json({
+      res.status(error.statusCode).json({
         success: false,
         error: error.toApiResponse()
       });
+      return;
     }
     
   } catch (error) {
@@ -179,10 +184,11 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
       req.correlationId
     );
     
-    return res.status(apiError.statusCode).json({
+    res.status(apiError.statusCode).json({
       success: false,
       error: apiError.toApiResponse()
     });
+    return;
   }
 }
 
@@ -192,12 +198,13 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
 export function requireOwnership(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
     const error = ApiErrorFactory.unauthorized(req.correlationId);
-    return res.status(error.statusCode).json({
+    res.status(error.statusCode).json({
       success: false,
       error: error.toApiResponse()
     });
+    return;
   }
-  
+
   // For now, all authenticated users can access all resources
   // TODO: Implement proper resource ownership validation
   next();
@@ -214,10 +221,11 @@ export function validateUserAddress(req: Request, res: Response, next: NextFunct
       'userAddress is required in request body',
       req.correlationId
     );
-    return res.status(error.statusCode).json({
+    res.status(error.statusCode).json({
       success: false,
       error: error.toApiResponse()
     });
+    return;
   }
   
   if (!ValidationHelpers.isValidEthereumAddress(userAddress)) {
@@ -225,10 +233,11 @@ export function validateUserAddress(req: Request, res: Response, next: NextFunct
       'Invalid Ethereum address format',
       req.correlationId
     );
-    return res.status(error.statusCode).json({
+    res.status(error.statusCode).json({
       success: false,
       error: error.toApiResponse()
     });
+    return;
   }
   
   // For API key auth, allow any valid address
@@ -242,12 +251,13 @@ export function validateUserAddress(req: Request, res: Response, next: NextFunct
       });
       
       const error = ApiErrorFactory.unauthorized(req.correlationId);
-      return res.status(error.statusCode).json({
+      res.status(error.statusCode).json({
         success: false,
         error: error.toApiResponse()
       });
+      return;
     }
   }
-  
+
   next();
 }

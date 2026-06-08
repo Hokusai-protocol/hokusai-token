@@ -25,6 +25,7 @@ describe('HealthCheckService', () => {
     app = express();
     app.get('/health', healthService.getHealthHandler());
     app.get('/health/detailed', healthService.getDetailedHealthHandler());
+    app.get('/health/live', healthService.getLivenessHandler());
   });
 
   describe('Basic health check', () => {
@@ -113,7 +114,9 @@ describe('HealthCheckService', () => {
           messagesFaile: expect.any(Number),
           tokensDeployed: expect.any(Number),
           averageDeploymentTime: expect.any(Number),
-          lastDeploymentTime: expect.any(String)
+          lastDeploymentTime: expect.any(String),
+          totalGasUsed: expect.any(String),
+          failureReasons: expect.any(Object)
         }
       });
     });
@@ -122,11 +125,16 @@ describe('HealthCheckService', () => {
       mockRedis.ping.mockResolvedValue('PONG');
       mockRedis.lLen.mockResolvedValue(100); // High queue depth
       mockProvider.getBlockNumber.mockResolvedValue(12345678);
+      mockProvider.getNetwork.mockResolvedValue({ chainId: 137n, name: 'polygon' });
+      mockProvider.getCode.mockResolvedValue('0x123'); // Contracts deployed
       mockProvider.getBalance.mockResolvedValue(ethers.toBigInt('100000000000000')); // Low balance
       
       const response = await request(app).get('/health/detailed');
-      
-      expect(response.status).toBe(200);
+
+      // A degraded component yields overall 'degraded', which the detailed
+      // handler maps to HTTP 503 (only 'healthy' returns 200).
+      expect(response.status).toBe(503);
+      expect(response.body.status).toBe('degraded');
       expect(response.body.components.redis.status).toBe('degraded');
       expect(response.body.components.blockchain.warnings).toContain('Low deployer balance');
     });

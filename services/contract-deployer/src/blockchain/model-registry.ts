@@ -59,7 +59,7 @@ export class ModelRegistryService {
 
     while (attempts < maxAttempts) {
       try {
-        const tx = await this.contract.registerModel(
+        const tx = await this.contract.getFunction('registerModel')(
           data.modelId,
           data.tokenAddress,
           data.metricName,
@@ -105,7 +105,7 @@ export class ModelRegistryService {
 
   async checkModelExists(modelId: string): Promise<boolean> {
     try {
-      const tokenAddress = await this.contract.getTokenAddress(modelId);
+      const tokenAddress = await this.contract.getFunction('getTokenAddress')(modelId);
       return tokenAddress !== ethers.ZeroAddress;
     } catch (error) {
       logger.error('Failed to check model existence', { error, modelId });
@@ -115,7 +115,7 @@ export class ModelRegistryService {
 
   async getModelInfo(modelId: string): Promise<ModelInfo | null> {
     try {
-      const info = await this.contract.getModelInfo(modelId);
+      const info = await this.contract.getFunction('getModelInfo')(modelId);
       
       if (info.tokenAddress === ethers.ZeroAddress) {
         return null;
@@ -136,7 +136,7 @@ export class ModelRegistryService {
 
   async estimateRegistrationGas(data: RegistrationData): Promise<string> {
     try {
-      const estimatedGas = await this.contract.registerModel.estimateGas(
+      const estimatedGas = await this.contract.getFunction('registerModel').estimateGas(
         data.modelId,
         data.tokenAddress,
         data.metricName,
@@ -151,7 +151,7 @@ export class ModelRegistryService {
 
   async checkHealth(): Promise<boolean> {
     try {
-      await this.contract.owner();
+      await this.contract.getFunction('owner')();
       return true;
     } catch (error) {
       logger.error('Registry health check failed', { error });
@@ -164,7 +164,7 @@ export class ModelRegistryService {
     errorHandler?: (error: Error) => void
   ): Promise<void> {
     try {
-      const filter = this.contract.filters.ModelRegistered();
+      const filter = this.contract.getEvent('ModelRegistered')();
       
       this.contract.on(filter, (modelId, tokenAddress, metricName, mlflowRunId, event) => {
         handler({

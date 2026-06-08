@@ -73,6 +73,17 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
   router.get('/:modelId/variance', (req: Request, res: Response) => {
     try {
       const { modelId } = req.params;
+      if (!modelId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Missing required path parameter: modelId',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
       const current = reconciliationService.getCurrentVariance(modelId);
@@ -119,6 +130,17 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
   router.get('/:modelId/recommendations', (req: Request, res: Response) => {
     try {
       const { modelId } = req.params;
+      if (!modelId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Missing required path parameter: modelId',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
       const latest = reconciliationService.getLatestRecommendation(modelId);
@@ -165,6 +187,17 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
   router.get('/:modelId/costs', (req: Request, res: Response) => {
     try {
       const { modelId } = req.params;
+      if (!modelId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Missing required path parameter: modelId',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
 
       const costs = reconciliationService.getCostHistory(modelId, limit);
@@ -222,6 +255,18 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
     try {
       const { modelId } = req.params;
       const { provider, amount, period, invoiceId, metadata } = req.body;
+
+      if (!modelId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Missing required path parameter: modelId',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
 
       // Validate required fields
       if (!provider || !amount || !period) {

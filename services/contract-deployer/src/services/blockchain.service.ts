@@ -21,12 +21,12 @@ export class BlockchainService {
   ): Promise<ethers.Contract> {
     try {
       const factory = new ethers.ContractFactory(abi, bytecode, this.wallet);
-      const contract = await factory.deploy(...args);
+      const contract = (await factory.deploy(...args)) as unknown as ethers.Contract;
       await contract.waitForDeployment();
-      
+
       const address = await contract.getAddress();
       this.logger.info(`Contract deployed at: ${address}`);
-      
+
       return contract;
     } catch (error) {
       this.logger.error('Failed to deploy contract:', error);

@@ -134,7 +134,7 @@ async function productionDeploymentExample() {
     });
     
   } catch (error) {
-    console.log('Production Config Error:', error.message);
+    console.log('Production Config Error:', error instanceof Error ? error.message : String(error));
     console.log('This is expected if SSM parameters are not set up');
   } finally {
     // Restore original environment
@@ -156,7 +156,7 @@ async function errorHandlingExample() {
     await ssmClient.getAllParameters();
     
   } catch (error) {
-    console.log('Expected Error for Non-existent Path:', error.message);
+    console.log('Expected Error for Non-existent Path:', error instanceof Error ? error.message : String(error));
     console.log('The service includes automatic retry with exponential backoff');
   }
   
@@ -191,7 +191,7 @@ async function errorHandlingExample() {
       const result = await scenario.test();
       console.log(`${scenario.name}: Success -`, result);
     } catch (error) {
-      console.log(`${scenario.name}: Error -`, error.message);
+      console.log(`${scenario.name}: Error -`, error instanceof Error ? error.message : String(error));
     }
   }
 }

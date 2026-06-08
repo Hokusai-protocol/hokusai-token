@@ -34,7 +34,6 @@ export class DeploymentService {
   private redisClient: RedisClientType;
   private logger: Logger;
   private readonly DEPLOYMENT_STATUS_PREFIX = 'deployment:status:';
-  private readonly DEPLOYMENT_QUEUE_PREFIX = 'deployment:queue:';
   private readonly USER_DEPLOYMENTS_PREFIX = 'user:deployments:';
   private readonly MODEL_DEPLOYMENT_PREFIX = 'model:deployment:';
 
@@ -143,9 +142,12 @@ export class DeploymentService {
     };
 
     try {
-      // Store deployment status in Redis
+      // Store deployment status in Redis.
+      // `initialStatus.timestamp` is a numeric epoch used internally; the persisted
+      // status response tracks time via `lastUpdated` instead, so it is not included here.
       await this.setDeploymentStatus(requestId, {
-        ...initialStatus,
+        requestId: initialStatus.requestId,
+        status: initialStatus.status,
         progress: 0,
         currentStep: 'Queued for deployment',
         lastUpdated: new Date().toISOString(),
@@ -266,17 +268,25 @@ export class DeploymentService {
         lastUpdated: new Date().toISOString()
       });
 
-      // Prepare deployment message for ContractDeployer
+      // Prepare deployment message for ContractDeployer.
+      // ContractDeployer.deployToken only consumes `model_id` and `token_symbol`;
+      // this API-initiated path does not carry the model-metric fields, so the
+      // remaining (required) fields are populated with inert placeholders that the
+      // deployer ignores. The request metadata is intentionally not forwarded as it
+      // is not part of the ModelReadyToDeployMessage contract.
       const deployMessage: ModelReadyToDeployMessage = {
         model_id: request.modelId,
         token_symbol: request.tokenSymbol,
         contributor_address: undefined, // TODO: Extract from request if needed
-        metadata: request.metadata ? {
-          name: request.tokenName,
-          description: request.metadata.description,
-          website: request.metadata.website,
-          ...request.metadata
-        } : undefined
+        metric_name: '',
+        baseline_value: 0,
+        current_value: 0,
+        model_name: request.tokenName,
+        model_version: '',
+        mlflow_run_id: '',
+        improvement_percentage: 0,
+        timestamp: new Date().toISOString(),
+        message_version: '1.0'
       };
 
       // Update status

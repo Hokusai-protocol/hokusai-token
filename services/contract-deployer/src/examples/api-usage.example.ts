@@ -53,7 +53,7 @@ function createSuccessResponse<T>(data: T, requestId: string): ApiResponse<T> {
 /**
  * Example: Creating an error response
  */
-function createErrorResponse(error: ApiError, requestId: string): ApiResponse {
+function createErrorResponse<T = unknown>(error: ApiError, requestId: string): ApiResponse<T> {
   return {
     success: false,
     error: {
@@ -74,9 +74,9 @@ function createErrorResponse(error: ApiError, requestId: string): ApiResponse {
  */
 async function deployTokenHandler(requestData: unknown, requestId: string): Promise<ApiResponse<DeployTokenResponse>> {
   try {
-    // Validate request
-    const validRequest = validateDeployRequest(requestData);
-    
+    // Validate request (throws if invalid)
+    validateDeployRequest(requestData);
+
     // Simulate token deployment logic
     const response: DeployTokenResponse = {
       requestId,

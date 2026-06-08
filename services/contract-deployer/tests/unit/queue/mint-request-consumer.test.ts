@@ -21,6 +21,8 @@ describe('MintRequestConsumer', () => {
     model_id: 'sales-outreach-v1',
     model_id_uint: '21',
     eval_id: 'eval-1',
+    benchmark_spec_id: 'bench-1',
+    dataset_hash: '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
     attestation_hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     idempotency_key: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     totalSamples: 140,

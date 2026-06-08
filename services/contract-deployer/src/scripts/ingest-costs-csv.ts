@@ -13,8 +13,11 @@
  */
 
 import { readFileSync } from 'fs';
+// NOTE: `csv-parse` is declared in package.json but may not be installed in node_modules.
+// Run `npm install` to make this import resolve. The `csv-parse/sync` subpath is correct for v5.
+// TODO: ensure `csv-parse` dependency is installed in CI/build environments.
 import { parse } from 'csv-parse/sync';
-import fetch from 'node-fetch';
+// Uses the global `fetch` available in Node 18+ (no `node-fetch` dependency required).
 
 interface CsvRow {
   modelId: string;
@@ -111,7 +114,16 @@ async function ingestCosts(csvPath: string, config: IngestConfig): Promise<void>
       }
 
       const result = await response.json();
-      console.log(`  ✓ Success: ${result.data.message}`);
+      const message =
+        result &&
+        typeof result === 'object' &&
+        'data' in result &&
+        result.data &&
+        typeof result.data === 'object' &&
+        'message' in result.data
+          ? String((result.data as { message: unknown }).message)
+          : 'OK';
+      console.log(`  ✓ Success: ${message}`);
       successCount++;
 
     } catch (error) {
@@ -153,11 +165,15 @@ Environment:
   }
 
   const csvPath = args[0];
+  if (!csvPath) {
+    console.error('Error: missing required <csv-file> argument. Run with --help for usage.');
+    process.exit(1);
+  }
   const dryRun = args.includes('--dry-run');
   const apiUrlArg = args.find(arg => arg.startsWith('--api-url='));
-  const apiUrl = apiUrlArg
-    ? apiUrlArg.split('=')[1]
-    : (process.env.RECONCILIATION_API_URL || 'http://localhost:8002');
+  const apiUrlFromArg = apiUrlArg?.split('=')[1];
+  const apiUrl =
+    apiUrlFromArg || process.env.RECONCILIATION_API_URL || 'http://localhost:8002';
 
   const config: IngestConfig = {
     apiUrl,

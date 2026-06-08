@@ -11,7 +11,8 @@ export class DeploymentProcessor {
 
   constructor(
     private readonly queueService: QueueService,
-    private readonly blockchainService: BlockchainService,
+    // Reserved for future blockchain interactions; not currently used by the processor.
+    _blockchainService: BlockchainService,
     private readonly deploymentService: DeploymentService,
     private readonly logger: Logger,
     private readonly config: Config,

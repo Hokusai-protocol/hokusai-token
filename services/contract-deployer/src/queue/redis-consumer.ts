@@ -31,6 +31,9 @@ export class RedisQueueConsumer extends EventEmitter {
   private config: RedisQueueConsumerConfig;
   private running: boolean = false;
   private processingCount: number = 0;
+  // Backoff applied between idle/failed polls to prevent a busy-loop when
+  // brPopLPush returns immediately (blockingTimeout=0 or a non-blocking client).
+  private readonly idleBackoffMs: number = 50;
 
   constructor(config: RedisQueueConsumerConfig) {
     super();
@@ -38,9 +41,14 @@ export class RedisQueueConsumer extends EventEmitter {
     this.config = config;
   }
 
+  /**
+   * Polls the inbound queue once and processes a single message if available.
+   * @returns true if a message was dequeued (regardless of processing outcome
+   *          beyond a thrown error), false if the poll timed out with no work.
+   */
   async processMessage(
     handler: (message: ModelReadyToDeployMessage) => Promise<void>
-  ): Promise<void> {
+  ): Promise<boolean> {
     const messageStr = await this.redis.brPopLPush(
       this.config.inboundQueue,
       this.config.processingQueue,
@@ -49,7 +57,7 @@ export class RedisQueueConsumer extends EventEmitter {
 
     if (!messageStr) {
       // Timeout - no message available
-      return;
+      return false;
     }
 
     try {
@@ -60,7 +68,7 @@ export class RedisQueueConsumer extends EventEmitter {
       } catch (error) {
         logger.error('Failed to parse message JSON', { error, messageStr });
         await this.moveToDeadLetterQueue(messageStr, 'Invalid JSON');
-        return;
+        return true;
       }
 
       // Validate message schema
@@ -71,7 +79,7 @@ export class RedisQueueConsumer extends EventEmitter {
           message 
         });
         await this.moveToDeadLetterQueue(messageStr, validation.error.message);
-        return;
+        return true;
       }
 
       // Process the message
@@ -87,7 +95,8 @@ export class RedisQueueConsumer extends EventEmitter {
         throw error;
       }
       this.processingCount--;
-      
+
+      return true;
     } catch (error: any) {
       // Handle processing failure
       logger.error('Message processing failed', { error: error.message });
@@ -137,10 +146,20 @@ export class RedisQueueConsumer extends EventEmitter {
     
     while (this.running) {
       try {
-        await this.processMessage(handler);
+        const handled = await this.processMessage(handler);
+        // Guard against a busy-loop: if the poll returned immediately with no
+        // message (e.g. blockingTimeout=0 or a non-blocking Redis client),
+        // yield/back off so we don't spin the event loop allocating until OOM.
+        if (!handled && this.running) {
+          await new Promise(resolve => setTimeout(resolve, this.idleBackoffMs));
+        }
       } catch (error) {
         // Error already handled in processMessage
-        // Continue processing other messages
+        // Continue processing other messages, but back off so a persistent
+        // failure (e.g. Redis down) cannot tight-loop.
+        if (this.running) {
+          await new Promise(resolve => setTimeout(resolve, this.idleBackoffMs));
+        }
       }
     }
     

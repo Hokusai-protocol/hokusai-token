@@ -1,7 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
-import axios from 'axios';
 
 /**
  * Integration tests for containerization and deployment
@@ -307,13 +306,14 @@ describe('Post-Deployment Validation', () => {
       }
       
       try {
-        const response = await axios.get(`${API_URL}/health`, {
-          timeout: 5000
+        const response = await fetch(`${API_URL}/health`, {
+          signal: AbortSignal.timeout(5000)
         });
-        
+
         expect(response.status).toBe(200);
-        expect(response.data).toHaveProperty('status');
-        expect(response.data.status).toBe('ok');
+        const data = await response.json() as { status?: string };
+        expect(data).toHaveProperty('status');
+        expect(data.status).toBe('ok');
       } catch (error) {
         // If API is not deployed yet, skip this test
         console.log('API not accessible, skipping live test');
@@ -327,13 +327,14 @@ describe('Post-Deployment Validation', () => {
       }
       
       try {
-        const response = await axios.get(`${API_URL}/health/ready`, {
-          timeout: 5000
+        const response = await fetch(`${API_URL}/health/ready`, {
+          signal: AbortSignal.timeout(5000)
         });
-        
+
         expect(response.status).toBe(200);
-        expect(response.data).toHaveProperty('status');
-        expect(response.data).toHaveProperty('checks');
+        const data = await response.json() as { status?: string; checks?: unknown };
+        expect(data).toHaveProperty('status');
+        expect(data).toHaveProperty('checks');
       } catch (error) {
         console.log('API not accessible, skipping live test');
       }

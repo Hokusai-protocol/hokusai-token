@@ -81,6 +81,27 @@ Optional but related contracts:
 | `RewardVestingVault` | Confirm `tokenManager()` is the deployed TokenManager; document any owner/admin surface if added later. |
 | `TokenDeploymentFactory` | Confirm whether it has ownership or role state in the deployed implementation; document before mainnet. |
 
+## Attester Registry Custody (DeltaVerifier, HOK-2126)
+
+The attester registry authorizes mints independently of the `SUBMITTER` relayer (the signature verification that reads it lands in HOK-2132). It is an address **set** plus a **threshold** `m`, governed by `DEFAULT_ADMIN_ROLE`:
+
+| Action | Function | Authority | Path |
+| --- | --- | --- | --- |
+| Add attester | `addAttester(address)` | `DEFAULT_ADMIN_ROLE` (admin Safe) | **Timelocked** (routine; via the governance timelock) |
+| Set threshold `m` | `setAttesterThreshold(uint256)` | `DEFAULT_ADMIN_ROLE` (admin Safe) | **Timelocked** (routine) |
+| Remove attester | `removeAttester(address)` | `DEFAULT_ADMIN_ROLE` (admin Safe) | Timelocked for routine rotation; for an incident use **pause first** (below) |
+| Emergency halt | `pause()` | `PAUSER_ROLE` (emergency Safe) | **Immediate, no timelock** |
+
+Custody rules:
+
+- **The attester key is separate custody from the `SUBMITTER` relayer key** (hardware-wallet EOA at launch). This separation is the whole point — a compromise of the relayer/consumer host must not yield mint authority.
+- **Launch sequence (1-of-1):** `addAttester(launchAttester)` then `setAttesterThreshold(1)`. Verify `attesterCount == 1`, `attesterThreshold == 1`, `isAttester(launchAttester) == true`.
+- **Routine rotation (zero-downtime):** `addAttester(new)` (count → 2) then `removeAttester(old)` (count → 1, still meets threshold). Removing an attester that would drop the count below the threshold reverts (`AttesterThresholdWouldBeUnmet`).
+- **Emergency (suspected attester compromise):** `pause()` from the emergency Safe halts all mints immediately (no timelock); then rotate (add replacement, remove compromised) and `unpause()`. Do not rely on `removeAttester` alone for an incident — it cannot drop below the threshold.
+- **m-of-n later:** add attesters and raise the threshold; no contract/storage change is required. An invalid threshold (`0` or `> attesterCount`) reverts (`InvalidAttesterThreshold`).
+
+Add these to the Sepolia rehearsal: add/rotate/threshold transactions and an attester-compromise pause+rotate drill; record tx hashes in the rehearsal log.
+
 ## Sepolia Rehearsal
 
 Run this rehearsal on a fresh Sepolia deployment or on an explicitly approved rehearsal deployment. Record every transaction hash in the rehearsal log below.

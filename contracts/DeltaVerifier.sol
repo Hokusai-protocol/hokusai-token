@@ -17,6 +17,13 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
 
     error ModelTokenMismatch(uint256 modelId, address registryToken, address tokenManagerToken);
 
+    // --- Attester registry errors (HOK-2126) ---
+    error ZeroAttester();
+    error AttesterAlreadyRegistered(address attester);
+    error AttesterNotRegistered(address attester);
+    error InvalidAttesterThreshold(uint256 threshold, uint256 attesterCount);
+    error AttesterThresholdWouldBeUnmet(uint256 newAttesterCount, uint256 threshold);
+
     struct Metrics {
         uint256 accuracy;
         uint256 precision;
@@ -97,6 +104,16 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
     uint256 private constant RATE_LIMIT_DURATION = 1 hours;
     mapping(address => uint256) private lastSubmissionTime;
     mapping(bytes32 => bool) public processedIdempotencyKeys;
+
+    // --- Attester registry (HOK-2126) ---
+    // The set of addresses authorized to attest mints, and how many distinct attester signatures a
+    // mint must carry (m-of-n). The signature verification that *consumes* these is added in HOK-2132;
+    // this issue provides only the Safe-governed registry + invariants. Runs 1-of-1 at launch, but the
+    // set/threshold shape supports m-of-n later with no storage change. Governed by DEFAULT_ADMIN_ROLE
+    // (the admin Safe / timelock); pause() is the separate fast emergency brake.
+    mapping(address => bool) public isAttester;
+    uint256 public attesterCount;
+    uint256 public attesterThreshold;
     
     event EvaluationSubmitted(
         string indexed pipelineRunId,
@@ -142,6 +159,10 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         uint256 rewardAmount,
         string pipelineRunId
     );
+
+    event AttesterAdded(address indexed attester, uint256 attesterCount);
+    event AttesterRemoved(address indexed attester, uint256 attesterCount);
+    event AttesterThresholdUpdated(uint256 threshold);
 
     constructor(
         address _modelRegistry,
@@ -610,6 +631,42 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         emit RewardParametersUpdated(baseRewardRate, minImprovementBps, maxReward);
     }
     
+    // --- Attester registry governance (HOK-2126) ---
+    // Controlled by DEFAULT_ADMIN_ROLE (the admin Safe; non-emergency changes are expected to route
+    // through the governance timelock). Launch sequence: addAttester(launchAttester) then
+    // setAttesterThreshold(1). Emergency: pause() halts mints immediately; rotate add-then-remove,
+    // then unpause(). The signature verification that reads this registry lands in HOK-2132.
+
+    /// @notice Register an attester. 1-of-1 at launch; the set/threshold supports m-of-n later.
+    function addAttester(address attester) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (attester == address(0)) revert ZeroAttester();
+        if (isAttester[attester]) revert AttesterAlreadyRegistered(attester);
+        isAttester[attester] = true;
+        attesterCount += 1;
+        emit AttesterAdded(attester, attesterCount);
+    }
+
+    /// @notice Remove an attester. Rotation is add-new-then-remove-old (zero-downtime). A removal that
+    /// would drop the attester count below the current threshold reverts — use pause() for an immediate
+    /// halt, then rotate.
+    function removeAttester(address attester) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (!isAttester[attester]) revert AttesterNotRegistered(attester);
+        uint256 newCount = attesterCount - 1;
+        if (newCount < attesterThreshold) revert AttesterThresholdWouldBeUnmet(newCount, attesterThreshold);
+        isAttester[attester] = false;
+        attesterCount = newCount;
+        emit AttesterRemoved(attester, attesterCount);
+    }
+
+    /// @notice Set the number of distinct attester signatures a mint must carry (1 <= m <= attesterCount).
+    function setAttesterThreshold(uint256 threshold) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (threshold == 0 || threshold > attesterCount) {
+            revert InvalidAttesterThreshold(threshold, attesterCount);
+        }
+        attesterThreshold = threshold;
+        emit AttesterThresholdUpdated(threshold);
+    }
+
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }

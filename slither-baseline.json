@@ -940,14 +940,14 @@
       "followUp": "HOK-1823"
     },
     {
-      "id": "6769e9eadd4350e4bf593132e6e5c1a4289bca43f6a4aadede57c4ea03ad9faa",
+      "id": "2a99575e238d90cc21952701c700f17fd6c6e2e2efed401b9c7ad67a67f2df5d",
       "check": "unused-return",
       "justification": "Residual DeltaVerifier registry-call finding after HOK-1829 role line shifts; contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
-      "id": "54e958f6fd84029a3032e98b44ef83c08fe86f2368e3d1e47c862c6de1212072",
+      "id": "772b3345790cf2b16d592667a9b3d244e03c1fe8ec4a62330aff624a24f922de",
       "check": "unused-return",
       "justification": "Residual DeltaVerifier batch registry-call finding after HOK-1829 role line shifts; contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
       "reviewedBy": "codex",

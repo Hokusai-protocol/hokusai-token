@@ -1,12 +1,22 @@
 # Mint Authority Hardening — Design & Options
 
-**Status:** Draft for decision · **Tracking:** HOK-2119 · **Date:** 2026-06-09
+**Status:** Direction set; design in progress · **Tracking:** HOK-2119 · **Date:** 2026-06-09
 
-**Purpose:** lay out the options (with pros/cons) for closing the mint-authority gap before mainnet, so we can decide the right sequence of steps. This is a decision doc, not an implementation spec.
+**Purpose:** lay out the options (with pros/cons) for closing the mint-authority gap before mainnet, and record the direction we've chosen. This is a decision doc, not an implementation spec.
 
 **Read first / do not duplicate:**
 - [`docs/deltaverifier-trust-model.md`](deltaverifier-trust-model.md) — the V1 "trusted submitter" model as shipped. This doc assumes it.
 - [`docs/mainnet-custody-runbook.md`](mainnet-custody-runbook.md) — `SUBMITTER_ROLE` / `DEFAULT_ADMIN_ROLE` custody, Safe handoff, rotation.
+
+## Decisions to date (direction set 2026-06-09)
+
+These are settled and frame the rest of the doc; the options below are retained to record *why* and to scope the open design work.
+
+1. **We will separate the attester key from the submitter key, in different custody.** This is the assumption that makes on-chain verification worth anything (see §4 Axis A — co-located keys would make it security theater).
+2. **We will add some form of on-chain signature verification (Axis A1).** `DeltaVerifier` will verify that a mint is authorized by a registered **attester**, not merely relayed by a `SUBMITTER`. A2 (consumer-side check) is at most a bridge, not the destination.
+3. **The attester's custody will mature over time, and we should design for that from day one:** start with a **human-in-the-loop signer** (strongest separation, lowest infra), then move to an **HSM / automated attester** (and optionally multisig/threshold) as mint volume grows. The contract verifies a registered attester address, so this evolution is a custody/rotation change, **not** a contract change (see §4 Axis A — "Attester custody maturation").
+
+Still open (see §7): the EIP-712 message scope, single-vs-set attester registry, whether the automated attester independently re-validates, per-epoch rate limits, and migration/cutover.
 
 ---
 
@@ -67,20 +77,45 @@ The problem decomposes into **three independent axes** that compose. Pick one op
 
 ### Axis A — Authenticity: prove a mint is genuinely attested
 
-**A1. On-chain signature verification (attester key).**
-The pipeline (or a dedicated attester) signs the canonical mint payload with an **attester key**; `DeltaVerifier.submitMintRequest` takes a signature and verifies `recover(EIP-712 digest, sig) == trustedAttester` (an on-chain address, rotatable by governance) before minting. The signature binds chainId + verifying contract + modelId + anchors + scores/costs + contributors + idempotency key.
-- **Pros:** Strongest. Closes T2, T3, **and T4** — even with the `SUBMITTER` key *and* Redis fully compromised, an attacker can't mint without the attester key. Decouples "who pays gas / submits" (`SUBMITTER`) from "who authorizes the mint" (attester). Enforced at the asset layer (the only place that ultimately matters), auditable on-chain. **This is the linchpin: once it's in, the consumer + Redis become untrusted transport, which makes the isolation problem far smaller.**
-- **Cons:** Contract change to `DeltaVerifier` + re-audit (Echidna/Slither/external). New trusted-attester registry + rotation logic. Must get the EIP-712 message design right (bind all economic content + replay). Cross-repo lockstep change (pipeline signs, contract verifies). The attester key becomes the crown jewel — but it is small, offline-able, HSM-friendly.
+**Chosen direction: A1 (on-chain signature), with a separate attester key whose custody matures human-in-the-loop → HSM.** A2 is at most a bridge. Rationale below.
 
-**A2. Consumer-side signature verification (off-chain only).**
-Pipeline signs; the consumer verifies before calling `submitMintRequest`. Contract unchanged.
-- **Pros:** No contract change / no re-audit; fastest to ship. Closes T2 and T3 (forged queue messages without a valid signature are dropped before the chain).
-- **Cons:** Does **not** close T4 — the consumer still holds `SUBMITTER` and is the enforcement point; a compromised consumer bypasses the check and mints. Defense-in-depth, not a root fix. Risk of divergence between the consumer's notion of "valid" and the contract's (which still trusts the role).
+#### Why a signature helps — and the load-bearing caveat
 
-**A3. Trust-minimized / verifiable computation.**
-Make the contract verify a proof that the attestation corresponds to the committed eval (Merkle/ZK).
-- **Pros:** Removes the trusted attester entirely.
-- **Cons:** Not feasible for an ML eval pipeline in any near-term scope. **Out of scope** — record as long-term direction only.
+A signature scheme only buys real security to the extent the **attester key escapes the submitter key's threat surface**. If both keys live in the same custody/host, "compromise one ≈ compromise both" and on-chain verification is just complexity. We have decided to keep them in **different custody** (see Decisions), which is what makes this worthwhile. The benefit is best understood by adversary tier:
+
+| Tier | Adversary | What signing buys |
+|---|---|---|
+| 1 | Can reach Redis, **holds no key** (the attack demonstrated 2026-06-08) | **Defeated by any signature** (A1 *or* A2) — a forged queue message lacks a valid attester signature. Holds **even if both keys are co-located**, because the Redis-injecting attacker has neither key. This is the exploitable-today vector. |
+| 2 | Compromises the **consumer / submitter host** | A1 defeats it **iff the attester key is elsewhere** (our decision). A2 never helps here — a compromised consumer bypasses its own check. |
+| 3 | Compromises the **attester-key holder** | Signatures don't help (they hold the signing key). Mitigated only by HSM / multisig / human-in-loop / caps + monitoring. This is the residual tier the custody-maturation path attacks. |
+
+So: signing kills tier 1 unconditionally; **separating the attester key** is what extends that to tier 2; and **the attester's custody quality** is what shrinks tier 3.
+
+**A1. On-chain signature verification (attester key). — CHOSEN**
+A dedicated **attester** signs the canonical mint payload; `DeltaVerifier.submitMintRequest` takes a signature and verifies `recover(EIP-712 digest, sig) == registeredAttester` (an on-chain address/allowlist, rotatable by the admin Safe) before minting. The signature binds chainId + verifying contract + modelId + anchors + scores/costs + contributors + idempotency key, so nothing can be tampered between attester and contract.
+- **Pros:** Closes tiers 1–2 and shrinks tier 3. Decouples "who pays gas / submits" (`SUBMITTER`, intrinsically hot) from "who authorizes the mint" (attester, which need not be hot). Enforced at the asset layer, auditable on-chain (every mint is provably authorized by the registered attester — meaningful to token holders independent of the compromise math). **Linchpin:** once in, the consumer + Redis become untrusted transport, shrinking the isolation work to "protect the attester," and custody can evolve (human → HSM → multisig) **without a contract change** — just rotate the registered attester.
+- **Cons:** `DeltaVerifier` change + re-audit (Echidna/Slither/external). New attester registry + rotation. Must get the EIP-712 message right (bind all economic content + replay). Cross-repo lockstep (attester signs, contract verifies) + a migration/cutover plan.
+
+**A2. Consumer-side signature verification (off-chain only). — BRIDGE ONLY**
+Attester signs; the consumer verifies before calling `submitMintRequest`. Contract unchanged.
+- **Pros:** No contract change / no re-audit; fastest. Closes tier 1 today (forged queue messages dropped before the chain).
+- **Cons:** Does **not** close tier 2 — the consumer still holds `SUBMITTER` and is the enforcement point; a compromised consumer bypasses the check and mints. No on-chain auditability or custody option-value. Use only as an interim step *if* the audit timeline blocks A1; the same attester signature should be designed so it later verifies on-chain unchanged.
+
+**A3. Trust-minimized / verifiable computation.** Contract verifies a proof the attestation corresponds to the committed eval (Merkle/ZK).
+- **Pros:** Removes the trusted attester entirely. **Cons:** Not feasible for an ML eval pipeline in any near-term scope. **Out of scope** — long-term only.
+
+#### Attester custody maturation (design for this from day one)
+
+The contract verifies a **registered attester address**; it does not care how the signature is produced. That lets custody mature without redeploys:
+
+- **Stage 1 — human-in-the-loop attester (start here).** A human (or small group), out-of-band from the hot submitter/relayer, reviews each accepted DeltaOne and signs the authorization from a hardware wallet / Safe. The signed payload is attached to the `MintRequest`; the submitter only relays + pays gas.
+  - *Pros:* Strongest separation immediately and the best tier-3 posture — a fully-compromised pipeline **and** consumer still cannot mint without a human signature. Minimal infra (no automated signer to build/secure). Fits low early-mainnet mint frequency.
+  - *Cons:* Latency + a throughput ceiling (a human signs each batch); the signer is an availability dependency; **rubber-stamp risk** — the human must be given a verifiable, human-readable summary of what they're signing, or the gate is illusory.
+- **Stage 2 — HSM / automated attester (move here as volume grows; optionally m-of-n).** Replace the human with an automated signing service whose key is in an HSM/KMS, in an isolated zone with no public ingress, that **independently re-validates** the attestation before signing.
+  - *Pros:* Scales; key non-extractable; central rate-limit/log/revoke.
+  - *Cons:* If it auto-signs whatever the pipeline produces *without independent checks*, it's just a second confused deputy with a different key — security then rests on its isolation + independent validation, not the signature. Securing that service's host + logic becomes the new tier-3 surface.
+
+**Key design implication:** the human stage gives the strongest guarantee at the cost of throughput; the HSM stage trades some of that guarantee for scale, and its security hinges on the automated attester *genuinely re-deriving/validating* the attestation rather than blindly signing. Plan the Stage-2 attester's independent-validation story now, even if Stage 1 ships first.
 
 ### Axis B — Custody & isolation: where the trust anchor runs, and lock the channel
 
@@ -113,8 +148,8 @@ The `SUBMITTER` (and/or attester) key never lives on a host — it's in AWS KMS 
 
 | Option | Closes | Effort | Re-audit? | Notes |
 |---|---|---|---|---|
-| A1 on-chain sig | T2,T3,T4 (and bounds T5 to attester) | High | Yes (contract) | Root fix; linchpin |
-| A2 consumer sig | T2,T3 | Med | No | Stopgap; doesn't cover consumer compromise |
+| A1 on-chain sig | T2,T3,T4 (and bounds T5 to attester) | High | Yes (contract) | **CHOSEN** — root fix; linchpin |
+| A2 consumer sig | T2,T3 | Med | No | Bridge only (if A1 audit timeline blocks); not the destination |
 | B1 split services | T3 (contains) | High | No | Architectural; best with A1 |
 | B2 KMS/HSM | key theft (partial T3/T4) | Med | No | Protects material, not use |
 | B3 Redis lockdown | T2 (open-Redis) | Low | No | Table stakes |
@@ -122,27 +157,28 @@ The `SUBMITTER` (and/or attester) key never lives on a host — it's in AWS KMS 
 
 ---
 
-## 6. Recommended sequencing (for discussion)
+## 6. Recommended sequencing
 
-The strongest end state is **A1 + B1 + B3 + C**. Sequenced by risk-reduction-per-effort:
+Target end state **A1 + separate attester custody + B1 + B3 + C**, with the attester maturing human-in-the-loop → HSM. Sequenced by risk-reduction-per-effort:
 
-- **Phase 0 — immediate, no contract change (days):** B3 (Redis auth/TLS/network/ACL) + B2 (move `SUBMITTER` key to KMS/remote signer) + C (set conservative `maxReward`/caps on mainnet, stand up `DeltaOneAccepted` monitoring + a tested pause runbook). Confirm the custody-runbook end state (admin = Safe, submitter ≠ deployer). This collapses the trivial paths (T2 open-Redis) and limits blast radius before anything else ships.
-- **Phase 1 — the root fix (the linchpin):** A1 on-chain signed attestation. Design the EIP-712 message (bind chainId, contract, modelId, all anchors, scores/costs, contributors, idempotency key); add a rotatable trusted-attester registry to `DeltaVerifier`; update pipeline to sign and consumer to forward the signature; re-audit. **Once this lands, the consumer and Redis are no longer mint authority** — they can't produce a valid signature — which de-risks T2/T3/T4 at the asset layer and shrinks Phase 2.
-- **Phase 2 — isolation:** B1 split the public ingestion from the now-small attester/signer component (which holds the only thing that matters post-A1), in its own zone / HSM. With A1 done, this is "protect one signer," not "lock down the whole pipeline."
+- **Phase 0 — immediate, no contract change (days):** B3 (Redis auth/TLS/network/ACL) + B2 (move `SUBMITTER` key to KMS/remote signer) + C (conservative `maxReward`/caps on mainnet, `DeltaOneAccepted` monitoring + a tested pause runbook). Confirm the custody-runbook end state (admin = Safe, submitter ≠ deployer). Collapses the trivial paths (T2 open-Redis) and bounds blast radius before anything else ships.
+- **Phase 1 — A1 with a Stage-1 (human-in-the-loop) attester:** add EIP-712 signature verification to `DeltaVerifier` against a rotatable registered attester; stand up the **separate attester key** in human/hardware-wallet custody, out-of-band from the submitter; update the producer to attach the signature and the consumer to forward it; re-audit. **Once this lands, the consumer and Redis stop being mint authority** (they can't produce a valid signature) — closing the demonstrated tier-1/2 vectors at the asset layer. Throughput is gated by human signing, which is acceptable at early-mainnet volume.
+- **Phase 2 — isolation + automated attester (Stage 2):** B1 split public ingestion from the now-small attester/signer component; move the attester key to HSM/KMS with an automated signer that **independently re-validates** the attestation (not a second confused deputy), in an isolated zone. Because the contract verifies a registered address, this is a custody rotation, **not** a contract change. With A1 done, the scope is "protect one signer," not "lock down the whole pipeline."
 
-**Why A1 before heavy B1:** isolation without authenticity still leaves a confused deputy (whoever can reach the isolated publisher can still mint); authenticity without isolation already removes mint power from Redis/consumer. A1 gives the most security per unit of effort and makes the isolation scope tractable. If A1's contract change/re-audit timeline is the blocker, **A2 is a legitimate bridge** (closes the demonstrated T2/T3 today) — but it must be explicitly understood as a stopgap that does not cover consumer compromise.
+**Why this order:** signing kills the exploitable-today tier-1 vector immediately; the separate attester key extends that to consumer compromise (tier 2); the human-in-the-loop start gives the strongest tier-3 posture from day one at the cost of throughput; HSM/automation later trades some of that for scale, gated on building the attester's independent-validation story. If the Phase-1 contract audit timeline slips, **A2 (consumer-side verification of the same attester signature) is a legitimate bridge** for tier 1 — but it does not cover consumer compromise and is not the destination.
 
 ---
 
 ## 7. Open questions / decisions needed
 
-1. **Who is the attester?** The pipeline itself, or a separate attestation service that *independently* re-derives the attestation from HEM/eval artifacts before signing? The latter is stronger (it isn't a confused deputy) but heavier. Decision affects A1 + B1 scope.
-2. **On-chain (A1) vs. consumer-only (A2)** for v1-mainnet — root fix now, or stopgap + fast-follow? Drives the audit timeline.
-3. **EIP-712 binding scope:** sign the full economic payload (recommended) vs. just `attestation_hash`. Signing only the hash re-introduces tampering risk on the other fields.
-4. **Attester rotation / multi-attester:** single rotatable address, or a set / threshold (m-of-n) for higher assurance? Threshold adds resilience but more contract surface.
-5. **Per-epoch / per-model rate limit on the V2 path:** on-chain (stronger, audited) or consumer-side (faster)? What limits don't break legitimate throughput?
-6. **Key custody for the attester:** KMS vs. HSM vs. multisig signer — and where it runs relative to the public boundary.
-7. **Migration:** A1 is a lockstep cross-repo change. Cutover plan (dual-accept window? feature flag on the contract?) to avoid a mint outage.
+*Settled (see Decisions):* separate attester key in different custody; on-chain signature (A1) is the destination; custody matures human-in-the-loop → HSM. Remaining:
+
+1. **EIP-712 binding scope:** sign the full economic payload (modelId, all anchors, scores/costs, contributors, idempotency key) — recommended — vs. just `attestation_hash`. Signing only the hash re-introduces tampering risk on the other fields. Also bind chainId + verifying contract to prevent cross-deployment replay.
+2. **Attester registry shape:** single rotatable address vs. an allowlist/set (zero-downtime rotation: add-new-then-remove-old) vs. threshold m-of-n. Recommend at least an allowlist so Stage-1→Stage-2 cutover needs no outage; threshold is a later option.
+3. **Stage-1 human signing UX (avoid rubber-stamping):** what verifiable, human-readable summary does the signer see, and how is it bound to the exact bytes signed? Without this the human gate is illusory.
+4. **Stage-2 independent validation:** what does the automated attester re-derive/verify (HEM digest? recompute `attestation_hash` from artifacts?) before signing, so it isn't a second confused deputy? This is the crux of the Stage-2 security story.
+5. **Per-epoch / per-model rate limit on the V2 path:** on-chain (stronger, audited) or consumer-side (faster)? What limits don't break legitimate throughput? (Defense-in-depth for the residual tier-3.)
+6. **Migration / cutover:** A1 is a lockstep cross-repo change. Plan to avoid a mint outage — e.g. a contract flag that makes the signature optional during a dual-accept window, then enforced; or deploy-verify-flip. Define rollback.
 
 ## 8. Non-goals (this round)
 

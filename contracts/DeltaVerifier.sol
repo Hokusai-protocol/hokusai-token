@@ -24,6 +24,16 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
     error InvalidAttesterThreshold(uint256 threshold, uint256 attesterCount);
     error AttesterThresholdWouldBeUnmet(uint256 newAttesterCount, uint256 threshold);
 
+    /// @notice Thrown by the legacy submitEvaluation* mint entrypoints once legacy mints are disabled.
+    error LegacyMintEntrypointDisabled();
+
+    /// @notice One-way switch. Once true, the legacy submitEvaluation* mint entrypoints revert,
+    /// leaving submitMintRequest (the canonical path) as the only way to mint. Set on mainnet so a
+    /// SUBMITTER_ROLE holder cannot bypass the canonical mint path. Cannot be re-enabled. (HOK-2125)
+    bool public legacyMintsDisabled;
+
+    event LegacyMintsDisabled(address indexed by);
+
     struct Metrics {
         uint256 accuracy;
         uint256 precision;
@@ -194,6 +204,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         uint256 modelId,
         EvaluationData calldata data
     ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
+        if (legacyMintsDisabled) revert LegacyMintEntrypointDisabled();
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
@@ -206,6 +217,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         uint256 modelId,
         EvaluationDataWithInfo calldata data
     ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
+        if (legacyMintsDisabled) revert LegacyMintEntrypointDisabled();
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
@@ -236,6 +248,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         EvaluationDataBase calldata data,
         Contributor[] calldata contributors
     ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
+        if (legacyMintsDisabled) revert LegacyMintEntrypointDisabled();
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
@@ -665,6 +678,14 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         }
         attesterThreshold = threshold;
         emit AttesterThresholdUpdated(threshold);
+    }
+
+    /// @notice Permanently disable the legacy submitEvaluation* mint entrypoints (one-way; cannot be
+    /// re-enabled). After this, submitMintRequest is the only mint path. Call on mainnet so a
+    /// SUBMITTER_ROLE holder cannot bypass the canonical mint path. (HOK-2125)
+    function disableLegacyMints() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        legacyMintsDisabled = true;
+        emit LegacyMintsDisabled(msg.sender);
     }
 
     function pause() external onlyRole(PAUSER_ROLE) {

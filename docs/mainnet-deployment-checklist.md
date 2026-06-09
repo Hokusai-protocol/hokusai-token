@@ -134,6 +134,13 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Total gas cost calculated: `_____` ETH
 - [ ] No errors in deployment output
 
+### Disable legacy mint entrypoints (HOK-2125, security)
+- [ ] Call `DeltaVerifier.disableLegacyMints()` (from `DEFAULT_ADMIN_ROLE` / the admin Safe) so the legacy
+      `submitEvaluation` / `submitEvaluationWithContributorInfo` / `submitEvaluationWithMultipleContributors`
+      paths revert and `submitMintRequest` is the only mint path. This is **one-way** (cannot be re-enabled).
+- [ ] Verify `DeltaVerifier.legacyMintsDisabled()` returns `true`.
+- [ ] Verify each legacy entrypoint reverts with `LegacyMintEntrypointDisabled`, and `submitMintRequest` still works.
+
 ---
 
 ## Phase 2: Contract Verification on Etherscan

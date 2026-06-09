@@ -14,9 +14,12 @@ These are settled and frame the rest of the doc; the options below are retained 
 
 1. **We will separate the attester key from the submitter key, in different custody.** This is the assumption that makes on-chain verification worth anything (see §4 Axis A — co-located keys would make it security theater).
 2. **We will add some form of on-chain signature verification (Axis A1).** `DeltaVerifier` will verify that a mint is authorized by a registered **attester**, not merely relayed by a `SUBMITTER`. A2 (consumer-side check) is at most a bridge, not the destination.
-3. **The attester's custody will mature over time, and we should design for that from day one:** start with a **human-in-the-loop signer** (strongest separation, lowest infra), then move to an **HSM / automated attester** (and optionally multisig/threshold) as mint volume grows. The contract verifies a registered attester address, so this evolution is a custody/rotation change, **not** a contract change (see §4 Axis A — "Attester custody maturation").
+3. **The attester's custody will mature over time, and we should design for that from day one:** start with a **human-in-the-loop signer** (strongest separation, lowest infra), then move to an **HSM / automated attester** (and optionally multisig/threshold) as mint volume grows. The contract verifies a registered attester, so this evolution is a custody/rotation change, **not** a contract change (see §4 Axis A — "Attester custody maturation").
+4. **The signature binds the full economic payload** (EIP-712 over modelId + all anchors + scores/costs + contributors + idempotency key, domain-separated by chainId + verifying contract). Signing only `attestation_hash` would leave the other fields tamperable. **The human-in-the-loop UX summarizes exactly this payload**, and that summary must be bound to the bytes actually signed (the summary *is* a rendering of the signed struct — see §7 Q2).
+5. **The contract verifies a threshold `m`-of-`n` over a registered attester *set*, governed by the admin Safe — even though we run `1`-of-`1` at launch.** This is the cheap on-chain foundation that lets us move toward decentralized attestation later **without a contract change or re-audit** (see "Long-term" in §4 Axis A). Designing this in now avoids a costly rewrite.
+6. **We are skeptical of artificial per-epoch/volume rate caps on legitimate rewards.** If results genuinely move a model by *X* DeltaOnes, we don't want to throttle distribution. The human-in-the-loop attester is the *judgment-based* fraud check; a per-mint `maxReward` sanity backstop (catching an absurd single mint = bug/forgery) plus monitoring + the pause kill-switch are the safety net — distinct from rate-limiting honest high-value mints (see §7 Q5).
 
-Still open (see §7): the EIP-712 message scope, single-vs-set attester registry, whether the automated attester independently re-validates, per-epoch rate limits, and migration/cutover.
+Still open (see §7): EIP-712 field list specifics; attester-set/threshold mechanics; the human-signing UX; the long-term decentralized-attestation + **privacy** design (foundations now, full solution later); and migration/cutover.
 
 ---
 
@@ -117,6 +120,24 @@ The contract verifies a **registered attester address**; it does not care how th
 
 **Key design implication:** the human stage gives the strongest guarantee at the cost of throughput; the HSM stage trades some of that guarantee for scale, and its security hinges on the automated attester *genuinely re-deriving/validating* the attestation rather than blindly signing. Plan the Stage-2 attester's independent-validation story now, even if Stage 1 ships first.
 
+#### Long-term: decentralized attestation vs. payload privacy (lay foundations now, solve later)
+
+The end-state we're aiming toward is a **decentralized set of attesters that each independently verify the accuracy of the mint payload and reach consensus (m-of-n) before a mint is authorized** — turning "trust one attester" into "trust that a quorum of independent verifiers agree." This is strictly stronger than any single-signer scheme and is the natural extension of the Stage-2 "independent validation" question (§7 Q3–Q4).
+
+**The core tension:** independent verification of accuracy normally requires the verifier to *see* the model weights and the eval set — but **those must remain private** (they are the protected IP). Naively, "each attester re-runs the eval" leaks exactly what we need to keep secret. So decentralization and privacy pull in opposite directions, and the design has to reconcile them. The plausible approaches (to explore, **not** decide now), from cheapest/weakest to strongest:
+
+- **Commitment + private artifact sharing under NDA.** The producer publishes a public *commitment* (hashes already in the payload: `attestation_hash`, `dataset_hash`, `benchmark_spec_id`, + a possible **model/weights commitment**); a small set of attesters receive the private artifacts under legal agreement, verify they match the commitment, re-run the eval privately, and sign. *Privacy by contract/law, not cryptography — the committee still sees the IP.*
+- **Trusted execution environments (TEEs / enclaves).** Attesters verify weights + eval *inside* an enclave that attests the result without exposing the artifacts in the clear. *Privacy preserved under a hardware-trust assumption.*
+- **Zero-knowledge proof of evaluation.** A proof that "eval *E* over committed model *M* and dataset *D* yields score *S*" without revealing *M*/*D*. *The trust-minimized ideal, but likely infeasible for real ML eval in the near term.*
+
+**Foundations to lay now so this isn't a costly rewrite later:**
+
+1. **Verify m-of-n over an attester set in the contract from day one** (run 1-of-1 at launch). Going from one trusted signer to a quorum then becomes governance config, not a contract change/re-audit. *(Decision 5.)*
+2. **Commit to the eval artifacts in the signed + emitted payload** — ensure the signature and `DeltaOneAccepted` bind hashes of the model/weights, dataset, and benchmark config, so a future verifier can check *private* artifacts against *public* commitments. Add a model/weights commitment field if one isn't already implied. Cheap now (a `bytes32` or two); expensive to retrofit.
+3. **Keep the attester role cleanly separable from any party that must see private artifacts** so a future TEE/ZK or NDA-committee verifier can slot in behind the same on-chain interface.
+
+Net: we don't solve decentralized private verification now, but the contract's signature/registry shape and the payload's commitments should be chosen so that moving there later is additive, not a re-architecture.
+
 ### Axis B — Custody & isolation: where the trust anchor runs, and lock the channel
 
 **B1. Split public ingestion from the mint-publisher (privilege separation).**
@@ -173,12 +194,14 @@ Target end state **A1 + separate attester custody + B1 + B3 + C**, with the atte
 
 *Settled (see Decisions):* separate attester key in different custody; on-chain signature (A1) is the destination; custody matures human-in-the-loop → HSM. Remaining:
 
-1. **EIP-712 binding scope:** sign the full economic payload (modelId, all anchors, scores/costs, contributors, idempotency key) — recommended — vs. just `attestation_hash`. Signing only the hash re-introduces tampering risk on the other fields. Also bind chainId + verifying contract to prevent cross-deployment replay.
-2. **Attester registry shape:** single rotatable address vs. an allowlist/set (zero-downtime rotation: add-new-then-remove-old) vs. threshold m-of-n. Recommend at least an allowlist so Stage-1→Stage-2 cutover needs no outage; threshold is a later option.
-3. **Stage-1 human signing UX (avoid rubber-stamping):** what verifiable, human-readable summary does the signer see, and how is it bound to the exact bytes signed? Without this the human gate is illusory.
-4. **Stage-2 independent validation:** what does the automated attester re-derive/verify (HEM digest? recompute `attestation_hash` from artifacts?) before signing, so it isn't a second confused deputy? This is the crux of the Stage-2 security story.
-5. **Per-epoch / per-model rate limit on the V2 path:** on-chain (stronger, audited) or consumer-side (faster)? What limits don't break legitimate throughput? (Defense-in-depth for the residual tier-3.)
-6. **Migration / cutover:** A1 is a lockstep cross-repo change. Plan to avoid a mint outage — e.g. a contract flag that makes the signature optional during a dual-accept window, then enforced; or deploy-verify-flip. Define rollback.
+*Decided (see Decisions 4–6):* sign the full economic payload; verify m-of-n over an attester set (1-of-1 at launch); no artificial rate caps (human + monitoring + `maxReward` backstop instead). Remaining design work:
+
+1. **Exact EIP-712 field list + commitments.** Confirm the struct fields (modelId, anchors, scores/costs, contributors, idempotency key; domain = chainId + verifying contract) and — for the long-term privacy/verification path — whether to add a **model/weights commitment** `bytes32` now so future verifiers can check private artifacts against a public commitment. Cheap now, expensive to retrofit.
+2. **Attester-set + threshold mechanics.** How `m` and the set `n` are stored/governed (Safe-managed), how signatures are collected/submitted (e.g. an array of sigs verified on-chain), zero-downtime rotation (add-then-remove), and how the human-signed payload is rendered so the signer reviews exactly the bytes signed (resolves the rubber-stamp risk).
+3. **[Big, long-term] Decentralized attestation under privacy.** How independent attesters verify accuracy *without* seeing private weights/eval set — NDA committee vs. TEE/enclave vs. ZK (see §4 "Long-term"). **Not for now**, but the §4 foundations (m-of-n contract, artifact commitments, separable attester role) must be in the first version so this stays additive. Needs its own design spike.
+4. **Stage-2 automated-attester validation.** When we move off the human, what does the automated attester independently re-derive/verify (HEM digest? recompute `attestation_hash` from artifacts?) before signing, so it isn't a second confused deputy? This is a sub-problem of Q3 and the crux of Stage-2 security.
+5. **Fraud watch in lieu of rate caps.** Since we're not artificially throttling, define the monitoring/anomaly signals on `DeltaOneAccepted` (unexpected recipients, statistically implausible DeltaOne jumps, velocity) and the response (alert → human review → pause). Keep `maxReward` only as an absurd-single-mint backstop, not a throttle on honest high-value mints.
+6. **Migration / cutover.** A1 is a lockstep cross-repo change. Plan to avoid a mint outage — e.g. a contract flag that makes the signature optional during a dual-accept window, then enforced; or deploy-verify-flip. Define rollback.
 
 ## 8. Non-goals (this round)
 

@@ -38,7 +38,9 @@ function canonicalSubset(message: MintRequestMessage) {
 
 describe('MintRequest golden fixture parity', () => {
   test('vendored fixture validates and matches the canonical contract-side golden subset', () => {
-    const fixture = JSON.parse(fs.readFileSync(VENDORED_FIXTURE_PATH, 'utf8')) as MintRequestMessage;
+    const fixture = JSON.parse(
+      fs.readFileSync(VENDORED_FIXTURE_PATH, 'utf8'),
+    ) as MintRequestMessage;
     const golden = JSON.parse(fs.readFileSync(GOLDEN_FIXTURE_PATH, 'utf8'));
 
     const validation = validateMintRequestMessage(fixture);

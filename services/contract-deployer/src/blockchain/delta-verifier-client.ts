@@ -29,6 +29,8 @@ export interface MintRequestPayloadInput {
   actualCostUsdMicro: number;
   totalSamples: number;
   anchors: BenchmarkAnchorsInput;
+  baselineCommitment: string;
+  candidateCommitment: string;
 }
 
 export interface DeltaVerifierClientConfig {

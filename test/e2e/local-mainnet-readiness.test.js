@@ -3,7 +3,7 @@ const { ethers, network } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 
 const { buildInitialParams, buildVestingConfig } = require("../helpers/tokenDeployment");
-const { buildMintRequestPayload, attestMintRequest, configureLaunchAttester, configureMintBudget } = require("../helpers/mintRequest");
+const { buildMintRequestPayload, attestMintRequest, configureLaunchAttester, configureMintBudget, configureLineageGenesis, payloadForNextLink } = require("../helpers/mintRequest");
 const { deployFactoryWithPoolDeployer } = require("../helpers/factoryDeployment");
 
 describe("Local mainnet readiness end-to-end suite", function () {
@@ -103,6 +103,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
     token = HokusaiToken.attach(tokenAddress);
 
     await modelRegistry.registerModel(MODEL_ID, tokenAddress, "accuracy");
+    await configureLineageGenesis(modelRegistry, owner, MODEL_ID);
 
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     mockUSDC = await MockUSDC.deploy();
@@ -183,7 +184,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
   }
 
   async function submitMintRequest(overrides = {}, contributorOverrides) {
-    const payload = buildMintRequestPayload({
+    const payload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
       pipelineRunId: `run-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`,
       baselineScoreBps: 7800,
       candidateScoreBps: 7900,
@@ -199,7 +200,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
   }
 
   it("covers DeltaVerifier negative MintRequest paths", async function () {
-    const basePayload = buildMintRequestPayload({
+    const basePayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
       pipelineRunId: "negative-base",
       anchors: { idempotencyKey: ethers.id("negative-base") },
     });
@@ -231,7 +232,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
     ).to.be.revertedWith("Model is deactivated");
     await modelRegistry.reactivateModel(MODEL_ID);
 
-    const badWeightsPayload = buildMintRequestPayload({
+    const badWeightsPayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
       anchors: { idempotencyKey: ethers.id("bad-weights") },
     });
     const badWeightsContributors = contributors([{ walletAddress: contributor1.address, weight: 9999 }]);
@@ -240,7 +241,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
       deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, badWeightsPayload, badWeightsContributors, badWeightsSigs)
     ).to.be.revertedWith("Weights must sum to 100%");
 
-    const zeroAddressPayload = buildMintRequestPayload({
+    const zeroAddressPayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
       anchors: { idempotencyKey: ethers.id("zero-address") },
     });
     const zeroAddressContributors = contributors([{ walletAddress: ZeroAddress, weight: 10000 }]);
@@ -249,7 +250,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
       deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, zeroAddressPayload, zeroAddressContributors, zeroAddressSigs)
     ).to.be.revertedWithCustomError(deltaVerifier, "ZeroAddress");
 
-    const zeroDeltaPayload = buildMintRequestPayload({
+    const zeroDeltaPayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
       baselineScoreBps: 7900,
       candidateScoreBps: 7900,
       anchors: { idempotencyKey: ethers.id("zero-delta") },
@@ -274,7 +275,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
     );
     expect(await token.balanceOf(contributor1.address)).to.equal(balanceBefore);
 
-    const budgetPayload = buildMintRequestPayload({
+    const budgetPayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
       maxCostUsdMicro: 100,
       actualCostUsdMicro: 101,
       anchors: { idempotencyKey: ethers.id("budget-blocked") },
@@ -286,7 +287,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
     ).to.emit(deltaVerifier, "BudgetConstraintViolated").withArgs(budgetPayload.pipelineRunId, MODEL_ID, 100, 101);
     expect(await token.balanceOf(contributor1.address)).to.equal(balanceBefore);
 
-    const cappedPayload = buildMintRequestPayload({
+    const cappedPayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
       baselineScoreBps: 1000,
       candidateScoreBps: 10000,
       anchors: { idempotencyKey: ethers.id("reward-cap") },
@@ -311,7 +312,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
   });
 
   it("covers TokenManager and DeltaVerifier rewards, dust, authorization, and vesting", async function () {
-    const payload = buildMintRequestPayload({
+    const payload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
       pipelineRunId: "token-manager-delta-verifier",
       baselineScoreBps: 7800,
       candidateScoreBps: 7901,

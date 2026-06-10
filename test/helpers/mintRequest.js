@@ -1,5 +1,16 @@
 const { ethers } = require("hardhat");
 
+// Default model-weight lineage genesis (HOK-2133). configureLineageGenesis seeds the registry with this, and
+// the default payload's baselineCommitment matches it, so a model's first mint parents off genesis.
+const LINEAGE_GENESIS = ethers.id("lineage-genesis-001");
+
+// Monotonic candidate generator so chained mints advance to distinct commitments.
+let _candidateCounter = 0;
+function nextCandidateCommitment() {
+  _candidateCounter += 1;
+  return ethers.id(`lineage-candidate-${_candidateCounter}`);
+}
+
 function buildMintRequestPayload(overrides = {}) {
   const defaultAnchors = {
     benchmarkSpecHash: ethers.id("benchmark-spec-001"),
@@ -17,12 +28,34 @@ function buildMintRequestPayload(overrides = {}) {
     maxCostUsdMicro: 0,
     actualCostUsdMicro: 0,
     totalSamples: 10000,
+    // Lineage commitments (HOK-2133). Default baseline = genesis so a first mint parents off it.
+    baselineCommitment: LINEAGE_GENESIS,
+    candidateCommitment: ethers.id("lineage-candidate-001"),
     ...overrides,
     anchors: {
       ...defaultAnchors,
       ...(overrides.anchors || {}),
     }
   };
+}
+
+// Build a payload that correctly parents off the model's CURRENT on-chain head, so chained paying mints stay
+// valid no matter how many came before. baselineCommitment = currentModelHead(modelId); candidate is a fresh
+// distinct commitment unless overridden. Use this for any submit you expect to succeed. (HOK-2133)
+async function payloadForNextLink(deltaVerifier, modelId, overrides = {}) {
+  const head = await deltaVerifier.currentModelHead(modelId);
+  _candidateCounter += 1;
+  const n = _candidateCounter;
+  return buildMintRequestPayload({
+    baselineCommitment: head,
+    candidateCommitment: ethers.id(`lineage-candidate-${n}`),
+    ...overrides,
+    anchors: {
+      // Each link is a distinct mint, so it needs a distinct idempotency key (callers can override).
+      idempotencyKey: ethers.id(`lineage-idem-${n}`),
+      ...(overrides.anchors || {}),
+    },
+  });
 }
 
 // EIP-712 typed-data schema mirroring DeltaVerifier's typehashes (HOK-2132). ethers derives the
@@ -41,6 +74,8 @@ const MINT_REQUEST_EIP712_TYPES = {
     { name: "actualCostUsdMicro", type: "uint256" },
     { name: "totalSamples", type: "uint256" },
     { name: "anchors", type: "BenchmarkAnchors" },
+    { name: "baselineCommitment", type: "bytes32" },
+    { name: "candidateCommitment", type: "bytes32" },
   ],
   BenchmarkAnchors: [
     { name: "benchmarkSpecHash", type: "bytes32" },
@@ -111,8 +146,18 @@ async function configureMintBudget(deltaVerifier, adminSigner, modelId, amount =
   await deltaVerifier.connect(adminSigner).setMintBudget(modelId, amount);
 }
 
+// Model-weight lineage genesis (HOK-2133): submitMintRequest fail-closes until a genesis is seeded, so any
+// test expecting a mint must seed it. Set on ModelRegistry by the registration authority (owner). Defaults to
+// LINEAGE_GENESIS, which matches buildMintRequestPayload's default baselineCommitment.
+async function configureLineageGenesis(modelRegistry, ownerSigner, modelId, genesis = LINEAGE_GENESIS) {
+  await modelRegistry.connect(ownerSigner).setWeightGenesis(modelId, genesis);
+}
+
 module.exports = {
   buildMintRequestPayload,
+  payloadForNextLink,
+  nextCandidateCommitment,
+  LINEAGE_GENESIS,
   MINT_REQUEST_EIP712_TYPES,
   eip712Domain,
   signMintRequest,
@@ -120,5 +165,6 @@ module.exports = {
   attestMintRequestMulti,
   configureLaunchAttester,
   configureMintBudget,
+  configureLineageGenesis,
   LAUNCH_MINT_BUDGET,
 };

@@ -30,6 +30,14 @@ contract ModelRegistry is Ownable {
     address public stringModelTokenManager;
     mapping(address => bool) public poolRegistrars;
 
+    // --- Model-weight lineage genesis (HOK-2133) ---
+    // The genesis weight commitment per model: the root of the model's hash-linked weight lineage that
+    // DeltaVerifier reads to initialize its per-model head. Set by the same authority that registers the
+    // model (today the owner), so when registration becomes permissionless the genesis seeding does too —
+    // no separate admin chokepoint. Write-once at the registry; corrections happen via DeltaVerifier's
+    // governed head-reset, not by rewriting the root.
+    mapping(uint256 => bytes32) public weightGenesis;
+
     event ModelRegistered(uint256 indexed modelId, address indexed tokenAddress, string performanceMetric);
     event ModelUpdated(uint256 indexed modelId, address indexed newTokenAddress);
     event MetricUpdated(uint256 indexed modelId, string newMetric);
@@ -43,6 +51,7 @@ contract ModelRegistry is Ownable {
     event PoolRegistered(string indexed modelId, address indexed poolAddress);
     event StringModelTokenManagerUpdated(address indexed tokenManager);
     event PoolRegistrarUpdated(address indexed registrar, bool authorized);
+    event WeightGenesisSet(uint256 indexed modelId, bytes32 genesis);
 
     constructor() Ownable() {}
 
@@ -73,6 +82,22 @@ contract ModelRegistry is Ownable {
     function registerModel(uint256 modelId, address token, string memory performanceMetric) external onlyOwner {
         _registerModel(modelId, token, performanceMetric);
         emit ModelRegistered(modelId, token, performanceMetric);
+    }
+
+    /**
+     * @dev Sets the genesis weight commitment (lineage root) for a registered model. Write-once: it seeds
+     * DeltaVerifier's per-model lineage head so the first mint must parent off a deliberately-set genesis
+     * rather than letting the first accepted mint define history. Authorized by the model-registration
+     * authority (owner today) so genesis seeding tracks registration permissions. (HOK-2133)
+     * @param modelId The model whose lineage root is being set
+     * @param genesis The genesis weight commitment (e.g. 0x + sha256 of the baseline model artifact)
+     */
+    function setWeightGenesis(uint256 modelId, bytes32 genesis) external onlyOwner {
+        require(isModelRegistered[modelId], "Model not registered");
+        require(genesis != bytes32(0), "Genesis cannot be empty");
+        require(weightGenesis[modelId] == bytes32(0), "Genesis already set");
+        weightGenesis[modelId] = genesis;
+        emit WeightGenesisSet(modelId, genesis);
     }
 
     /**

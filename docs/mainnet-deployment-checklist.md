@@ -163,6 +163,19 @@ and pays in full.
 - [ ] Confirm the budget is sized as a **loss ceiling** (≈1–2M for HROUT), not the model's lifetime reward — refill via `topUpMintBudget(<modelId>, <amount>)` as genuine improvement is earned (top-ups are cheap and a deferred mint pays in full on retry).
 - [ ] Smoke-test: a mint exceeding the budget reverts `MintBudgetExceeded` and does **not** burn the idempotency key; after `topUpMintBudget`, the identical request mints the full amount.
 
+### Seed the model-weight lineage genesis — required before any mint (HOK-2133, security)
+`submitMintRequest` is also **fail-closed on lineage**: a model with no genesis weight commitment reverts
+(`LineageNotSeeded`). Each paying mint must attest `baselineCommitment == currentModelHead(modelId)` and
+advances the head to its `candidateCommitment` — a hash-linked chain from genesis to head, so a forged mint
+cannot invent a baseline. Genesis is set by the **model-registration authority** (the registry owner today),
+so it tracks registration permissions rather than adding a separate admin chokepoint.
+- [ ] Compute the genesis commitment over the registered baseline model artifact (the deterministic weights commitment, HOK-2129).
+- [ ] From the registry owner: `ModelRegistry.setWeightGenesis(<modelId>, <genesisCommitment>)` (write-once) for each model that will mint.
+- [ ] Verify `DeltaVerifier.currentModelHead(<modelId>)` returns the genesis.
+- [ ] Confirm the pipeline/attester reads `currentModelHead` before signing and re-bases on a `LineageParentMismatch` (concurrent-eval race) rather than retrying a stale baseline.
+- [ ] Brick-prevention rehearsed: `DeltaVerifier.resetModelHead(<modelId>, <correctedHead>)` (DEFAULT_ADMIN_ROLE) restores a model whose head was advanced to a wrong commitment.
+- [ ] Smoke-test: an unseeded model reverts `LineageNotSeeded`; a first mint parents off genesis and advances the head; a stale-baseline submit reverts `LineageParentMismatch` without burning the idempotency key.
+
 ---
 
 ## Phase 2: Contract Verification on Etherscan

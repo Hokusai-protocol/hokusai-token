@@ -22,7 +22,8 @@ const ABIS = {
     "function maxReward() view returns (uint256)",
     "function minImprovementBps() view returns (uint256)",
     "function processedIdempotencyKeys(bytes32 idempotencyKey) view returns (bool)",
-    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
+    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors,bytes32 baselineCommitment,bytes32 candidateCommitment) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
+    "function currentModelHead(uint256 modelId) view returns (bytes32)",
   ],
   contributionRegistry: [
     "event ContributionRecorded(uint256 indexed contributionId,string modelId,address indexed contributor,bytes32 contributionHash,uint256 weightBps,uint256 tokensEarned,string pipelineRunId)",
@@ -69,6 +70,8 @@ const MINT_REQUEST_EIP712_TYPES = {
     { name: "actualCostUsdMicro", type: "uint256" },
     { name: "totalSamples", type: "uint256" },
     { name: "anchors", type: "BenchmarkAnchors" },
+    { name: "baselineCommitment", type: "bytes32" },
+    { name: "candidateCommitment", type: "bytes32" },
   ],
   BenchmarkAnchors: [
     { name: "benchmarkSpecHash", type: "bytes32" },
@@ -221,8 +224,14 @@ function parseEvents(receipt, contract, eventName) {
     .filter((event) => event?.name === eventName);
 }
 
-function makePayload({ symbol, modelId, suffix, baselineScoreBps, candidateScoreBps, maxCostUsdMicro, actualCostUsdMicro }) {
+// HOK-2133: write-mode submissions require baselineCommitment to equal the model's current
+// on-chain head (read via DeltaVerifier.currentModelHead) and a fresh unique candidateCommitment.
+// This also requires the deployed contract to have a genesis seeded
+// (ModelRegistry.setWeightGenesis); without it submitMintRequest fail-closes — the same safe
+// pre-launch state noted for the SUBMITTER_ROLE/budget preconditions.
+async function makePayload({ deltaVerifier, symbol, modelId, suffix, baselineScoreBps, candidateScoreBps, maxCostUsdMicro, actualCostUsdMicro }) {
   const pipelineRunId = `deltaone-direct-${symbol.toLowerCase()}-${suffix}-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+  const baselineCommitment = await deltaVerifier.currentModelHead(BigInt(modelId));
   return {
     pipelineRunId,
     baselineScoreBps,
@@ -238,6 +247,8 @@ function makePayload({ symbol, modelId, suffix, baselineScoreBps, candidateScore
       metricName: `${symbol.toLowerCase()}_direct_deltaone`,
       metricFamily: "proportion",
     },
+    baselineCommitment,
+    candidateCommitment: hre.ethers.id(`candidate-${symbol}-${suffix}-${pipelineRunId}`),
   };
 }
 
@@ -345,7 +356,8 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder, chainId })
     { walletAddress: signer.address, weight: 7000 },
     { walletAddress: secondContributor, weight: 3000 },
   ];
-  const payload = makePayload({
+  const payload = await makePayload({
+    deltaVerifier: contracts.deltaVerifier,
     symbol: tokenInfo.symbol,
     modelId: tokenInfo.modelId,
     suffix: "happy",
@@ -528,7 +540,8 @@ async function runNegativeCases({ tokenInfo, contracts, signer, recorder, chainI
   const contributors = [{ walletAddress: signer.address, weight: 10000 }];
   const deltaVerifierAddress = await contracts.deltaVerifier.getAddress();
 
-  const budgetPayload = makePayload({
+  const budgetPayload = await makePayload({
+    deltaVerifier: contracts.deltaVerifier,
     symbol: tokenInfo.symbol,
     modelId: tokenInfo.modelId,
     suffix: "budget-idempotency",
@@ -588,7 +601,8 @@ async function runNegativeCases({ tokenInfo, contracts, signer, recorder, chainI
     balanceAfterReplay: replayBalanceAfter,
   });
 
-  const thresholdPayload = makePayload({
+  const thresholdPayload = await makePayload({
+    deltaVerifier: contracts.deltaVerifier,
     symbol: tokenInfo.symbol,
     modelId: tokenInfo.modelId,
     suffix: "below-threshold",
@@ -636,7 +650,8 @@ async function runNegativeCases({ tokenInfo, contracts, signer, recorder, chainI
 
   const unauthorized = hre.ethers.Wallet.createRandom().connect(hre.ethers.provider);
   const unauthorizedDeltaVerifier = contracts.deltaVerifier.connect(unauthorized);
-  const unauthorizedPayload = makePayload({
+  const unauthorizedPayload = await makePayload({
+    deltaVerifier: contracts.deltaVerifier,
     symbol: tokenInfo.symbol,
     modelId: tokenInfo.modelId,
     suffix: "unauthorized",

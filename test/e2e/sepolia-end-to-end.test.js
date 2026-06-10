@@ -39,7 +39,8 @@ const ABIS = {
   deltaVerifier: [
     "event DeltaOneAccepted(uint256 indexed modelId,bytes32 indexed idempotencyKey,bytes32 indexed benchmarkSpecHash,bytes32 attestationHash,bytes32 datasetHash,string metricName,string metricFamily,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 rewardAmount,string pipelineRunId)",
     "function processedIdempotencyKeys(bytes32 idempotencyKey) view returns (bool)",
-    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
+    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors,bytes32 baselineCommitment,bytes32 candidateCommitment) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
+    "function currentModelHead(uint256 modelId) view returns (bytes32)",
   ],
   ammFactory: [
     "function getPool(string modelId) view returns (address)",
@@ -69,6 +70,8 @@ const MINT_REQUEST_EIP712_TYPES = {
     { name: "actualCostUsdMicro", type: "uint256" },
     { name: "totalSamples", type: "uint256" },
     { name: "anchors", type: "BenchmarkAnchors" },
+    { name: "baselineCommitment", type: "bytes32" },
+    { name: "candidateCommitment", type: "bytes32" },
   ],
   BenchmarkAnchors: [
     { name: "benchmarkSpecHash", type: "bytes32" },
@@ -147,6 +150,10 @@ function buildMintRequestFixture(modelId, signerAddress) {
         metricName: "sales_lead_scoring_accuracy",
         metricFamily: "proportion",
       },
+      // HOK-2133: read-only/static fixture; lineage commitments are placeholders. Real values
+      // come from the pipeline message in HOK-2134/HOK-2136.
+      baselineCommitment: ethers.ZeroHash,
+      candidateCommitment: hash(`candidate:${modelId}:${Date.now()}`),
     },
     contributors: [
       { walletAddress: signerAddress, weight: 7000 },
@@ -164,6 +171,7 @@ function buildWriteMintRequestFixture({
   signerAddress,
   blockNumber,
   runSeed,
+  baselineCommitment,
 }) {
   const pipelineRunId = `sepolia-write-${modelId}-${runSeed}-${blockNumber}`;
   const idempotencyKey = ethers.keccak256(
@@ -190,6 +198,13 @@ function buildWriteMintRequestFixture({
         metricName: "sales_lead_scoring_accuracy",
         metricFamily: "proportion",
       },
+      // HOK-2133: write-mode lineage requires baselineCommitment == the model's current on-chain
+      // head (read via DeltaVerifier.currentModelHead) and a fresh unique candidateCommitment. This
+      // also requires the deployed contract to have a genesis seeded
+      // (ModelRegistry.setWeightGenesis); without it submitMintRequest fail-closes — the same safe
+      // pre-launch state noted for the attester/budget preconditions.
+      baselineCommitment,
+      candidateCommitment: ethers.id(`candidate-${Date.now()}`),
     },
     contributors: [
       { walletAddress: signerAddress, weight: 7000 },
@@ -380,11 +395,17 @@ describeSepoliaWrite("Sepolia live MintRequest write mode", function () {
       process.env.CI_PIPELINE_ID ||
       `local-${process.pid}`;
 
+    // HOK-2133: write-mode baselineCommitment must equal the model's current on-chain head.
+    const baselineCommitment = await deltaVerifier.currentModelHead(
+      BigInt(WRITE_MODEL_ID)
+    );
+
     fixture = buildWriteMintRequestFixture({
       modelId: WRITE_MODEL_ID,
       signerAddress: signer.address,
       blockNumber,
       runSeed,
+      baselineCommitment,
     });
 
     const beforeBalances = await Promise.all(

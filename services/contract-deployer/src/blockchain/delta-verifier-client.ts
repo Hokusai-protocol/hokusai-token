@@ -44,7 +44,7 @@ export interface DeltaVerifierClientConfig {
 }
 
 export interface MintSubmissionResult {
-  status: 'minted' | 'budget_blocked' | 'no_delta' | 'replay';
+  status: 'minted' | 'budget_blocked' | 'budget_exceeded_retry' | 'no_delta' | 'replay';
   txHash?: string;
   blockNumber?: number;
   rewardAmount: string;
@@ -77,6 +77,32 @@ export class MintRequestSubmissionError extends Error {
   }
 }
 
+export class MintBudgetExceededError extends MintRequestSubmissionError {
+  readonly modelId: bigint;
+  readonly requiredAmount: bigint;
+  readonly remainingBudget: bigint;
+
+  constructor(
+    message: string,
+    options: {
+      modelId: bigint;
+      requiredAmount: bigint;
+      remainingBudget: bigint;
+      cause?: unknown;
+    },
+  ) {
+    super(message, {
+      failureClass: 'transient',
+      onChainOutcomeUnknown: false,
+      cause: options.cause,
+    });
+    this.name = 'MintBudgetExceededError';
+    this.modelId = options.modelId;
+    this.requiredAmount = options.requiredAmount;
+    this.remainingBudget = options.remainingBudget;
+  }
+}
+
 interface ParsedLogLike {
   name: string;
   args: {
@@ -101,6 +127,7 @@ interface DeltaVerifierContract {
   processedIdempotencyKeys(idempotencyKey: string): Promise<boolean>;
   interface: {
     parseLog(log: ethers.Log): ParsedLogLike | null;
+    parseError(data: ethers.BytesLike): ethers.ErrorDescription | null;
   };
   submitMintRequest: ((
     modelId: bigint,
@@ -140,6 +167,63 @@ export class DeltaVerifierClient {
       MODEL_REGISTRY_ABI,
       config.signer,
     ) as unknown as ModelRegistryContract;
+  }
+
+  private parseMintBudgetExceeded(error: unknown): {
+    detected: boolean;
+    modelId?: bigint;
+    required?: bigint;
+    remaining?: bigint;
+  } {
+    const revertData = this.extractRevertData(error);
+    if (revertData) {
+      try {
+        const parsedError = this.contract.interface.parseError(revertData);
+        if (parsedError?.name === 'MintBudgetExceeded') {
+          const [modelId, required, remaining] = parsedError.args as unknown as [
+            bigint,
+            bigint,
+            bigint,
+          ];
+
+          return {
+            detected: true,
+            modelId,
+            required,
+            remaining,
+          };
+        }
+      } catch {
+        // Fall back to message substring matching below when providers strip structured data.
+      }
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('MintBudgetExceeded')) {
+      return { detected: true };
+    }
+
+    return { detected: false };
+  }
+
+  private extractRevertData(error: unknown): string | undefined {
+    if (typeof error !== 'object' || error === null) {
+      return undefined;
+    }
+
+    const candidates: unknown[] = [
+      (error as { data?: unknown }).data,
+      (error as { error?: { data?: unknown } }).error?.data,
+      (error as { info?: { error?: { data?: unknown } } }).info?.error?.data,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.startsWith('0x')) {
+        return candidate;
+      }
+    }
+
+    return undefined;
   }
 
   async isIdempotencyKeyProcessed(idempotencyKey: string): Promise<boolean> {
@@ -256,6 +340,25 @@ export class DeltaVerifierClient {
         gasUsed: receipt.gasUsed.toString(),
       };
     } catch (error: unknown) {
+      const mintBudgetExceeded = this.parseMintBudgetExceeded(error);
+      if (mintBudgetExceeded.detected) {
+        throw new MintBudgetExceededError(
+          `MintBudgetExceeded${
+            mintBudgetExceeded.modelId !== undefined
+              ? `: modelId=${mintBudgetExceeded.modelId.toString()} required=${(
+                  mintBudgetExceeded.required ?? 0n
+                ).toString()} remaining=${(mintBudgetExceeded.remaining ?? 0n).toString()}`
+              : ''
+          }`,
+          {
+            modelId: mintBudgetExceeded.modelId ?? modelId,
+            requiredAmount: mintBudgetExceeded.required ?? 0n,
+            remainingBudget: mintBudgetExceeded.remaining ?? 0n,
+            cause: error,
+          },
+        );
+      }
+
       if (error instanceof Error && error.message.includes('Idempotency key already processed')) {
         logger.warn('MintRequest already processed on-chain', {
           idempotencyKey: payload.anchors.idempotencyKey,

@@ -18,12 +18,11 @@ export class MintRequestProcessor {
     const modelId = BigInt(message.model_id_uint);
     const payload = this.buildPayload(message);
     const contributors = this.buildContributors(message);
-    // HOK-2132: attester signatures required on-chain. Real signing is wired in HOK-2135/HOK-2136; until then this fail-closes (empty array → on-chain revert) which is the intended safe state pre-launch.
     const result = await this.deltaVerifierClient.submitMintRequest(
       modelId,
       payload,
       contributors,
-      [],
+      message.attester_signatures,
     );
     const settlement = createMintRequestSettlement({
       idempotency_key: message.idempotency_key,
@@ -44,6 +43,9 @@ export class MintRequestProcessor {
       idempotencyKey: message.idempotency_key,
       modelId: message.model_id,
       totalSamples: payload.totalSamples,
+      baselineCommitment: payload.baselineCommitment,
+      candidateCommitment: payload.candidateCommitment,
+      attesterSignatureCount: message.attester_signatures.length,
       ...this.buildStatisticalMetadata(message),
     });
 
@@ -66,11 +68,8 @@ export class MintRequestProcessor {
         metricName: message.evaluation.metric_name,
         metricFamily: message.evaluation.metric_family,
       },
-      // HOK-2133: lineage commitments come from the pipeline message in HOK-2134/HOK-2136. Until then these
-      // are placeholders; on-chain this fail-closes (baseline != head / zero candidate) which is the intended
-      // safe state pre-launch.
-      baselineCommitment: ethers.ZeroHash,
-      candidateCommitment: ethers.ZeroHash,
+      baselineCommitment: message.baseline_commitment,
+      candidateCommitment: message.candidate_commitment,
     };
   }
 

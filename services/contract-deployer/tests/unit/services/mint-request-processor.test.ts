@@ -16,6 +16,11 @@ describe('MintRequestProcessor', () => {
     dataset_hash: '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
     attestation_hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     idempotency_key: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    baseline_commitment: '0x1111111111111111111111111111111111111111111111111111111111111111',
+    candidate_commitment: '0x2222222222222222222222222222222222222222222222222222222222222222',
+    attester_signatures: [
+      '0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b',
+    ],
     totalSamples: 140,
     evaluation: {
       metric_name: 'sales:revenue_per_1000_messages',
@@ -55,6 +60,9 @@ describe('MintRequestProcessor', () => {
       '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
     );
     expect(payload.totalSamples).toBe(140);
+    expect(payload.baselineCommitment).toBe(message.baseline_commitment);
+    expect(payload.candidateCommitment).toBe(message.candidate_commitment);
+    expect(client.submitMintRequest.mock.calls[0][3]).toEqual(message.attester_signatures);
   });
 
   test('uses message.totalSamples directly in payload', async () => {
@@ -111,6 +119,9 @@ describe('MintRequestProcessor', () => {
         idempotencyKey: message.idempotency_key,
         modelId: message.model_id,
         totalSamples: 140,
+        baselineCommitment: message.baseline_commitment,
+        candidateCommitment: message.candidate_commitment,
+        attesterSignatureCount: 1,
         ciLowBps: 50,
         ciHighBps: 550,
         pValue: 0.03,
@@ -148,6 +159,9 @@ describe('MintRequestProcessor', () => {
         idempotencyKey: message.idempotency_key,
         modelId: message.model_id,
         totalSamples: 120,
+        baselineCommitment: message.baseline_commitment,
+        candidateCommitment: message.candidate_commitment,
+        attesterSignatureCount: 1,
         sampleSizeBaseline: 120,
       }),
     );
@@ -155,5 +169,42 @@ describe('MintRequestProcessor', () => {
 
     expect(secondLogMetadata).not.toHaveProperty('ciLowBps');
     expect(secondLogMetadata).not.toHaveProperty('sampleSizeCandidate');
+  });
+
+  test('forwards multiple attester signatures unchanged', async () => {
+    const client = {
+      submitMintRequest: jest.fn().mockResolvedValue({
+        status: 'minted',
+        rewardAmount: '123',
+      }),
+    } as any;
+
+    const processor = new MintRequestProcessor(client);
+    const multiSigMessage = {
+      ...message,
+      attester_signatures: [
+        message.attester_signatures[0],
+        '0x333333333333333333333333333333333333333333333333333333333333333344444444444444444444444444444444444444444444444444444444444444441c',
+      ],
+    };
+
+    await processor.process(multiSigMessage);
+
+    expect(client.submitMintRequest.mock.calls[0][3]).toEqual(multiSigMessage.attester_signatures);
+  });
+
+  test('depends only on submitMintRequest and not legacy submission methods', async () => {
+    const client = {
+      submitMintRequest: jest.fn().mockResolvedValue({
+        status: 'replay',
+        rewardAmount: '0',
+      }),
+    } as any;
+
+    const processor = new MintRequestProcessor(client);
+    await processor.process(message);
+
+    expect(client.submitMintRequest).toHaveBeenCalledTimes(1);
+    expect('submitEvaluation' in client).toBe(false);
   });
 });

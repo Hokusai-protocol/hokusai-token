@@ -12,6 +12,7 @@ export interface MintRecord {
   model_id: string;
   tx_hash?: string;
   status: MintRequestSettlement['status'];
+  failure_class?: 'transient' | 'permanent';
   reward_amount: string;
   block_number?: number;
   gas_used?: string;
@@ -31,11 +32,20 @@ export class MintRecordStore {
     });
   }
 
-  async recordError(idempotencyKey: string, modelId: string, reason: string): Promise<void> {
+  async recordError(
+    idempotencyKey: string,
+    modelId: string,
+    reason: string,
+    options?: {
+      status?: MintRequestSettlement['status'];
+      failureClass?: 'transient' | 'permanent';
+    },
+  ): Promise<void> {
     const record: MintRecord = {
       idempotency_key: idempotencyKey,
       model_id: modelId,
-      status: 'error',
+      status: options?.status ?? 'error',
+      failure_class: options?.failureClass,
       reward_amount: '0',
       error: reason,
       updated_at: new Date().toISOString(),
@@ -63,12 +73,31 @@ export class MintRecordStore {
     return this.config.ttlSeconds;
   }
 
+  serializeRetrying(
+    idempotencyKey: string,
+    modelId: string,
+    reason: string,
+    failureClass: 'transient' | 'permanent',
+    status: MintRequestSettlement['status'] = 'error',
+  ): MintRecord {
+    return {
+      idempotency_key: idempotencyKey,
+      model_id: modelId,
+      status,
+      failure_class: failureClass,
+      reward_amount: '0',
+      error: reason,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
   serializeSettled(settlement: MintRequestSettlement): MintRecord {
     return {
       idempotency_key: settlement.idempotency_key,
       model_id: settlement.model_id,
       tx_hash: settlement.tx_hash,
       status: settlement.status,
+      failure_class: settlement.status === 'error' ? 'permanent' : undefined,
       reward_amount: settlement.reward_amount,
       block_number: settlement.block_number,
       gas_used: settlement.gas_used,

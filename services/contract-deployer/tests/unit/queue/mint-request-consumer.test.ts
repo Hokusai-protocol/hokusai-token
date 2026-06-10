@@ -1,6 +1,7 @@
 import { RedisClientType } from 'redis';
 import { MintRequestConsumer } from '../../../src/queue/mint-request-consumer';
 import { MintRecordStore } from '../../../src/queue/mint-record-store';
+import { MintBudgetExceededError } from '../../../src/blockchain/delta-verifier-client';
 import {
   createMintRequestSettlement,
   MintRequestMessage,
@@ -25,6 +26,11 @@ describe('MintRequestConsumer', () => {
     dataset_hash: '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
     attestation_hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     idempotency_key: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    baseline_commitment: '0x1111111111111111111111111111111111111111111111111111111111111111',
+    candidate_commitment: '0x2222222222222222222222222222222222222222222222222222222222222222',
+    attester_signatures: [
+      '0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b',
+    ],
     totalSamples: 140,
     evaluation: {
       metric_name: 'sales:revenue_per_1000_messages',
@@ -60,9 +66,12 @@ describe('MintRequestConsumer', () => {
       processedSetKey: 'mint:processed',
       retryQueue: 'mint:retry',
       maxRetries: 3,
+      budgetMaxRetries: 5,
       blockingTimeout: 5,
       backoffBaseMs: 1000,
       backoffMaxMs: 10000,
+      budgetRetryBackoffBaseMs: 60000,
+      budgetRetryBackoffMaxMs: 1800000,
       backoffMultiplier: 2,
       recordStore,
     });
@@ -131,6 +140,43 @@ describe('MintRequestConsumer', () => {
     );
   });
 
+  test('requeues budget exceeded failures with budget backoff and record-only status', async () => {
+    const messageStr = JSON.stringify(validMessage);
+    const multi = createMockRedisMulti();
+    mockRedis.brPopLPush.mockResolvedValueOnce(messageStr);
+    mockRedis.sIsMember.mockResolvedValueOnce(false);
+    mockRedis.multi.mockReturnValue(multi as any);
+    jest.spyOn(Math, 'random').mockReturnValue(0.5);
+    jest.spyOn(Date, 'now').mockReturnValue(1000);
+
+    handler.mockRejectedValueOnce(
+      new MintBudgetExceededError('MintBudgetExceeded', {
+        modelId: 21n,
+        requiredAmount: 100n,
+        remainingBudget: 50n,
+      }),
+    );
+
+    await expect(consumer.processMessage(handler)).rejects.toThrow('MintBudgetExceeded');
+
+    expect(multi.zAdd).toHaveBeenCalledWith(
+      'mint:retry',
+      expect.objectContaining({
+        score: expect.any(Number),
+        value: JSON.stringify({ ...validMessage, _retryCount: 1 }),
+      }),
+    );
+    const zAddPayload = multi.zAdd.mock.calls[0][1] as { score: number };
+    expect(zAddPayload.score).toBe(31000);
+    const storedRecord = JSON.parse(multi.set.mock.calls[0][1] as string) as {
+      status: string;
+      failure_class: string;
+    };
+    expect(storedRecord.status).toBe('budget_exceeded_retry');
+    expect(storedRecord.failure_class).toBe('transient');
+    expect(mockRedis.lPush).not.toHaveBeenCalledWith('mint:dlq', expect.any(String));
+  });
+
   test('moves permanent failures to the DLQ without retrying', async () => {
     const messageStr = JSON.stringify(validMessage);
     mockRedis.brPopLPush.mockResolvedValueOnce(messageStr);
@@ -168,6 +214,28 @@ describe('MintRequestConsumer', () => {
     expect(firstDlqCall).toBeDefined();
     const dlqPayload = firstDlqCall?.[1] as string;
     expect(dlqPayload).toContain('exhausted (retries=3): temporary failure');
+  });
+
+  test('moves exhausted budget retries to the DLQ with a budget-specific reason', async () => {
+    const exhaustedMessage = { ...validMessage, _retryCount: 5 };
+    const messageStr = JSON.stringify(exhaustedMessage);
+    mockRedis.brPopLPush.mockResolvedValueOnce(messageStr);
+    mockRedis.sIsMember.mockResolvedValueOnce(false);
+    handler.mockRejectedValueOnce(
+      new MintBudgetExceededError('MintBudgetExceeded', {
+        modelId: 21n,
+        requiredAmount: 100n,
+        remainingBudget: 50n,
+      }),
+    );
+    mockRedis.lPush.mockResolvedValueOnce(1);
+    mockRedis.lRem.mockResolvedValueOnce(1);
+    mockRedis.set.mockResolvedValueOnce('OK');
+
+    await expect(consumer.processMessage(handler)).rejects.toThrow('MintBudgetExceeded');
+
+    const dlqPayload = mockRedis.lPush.mock.calls[0][1] as string;
+    expect(dlqPayload).toContain('budget_exhausted (retries=5): MintBudgetExceeded');
   });
 
   test('promotes due retries before consuming a new message', async () => {

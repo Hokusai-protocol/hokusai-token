@@ -27,8 +27,11 @@ export interface MintRequestListenerConfig {
     retry: string;
     settlements: string;
     maxRetries: number;
+    budgetMaxRetries: number;
     backoffBaseMs: number;
     backoffMaxMs: number;
+    budgetRetryBackoffBaseMs: number;
+    budgetRetryBackoffMaxMs: number;
     backoffMultiplier: number;
     recordKeyPrefix: string;
     recordTtlSeconds: number;
@@ -68,9 +71,12 @@ export class MintRequestListener {
       processedSetKey: config.queues.processedSet,
       retryQueue: config.queues.retry,
       maxRetries: config.queues.maxRetries,
+      budgetMaxRetries: config.queues.budgetMaxRetries,
       blockingTimeout: 5,
       backoffBaseMs: config.queues.backoffBaseMs,
       backoffMaxMs: config.queues.backoffMaxMs,
+      budgetRetryBackoffBaseMs: config.queues.budgetRetryBackoffBaseMs,
+      budgetRetryBackoffMaxMs: config.queues.budgetRetryBackoffMaxMs,
       backoffMultiplier: config.queues.backoffMultiplier,
       recordStore,
     });

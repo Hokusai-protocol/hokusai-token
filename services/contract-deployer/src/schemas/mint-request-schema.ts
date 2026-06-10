@@ -2,6 +2,7 @@ import Joi from 'joi';
 
 const HASH_REGEX = /^0x[0-9a-f]{64}$/;
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
+const EOA_SIGNATURE_REGEX = /^0x[0-9a-fA-F]{130}$/;
 
 export interface MintRequestContributor {
   wallet_address: string;
@@ -54,6 +55,9 @@ export interface MintRequestMessage {
   dataset_hash: string;
   attestation_hash: string;
   idempotency_key: string;
+  baseline_commitment: string;
+  candidate_commitment: string;
+  attester_signatures: string[];
   totalSamples: number;
   evaluation: MintRequestEvaluation;
   contributors: MintRequestContributor[];
@@ -70,7 +74,8 @@ export interface MintRequestSettlement {
   eval_id: string;
   tx_hash?: string;
   block_number?: number;
-  status: 'minted' | 'budget_blocked' | 'no_delta' | 'replay' | 'error';
+  // budget_exceeded_retry is record-only and must never be published to the settlements queue.
+  status: 'minted' | 'budget_blocked' | 'budget_exceeded_retry' | 'no_delta' | 'replay' | 'error';
   reward_amount: string;
   gas_used?: string;
   error?: string;
@@ -144,6 +149,13 @@ const mintRequestSchema = Joi.object<MintRequestMessage>({
   dataset_hash: Joi.string().pattern(HASH_REGEX).required(),
   attestation_hash: Joi.string().pattern(HASH_REGEX).required(),
   idempotency_key: Joi.string().pattern(HASH_REGEX).required(),
+  baseline_commitment: Joi.string().pattern(HASH_REGEX).required(),
+  candidate_commitment: Joi.string().pattern(HASH_REGEX).required(),
+  attester_signatures: Joi.array()
+    .items(Joi.string().pattern(EOA_SIGNATURE_REGEX))
+    .min(1)
+    .max(8)
+    .required(),
   totalSamples: Joi.number().integer().min(1).required(),
   evaluation: evaluationSchema.required(),
   contributors: Joi.array()

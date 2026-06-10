@@ -29,6 +29,11 @@ describe('MintRequest schema', () => {
       sample_size_baseline: 120,
       sample_size_candidate: 140,
     },
+    baseline_commitment: '0x1111111111111111111111111111111111111111111111111111111111111111',
+    candidate_commitment: '0x2222222222222222222222222222222222222222222222222222222222222222',
+    attester_signatures: [
+      '0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b',
+    ],
     contributors: [
       {
         wallet_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
@@ -115,6 +120,14 @@ describe('MintRequest schema', () => {
     expect(result.error).toBeUndefined();
   });
 
+  test('accepts required commitments and attester signatures', () => {
+    const result = validateMintRequestMessage(validMessage);
+    expect(result.error).toBeUndefined();
+    expect(result.value?.baseline_commitment).toBe(validMessage.baseline_commitment);
+    expect(result.value?.candidate_commitment).toBe(validMessage.candidate_commitment);
+    expect(result.value?.attester_signatures).toEqual(validMessage.attester_signatures);
+  });
+
   test('accepts null statistical metadata fields', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
@@ -141,6 +154,63 @@ describe('MintRequest schema', () => {
       attestation_hash: 'invalid',
     });
     expect(result.error).toBeDefined();
+  });
+
+  test('rejects missing required commitments and signatures', () => {
+    expect(
+      validateMintRequestMessage({
+        ...validMessage,
+        baseline_commitment: undefined as unknown as string,
+      }).error,
+    ).toBeDefined();
+    expect(
+      validateMintRequestMessage({
+        ...validMessage,
+        candidate_commitment: undefined as unknown as string,
+      }).error,
+    ).toBeDefined();
+    expect(
+      validateMintRequestMessage({
+        ...validMessage,
+        attester_signatures: undefined as unknown as string[],
+      }).error,
+    ).toBeDefined();
+  });
+
+  test('rejects malformed commitments and signatures', () => {
+    expect(
+      validateMintRequestMessage({
+        ...validMessage,
+        baseline_commitment: '0x1234',
+      }).error,
+    ).toBeDefined();
+    expect(
+      validateMintRequestMessage({
+        ...validMessage,
+        candidate_commitment: '0xzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz',
+      }).error,
+    ).toBeDefined();
+    expect(
+      validateMintRequestMessage({
+        ...validMessage,
+        attester_signatures: ['0x1234'],
+      }).error,
+    ).toBeDefined();
+  });
+
+  test('rejects empty or oversized attester signature arrays', () => {
+    expect(
+      validateMintRequestMessage({
+        ...validMessage,
+        attester_signatures: [],
+      }).error,
+    ).toBeDefined();
+    expect(
+      validateMintRequestMessage({
+        ...validMessage,
+        attester_signatures: new Array(9).fill(validMessage.attester_signatures[0]),
+      }).error,
+    ).toBeDefined();
   });
 
   test('rejects missing canonical anchors', () => {
@@ -493,5 +563,19 @@ describe('MintRequest schema', () => {
     expect(settlement.event_type).toBe('mint_request_settled');
     expect(settlement.message_version).toBe('1.0');
     expect(settlement.settled_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  test('accepts budget_exceeded_retry as a settlement status', () => {
+    const settlement = createMintRequestSettlement({
+      idempotency_key: validMessage.idempotency_key,
+      attestation_hash: validMessage.attestation_hash,
+      model_id: validMessage.model_id,
+      model_id_uint: validMessage.model_id_uint,
+      eval_id: validMessage.eval_id,
+      status: 'budget_exceeded_retry',
+      reward_amount: '0',
+    });
+
+    expect(settlement.status).toBe('budget_exceeded_retry');
   });
 });

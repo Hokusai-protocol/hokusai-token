@@ -940,16 +940,16 @@
       "followUp": "HOK-1823"
     },
     {
-      "id": "2a99575e238d90cc21952701c700f17fd6c6e2e2efed401b9c7ad67a67f2df5d",
+      "id": "a904e44176cb344f9077160362fd973ecb1b9143cf7c81aff50e3948284ddfc0",
       "check": "unused-return",
-      "justification": "Residual DeltaVerifier registry-call finding after HOK-1829 role line shifts; contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "justification": "Residual DeltaVerifier registry-call finding; IDs re-synced after HOK-2132 attester-signature additions shifted the _recordSingleContribution line range. Contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
-      "id": "772b3345790cf2b16d592667a9b3d244e03c1fe8ec4a62330aff624a24f922de",
+      "id": "b8fe0ae99f6c0fd3d3d09514e260c797599de6750973202204d19fc5c41ec07b",
       "check": "unused-return",
-      "justification": "Residual DeltaVerifier batch registry-call finding after HOK-1829 role line shifts; contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "justification": "Residual DeltaVerifier batch registry-call finding; IDs re-synced after HOK-2132 attester-signature additions shifted the _recordContributions line range. Contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },

@@ -3,7 +3,7 @@ const { ethers, network } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 
 const { buildInitialParams, buildVestingConfig } = require("../helpers/tokenDeployment");
-const { buildMintRequestPayload } = require("../helpers/mintRequest");
+const { buildMintRequestPayload, attestMintRequest, configureLaunchAttester } = require("../helpers/mintRequest");
 const { deployFactoryWithPoolDeployer } = require("../helpers/factoryDeployment");
 
 describe("Local mainnet readiness end-to-end suite", function () {
@@ -76,6 +76,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
     await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
     await contributionRegistry.grantRole(await contributionRegistry.RECORDER_ROLE(), await deltaVerifier.getAddress());
     await deltaVerifier.grantRole(await deltaVerifier.SUBMITTER_ROLE(), submitter.address);
+    await configureLaunchAttester(deltaVerifier, owner, owner);
 
     const params = buildInitialParams(owner.address, {
       tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
@@ -189,7 +190,9 @@ describe("Local mainnet readiness end-to-end suite", function () {
       anchors: { idempotencyKey: ethers.id(`idempotency-${Date.now()}-${Math.random()}`) },
       ...overrides,
     });
-    const tx = await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors(contributorOverrides));
+    const contributorList = contributors(contributorOverrides);
+    const signatures = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributorList);
+    const tx = await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributorList, signatures);
     const receipt = await tx.wait();
     return { payload, receipt };
   }
@@ -200,35 +203,49 @@ describe("Local mainnet readiness end-to-end suite", function () {
       anchors: { idempotencyKey: ethers.id("negative-base") },
     });
 
-    await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, basePayload, contributors([{ walletAddress: contributor1.address, weight: 10000 }]));
+    const baseContributors = contributors([{ walletAddress: contributor1.address, weight: 10000 }]);
+    const baseSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, basePayload, baseContributors);
+    await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, basePayload, baseContributors, baseSigs);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, basePayload, contributors([{ walletAddress: contributor1.address, weight: 10000 }]))
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, basePayload, baseContributors, baseSigs)
     ).to.be.revertedWith("Idempotency key already processed");
 
+    const unregisteredPayload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("unregistered") },
+    });
+    const unregisteredContributors = contributors([{ walletAddress: contributor1.address, weight: 10000 }]);
+    const unregisteredSigs = await attestMintRequest(deltaVerifier, owner, 999, unregisteredPayload, unregisteredContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(999, buildMintRequestPayload({
-        anchors: { idempotencyKey: ethers.id("unregistered") },
-      }), contributors([{ walletAddress: contributor1.address, weight: 10000 }]))
+      deltaVerifier.connect(submitter).submitMintRequest(999, unregisteredPayload, unregisteredContributors, unregisteredSigs)
     ).to.be.revertedWith("Model not registered");
 
     await modelRegistry.deactivateModel(MODEL_ID);
+    const inactivePayload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("inactive") },
+    });
+    const inactiveContributors = contributors([{ walletAddress: contributor1.address, weight: 10000 }]);
+    const inactiveSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, inactivePayload, inactiveContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, buildMintRequestPayload({
-        anchors: { idempotencyKey: ethers.id("inactive") },
-      }), contributors([{ walletAddress: contributor1.address, weight: 10000 }]))
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, inactivePayload, inactiveContributors, inactiveSigs)
     ).to.be.revertedWith("Model is deactivated");
     await modelRegistry.reactivateModel(MODEL_ID);
 
+    const badWeightsPayload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("bad-weights") },
+    });
+    const badWeightsContributors = contributors([{ walletAddress: contributor1.address, weight: 9999 }]);
+    const badWeightsSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, badWeightsPayload, badWeightsContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, buildMintRequestPayload({
-        anchors: { idempotencyKey: ethers.id("bad-weights") },
-      }), contributors([{ walletAddress: contributor1.address, weight: 9999 }]))
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, badWeightsPayload, badWeightsContributors, badWeightsSigs)
     ).to.be.revertedWith("Weights must sum to 100%");
 
+    const zeroAddressPayload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("zero-address") },
+    });
+    const zeroAddressContributors = contributors([{ walletAddress: ZeroAddress, weight: 10000 }]);
+    const zeroAddressSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, zeroAddressPayload, zeroAddressContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, buildMintRequestPayload({
-        anchors: { idempotencyKey: ethers.id("zero-address") },
-      }), contributors([{ walletAddress: ZeroAddress, weight: 10000 }]))
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, zeroAddressPayload, zeroAddressContributors, zeroAddressSigs)
     ).to.be.revertedWithCustomError(deltaVerifier, "ZeroAddress");
 
     const zeroDeltaPayload = buildMintRequestPayload({
@@ -237,8 +254,10 @@ describe("Local mainnet readiness end-to-end suite", function () {
       anchors: { idempotencyKey: ethers.id("zero-delta") },
     });
     const balanceBefore = await token.balanceOf(contributor1.address);
+    const zeroDeltaContributors = contributors([{ walletAddress: contributor1.address, weight: 10000 }]);
+    const zeroDeltaSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, zeroDeltaPayload, zeroDeltaContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, zeroDeltaPayload, contributors([{ walletAddress: contributor1.address, weight: 10000 }]))
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, zeroDeltaPayload, zeroDeltaContributors, zeroDeltaSigs)
     ).to.emit(deltaVerifier, "DeltaOneAccepted").withArgs(
       MODEL_ID,
       zeroDeltaPayload.anchors.idempotencyKey,
@@ -259,8 +278,10 @@ describe("Local mainnet readiness end-to-end suite", function () {
       actualCostUsdMicro: 101,
       anchors: { idempotencyKey: ethers.id("budget-blocked") },
     });
+    const budgetContributors = contributors([{ walletAddress: contributor1.address, weight: 10000 }]);
+    const budgetSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, budgetPayload, budgetContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, budgetPayload, contributors([{ walletAddress: contributor1.address, weight: 10000 }]))
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, budgetPayload, budgetContributors, budgetSigs)
     ).to.emit(deltaVerifier, "BudgetConstraintViolated").withArgs(budgetPayload.pipelineRunId, MODEL_ID, 100, 101);
     expect(await token.balanceOf(contributor1.address)).to.equal(balanceBefore);
 
@@ -269,8 +290,10 @@ describe("Local mainnet readiness end-to-end suite", function () {
       candidateScoreBps: 10000,
       anchors: { idempotencyKey: ethers.id("reward-cap") },
     });
+    const cappedContributors = contributors([{ walletAddress: contributor1.address, weight: 10000 }]);
+    const cappedSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, cappedPayload, cappedContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, cappedPayload, contributors([{ walletAddress: contributor1.address, weight: 10000 }]))
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, cappedPayload, cappedContributors, cappedSigs)
     ).to.emit(deltaVerifier, "DeltaOneAccepted").withArgs(
       MODEL_ID,
       cappedPayload.anchors.idempotencyKey,
@@ -306,7 +329,8 @@ describe("Local mainnet readiness end-to-end suite", function () {
     const dust = totalReward - base1 - base2 - base3;
     const rewards = [base1 + dust, base2, base3];
 
-    await expect(deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, split))
+    const splitSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, split);
+    await expect(deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, split, splitSigs))
       .to.emit(deltaVerifier, "BatchRewardsDistributed");
 
     for (let i = 0; i < split.length; i += 1) {
@@ -329,10 +353,13 @@ describe("Local mainnet readiness end-to-end suite", function () {
       tokenManager.connect(outsider).batchMintReward(MODEL_ID_STR, [outsider.address], [1])
     ).to.be.revertedWith("Unauthorized");
 
+    const arbitraryPayload = buildMintRequestPayload({
+      anchors: { idempotencyKey: ethers.id("arbitrary-caller") },
+    });
+    const arbitraryContributors = contributors([{ walletAddress: outsider.address, weight: 10000 }]);
+    const arbitrarySigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, arbitraryPayload, arbitraryContributors);
     await expect(
-      deltaVerifier.connect(outsider).submitMintRequest(MODEL_ID, buildMintRequestPayload({
-        anchors: { idempotencyKey: ethers.id("arbitrary-caller") },
-      }), contributors([{ walletAddress: outsider.address, weight: 10000 }]))
+      deltaVerifier.connect(outsider).submitMintRequest(MODEL_ID, arbitraryPayload, arbitraryContributors, arbitrarySigs)
     ).to.be.reverted;
   });
 

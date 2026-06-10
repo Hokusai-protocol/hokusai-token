@@ -18,7 +18,7 @@ import { MintRequestProcessor } from '../../src/services/mint-request-processor'
 import { createMockRedisClient, createMockRedisMulti } from '../mocks/redis-mock';
 
 const VENDORED_FIXTURE_PATH = path.resolve(__dirname, '../fixtures/mint_request.v1.json');
-const SUBMIT_MINT_REQUEST_SELECTOR = '0x6d2140ad';
+const SUBMIT_MINT_REQUEST_SELECTOR = '0x5d3e811b';
 type MintRequestFixture = MintRequestMessage & {
   totalSamples: number;
   evaluation: MintRequestMessage['evaluation'] & {
@@ -156,7 +156,7 @@ describe('MintRequest flow integration', () => {
     const modelId = BigInt(fixture.model_id_uint);
     const calldata = new ethers.Interface(DeltaVerifierArtifact.abi).encodeFunctionData(
       'submitMintRequest',
-      [modelId, payload, contributors],
+      [modelId, payload, contributors, []],
     );
     const bareAttestationHash = fixture.attestation_hash.slice(2);
     const expectedIdempotencyKey =

@@ -42,9 +42,64 @@ const ABIS = {
   ],
   deltaVerifier: [
     "function processedIdempotencyKeys(bytes32 idempotencyKey) view returns (bool)",
-    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors) returns (uint256)",
+    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
   ],
 };
+
+// HOK-2132: EIP-712 typed-data definition for the attester signature now required
+// by DeltaVerifier.submitMintRequest. Mirrors the contract's struct hashing.
+const MINT_REQUEST_EIP712_TYPES = {
+  MintRequest: [
+    { name: "modelId", type: "uint256" },
+    { name: "payload", type: "MintRequestPayload" },
+    { name: "contributors", type: "Contributor[]" },
+  ],
+  MintRequestPayload: [
+    { name: "pipelineRunId", type: "string" },
+    { name: "baselineScoreBps", type: "uint256" },
+    { name: "candidateScoreBps", type: "uint256" },
+    { name: "maxCostUsdMicro", type: "uint256" },
+    { name: "actualCostUsdMicro", type: "uint256" },
+    { name: "totalSamples", type: "uint256" },
+    { name: "anchors", type: "BenchmarkAnchors" },
+  ],
+  BenchmarkAnchors: [
+    { name: "benchmarkSpecHash", type: "bytes32" },
+    { name: "datasetHash", type: "bytes32" },
+    { name: "attestationHash", type: "bytes32" },
+    { name: "idempotencyKey", type: "bytes32" },
+    { name: "metricName", type: "string" },
+    { name: "metricFamily", type: "string" },
+  ],
+  Contributor: [
+    { name: "walletAddress", type: "address" },
+    { name: "weight", type: "uint256" },
+  ],
+};
+
+// HOK-2132: sign the typed MintRequest with a registered attester key and return
+// the bytes[] attesterSignatures argument for submitMintRequest (single-key setup).
+async function signMintRequestAttestation({
+  attester,
+  deltaVerifierAddress,
+  chainId,
+  modelId,
+  payload,
+  contributors,
+}) {
+  const domain = {
+    name: "HokusaiDeltaVerifier",
+    version: "1",
+    chainId,
+    verifyingContract: deltaVerifierAddress,
+  };
+  const signature = await attester.signTypedData(domain, MINT_REQUEST_EIP712_TYPES, {
+    modelId,
+    payload,
+    contributors,
+  });
+  return [signature];
+}
 
 function parseArgs(argv) {
   const options = {
@@ -330,6 +385,17 @@ async function main() {
   const payload = toContractPayload(message);
   const contributors = toContractContributors(message);
 
+  // HOK-2132: build the attester signature once; reused for static call and writes.
+  const chainId = (await hre.ethers.provider.getNetwork()).chainId;
+  const attesterSignatures = await signMintRequestAttestation({
+    attester: signer,
+    deltaVerifierAddress,
+    chainId,
+    modelId,
+    payload,
+    contributors,
+  });
+
   const [
     numericRegistered,
     numericActive,
@@ -384,7 +450,7 @@ async function main() {
 
   let staticCallReward = null;
   if (failures.length === 0) {
-    staticCallReward = await deltaVerifier.submitMintRequest.staticCall(modelId, payload, contributors);
+    staticCallReward = await deltaVerifier.submitMintRequest.staticCall(modelId, payload, contributors, attesterSignatures);
   }
 
   const result = {
@@ -426,7 +492,8 @@ async function main() {
   );
 
   if (options.directOnchain) {
-    const tx = await deltaVerifier.submitMintRequest(modelId, payload, contributors);
+    // HOK-2132: requires the redeployed DeltaVerifier with an attester registered (addAttester + setAttesterThreshold). Until then write-mode mints fail-closed.
+    const tx = await deltaVerifier.submitMintRequest(modelId, payload, contributors, attesterSignatures);
     const receipt = await tx.wait(1);
     const afterBalances = await Promise.all(
       contributors.map((contributor) => token.balanceOf(contributor.walletAddress)),

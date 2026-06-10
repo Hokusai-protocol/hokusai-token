@@ -104,12 +104,14 @@ interface DeltaVerifierContract {
     modelId: bigint,
     payload: MintRequestPayloadInput,
     contributors: DeltaVerifierContributor[],
+    attesterSignatures: string[],
     overrides?: { gasLimit: bigint; gasPrice: bigint },
   ) => Promise<TxResponseLike>) & {
     estimateGas(
       modelId: bigint,
       payload: MintRequestPayloadInput,
       contributors: DeltaVerifierContributor[],
+      attesterSignatures: string[],
     ): Promise<bigint>;
   };
 }
@@ -161,6 +163,7 @@ export class DeltaVerifierClient {
     modelId: bigint,
     payload: MintRequestPayloadInput,
     contributors: DeltaVerifierContributor[],
+    attesterSignatures: string[],
   ): Promise<MintSubmissionResult> {
     if (await this.isIdempotencyKeyProcessed(payload.anchors.idempotencyKey)) {
       return { status: 'replay', rewardAmount: '0' };
@@ -173,6 +176,7 @@ export class DeltaVerifierClient {
         modelId,
         payload,
         contributors,
+        attesterSignatures,
       );
       const feeData = await this.config.provider.getFeeData();
       let gasPrice = feeData.gasPrice ?? 0n;
@@ -183,10 +187,16 @@ export class DeltaVerifierClient {
       }
 
       const gasLimit = (gasEstimate * BigInt(Math.floor(this.config.gasMultiplier * 10))) / 10n;
-      const tx = await this.contract.submitMintRequest(modelId, payload, contributors, {
-        gasLimit,
-        gasPrice,
-      });
+      const tx = await this.contract.submitMintRequest(
+        modelId,
+        payload,
+        contributors,
+        attesterSignatures,
+        {
+          gasLimit,
+          gasPrice,
+        },
+      );
       let receipt: TxReceiptLike;
       try {
         receipt = await tx.wait(this.config.confirmations);

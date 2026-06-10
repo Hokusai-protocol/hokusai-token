@@ -81,6 +81,7 @@ describe('DeltaVerifierClient', () => {
         },
       },
       [],
+      [],
     );
 
     expect(result.status).toBe('replay');
@@ -140,6 +141,7 @@ describe('DeltaVerifierClient', () => {
         },
       },
       [],
+      [],
     );
 
     expect(result).toEqual({
@@ -152,6 +154,7 @@ describe('DeltaVerifierClient', () => {
     expect(deltaVerifierContract.submitMintRequest).toHaveBeenCalledWith(
       21n,
       expect.objectContaining({ totalSamples: 1 }),
+      [],
       [],
       expect.objectContaining({
         gasLimit: expect.any(BigInt),
@@ -194,6 +197,7 @@ describe('DeltaVerifierClient', () => {
             metricFamily: 'family',
           },
         },
+        [],
         [],
       ),
     ).rejects.toThrow('Model not registered');
@@ -240,6 +244,7 @@ describe('DeltaVerifierClient', () => {
             metricFamily: 'family',
           },
         },
+        [],
         [],
       ),
     ).rejects.toMatchObject({
@@ -288,6 +293,7 @@ describe('DeltaVerifierClient', () => {
           },
         },
         [],
+        [],
       ),
     ).rejects.toMatchObject({
       name: 'MintRequestSubmissionError',
@@ -300,7 +306,7 @@ describe('DeltaVerifierClient', () => {
 describe('submitMintRequest calldata encoding', () => {
   const iface = new Interface(serviceArtifact.abi);
 
-  test('encodes a current-shape payload with selector 0x6d2140ad', () => {
+  test('encodes a current-shape payload with selector 0x5d3e811b', () => {
     const payload = {
       pipelineRunId: 'eval-1',
       baselineScoreBps: 5000,
@@ -322,8 +328,13 @@ describe('submitMintRequest calldata encoding', () => {
       { walletAddress: '0x742D35cC6634C0532925a3b844BC9E7595f82b3d', weight: 10000 },
     ];
 
-    const calldata = iface.encodeFunctionData('submitMintRequest', [21n, payload, contributors]);
-    expect(calldata.startsWith('0x6d2140ad')).toBe(true);
+    const calldata = iface.encodeFunctionData('submitMintRequest', [
+      21n,
+      payload,
+      contributors,
+      [],
+    ]);
+    expect(calldata.startsWith('0x5d3e811b')).toBe(true);
   });
 
   test('encoding fails loudly when totalSamples is missing', () => {
@@ -343,6 +354,6 @@ describe('submitMintRequest calldata encoding', () => {
       },
     };
 
-    expect(() => iface.encodeFunctionData('submitMintRequest', [21n, payload, []])).toThrow();
+    expect(() => iface.encodeFunctionData('submitMintRequest', [21n, payload, [], []])).toThrow();
   });
 });

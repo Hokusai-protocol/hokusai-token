@@ -8,7 +8,11 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { buildMintRequestPayload } = require("./helpers/mintRequest");
+const {
+  buildMintRequestPayload,
+  attestMintRequest,
+  configureLaunchAttester,
+} = require("./helpers/mintRequest");
 
 describe("DeltaVerifier MintRequest", function () {
   let owner;
@@ -48,7 +52,8 @@ describe("DeltaVerifier MintRequest", function () {
   }
 
   async function submitMintRequestAs(signer, payload, contributors) {
-    return deltaVerifier.connect(signer).submitMintRequest(MODEL_ID, payload, contributors);
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+    return deltaVerifier.connect(signer).submitMintRequest(MODEL_ID, payload, contributors, sigs);
   }
 
   async function getContributorBalances(contributors) {
@@ -129,6 +134,8 @@ describe("DeltaVerifier MintRequest", function () {
     const submitterRole = await deltaVerifier.SUBMITTER_ROLE();
     await deltaVerifier.grantRole(submitterRole, submitter.address);
 
+    await configureLaunchAttester(deltaVerifier, owner, owner);
+
     deployedToken = await getToken();
     hokusaiParams = await getParams();
   });
@@ -138,7 +145,8 @@ describe("DeltaVerifier MintRequest", function () {
     const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
     const expectedReward = MAX_REWARD;
 
-    await expect(deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors))
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+    await expect(deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, sigs))
       .to.emit(deltaVerifier, "DeltaOneAccepted")
       .withArgs(
         MODEL_ID,
@@ -175,7 +183,8 @@ describe("DeltaVerifier MintRequest", function () {
     const reward3 = (totalReward * 1000n) / 10000n;
     const dust = totalReward - reward1 - reward2 - reward3;
 
-    await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors);
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+    await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, sigs);
 
     expect(await deployedToken.balanceOf(contributor1.address)).to.equal(reward1 + dust);
     expect(await deployedToken.balanceOf(contributor2.address)).to.equal(reward2);
@@ -304,10 +313,11 @@ describe("DeltaVerifier MintRequest", function () {
     const payload = buildMintRequestPayload();
     const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
 
-    await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors);
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+    await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, sigs);
 
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors)
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, sigs)
     ).to.be.revertedWith("Idempotency key already processed");
   });
 
@@ -316,8 +326,10 @@ describe("DeltaVerifier MintRequest", function () {
       anchors: { idempotencyKey: ethers.ZeroHash },
     });
 
+    const emptyKeyContributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, emptyKeyContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, [{ walletAddress: contributor1.address, weight: 10000 }])
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, emptyKeyContributors, sigs)
     ).to.be.revertedWith("Idempotency key cannot be empty");
   });
 
@@ -325,14 +337,16 @@ describe("DeltaVerifier MintRequest", function () {
     const payload = buildMintRequestPayload();
     const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
 
+    const sigs999 = await attestMintRequest(deltaVerifier, owner, 999, payload, contributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(999, payload, contributors)
+      deltaVerifier.connect(submitter).submitMintRequest(999, payload, contributors, sigs999)
     ).to.be.revertedWith("Model not registered");
 
     await modelRegistry.deactivateModel(MODEL_ID);
 
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors)
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, sigs)
     ).to.be.revertedWith("Model is deactivated");
   });
 
@@ -344,7 +358,8 @@ describe("DeltaVerifier MintRequest", function () {
     });
     const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
 
-    const tx = await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors);
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+    const tx = await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, sigs);
     await expect(tx)
       .to.emit(deltaVerifier, "BudgetConstraintViolated")
       .withArgs(payload.pipelineRunId, MODEL_ID, 100, 125);
@@ -353,7 +368,7 @@ describe("DeltaVerifier MintRequest", function () {
     expect(await deployedToken.balanceOf(contributor1.address)).to.equal(0);
 
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors)
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, sigs)
     ).to.be.revertedWith("Idempotency key already processed");
   });
 
@@ -454,7 +469,8 @@ describe("DeltaVerifier MintRequest", function () {
     });
     const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
 
-    await expect(deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors))
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+    await expect(deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, sigs))
       .to.emit(deltaVerifier, "DeltaOneAccepted")
       .withArgs(
         MODEL_ID,
@@ -547,19 +563,25 @@ describe("DeltaVerifier MintRequest", function () {
   it("rejects empty pipeline run IDs and metric names", async function () {
     const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
 
+    const emptyPipelinePayload = buildMintRequestPayload({ pipelineRunId: "" });
+    const emptyPipelineSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, emptyPipelinePayload, contributors);
     await expect(
       deltaVerifier.connect(submitter).submitMintRequest(
         MODEL_ID,
-        buildMintRequestPayload({ pipelineRunId: "" }),
-        contributors
+        emptyPipelinePayload,
+        contributors,
+        emptyPipelineSigs
       )
     ).to.be.revertedWith("Pipeline run ID cannot be empty");
 
+    const emptyMetricPayload = buildMintRequestPayload({ anchors: { metricName: "" } });
+    const emptyMetricSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, emptyMetricPayload, contributors);
     await expect(
       deltaVerifier.connect(submitter).submitMintRequest(
         MODEL_ID,
-        buildMintRequestPayload({ anchors: { metricName: "" } }),
-        contributors
+        emptyMetricPayload,
+        contributors,
+        emptyMetricSigs
       )
     ).to.be.revertedWith("Metric name cannot be empty");
   });
@@ -567,32 +589,42 @@ describe("DeltaVerifier MintRequest", function () {
   it("rejects invalid weights, duplicate contributors, and oversized scores", async function () {
     const payload = buildMintRequestPayload();
 
+    const underWeightContributors = [{ walletAddress: contributor1.address, weight: 9000 }];
+    const underWeightSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, underWeightContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, [
-        { walletAddress: contributor1.address, weight: 9000 },
-      ])
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, underWeightContributors, underWeightSigs)
     ).to.be.revertedWith("Weights must sum to 100%");
 
+    const duplicateContributors = [
+      { walletAddress: contributor1.address, weight: 5000 },
+      { walletAddress: contributor1.address, weight: 5000 },
+    ];
+    const duplicateSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, duplicateContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, [
-        { walletAddress: contributor1.address, weight: 5000 },
-        { walletAddress: contributor1.address, weight: 5000 },
-      ])
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, duplicateContributors, duplicateSigs)
     ).to.be.revertedWith("Duplicate contributor address");
 
+    const baselinePayload = buildMintRequestPayload({ baselineScoreBps: 10001 });
+    const baselineContributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const baselineSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, baselinePayload, baselineContributors);
     await expect(
       deltaVerifier.connect(submitter).submitMintRequest(
         MODEL_ID,
-        buildMintRequestPayload({ baselineScoreBps: 10001 }),
-        [{ walletAddress: contributor1.address, weight: 10000 }]
+        baselinePayload,
+        baselineContributors,
+        baselineSigs
       )
     ).to.be.revertedWith("Baseline score exceeds 10000 bps");
 
+    const candidatePayload = buildMintRequestPayload({ candidateScoreBps: 10001 });
+    const candidateContributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const candidateSigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, candidatePayload, candidateContributors);
     await expect(
       deltaVerifier.connect(submitter).submitMintRequest(
         MODEL_ID,
-        buildMintRequestPayload({ candidateScoreBps: 10001 }),
-        [{ walletAddress: contributor1.address, weight: 10000 }]
+        candidatePayload,
+        candidateContributors,
+        candidateSigs
       )
     ).to.be.revertedWith("Candidate score exceeds 10000 bps");
   });
@@ -671,8 +703,10 @@ describe("DeltaVerifier MintRequest", function () {
       },
     });
 
+    const zeroInflatedContributors = [{ walletAddress: contributor1.address, weight: 10000 }];
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, zeroInflatedContributors);
     await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, [{ walletAddress: contributor1.address, weight: 10000 }])
+      deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, zeroInflatedContributors, sigs)
     )
       .to.emit(deltaVerifier, "DeltaOneAccepted")
       .withArgs(

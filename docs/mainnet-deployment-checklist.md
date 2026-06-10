@@ -141,6 +141,16 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Verify `DeltaVerifier.legacyMintsDisabled()` returns `true`.
 - [ ] Verify each legacy entrypoint reverts with `LegacyMintEntrypointDisabled`, and `submitMintRequest` still works.
 
+### Configure the attester registry — required before any mint (HOK-2132, security)
+`submitMintRequest` is **fail-closed**: it reverts (`AttestationThresholdNotConfigured`) until an attester set
+and threshold are configured. Every mint must carry EIP-712 signatures from registered attester(s) over the full
+(modelId, payload, contributors) tuple — a `SUBMITTER_ROLE` relayer alone can no longer mint.
+- [ ] The attester key is in **separate custody** from the `SUBMITTER_ROLE` relayer key (a compromise of one must not yield the other). Launch attester = hardware-wallet EOA.
+- [ ] From `DEFAULT_ADMIN_ROLE` (the admin Safe): `addAttester(<attester EOA>)` then `setAttesterThreshold(1)` (1-of-1 at launch; the set/threshold supports m-of-n later with no contract change).
+- [ ] Verify `attesterThreshold()` ≥ 1 and `isAttester(<attester EOA>)` is `true`.
+- [ ] Confirm the attester signs the EIP-712 domain `{ name: "HokusaiDeltaVerifier", version: "1", chainId: <mainnet>, verifyingContract: <DeltaVerifier address> }`. The off-chain signer must reproduce `DeltaVerifier.hashMintRequest(...)` exactly (smoke-test parity before first mint).
+- [ ] Smoke-test: one real attested `submitMintRequest` mints; the same call with an empty/foreign signature reverts (`InsufficientAttesterSignatures` / `SignerNotAttester`).
+
 ---
 
 ## Phase 2: Contract Verification on Etherscan

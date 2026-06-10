@@ -39,6 +39,11 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     /// deterministic for m-of-n.
     error UnorderedOrDuplicateAttesters(address signer);
 
+    // --- Per-model mint budget error (HOK-2131) ---
+    /// @notice A paying mint would exceed the model's remaining budget. The call reverts WITHOUT burning the
+    /// idempotency key, so the identical attested request succeeds verbatim once the admin Safe tops up.
+    error MintBudgetExceeded(uint256 modelId, uint256 required, uint256 remaining);
+
     /// @notice Thrown by the legacy submitEvaluation* mint entrypoints once legacy mints are disabled.
     error LegacyMintEntrypointDisabled();
 
@@ -140,6 +145,15 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     uint256 public attesterCount;
     uint256 public attesterThreshold;
 
+    // --- Per-model mint budget (HOK-2131) ---
+    // A deterministic loss ceiling per model: the most tokens submitMintRequest can mint for `modelId`
+    // before the admin Safe must top it up. Decremented per paying mint; a mint that would exceed it reverts
+    // (never truncates) without burning the idempotency key, so the exact request retries after a top-up.
+    // Fail-closed: a model with 0 remaining budget cannot mint a positive reward. Set/refilled only by the
+    // admin Safe (DEFAULT_ADMIN_ROLE), separate custody from the attester. Per-instance values (e.g. HROUT's
+    // 1.5M starting budget) are deployment config, not contract constants.
+    mapping(uint256 => uint256) public mintBudgetRemaining;
+
     // --- EIP-712 typed-data definitions for the attested mint payload (HOK-2132) ---
     // The signature binds the FULL economic payload (modelId + every anchor + scores/costs + samples +
     // contributors), domain-separated by chainId + this contract's address (via the EIP712 base). The
@@ -209,6 +223,11 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     event AttesterAdded(address indexed attester, uint256 attesterCount);
     event AttesterRemoved(address indexed attester, uint256 attesterCount);
     event AttesterThresholdUpdated(uint256 threshold);
+
+    // --- Per-model mint budget events (HOK-2131) ---
+    event MintBudgetSet(uint256 indexed modelId, uint256 previousRemaining, uint256 newRemaining);
+    event MintBudgetToppedUp(uint256 indexed modelId, uint256 addedAmount, uint256 newRemaining);
+    event MintBudgetConsumed(uint256 indexed modelId, uint256 amount, uint256 remaining);
 
     constructor(
         address _modelRegistry,
@@ -379,9 +398,25 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
 
         (address[] memory contributorAddresses, uint256[] memory rewardAmounts) = _validateContributors(contributors);
 
+        uint256 deltaInBps = _calculateSingleMetricDelta(payload.baselineScoreBps, payload.candidateScoreBps);
+        string memory modelIdStr = _uintToString(modelId);
+        uint256 totalReward = calculateRewardDynamic(modelIdStr, deltaInBps, 10000, 0);
+
+        bool costViolated = _isBudgetConstraintViolated(payload.maxCostUsdMicro, payload.actualCostUsdMicro);
+
+        // Per-model mint budget (HOK-2131): a paying mint must fit the model's remaining budget. This is a
+        // deterministic loss bound on top of the attester check. Revert-not-truncate — and revert BEFORE the
+        // idempotency-key burn (and before any future lineage-head advance) so the exact attested request
+        // retries verbatim after a Safe top-up and pays in FULL, never haircut. budget == 0 blocks every
+        // paying mint for that model (fail-closed). Zero-reward acceptances (no delta) are unaffected.
+        if (!costViolated && totalReward > mintBudgetRemaining[modelId]) {
+            revert MintBudgetExceeded(modelId, totalReward, mintBudgetRemaining[modelId]);
+        }
+
+        // Commit point: the request is now resolved (mint or cost-rejection). Burn the idempotency key.
         processedIdempotencyKeys[payload.anchors.idempotencyKey] = true;
 
-        if (_isBudgetConstraintViolated(payload.maxCostUsdMicro, payload.actualCostUsdMicro)) {
+        if (costViolated) {
             emit BudgetConstraintViolated(
                 payload.pipelineRunId,
                 modelId,
@@ -391,11 +426,11 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
             return 0;
         }
 
-        uint256 deltaInBps = _calculateSingleMetricDelta(payload.baselineScoreBps, payload.candidateScoreBps);
-        string memory modelIdStr = _uintToString(modelId);
-        uint256 totalReward = calculateRewardDynamic(modelIdStr, deltaInBps, 10000, 0);
-
         if (totalReward > 0) {
+            // Decrement before minting (checks-effects-interactions); the budget gate above guarantees no underflow.
+            uint256 budgetRemaining = mintBudgetRemaining[modelId] - totalReward;
+            mintBudgetRemaining[modelId] = budgetRemaining;
+
             uint256 totalDistributed = 0;
 
             for (uint256 i = 0; i < contributors.length; i++) {
@@ -415,6 +450,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
             tokenManager.batchMintReward(modelIdStr, contributorAddresses, rewardAmounts);
 
             emit BatchRewardsDistributed(modelId, contributorAddresses, rewardAmounts, totalDistributed);
+            emit MintBudgetConsumed(modelId, totalReward, budgetRemaining);
 
             _recordContributions(
                 modelIdStr,
@@ -699,6 +735,26 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     function setMaxReward(uint256 _maxReward) external onlyRole(DEFAULT_ADMIN_ROLE) {
         maxReward = _maxReward;
         emit RewardParametersUpdated(baseRewardRate, minImprovementBps, maxReward);
+    }
+
+    // --- Per-model mint budget administration (HOK-2131) ---
+    // Admin Safe only (DEFAULT_ADMIN_ROLE), separate custody from the attester. Setting/refilling the budget
+    // is the deliberate, governed act that lets a model mint up to the configured loss ceiling.
+
+    /// @notice Set a model's remaining mint budget to an absolute value (initialize, correct, or set to 0 to
+    /// halt that model's paying mints without pausing the whole contract).
+    function setMintBudget(uint256 modelId, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 previous = mintBudgetRemaining[modelId];
+        mintBudgetRemaining[modelId] = amount;
+        emit MintBudgetSet(modelId, previous, amount);
+    }
+
+    /// @notice Increase a model's remaining mint budget (the Safe top-up that releases a budget-deferred mint).
+    function topUpMintBudget(uint256 modelId, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        ValidationLib.requirePositiveAmount(amount, "top-up amount");
+        uint256 newRemaining = mintBudgetRemaining[modelId] + amount;
+        mintBudgetRemaining[modelId] = newRemaining;
+        emit MintBudgetToppedUp(modelId, amount, newRemaining);
     }
     
     // --- Attester registry governance (HOK-2126) ---

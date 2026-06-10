@@ -102,6 +102,24 @@ Custody rules:
 
 Add these to the Sepolia rehearsal: add/rotate/threshold transactions and an attester-compromise pause+rotate drill; record tx hashes in the rehearsal log.
 
+## Mint Budget Custody (DeltaVerifier, HOK-2131)
+
+A deterministic per-model loss ceiling layered on top of the attester check: `submitMintRequest` reverts (`MintBudgetExceeded`) when a paying mint would exceed `mintBudgetRemaining[modelId]`, **without** burning the idempotency key — so the exact attested request retries verbatim after a top-up and pays in full (never truncated). Governed by `DEFAULT_ADMIN_ROLE`, **separate custody from the attester**.
+
+| Action | Function | Authority | Path |
+| --- | --- | --- | --- |
+| Set budget (init / correct / halt to 0) | `setMintBudget(modelId, amount)` | `DEFAULT_ADMIN_ROLE` (admin Safe) | Timelocked (routine) |
+| Top up (release a budget-deferred mint) | `topUpMintBudget(modelId, amount)` | `DEFAULT_ADMIN_ROLE` (admin Safe) | Timelocked (routine) |
+
+Custody rules:
+
+- **Fail-closed:** a model with 0 remaining budget cannot mint a positive reward. Fund it before enabling minting.
+- **Loss ceiling, not lifetime reward:** size the standing budget far below the model's lifetime max (HROUT lifetime max ≈ 14.5M; standing budget ≈ 1.5M) and refill as genuine improvement is earned. A temporarily-drained budget only *defers* a legitimate mint until the next top-up — it is never a forfeiture.
+- **Emergency:** `setMintBudget(modelId, 0)` halts one model's paying mints without pausing the whole contract; `pause()` remains the immediate, contract-wide brake.
+- **LOCKED for HROUT (deployment params, not contract constants):** `tokensPerDeltaOne = 250,000`, `maxReward = 2.5M`, starting budget `1.5M`.
+
+Add to the Sepolia rehearsal: a budget-exceeded → top-up → full-payout drill; record tx hashes in the rehearsal log.
+
 ## Sepolia Rehearsal
 
 Run this rehearsal on a fresh Sepolia deployment or on an explicitly approved rehearsal deployment. Record every transaction hash in the rehearsal log below.

@@ -1,6 +1,7 @@
 import { ethers, Interface } from 'ethers';
 import {
   DeltaVerifierClient,
+  MintBudgetExceededError,
   MintRequestSubmissionError,
 } from '../../../src/blockchain/delta-verifier-client';
 import serviceArtifact from '../../../contracts/DeltaVerifier.json';
@@ -8,17 +9,49 @@ import serviceArtifact from '../../../contracts/DeltaVerifier.json';
 describe('DeltaVerifierClient', () => {
   const deltaVerifierAddress = '0x1111111111111111111111111111111111111111';
   const registryAddress = '0x2222222222222222222222222222222222222222';
+  const attesterSignatures = [
+    '0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b',
+  ];
+
   let deltaVerifierContract: any;
   let modelRegistryContract: any;
   let provider: any;
   let signer: any;
 
+  const buildPayload = () => ({
+    pipelineRunId: 'eval-1',
+    baselineScoreBps: 5000,
+    candidateScoreBps: 7500,
+    maxCostUsdMicro: 0,
+    actualCostUsdMicro: 0,
+    totalSamples: 1,
+    anchors: {
+      benchmarkSpecHash: ethers.ZeroHash,
+      datasetHash: ethers.ZeroHash,
+      attestationHash: ethers.ZeroHash,
+      idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      metricName: 'metric',
+      metricFamily: 'family',
+    },
+    baselineCommitment: '0x1111111111111111111111111111111111111111111111111111111111111111',
+    candidateCommitment: '0x2222222222222222222222222222222222222222222222222222222222222222',
+  });
+
+  const createClient = () =>
+    new DeltaVerifierClient({
+      provider,
+      signer,
+      deltaVerifierAddress,
+      modelRegistryAddress: registryAddress,
+      confirmations: 1,
+      gasMultiplier: 1.2,
+      maxGasPrice: '1000',
+    });
+
   beforeEach(() => {
     deltaVerifierContract = {
       processedIdempotencyKeys: jest.fn(),
-      interface: {
-        parseLog: jest.fn(),
-      },
+      interface: new Interface(serviceArtifact.abi),
       submitMintRequest: jest.fn(),
     };
     deltaVerifierContract.submitMintRequest.estimateGas = jest.fn();
@@ -52,38 +85,11 @@ describe('DeltaVerifierClient', () => {
   test('returns replay before sending a transaction when the key is already processed', async () => {
     deltaVerifierContract.processedIdempotencyKeys.mockResolvedValue(true);
 
-    const client = new DeltaVerifierClient({
-      provider,
-      signer,
-      deltaVerifierAddress,
-      modelRegistryAddress: registryAddress,
-      confirmations: 1,
-      gasMultiplier: 1.2,
-      maxGasPrice: '1000',
-    });
-
-    const result = await client.submitMintRequest(
+    const result = await createClient().submitMintRequest(
       21n,
-      {
-        pipelineRunId: 'eval-1',
-        baselineScoreBps: 5000,
-        candidateScoreBps: 7500,
-        maxCostUsdMicro: 0,
-        actualCostUsdMicro: 0,
-        totalSamples: 1,
-        anchors: {
-          benchmarkSpecHash: ethers.ZeroHash,
-          datasetHash: ethers.ZeroHash,
-          attestationHash: ethers.ZeroHash,
-          idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-          metricName: 'metric',
-          metricFamily: 'family',
-        },
-        baselineCommitment: ethers.ZeroHash,
-        candidateCommitment: ethers.ZeroHash,
-      },
+      buildPayload(),
       [],
-      [],
+      attesterSignatures,
     );
 
     expect(result.status).toBe('replay');
@@ -103,49 +109,20 @@ describe('DeltaVerifierClient', () => {
       gasUsed: 321n,
       logs: [{}],
     };
-
-    deltaVerifierContract.interface.parseLog.mockReturnValue({
+    jest.spyOn(deltaVerifierContract.interface, 'parseLog').mockReturnValue({
       name: 'DeltaOneAccepted',
-      args: {
-        rewardAmount: 55n,
-      },
-    });
+      args: { rewardAmount: 55n },
+    } as any);
+
     deltaVerifierContract.submitMintRequest.mockResolvedValue({
       wait: jest.fn().mockResolvedValue(receipt),
     });
 
-    const client = new DeltaVerifierClient({
-      provider,
-      signer,
-      deltaVerifierAddress,
-      modelRegistryAddress: registryAddress,
-      confirmations: 1,
-      gasMultiplier: 1.2,
-      maxGasPrice: '1000',
-    });
-
-    const result = await client.submitMintRequest(
+    const result = await createClient().submitMintRequest(
       21n,
-      {
-        pipelineRunId: 'eval-1',
-        baselineScoreBps: 5000,
-        candidateScoreBps: 7500,
-        maxCostUsdMicro: 0,
-        actualCostUsdMicro: 0,
-        totalSamples: 1,
-        anchors: {
-          benchmarkSpecHash: ethers.ZeroHash,
-          datasetHash: ethers.ZeroHash,
-          attestationHash: ethers.ZeroHash,
-          idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-          metricName: 'metric',
-          metricFamily: 'family',
-        },
-        baselineCommitment: ethers.ZeroHash,
-        candidateCommitment: ethers.ZeroHash,
-      },
+      buildPayload(),
       [],
-      [],
+      attesterSignatures,
     );
 
     expect(result).toEqual({
@@ -157,9 +134,12 @@ describe('DeltaVerifierClient', () => {
     });
     expect(deltaVerifierContract.submitMintRequest).toHaveBeenCalledWith(
       21n,
-      expect.objectContaining({ totalSamples: 1 }),
+      expect.objectContaining({
+        baselineCommitment: buildPayload().baselineCommitment,
+        candidateCommitment: buildPayload().candidateCommitment,
+      }),
       [],
-      [],
+      attesterSignatures,
       expect.objectContaining({
         gasLimit: expect.any(BigInt),
         gasPrice: 50n,
@@ -172,40 +152,8 @@ describe('DeltaVerifierClient', () => {
     modelRegistryContract.isRegistered.mockResolvedValue(false);
     modelRegistryContract.isModelActive.mockResolvedValue(true);
 
-    const client = new DeltaVerifierClient({
-      provider,
-      signer,
-      deltaVerifierAddress,
-      modelRegistryAddress: registryAddress,
-      confirmations: 1,
-      gasMultiplier: 1.2,
-      maxGasPrice: '1000',
-    });
-
     await expect(
-      client.submitMintRequest(
-        21n,
-        {
-          pipelineRunId: 'eval-1',
-          baselineScoreBps: 5000,
-          candidateScoreBps: 7500,
-          maxCostUsdMicro: 0,
-          actualCostUsdMicro: 0,
-          totalSamples: 1,
-          anchors: {
-            benchmarkSpecHash: ethers.ZeroHash,
-            datasetHash: ethers.ZeroHash,
-            attestationHash: ethers.ZeroHash,
-            idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-            metricName: 'metric',
-            metricFamily: 'family',
-          },
-          baselineCommitment: ethers.ZeroHash,
-          candidateCommitment: ethers.ZeroHash,
-        },
-        [],
-        [],
-      ),
+      createClient().submitMintRequest(21n, buildPayload(), [], attesterSignatures),
     ).rejects.toThrow('Model not registered');
   });
 
@@ -221,40 +169,8 @@ describe('DeltaVerifierClient', () => {
         .mockRejectedValue(Object.assign(new Error('ECONNRESET'), { code: 'ECONNRESET' })),
     });
 
-    const client = new DeltaVerifierClient({
-      provider,
-      signer,
-      deltaVerifierAddress,
-      modelRegistryAddress: registryAddress,
-      confirmations: 1,
-      gasMultiplier: 1.2,
-      maxGasPrice: '1000',
-    });
-
     await expect(
-      client.submitMintRequest(
-        21n,
-        {
-          pipelineRunId: 'eval-1',
-          baselineScoreBps: 5000,
-          candidateScoreBps: 7500,
-          maxCostUsdMicro: 0,
-          actualCostUsdMicro: 0,
-          totalSamples: 1,
-          anchors: {
-            benchmarkSpecHash: ethers.ZeroHash,
-            datasetHash: ethers.ZeroHash,
-            attestationHash: ethers.ZeroHash,
-            idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-            metricName: 'metric',
-            metricFamily: 'family',
-          },
-          baselineCommitment: ethers.ZeroHash,
-          candidateCommitment: ethers.ZeroHash,
-        },
-        [],
-        [],
-      ),
+      createClient().submitMintRequest(21n, buildPayload(), [], attesterSignatures),
     ).rejects.toMatchObject({
       name: 'MintRequestSubmissionError',
       failureClass: 'permanent',
@@ -263,52 +179,90 @@ describe('DeltaVerifierClient', () => {
     } satisfies Partial<MintRequestSubmissionError>);
   });
 
-  test('wraps execution reverted errors as permanent submission failures', async () => {
+  test('detects MintBudgetExceeded from estimateGas as a transient typed error', async () => {
     deltaVerifierContract.processedIdempotencyKeys.mockResolvedValue(false);
     modelRegistryContract.isRegistered.mockResolvedValue(true);
     modelRegistryContract.isModelActive.mockResolvedValue(true);
     deltaVerifierContract.submitMintRequest.estimateGas.mockRejectedValue(
-      new Error('execution reverted: mint rejected'),
+      Object.assign(new Error('execution reverted'), {
+        code: 'CALL_EXCEPTION',
+        data: deltaVerifierContract.interface.encodeErrorResult('MintBudgetExceeded', [
+          21n,
+          1_000_000n,
+          500_000n,
+        ]),
+      }),
     );
 
-    const client = new DeltaVerifierClient({
-      provider,
-      signer,
-      deltaVerifierAddress,
-      modelRegistryAddress: registryAddress,
-      confirmations: 1,
-      gasMultiplier: 1.2,
-      maxGasPrice: '1000',
-    });
+    await expect(
+      createClient().submitMintRequest(21n, buildPayload(), [], attesterSignatures),
+    ).rejects.toMatchObject({
+      name: 'MintBudgetExceededError',
+      failureClass: 'transient',
+      modelId: 21n,
+      requiredAmount: 1_000_000n,
+      remainingBudget: 500_000n,
+    } satisfies Partial<MintBudgetExceededError>);
+  });
+
+  test('detects MintBudgetExceeded from submit and does not re-wrap it as permanent', async () => {
+    deltaVerifierContract.processedIdempotencyKeys.mockResolvedValue(false);
+    modelRegistryContract.isRegistered.mockResolvedValue(true);
+    modelRegistryContract.isModelActive.mockResolvedValue(true);
+    deltaVerifierContract.submitMintRequest.estimateGas.mockResolvedValue(100n);
+    deltaVerifierContract.submitMintRequest.mockRejectedValue(
+      Object.assign(new Error('execution reverted'), {
+        code: 'CALL_EXCEPTION',
+        data: deltaVerifierContract.interface.encodeErrorResult('MintBudgetExceeded', [
+          21n,
+          1_000_000n,
+          500_000n,
+        ]),
+      }),
+    );
 
     await expect(
-      client.submitMintRequest(
-        21n,
-        {
-          pipelineRunId: 'eval-1',
-          baselineScoreBps: 5000,
-          candidateScoreBps: 7500,
-          maxCostUsdMicro: 0,
-          actualCostUsdMicro: 0,
-          totalSamples: 1,
-          anchors: {
-            benchmarkSpecHash: ethers.ZeroHash,
-            datasetHash: ethers.ZeroHash,
-            attestationHash: ethers.ZeroHash,
-            idempotencyKey: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-            metricName: 'metric',
-            metricFamily: 'family',
-          },
-          baselineCommitment: ethers.ZeroHash,
-          candidateCommitment: ethers.ZeroHash,
-        },
-        [],
-        [],
-      ),
+      createClient().submitMintRequest(21n, buildPayload(), [], attesterSignatures),
+    ).rejects.toBeInstanceOf(MintBudgetExceededError);
+    expect(deltaVerifierContract.submitMintRequest).toHaveBeenCalledTimes(1);
+  });
+
+  test('wraps other execution reverted errors as permanent submission failures', async () => {
+    deltaVerifierContract.processedIdempotencyKeys.mockResolvedValue(false);
+    modelRegistryContract.isRegistered.mockResolvedValue(true);
+    modelRegistryContract.isModelActive.mockResolvedValue(true);
+    deltaVerifierContract.submitMintRequest.estimateGas.mockRejectedValue(
+      new Error('execution reverted: LineageParentMismatch'),
+    );
+
+    await expect(
+      createClient().submitMintRequest(21n, buildPayload(), [], attesterSignatures),
     ).rejects.toMatchObject({
       name: 'MintRequestSubmissionError',
       failureClass: 'permanent',
-      message: 'execution reverted: mint rejected',
+      message: 'execution reverted: LineageParentMismatch',
+    } satisfies Partial<MintRequestSubmissionError>);
+  });
+
+  test('preserves permanent classification for non-budget contract errors from submit', async () => {
+    deltaVerifierContract.processedIdempotencyKeys.mockResolvedValue(false);
+    modelRegistryContract.isRegistered.mockResolvedValue(true);
+    modelRegistryContract.isModelActive.mockResolvedValue(true);
+    deltaVerifierContract.submitMintRequest.estimateGas.mockResolvedValue(100n);
+    deltaVerifierContract.submitMintRequest.mockRejectedValue(
+      Object.assign(new Error('execution reverted'), {
+        code: 'CALL_EXCEPTION',
+        data: deltaVerifierContract.interface.encodeErrorResult('SignerNotAttester', [
+          '0x742d35cc6634c0532925a3b844bc9e7595f82b3d',
+        ]),
+      }),
+    );
+
+    await expect(
+      createClient().submitMintRequest(21n, buildPayload(), [], attesterSignatures),
+    ).rejects.toMatchObject({
+      name: 'MintRequestSubmissionError',
+      failureClass: 'permanent',
     } satisfies Partial<MintRequestSubmissionError>);
   });
 });
@@ -332,19 +286,22 @@ describe('submitMintRequest calldata encoding', () => {
         metricName: 'accuracy',
         metricFamily: 'classification',
       },
-      baselineCommitment: ethers.ZeroHash,
-      candidateCommitment: ethers.ZeroHash,
+      baselineCommitment: '0x1111111111111111111111111111111111111111111111111111111111111111',
+      candidateCommitment: '0x2222222222222222222222222222222222222222222222222222222222222222',
     };
 
     const contributors = [
       { walletAddress: '0x742D35cC6634C0532925a3b844BC9E7595f82b3d', weight: 10000 },
+    ];
+    const signatures = [
+      '0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b',
     ];
 
     const calldata = iface.encodeFunctionData('submitMintRequest', [
       21n,
       payload,
       contributors,
-      [],
+      signatures,
     ]);
     expect(calldata.startsWith('0xc9b4e69b')).toBe(true);
   });
@@ -364,6 +321,8 @@ describe('submitMintRequest calldata encoding', () => {
         metricName: 'accuracy',
         metricFamily: 'classification',
       },
+      baselineCommitment: ethers.ZeroHash,
+      candidateCommitment: ethers.ZeroHash,
     };
 
     expect(() => iface.encodeFunctionData('submitMintRequest', [21n, payload, [], []])).toThrow();

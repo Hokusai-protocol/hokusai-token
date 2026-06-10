@@ -13,7 +13,10 @@ import {
   MintRequestSettlement,
   validateMintRequestMessage,
 } from '../../src/schemas/mint-request-schema';
-import { MintRequestSubmissionError } from '../../src/blockchain/delta-verifier-client';
+import {
+  MintBudgetExceededError,
+  MintRequestSubmissionError,
+} from '../../src/blockchain/delta-verifier-client';
 import { MintRequestProcessor } from '../../src/services/mint-request-processor';
 import { createMockRedisClient, createMockRedisMulti } from '../mocks/redis-mock';
 
@@ -67,6 +70,9 @@ function normalizeFixture(
     ...candidate,
     benchmark_spec_id: candidate.benchmark_spec_id ?? vendoredFixture.benchmark_spec_id,
     dataset_hash: candidate.dataset_hash ?? vendoredFixture.dataset_hash,
+    baseline_commitment: candidate.baseline_commitment ?? vendoredFixture.baseline_commitment,
+    candidate_commitment: candidate.candidate_commitment ?? vendoredFixture.candidate_commitment,
+    attester_signatures: candidate.attester_signatures ?? vendoredFixture.attester_signatures,
     totalSamples: candidate.totalSamples ?? vendoredFixture.totalSamples,
     contributors: (candidate.contributors ?? vendoredFixture.contributors).map(
       (contributor, index) => ({
@@ -112,6 +118,11 @@ const validMessage: MintRequestMessage = {
   dataset_hash: '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
   attestation_hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   idempotency_key: IDEMPOTENCY_KEY,
+  baseline_commitment: '0x1111111111111111111111111111111111111111111111111111111111111111',
+  candidate_commitment: '0x2222222222222222222222222222222222222222222222222222222222222222',
+  attester_signatures: [
+    '0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b',
+  ],
   totalSamples: 140,
   evaluation: {
     metric_name: 'sales:revenue_per_1000_messages',
@@ -156,7 +167,7 @@ describe('MintRequest flow integration', () => {
     const modelId = BigInt(fixture.model_id_uint);
     const calldata = new ethers.Interface(DeltaVerifierArtifact.abi).encodeFunctionData(
       'submitMintRequest',
-      [modelId, payload, contributors, []],
+      [modelId, payload, contributors, fixture.attester_signatures],
     );
     const bareAttestationHash = fixture.attestation_hash.slice(2);
     const expectedIdempotencyKey =
@@ -178,6 +189,8 @@ describe('MintRequest flow integration', () => {
     expect(payload.anchors.idempotencyKey).toBe(fixture.idempotency_key);
     expect(payload.anchors.idempotencyKey).toBe(expectedIdempotencyKey);
     expect(payload.anchors.idempotencyKey).not.toBe(ethers.ZeroHash);
+    expect(payload.baselineCommitment).toBe(fixture.baseline_commitment);
+    expect(payload.candidateCommitment).toBe(fixture.candidate_commitment);
     expect(payload.baselineScoreBps).toBe(fixture.evaluation.baseline_score_bps);
     expect(payload.candidateScoreBps).toBe(fixture.evaluation.new_score_bps);
     expect(payload.maxCostUsdMicro).toBe(fixture.evaluation.max_cost_usd_micro);
@@ -193,6 +206,7 @@ describe('MintRequest flow integration', () => {
     expect(
       contributors.map((contributor: { walletAddress: string }) => contributor.walletAddress),
     ).toEqual(fixture.contributors.map((contributor) => contributor.wallet_address));
+    expect(fixture.attester_signatures.length).toBeGreaterThan(0);
   });
 
   test('validates the pipeline v1 fixture and detects vendored drift when possible', async () => {
@@ -276,9 +290,12 @@ describe('MintRequest flow integration', () => {
         processedSetKey: 'hokusai:mint_requests:processed',
         retryQueue: 'hokusai:mint_requests:retry',
         maxRetries: 3,
+        budgetMaxRetries: 24,
         blockingTimeout: 5,
         backoffBaseMs: 1000,
         backoffMaxMs: 30000,
+        budgetRetryBackoffBaseMs: 60000,
+        budgetRetryBackoffMaxMs: 1800000,
         backoffMultiplier: 2,
         recordStore,
       });
@@ -367,9 +384,12 @@ describe('MintRequest flow integration', () => {
         processedSetKey: 'hokusai:mint_requests:processed',
         retryQueue: 'hokusai:mint_requests:retry',
         maxRetries: 3,
+        budgetMaxRetries: 24,
         blockingTimeout: 5,
         backoffBaseMs: 1000,
         backoffMaxMs: 30000,
+        budgetRetryBackoffBaseMs: 60000,
+        budgetRetryBackoffMaxMs: 1800000,
         backoffMultiplier: 2,
         recordStore,
       });
@@ -416,6 +436,7 @@ describe('MintRequest flow integration', () => {
         IDEMPOTENCY_KEY,
         validMessage.model_id,
         expect.stringContaining('MintRequest transaction outcome unknown after submit'),
+        expect.objectContaining({ failureClass: 'permanent' }),
       );
       expect(pushedEntries.filter((entry) => entry.queue === settlementQueue)).toEqual([]);
       expect(
@@ -457,12 +478,61 @@ describe('MintRequest flow integration', () => {
         IDEMPOTENCY_KEY,
         validMessage.model_id,
         expect.stringContaining('execution reverted: mint rejected'),
+        expect.objectContaining({ failureClass: 'permanent' }),
       );
       expect(pushedEntries.filter((entry) => entry.queue === settlementQueue)).toEqual([]);
       expect(
         pushedEntries.filter((entry) => entry.queue === 'hokusai:mint_requests:dlq'),
       ).toHaveLength(1);
       expect(mockRedis.zAdd).not.toHaveBeenCalled();
+    });
+
+    test('routes budget reverts to retry without publishing a settlement or DLQ entry', async () => {
+      const settlementQueue = 'hokusai:mint_request_settlements';
+      const pushedEntries: Array<{ queue: string; payload: string }> = [];
+      const multi = createMockRedisMulti();
+      jest.spyOn(Math, 'random').mockReturnValue(0.5);
+      jest.spyOn(Date, 'now').mockReturnValue(1000);
+
+      mockRedis.multi.mockReturnValue(multi as any);
+      mockRedis.lPush.mockImplementation(async (...args: unknown[]) => {
+        pushedEntries.push({ queue: String(args[0]), payload: String(args[1]) });
+        return 1;
+      });
+
+      const processor = new MintRequestProcessor({
+        submitMintRequest: jest.fn().mockRejectedValueOnce(
+          new MintBudgetExceededError('MintBudgetExceeded', {
+            modelId: 21n,
+            requiredAmount: 100n,
+            remainingBudget: 50n,
+          }),
+        ),
+      } as any);
+
+      await expect(
+        consumer.processMessage(async (message) => {
+          const settlement = await processor.process(message);
+          await mockRedis.lPush(settlementQueue, JSON.stringify(settlement));
+          return settlement;
+        }),
+      ).rejects.toThrow('MintBudgetExceeded');
+
+      expect(pushedEntries.filter((entry) => entry.queue === settlementQueue)).toEqual([]);
+      expect(pushedEntries.filter((entry) => entry.queue === 'hokusai:mint_requests:dlq')).toEqual(
+        [],
+      );
+      expect(multi.zAdd).toHaveBeenCalledWith(
+        'hokusai:mint_requests:retry',
+        expect.objectContaining({
+          score: 31000,
+          value: JSON.stringify({ ...validMessage, _retryCount: 1 }),
+        }),
+      );
+      const storedRecord = JSON.parse(multi.set.mock.calls[0][1] as string) as {
+        status: string;
+      };
+      expect(storedRecord.status).toBe('budget_exceeded_retry');
     });
   });
 
@@ -490,9 +560,12 @@ describe('MintRequest flow integration', () => {
         processedSetKey: 'hokusai:mint_requests:processed',
         retryQueue: 'hokusai:mint_requests:retry',
         maxRetries: 3,
+        budgetMaxRetries: 24,
         blockingTimeout: 5,
         backoffBaseMs: 1000,
         backoffMaxMs: 30000,
+        budgetRetryBackoffBaseMs: 60000,
+        budgetRetryBackoffMaxMs: 1800000,
         backoffMultiplier: 2,
         recordStore,
       });
@@ -530,6 +603,101 @@ describe('MintRequest flow integration', () => {
       expect(pushedSettlement.idempotency_key).toBe(IDEMPOTENCY_KEY);
       expect(pushedSettlement.tx_hash).toBe(TX_HASH);
       expect(pushedSettlement.status).toBe('minted');
+    });
+
+    test('retries after a budget top-up and only publishes the eventual minted settlement', async () => {
+      const mockRedis = createMockRedisClient();
+      const multiRetry = createMockRedisMulti();
+      const multiSuccess = createMockRedisMulti();
+      const capturedSettlements: string[] = [];
+
+      mockRedis.lPush.mockImplementation(async (...args: unknown[]) => {
+        if (args[0] === 'hokusai:mint_request_settlements') {
+          capturedSettlements.push(args[1] as string);
+        }
+        return 1;
+      });
+
+      const recordStore = new MintRecordStore({
+        redis: mockRedis,
+        keyPrefix: 'mint:record:',
+        ttlSeconds: 7200,
+      });
+
+      const consumer = new MintRequestConsumer({
+        redis: mockRedis,
+        inboundQueue: 'hokusai:mint_requests',
+        processingQueue: 'hokusai:mint_requests:processing',
+        deadLetterQueue: 'hokusai:mint_requests:dlq',
+        processedSetKey: 'hokusai:mint_requests:processed',
+        retryQueue: 'hokusai:mint_requests:retry',
+        maxRetries: 3,
+        budgetMaxRetries: 24,
+        blockingTimeout: 5,
+        backoffBaseMs: 1000,
+        backoffMaxMs: 30000,
+        budgetRetryBackoffBaseMs: 60000,
+        budgetRetryBackoffMaxMs: 1800000,
+        backoffMultiplier: 2,
+        recordStore,
+      });
+
+      const mintedSettlement = createMintRequestSettlement({
+        idempotency_key: IDEMPOTENCY_KEY,
+        attestation_hash: validMessage.attestation_hash,
+        model_id: validMessage.model_id,
+        model_id_uint: validMessage.model_id_uint,
+        eval_id: validMessage.eval_id,
+        tx_hash: TX_HASH,
+        block_number: 42,
+        status: 'minted',
+        reward_amount: '10',
+        gas_used: '21000',
+      });
+
+      jest.spyOn(Math, 'random').mockReturnValue(0.5);
+      jest.spyOn(Date, 'now').mockReturnValue(1000);
+      mockRedis.brPopLPush
+        .mockResolvedValueOnce(JSON.stringify(validMessage))
+        .mockResolvedValueOnce(JSON.stringify({ ...validMessage, _retryCount: 1 }));
+      mockRedis.sIsMember.mockResolvedValue(false);
+      mockRedis.multi
+        .mockReturnValueOnce(multiRetry as any)
+        .mockReturnValueOnce(multiSuccess as any);
+
+      const handler = jest
+        .fn()
+        .mockRejectedValueOnce(
+          new MintBudgetExceededError('MintBudgetExceeded', {
+            modelId: 21n,
+            requiredAmount: 100n,
+            remainingBudget: 50n,
+          }),
+        )
+        .mockResolvedValueOnce(mintedSettlement);
+
+      await expect(
+        consumer.processMessage(async (msg) => {
+          const result = await handler(msg);
+          await mockRedis.lPush('hokusai:mint_request_settlements', JSON.stringify(result));
+          return result;
+        }),
+      ).rejects.toThrow('MintBudgetExceeded');
+
+      await consumer.processMessage(async (msg) => {
+        const result = await handler(msg);
+        await mockRedis.lPush('hokusai:mint_request_settlements', JSON.stringify(result));
+        return result;
+      });
+
+      expect(capturedSettlements).toHaveLength(1);
+      const pushedSettlement = JSON.parse(capturedSettlements[0]) as MintRequestSettlement;
+      expect(pushedSettlement.status).toBe('minted');
+      expect(multiRetry.zAdd).toHaveBeenCalled();
+      expect(multiSuccess.sAdd).toHaveBeenCalledWith(
+        'hokusai:mint_requests:processed',
+        IDEMPOTENCY_KEY,
+      );
     });
   });
 

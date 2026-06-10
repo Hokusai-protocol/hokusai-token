@@ -1,4 +1,5 @@
 import { classifyError, computeBackoffMs } from '../../../src/queue/retry-policy';
+import { MintBudgetExceededError } from '../../../src/blockchain/delta-verifier-client';
 
 describe('retry-policy', () => {
   afterEach(() => {
@@ -25,6 +26,24 @@ describe('retry-policy', () => {
 
   test('defaults unknown failures to transient', () => {
     expect(classifyError(new Error('unexpected failure'))).toBe('transient');
+  });
+
+  test('classifies MintBudgetExceededError as transient', () => {
+    expect(
+      classifyError(
+        new MintBudgetExceededError('MintBudgetExceeded', {
+          modelId: 21n,
+          requiredAmount: 100n,
+          remainingBudget: 50n,
+        }),
+      ),
+    ).toBe('transient');
+  });
+
+  test('classifies MintBudgetExceeded message fallback as transient', () => {
+    expect(classifyError(new Error('execution reverted: MintBudgetExceeded(21,100,50)'))).toBe(
+      'transient',
+    );
   });
 
   test('computes bounded backoff with jitter', () => {

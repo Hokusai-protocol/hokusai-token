@@ -76,9 +76,12 @@ const envSchema = Joi.object({
   MINT_REQUEST_PROCESSED_SET: Joi.string().default('hokusai:mint_requests:processed'),
   MINT_REQUEST_SETTLEMENT_QUEUE: Joi.string().default('hokusai:mint_request_settlements'),
   MINT_REQUEST_MAX_RETRIES: Joi.number().integer().min(0).default(3),
+  MINT_REQUEST_BUDGET_MAX_RETRIES: Joi.number().integer().min(0).default(24),
   MINT_REQUEST_RETRY_QUEUE: Joi.string().default('hokusai:mint_requests:retry'),
   MINT_BACKOFF_BASE_MS: Joi.number().integer().min(0).default(1000),
   MINT_BACKOFF_MAX_MS: Joi.number().integer().min(0).default(60000),
+  MINT_BUDGET_BACKOFF_BASE_MS: Joi.number().integer().min(0).default(60000),
+  MINT_BUDGET_BACKOFF_MAX_MS: Joi.number().integer().min(0).default(1800000),
   MINT_BACKOFF_MULTIPLIER: Joi.number().min(1).default(2),
   MINT_RECORD_KEY_PREFIX: Joi.string().default('hokusai:mint_record:'),
   MINT_RECORD_TTL_SECONDS: Joi.number().integer().min(1).default(2592000),
@@ -171,9 +174,12 @@ export interface Config {
   MINT_REQUEST_PROCESSED_SET: string;
   MINT_REQUEST_SETTLEMENT_QUEUE: string;
   MINT_REQUEST_MAX_RETRIES: number;
+  MINT_REQUEST_BUDGET_MAX_RETRIES: number;
   MINT_REQUEST_RETRY_QUEUE: string;
   MINT_BACKOFF_BASE_MS: number;
   MINT_BACKOFF_MAX_MS: number;
+  MINT_BUDGET_BACKOFF_BASE_MS: number;
+  MINT_BUDGET_BACKOFF_MAX_MS: number;
   MINT_BACKOFF_MULTIPLIER: number;
   MINT_RECORD_KEY_PREFIX: string;
   MINT_RECORD_TTL_SECONDS: number;

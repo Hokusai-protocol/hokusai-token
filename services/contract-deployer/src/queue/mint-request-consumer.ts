@@ -5,6 +5,7 @@ import {
   MintRequestSettlement,
   validateMintRequestMessage,
 } from '../schemas/mint-request-schema';
+import { MintBudgetExceededError } from '../blockchain/delta-verifier-client';
 import { MintRecordStore } from './mint-record-store';
 import { classifyError, computeBackoffMs, FailureClass } from './retry-policy';
 import { logger } from '../utils/logger';
@@ -17,9 +18,12 @@ export interface MintRequestConsumerConfig {
   processedSetKey: string;
   retryQueue: string;
   maxRetries: number;
+  budgetMaxRetries: number;
   blockingTimeout: number;
   backoffBaseMs: number;
   backoffMaxMs: number;
+  budgetRetryBackoffBaseMs: number;
+  budgetRetryBackoffMaxMs: number;
   backoffMultiplier: number;
   recordStore: MintRecordStore;
 }
@@ -155,10 +159,13 @@ export class MintRequestConsumer extends EventEmitter {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const failureClass = classifyError(error);
     const retryCount = message._retryCount ?? 0;
+    const isBudgetRetry = this.isBudgetRetryError(error);
+    const maxRetries = isBudgetRetry ? this.config.budgetMaxRetries : this.config.maxRetries;
 
     logger.error('MintRequest processing failed', {
       error: errorMessage,
       failureClass,
+      budgetRetry: isBudgetRetry,
       idempotencyKey: message.idempotency_key,
       retryCount,
     });
@@ -173,12 +180,12 @@ export class MintRequestConsumer extends EventEmitter {
       return;
     }
 
-    if (retryCount < this.config.maxRetries) {
+    if (retryCount < maxRetries) {
       const nextRetryCount = retryCount + 1;
       const retryMessage = JSON.stringify({ ...message, _retryCount: nextRetryCount });
       const delayMs = computeBackoffMs(nextRetryCount, {
-        baseMs: this.config.backoffBaseMs,
-        maxMs: this.config.backoffMaxMs,
+        baseMs: isBudgetRetry ? this.config.budgetRetryBackoffBaseMs : this.config.backoffBaseMs,
+        maxMs: isBudgetRetry ? this.config.budgetRetryBackoffMaxMs : this.config.backoffMaxMs,
         multiplier: this.config.backoffMultiplier,
       });
 
@@ -188,6 +195,19 @@ export class MintRequestConsumer extends EventEmitter {
         score: Date.now() + delayMs,
         value: retryMessage,
       });
+      multi.set(
+        this.config.recordStore.getKey(message.idempotency_key),
+        JSON.stringify(
+          this.config.recordStore.serializeRetrying(
+            message.idempotency_key,
+            message.model_id,
+            errorMessage,
+            failureClass,
+            'budget_exceeded_retry',
+          ),
+        ),
+        { EX: this.config.recordStore.getTtlSeconds() },
+      );
       await multi.exec();
       return;
     }
@@ -195,7 +215,7 @@ export class MintRequestConsumer extends EventEmitter {
     await this.moveToDeadLetterQueue(
       messageStr,
       message,
-      `exhausted (retries=${retryCount}): ${errorMessage}`,
+      `${isBudgetRetry ? 'budget_exhausted' : 'exhausted'} (retries=${retryCount}): ${errorMessage}`,
       failureClass,
     );
   }
@@ -220,8 +240,17 @@ export class MintRequestConsumer extends EventEmitter {
     await this.redis.lRem(this.config.processingQueue, 1, messageStr);
 
     if (typeof message?.idempotency_key === 'string') {
-      await this.config.recordStore.recordError(message.idempotency_key, message.model_id, reason);
+      await this.config.recordStore.recordError(message.idempotency_key, message.model_id, reason, {
+        failureClass,
+      });
     }
+  }
+
+  private isBudgetRetryError(error: unknown): boolean {
+    return (
+      error instanceof MintBudgetExceededError ||
+      (error instanceof Error && error.message.includes('MintBudgetExceeded'))
+    );
   }
 
   private safeJsonParse(messageStr: string): unknown {

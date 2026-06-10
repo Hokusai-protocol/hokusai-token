@@ -23,6 +23,7 @@ const PERMANENT_MESSAGE_PATTERNS = [
   'mintrequest transaction reverted',
 ];
 const TRANSIENT_MESSAGE_PATTERNS = [
+  'mintbudgetexceeded',
   'timeout',
   'temporarily unavailable',
   'socket hang up',

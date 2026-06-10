@@ -47,16 +47,34 @@ describe('MintRecordStore', () => {
         idempotency_key: 'key-1',
         model_id: 'model-1',
         status: 'error',
+        failure_class: 'permanent',
         reward_amount: '0',
         error: 'permanent: bad request',
         updated_at: '2026-05-21T00:00:00.000Z',
       }),
     );
 
-    await store.recordError('key-1', 'model-1', 'permanent: bad request');
+    await store.recordError('key-1', 'model-1', 'permanent: bad request', {
+      failureClass: 'permanent',
+    });
     const record = await store.get('key-1');
 
     expect(record?.status).toBe('error');
+    expect(record?.failure_class).toBe('permanent');
     expect(record?.error).toBe('permanent: bad request');
+  });
+
+  test('serializes retrying budget records without marking them settled', () => {
+    const record = store.serializeRetrying(
+      'key-2',
+      'model-2',
+      'MintBudgetExceeded',
+      'transient',
+      'budget_exceeded_retry',
+    );
+
+    expect(record.status).toBe('budget_exceeded_retry');
+    expect(record.failure_class).toBe('transient');
+    expect(record.reward_amount).toBe('0');
   });
 });

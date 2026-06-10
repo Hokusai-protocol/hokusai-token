@@ -8,6 +8,7 @@ const {
   buildMintRequestPayload,
   attestMintRequest,
   configureLaunchAttester,
+  configureMintBudget,
 } = require("../helpers/mintRequest");
 
 function makeRng(seed) {
@@ -100,6 +101,7 @@ describe("Property fuzz invariants", function () {
     await deltaVerifier.grantRole(await deltaVerifier.SUBMITTER_ROLE(), submitter.address);
 
     await configureLaunchAttester(deltaVerifier, owner, owner);
+    await configureMintBudget(deltaVerifier, owner, MODEL_ID);
 
     const params = buildInitialParams(owner.address, {
       tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,

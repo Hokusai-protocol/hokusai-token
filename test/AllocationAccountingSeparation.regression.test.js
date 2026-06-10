@@ -12,6 +12,7 @@ const {
   buildMintRequestPayload,
   attestMintRequest,
   configureLaunchAttester,
+  configureMintBudget,
 } = require("./helpers/mintRequest");
 
 describe("Allocation accounting separation regression", function () {
@@ -100,6 +101,7 @@ describe("Allocation accounting separation regression", function () {
     await deltaVerifier.grantRole(submitterRole, submitter.address);
 
     await configureLaunchAttester(deltaVerifier, owner, owner);
+    await configureMintBudget(deltaVerifier, owner, MODEL_ID_UINT);
 
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const usdc = await MockUSDC.deploy();

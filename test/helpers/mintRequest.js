@@ -100,6 +100,17 @@ async function configureLaunchAttester(deltaVerifier, adminSigner, attesterSigne
   await deltaVerifier.connect(adminSigner).setAttesterThreshold(1);
 }
 
+// A budget large enough that it never constrains tests that aren't specifically about the budget.
+// (1e12 tokens — far above any per-mint maxReward used in the suite.)
+const { parseEther } = require("ethers");
+const LAUNCH_MINT_BUDGET = parseEther("1000000000000");
+
+// Per-model mint budget (HOK-2131): submitMintRequest fail-closes on a 0 budget, so any test that expects a
+// positive-reward mint must fund the model's budget. Defaults to a non-constraining amount.
+async function configureMintBudget(deltaVerifier, adminSigner, modelId, amount = LAUNCH_MINT_BUDGET) {
+  await deltaVerifier.connect(adminSigner).setMintBudget(modelId, amount);
+}
+
 module.exports = {
   buildMintRequestPayload,
   MINT_REQUEST_EIP712_TYPES,
@@ -108,4 +119,6 @@ module.exports = {
   attestMintRequest,
   attestMintRequestMulti,
   configureLaunchAttester,
+  configureMintBudget,
+  LAUNCH_MINT_BUDGET,
 };

@@ -1,4 +1,6 @@
 const { expect } = require("chai");
+const fs = require("fs");
+const path = require("path");
 const { ethers, network } = require("hardhat");
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
@@ -12,6 +14,33 @@ const {
   configureLineageGenesis,
   payloadForNextLink,
 } = require("../helpers/mintRequest");
+
+const GOLDEN_FIXTURE_PATH = path.resolve(__dirname, "../fixtures/deltaverifier-mint-request.golden.json");
+
+function loadGoldenFixture() {
+  return JSON.parse(fs.readFileSync(GOLDEN_FIXTURE_PATH, "utf8"));
+}
+
+function goldenPayload(golden) {
+  return {
+    pipelineRunId: golden.pipelineRunId,
+    baselineScoreBps: golden.baselineScoreBps,
+    candidateScoreBps: golden.candidateScoreBps,
+    maxCostUsdMicro: golden.maxCostUsdMicro,
+    actualCostUsdMicro: golden.actualCostUsdMicro,
+    totalSamples: golden.totalSamples,
+    anchors: {
+      benchmarkSpecHash: golden.benchmarkSpecHash,
+      datasetHash: golden.datasetHash,
+      attestationHash: golden.attestationHash,
+      idempotencyKey: golden.idempotencyKey,
+      metricName: golden.metricName,
+      metricFamily: golden.metricFamily,
+    },
+    baselineCommitment: golden.baselineCommitment,
+    candidateCommitment: golden.candidateCommitment,
+  };
+}
 
 function makeRng(seed) {
   let state = BigInt(seed);
@@ -128,7 +157,18 @@ describe("Property fuzz invariants", function () {
     await modelRegistry.registerModel(MODEL_ID, tokenAddress, "accuracy");
     await configureLineageGenesis(modelRegistry, owner, MODEL_ID);
 
-    return { owner, submitter, outsider, contributors, token, tokenManager, contributionRegistry, deltaVerifier, vestingVault };
+    return {
+      owner,
+      submitter,
+      outsider,
+      contributors,
+      token,
+      tokenManager,
+      modelRegistry,
+      contributionRegistry,
+      deltaVerifier,
+      vestingVault,
+    };
   }
 
   async function deployAmmFixture() {
@@ -295,6 +335,263 @@ describe("Property fuzz invariants", function () {
         }
         expect(await token.balanceOf(contributors[0].address)).to.equal(balanceBefore);
       }
+    });
+  });
+
+  describe("DeltaVerifier guardrails", function () {
+    describe("Budget invariant", function () {
+      it("covers exact-budget, over-budget, and remaining-budget accounting across random deltas", async function () {
+        const fixture = await loadFixture(deployDeltaVerifierFixture);
+        const { owner, submitter, deltaVerifier } = fixture;
+        const rng = makeRng(0xbadf00d);
+
+        for (let i = 0; i < 10; i += 1) {
+          await deltaVerifier.connect(owner).setMintBudget(MODEL_ID, MAX_REWARD);
+          const baselineScoreBps = rng.int(1000, 8000);
+          const deltaBps = rng.int(MIN_IMPROVEMENT_BPS, 500);
+          const payload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
+            pipelineRunId: `budget-invariant-${i}`,
+            baselineScoreBps,
+            candidateScoreBps: baselineScoreBps + deltaBps,
+            anchors: { idempotencyKey: ethers.id(`budget-invariant-${i}`) },
+          });
+          const contributors = [{ walletAddress: owner.address, weight: 10000 }];
+          const signatures = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+          const reward = await deltaVerifier.connect(submitter).submitMintRequest.staticCall(
+            MODEL_ID,
+            payload,
+            contributors,
+            signatures,
+          );
+
+          await deltaVerifier.connect(owner).setMintBudget(MODEL_ID, reward);
+          await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, signatures);
+          expect(await deltaVerifier.mintBudgetRemaining(MODEL_ID)).to.equal(0);
+
+          const retryPayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
+            pipelineRunId: `budget-retry-${i}`,
+            baselineScoreBps,
+            candidateScoreBps: baselineScoreBps + deltaBps,
+            anchors: { idempotencyKey: ethers.id(`budget-retry-${i}`) },
+          });
+          const retrySignatures = await attestMintRequest(deltaVerifier, owner, MODEL_ID, retryPayload, contributors);
+          await expect(
+            deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, retryPayload, contributors, retrySignatures)
+          )
+            .to.be.revertedWithCustomError(deltaVerifier, "MintBudgetExceeded")
+            .withArgs(MODEL_ID, reward, 0);
+          expect(await deltaVerifier.processedIdempotencyKeys(retryPayload.anchors.idempotencyKey)).to.equal(false);
+
+          await deltaVerifier.connect(owner).setMintBudget(MODEL_ID, reward + parseEther("17"));
+          await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, retryPayload, contributors, retrySignatures);
+          expect(await deltaVerifier.mintBudgetRemaining(MODEL_ID)).to.equal(parseEther("17"));
+        }
+      });
+    });
+
+    describe("Signature invariant", function () {
+      it("rejects forged signatures and accepts a valid attestation", async function () {
+        const fixture = await loadFixture(deployDeltaVerifierFixture);
+        const { owner, submitter, deltaVerifier } = fixture;
+        const payload = buildMintRequestPayload({
+          anchors: { idempotencyKey: ethers.id("sig-validity") },
+        });
+        const contributors = [{ walletAddress: owner.address, weight: 10000 }];
+
+        await expect(
+          deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, ["0x1234"])
+        ).to.be.reverted;
+
+        const signatures = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+        await expect(
+          deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, signatures)
+        ).to.emit(deltaVerifier, "DeltaOneAccepted");
+      });
+
+      it("treats one-byte payload and contributor flips as signature-breaking mutations", async function () {
+        const fixture = await loadFixture(deployDeltaVerifierFixture);
+        const { owner, submitter, deltaVerifier, outsider } = fixture;
+        const payload = buildMintRequestPayload({
+          anchors: { idempotencyKey: ethers.id("sig-field-flips") },
+        });
+        const contributors = [{ walletAddress: owner.address, weight: 10000 }];
+        const signatures = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+
+        const variants = [
+          { ...payload, pipelineRunId: `${payload.pipelineRunId}-x` },
+          { ...payload, baselineScoreBps: payload.baselineScoreBps + 1 },
+          { ...payload, candidateScoreBps: payload.candidateScoreBps - 1 },
+          { ...payload, maxCostUsdMicro: payload.maxCostUsdMicro + 1 },
+          { ...payload, actualCostUsdMicro: payload.actualCostUsdMicro + 1 },
+          { ...payload, totalSamples: payload.totalSamples + 1 },
+          { ...payload, anchors: { ...payload.anchors, benchmarkSpecHash: ethers.id("mut-bench") } },
+          { ...payload, anchors: { ...payload.anchors, datasetHash: ethers.id("mut-dataset") } },
+          { ...payload, anchors: { ...payload.anchors, attestationHash: ethers.id("mut-attestation") } },
+          { ...payload, anchors: { ...payload.anchors, idempotencyKey: ethers.id("mut-idem") } },
+          { ...payload, anchors: { ...payload.anchors, metricName: `${payload.anchors.metricName}-x` } },
+          { ...payload, anchors: { ...payload.anchors, metricFamily: `${payload.anchors.metricFamily}-x` } },
+          { ...payload, baselineCommitment: ethers.id("mut-baseline") },
+          { ...payload, candidateCommitment: ethers.id("mut-candidate") },
+        ];
+
+        for (const variant of variants) {
+          await expect(
+            deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, variant, contributors, signatures)
+          ).to.be.revertedWithCustomError(deltaVerifier, "SignerNotAttester");
+        }
+
+        await expect(
+          deltaVerifier.connect(submitter).submitMintRequest(
+            MODEL_ID,
+            payload,
+            [{ walletAddress: outsider.address, weight: 10000 }],
+            signatures,
+          )
+        ).to.be.revertedWithCustomError(deltaVerifier, "SignerNotAttester");
+      });
+    });
+
+    describe("Lineage invariant", function () {
+      it("rejects stale parents, rejects zero candidates, blocks unseeded models, and advances chained heads", async function () {
+        const fixture = await loadFixture(deployDeltaVerifierFixture);
+        const { owner, submitter, deltaVerifier, contributors } = fixture;
+        const contributorSet = [{ walletAddress: contributors[0].address, weight: 10000 }];
+
+        const firstPayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
+          pipelineRunId: "lineage-first",
+          anchors: { idempotencyKey: ethers.id("lineage-first") },
+        });
+        const firstSignatures = await attestMintRequest(deltaVerifier, owner, MODEL_ID, firstPayload, contributorSet);
+        await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, firstPayload, contributorSet, firstSignatures);
+        expect(await deltaVerifier.currentModelHead(MODEL_ID)).to.equal(firstPayload.candidateCommitment);
+
+        const stalePayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
+          pipelineRunId: "lineage-stale",
+          baselineCommitment: firstPayload.baselineCommitment,
+          anchors: { idempotencyKey: ethers.id("lineage-stale") },
+        });
+        const staleSignatures = await attestMintRequest(deltaVerifier, owner, MODEL_ID, stalePayload, contributorSet);
+        await expect(
+          deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, stalePayload, contributorSet, staleSignatures)
+        ).to.be.revertedWithCustomError(deltaVerifier, "LineageParentMismatch");
+
+        const zeroCandidatePayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
+          pipelineRunId: "lineage-zero-candidate",
+          candidateCommitment: ethers.ZeroHash,
+          anchors: { idempotencyKey: ethers.id("lineage-zero-candidate") },
+        });
+        const zeroCandidateSignatures = await attestMintRequest(
+          deltaVerifier,
+          owner,
+          MODEL_ID,
+          zeroCandidatePayload,
+          contributorSet,
+        );
+        await expect(
+          deltaVerifier.connect(submitter).submitMintRequest(
+            MODEL_ID,
+            zeroCandidatePayload,
+            contributorSet,
+            zeroCandidateSignatures,
+          )
+        ).to.be.revertedWithCustomError(deltaVerifier, "InvalidCandidateCommitment");
+
+        const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
+        const unseededRegistry = await ModelRegistry.deploy();
+        await unseededRegistry.waitForDeployment();
+        const TokenManager = await ethers.getContractFactory("TokenManager");
+        const unseededManager = await TokenManager.deploy(await unseededRegistry.getAddress());
+        await unseededManager.waitForDeployment();
+        const DataContributionRegistry = await ethers.getContractFactory("DataContributionRegistry");
+        const unseededContributionRegistry = await DataContributionRegistry.deploy();
+        await unseededContributionRegistry.waitForDeployment();
+        const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier");
+        const unseededVerifier = await DeltaVerifier.deploy(
+          await unseededRegistry.getAddress(),
+          await unseededManager.getAddress(),
+          await unseededContributionRegistry.getAddress(),
+          parseEther("1000"),
+          MIN_IMPROVEMENT_BPS,
+          MAX_REWARD,
+        );
+        await unseededVerifier.waitForDeployment();
+        await deployTestToken(unseededManager, MODEL_ID_STR, "Unseeded Token", "UNSD", parseEther("10000"), owner.address);
+        await unseededRegistry.registerModel(MODEL_ID, await unseededManager.getTokenAddress(MODEL_ID_STR), "accuracy");
+        await unseededManager.setDeltaVerifier(await unseededVerifier.getAddress());
+        await unseededContributionRegistry.grantRole(
+          await unseededContributionRegistry.RECORDER_ROLE(),
+          await unseededVerifier.getAddress(),
+        );
+        await unseededVerifier.grantRole(await unseededVerifier.SUBMITTER_ROLE(), submitter.address);
+        await configureLaunchAttester(unseededVerifier, owner, owner);
+        await configureMintBudget(unseededVerifier, owner, MODEL_ID);
+        const unseededPayload = buildMintRequestPayload({
+          anchors: { idempotencyKey: ethers.id("lineage-unseeded") },
+        });
+        const unseededSignatures = await attestMintRequest(
+          unseededVerifier,
+          owner,
+          MODEL_ID,
+          unseededPayload,
+          contributorSet,
+        );
+        await expect(
+          unseededVerifier.connect(submitter).submitMintRequest(
+            MODEL_ID,
+            unseededPayload,
+            contributorSet,
+            unseededSignatures,
+          )
+        ).to.be.revertedWithCustomError(unseededVerifier, "LineageNotSeeded");
+
+        const secondPayload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
+          pipelineRunId: "lineage-second",
+          anchors: { idempotencyKey: ethers.id("lineage-second") },
+        });
+        expect(secondPayload.baselineCommitment).to.equal(firstPayload.candidateCommitment);
+        const secondSignatures = await attestMintRequest(deltaVerifier, owner, MODEL_ID, secondPayload, contributorSet);
+        await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, secondPayload, contributorSet, secondSignatures);
+        expect(await deltaVerifier.currentModelHead(MODEL_ID)).to.equal(secondPayload.candidateCommitment);
+      });
+    });
+
+    describe("Golden fixture parity", function () {
+      it("submits the repo golden payload and rejects a tampered variant", async function () {
+        const fixture = await loadFixture(deployDeltaVerifierFixture);
+        const { owner, submitter, deltaVerifier, tokenManager, modelRegistry } = fixture;
+        const golden = loadGoldenFixture();
+        const modelId = BigInt(golden.modelId);
+        const modelIdStr = golden.modelId;
+
+        await deployTestToken(
+          tokenManager,
+          modelIdStr,
+          "Golden Property Token",
+          "GPTK",
+          parseEther("10000"),
+          owner.address,
+        );
+        await modelRegistry.registerModel(modelId, await tokenManager.getTokenAddress(modelIdStr), golden.metricName);
+        await configureMintBudget(deltaVerifier, owner, modelId);
+        await configureLineageGenesis(modelRegistry, owner, modelId, golden.baselineCommitment);
+
+        const payload = goldenPayload(golden);
+        const contributors = golden.contributors;
+        const signatures = await attestMintRequest(deltaVerifier, owner, modelId, payload, contributors);
+
+        await expect(
+          deltaVerifier.connect(submitter).submitMintRequest(
+            modelId,
+            { ...payload, totalSamples: payload.totalSamples + 1 },
+            contributors,
+            signatures,
+          )
+        ).to.be.revertedWithCustomError(deltaVerifier, "SignerNotAttester");
+
+        await expect(
+          deltaVerifier.connect(submitter).submitMintRequest(modelId, payload, contributors, signatures)
+        ).to.emit(deltaVerifier, "DeltaOneAccepted");
+      });
     });
   });
 

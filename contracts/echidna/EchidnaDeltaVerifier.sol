@@ -59,6 +59,7 @@ contract EchidnaDeltaVerifier {
 
         manager.setDeltaVerifier(address(deltaVerifier));
         contributionRegistry.grantRole(contributionRegistry.RECORDER_ROLE(), address(deltaVerifier));
+        deltaVerifier.grantRole(deltaVerifier.SUBMITTER_ROLE(), address(this));
 
         deltaVerifier.addAttester(MOCK_ATTESTER);
         deltaVerifier.setAttesterThreshold(1);

@@ -1,5 +1,6 @@
 {
   "_comment": "Accepted or triaged Slither findings. Each entry must include a justification and review metadata. See docs/slither-static-analysis.md.",
+  "_retriage": "HOK-2137: re-triaged 2026-06-10 against DeltaVerifier.sol and ModelRegistry.sol. Zero un-acknowledged High/Medium findings. All existing DeltaVerifier Medium unused-return entries (044352de, 3a7488a0) confirmed still valid — contribution IDs are intentionally not consumed; registry side effect is canonical. Slither 0.11.5, 146 results, 16 High/Medium.",
   "accepted": [
     {
       "id": "1d7ad28cad4e8097946a98348cad9ba5573af5b8c2c21093f73f9662a88325cf",

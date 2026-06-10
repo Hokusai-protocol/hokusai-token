@@ -38,7 +38,8 @@ const ABIS = {
     "event DeltaOneAccepted(uint256 indexed modelId,bytes32 indexed idempotencyKey,bytes32 indexed benchmarkSpecHash,bytes32 attestationHash,bytes32 datasetHash,string metricName,string metricFamily,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 rewardAmount,string pipelineRunId)",
     "event EvaluationSubmitted(string indexed pipelineRunId,uint256 indexed modelId)",
     "function processedIdempotencyKeys(bytes32 idempotencyKey) view returns (bool)",
-    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
+    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors,bytes32 baselineCommitment,bytes32 candidateCommitment) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
+    "function currentModelHead(uint256 modelId) view returns (bytes32)",
   ],
   ammFactory: [
     "function getPool(string modelId) view returns (address)",
@@ -97,6 +98,8 @@ const MINT_REQUEST_EIP712_TYPES = {
     { name: "actualCostUsdMicro", type: "uint256" },
     { name: "totalSamples", type: "uint256" },
     { name: "anchors", type: "BenchmarkAnchors" },
+    { name: "baselineCommitment", type: "bytes32" },
+    { name: "candidateCommitment", type: "bytes32" },
   ],
   BenchmarkAnchors: [
     { name: "benchmarkSpecHash", type: "bytes32" },
@@ -491,7 +494,12 @@ async function findBuyAmountForTokenTarget(pool, targetTokens) {
   return high;
 }
 
-function makeMintFixture({ modelId, symbol, contributors }) {
+// HOK-2133: write-mode submissions require baselineCommitment to equal the model's current
+// on-chain head (read via DeltaVerifier.currentModelHead) and a fresh unique candidateCommitment.
+// This also requires the deployed contract to have a genesis seeded
+// (ModelRegistry.setWeightGenesis); without it submitMintRequest fail-closes — the same safe
+// pre-launch state noted for the attester/budget preconditions.
+function makeMintFixture({ modelId, symbol, contributors, baselineCommitment }) {
   const runId = `${symbol.toLowerCase()}-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
   const idempotencyKey = hash(`hokusai:sepolia:token-suite:${modelId}:${runId}`);
   return {
@@ -511,6 +519,8 @@ function makeMintFixture({ modelId, symbol, contributors }) {
         metricName: `${symbol.toLowerCase()}_quality_score`,
         metricFamily: "proportion",
       },
+      baselineCommitment,
+      candidateCommitment: hre.ethers.id(`candidate-${symbol}-${runId}`),
     },
     contributors,
     idempotencyKey,
@@ -635,6 +645,8 @@ async function checkToken({ tokenInfo, contracts, signer, recorder, options, cha
     }
   }
 
+  // HOK-2133: baselineCommitment must equal the model's current on-chain head for write-mode.
+  const baselineCommitment = await deltaVerifier.currentModelHead(modelIdBigInt);
   const fixture = makeMintFixture({
     modelId: modelIdString,
     symbol: tokenInfo.symbol,
@@ -642,6 +654,7 @@ async function checkToken({ tokenInfo, contracts, signer, recorder, options, cha
       { walletAddress: signer.address, weight: 7000 },
       { walletAddress: "0x742d35cc6634c0532925a3b844bc9e7595f62341", weight: 3000 },
     ],
+    baselineCommitment,
   });
 
   const alreadyProcessed = await deltaVerifier.processedIdempotencyKeys(fixture.idempotencyKey);

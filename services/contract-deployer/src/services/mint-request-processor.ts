@@ -66,6 +66,11 @@ export class MintRequestProcessor {
         metricName: message.evaluation.metric_name,
         metricFamily: message.evaluation.metric_family,
       },
+      // HOK-2133: lineage commitments come from the pipeline message in HOK-2134/HOK-2136. Until then these
+      // are placeholders; on-chain this fail-closes (baseline != head / zero candidate) which is the intended
+      // safe state pre-launch.
+      baselineCommitment: ethers.ZeroHash,
+      candidateCommitment: ethers.ZeroHash,
     };
   }
 

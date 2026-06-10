@@ -13,6 +13,7 @@ const {
   attestMintRequest,
   configureLaunchAttester,
   configureMintBudget,
+  configureLineageGenesis,
 } = require("./helpers/mintRequest");
 
 describe("DeltaVerifier MintRequest", function () {
@@ -137,6 +138,7 @@ describe("DeltaVerifier MintRequest", function () {
 
     await configureLaunchAttester(deltaVerifier, owner, owner);
     await configureMintBudget(deltaVerifier, owner, MODEL_ID);
+    await configureLineageGenesis(modelRegistry, owner, MODEL_ID);
 
     deployedToken = await getToken();
     hokusaiParams = await getParams();

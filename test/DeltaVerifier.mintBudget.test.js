@@ -11,8 +11,10 @@ const { parseEther } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
 const {
   buildMintRequestPayload,
+  payloadForNextLink,
   attestMintRequest,
   configureLaunchAttester,
+  configureLineageGenesis,
 } = require("./helpers/mintRequest");
 
 const MODEL_ID = 1;
@@ -67,6 +69,7 @@ describe("DeltaVerifier — per-model mint budget (HOK-2131)", function () {
     await hokusaiParams.setTokensPerDeltaOne(parseEther("100"));
 
     await configureLaunchAttester(deltaVerifier, owner, attester);
+    await configureLineageGenesis(modelRegistry, owner, MODEL_ID);
   });
 
   // 100-bps improvement → REWARD tokens for a single contributor.
@@ -208,7 +211,13 @@ describe("DeltaVerifier — per-model mint budget (HOK-2131)", function () {
 
       // Halt: set remaining to 0; the next paying mint is blocked again.
       await deltaVerifier.connect(owner).setMintBudget(MODEL_ID, 0);
-      await expect(submit(payload("halt-2"), contributors()))
+      // halt-1 advanced the lineage head, so halt-2 must parent off the new head to reach the budget gate.
+      const haltTwo = await payloadForNextLink(deltaVerifier, MODEL_ID, {
+        baselineScoreBps: 5000,
+        candidateScoreBps: 5100,
+        anchors: { idempotencyKey: ethers.id("budget-halt-2") },
+      });
+      await expect(submit(haltTwo, contributors()))
         .to.be.revertedWithCustomError(deltaVerifier, "MintBudgetExceeded")
         .withArgs(MODEL_ID, REWARD, 0);
     });

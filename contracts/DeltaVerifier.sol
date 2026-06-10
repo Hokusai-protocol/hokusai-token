@@ -44,6 +44,16 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     /// idempotency key, so the identical attested request succeeds verbatim once the admin Safe tops up.
     error MintBudgetExceeded(uint256 modelId, uint256 required, uint256 remaining);
 
+    // --- Model-weight lineage errors (HOK-2133) ---
+    /// @notice The model has no genesis weight commitment set, so its lineage head is undefined. Fail-closed:
+    /// mint reverts until the registration authority sets the genesis (ModelRegistry.setWeightGenesis).
+    error LineageNotSeeded(uint256 modelId);
+    /// @notice The attested baselineCommitment does not equal the model's canonical head. The producer must
+    /// re-base on the current head and re-evaluate. Reverts without burning the idempotency key.
+    error LineageParentMismatch(uint256 modelId, bytes32 expectedHead, bytes32 providedBaseline);
+    error InvalidCandidateCommitment();
+    error InvalidHeadReset();
+
     /// @notice Thrown by the legacy submitEvaluation* mint entrypoints once legacy mints are disabled.
     error LegacyMintEntrypointDisabled();
 
@@ -121,6 +131,11 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         uint256 actualCostUsdMicro;
         uint256 totalSamples;
         BenchmarkAnchors anchors;
+        // Model-weight lineage commitments (HOK-2133). Opaque bytes32 (e.g. 0x + sha256 / Merkle root of the
+        // weight artifact). baselineCommitment must equal the model's current canonical head; on a paying
+        // mint candidateCommitment becomes the new head — a hash-linked chain from genesis to head.
+        bytes32 baselineCommitment;
+        bytes32 candidateCommitment;
     }
 
     ModelRegistry public immutable modelRegistry;
@@ -154,6 +169,15 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     // 1.5M starting budget) are deployment config, not contract constants.
     mapping(uint256 => uint256) public mintBudgetRemaining;
 
+    // --- Model-weight lineage head (HOK-2133) ---
+    // The canonical weight commitment per model — the head of a hash-linked chain rooted at the model's
+    // genesis (ModelRegistry.weightGenesis). Each paying mint must attest a baselineCommitment equal to the
+    // current head and atomically advances the head to its candidateCommitment, so the full lineage is
+    // rebuildable from genesis to head and a forged mint cannot invent a baseline. A stored 0 means
+    // "not yet advanced past genesis" — the effective head falls back to the registry genesis (see
+    // currentModelHead). The head advances ONLY on paying mints, so the canonical chain never regresses.
+    mapping(uint256 => bytes32) public modelWeightHead;
+
     // --- EIP-712 typed-data definitions for the attested mint payload (HOK-2132) ---
     // The signature binds the FULL economic payload (modelId + every anchor + scores/costs + samples +
     // contributors), domain-separated by chainId + this contract's address (via the EIP712 base). The
@@ -168,11 +192,11 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     bytes32 private constant CONTRIBUTOR_TYPEHASH = keccak256("Contributor(address walletAddress,uint256 weight)");
     bytes32 private constant MINT_REQUEST_PAYLOAD_TYPEHASH =
         keccak256(
-            "MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)"
+            "MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors,bytes32 baselineCommitment,bytes32 candidateCommitment)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)"
         );
     bytes32 private constant MINT_REQUEST_TYPEHASH =
         keccak256(
-            "MintRequest(uint256 modelId,MintRequestPayload payload,Contributor[] contributors)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)Contributor(address walletAddress,uint256 weight)MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors)"
+            "MintRequest(uint256 modelId,MintRequestPayload payload,Contributor[] contributors)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)Contributor(address walletAddress,uint256 weight)MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors,bytes32 baselineCommitment,bytes32 candidateCommitment)"
         );
 
     event EvaluationSubmitted(
@@ -228,6 +252,13 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     event MintBudgetSet(uint256 indexed modelId, uint256 previousRemaining, uint256 newRemaining);
     event MintBudgetToppedUp(uint256 indexed modelId, uint256 addedAmount, uint256 newRemaining);
     event MintBudgetConsumed(uint256 indexed modelId, uint256 amount, uint256 remaining);
+
+    // --- Model-weight lineage events (HOK-2133) ---
+    // ModelLineageAdvanced carries parent -> child for every paying mint; rebuild a model's full chain by
+    // filtering these by modelId from genesis to head. ModelLineageHeadReset is the governed brick-prevention
+    // correction (e.g. a wrong commitment was accepted and would otherwise strand the model's mint path).
+    event ModelLineageAdvanced(uint256 indexed modelId, bytes32 parent, bytes32 child);
+    event ModelLineageHeadReset(uint256 indexed modelId, bytes32 oldHead, bytes32 newHead);
 
     constructor(
         address _modelRegistry,
@@ -396,6 +427,18 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         // payload. Fail-closed if no threshold is configured. Verified before any state change or mint.
         _verifyAttestation(modelId, payload, contributors, attesterSignatures);
 
+        // Lineage parent check (HOK-2133): the attested baselineCommitment must equal the model's canonical
+        // head (the registry genesis until the first paying mint advances it). Reverts WITHOUT burning the
+        // idempotency key, so a producer whose baseline went stale (lost a concurrent race) re-bases on the
+        // new head and re-evaluates. The candidate must be non-zero; on a paying mint it becomes the new head.
+        bytes32 currentHead = modelWeightHead[modelId];
+        if (currentHead == bytes32(0)) currentHead = modelRegistry.weightGenesis(modelId);
+        if (currentHead == bytes32(0)) revert LineageNotSeeded(modelId);
+        if (payload.candidateCommitment == bytes32(0)) revert InvalidCandidateCommitment();
+        if (payload.baselineCommitment != currentHead) {
+            revert LineageParentMismatch(modelId, currentHead, payload.baselineCommitment);
+        }
+
         (address[] memory contributorAddresses, uint256[] memory rewardAmounts) = _validateContributors(contributors);
 
         uint256 deltaInBps = _calculateSingleMetricDelta(payload.baselineScoreBps, payload.candidateScoreBps);
@@ -427,6 +470,11 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         }
 
         if (totalReward > 0) {
+            // Advance the lineage head atomically (HOK-2133): paying mints only, so the canonical chain never
+            // regresses to an equal/worse model. parent = currentHead, child = candidateCommitment.
+            modelWeightHead[modelId] = payload.candidateCommitment;
+            emit ModelLineageAdvanced(modelId, currentHead, payload.candidateCommitment);
+
             // Decrement before minting (checks-effects-interactions); the budget gate above guarantees no underflow.
             uint256 budgetRemaining = mintBudgetRemaining[modelId] - totalReward;
             mintBudgetRemaining[modelId] = budgetRemaining;
@@ -756,7 +804,29 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         mintBudgetRemaining[modelId] = newRemaining;
         emit MintBudgetToppedUp(modelId, amount, newRemaining);
     }
-    
+
+    // --- Model-weight lineage administration (HOK-2133) ---
+
+    /// @notice The model's current canonical weight head — the registry genesis until the first paying mint
+    /// advances it. Off-chain producers read this to know what baselineCommitment to attest (and to re-base
+    /// after losing a concurrent race). Returns 0 only if no genesis has been seeded.
+    function currentModelHead(uint256 modelId) external view returns (bytes32) {
+        bytes32 head = modelWeightHead[modelId];
+        return head == bytes32(0) ? modelRegistry.weightGenesis(modelId) : head;
+    }
+
+    /// @notice Governed brick-prevention: reset a model's lineage head to a known-good commitment if a wrong
+    /// commitment was accepted (which would otherwise strand the model — no future baseline could match).
+    /// Emergency correction only; routine evolution happens through paying mints. In a generalized protocol
+    /// this would become per-model-owner controlled; for launch it is DEFAULT_ADMIN_ROLE (the admin Safe).
+    function resetModelHead(uint256 modelId, bytes32 newHead) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newHead == bytes32(0)) revert InvalidHeadReset();
+        bytes32 oldHead = modelWeightHead[modelId];
+        if (oldHead == bytes32(0)) oldHead = modelRegistry.weightGenesis(modelId);
+        modelWeightHead[modelId] = newHead;
+        emit ModelLineageHeadReset(modelId, oldHead, newHead);
+    }
+
     // --- Attester registry governance (HOK-2126) ---
     // Controlled by DEFAULT_ADMIN_ROLE (the admin Safe; non-emergency changes are expected to route
     // through the governance timelock). Launch sequence: addAttester(launchAttester) then
@@ -971,7 +1041,9 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
                     payload.maxCostUsdMicro,
                     payload.actualCostUsdMicro,
                     payload.totalSamples,
-                    _hashAnchors(payload.anchors)
+                    _hashAnchors(payload.anchors),
+                    payload.baselineCommitment,
+                    payload.candidateCommitment
                 )
             );
     }

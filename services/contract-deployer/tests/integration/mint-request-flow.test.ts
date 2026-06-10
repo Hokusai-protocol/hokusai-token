@@ -18,7 +18,7 @@ import { MintRequestProcessor } from '../../src/services/mint-request-processor'
 import { createMockRedisClient, createMockRedisMulti } from '../mocks/redis-mock';
 
 const VENDORED_FIXTURE_PATH = path.resolve(__dirname, '../fixtures/mint_request.v1.json');
-const SUBMIT_MINT_REQUEST_SELECTOR = '0x5d3e811b';
+const SUBMIT_MINT_REQUEST_SELECTOR = '0xc9b4e69b';
 type MintRequestFixture = MintRequestMessage & {
   totalSamples: number;
   evaluation: MintRequestMessage['evaluation'] & {

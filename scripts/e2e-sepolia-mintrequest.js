@@ -42,7 +42,8 @@ const ABIS = {
   ],
   deltaVerifier: [
     "function processedIdempotencyKeys(bytes32 idempotencyKey) view returns (bool)",
-    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
+    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors,bytes32 baselineCommitment,bytes32 candidateCommitment) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
+    "function currentModelHead(uint256 modelId) view returns (bytes32)",
   ],
 };
 
@@ -62,6 +63,8 @@ const MINT_REQUEST_EIP712_TYPES = {
     { name: "actualCostUsdMicro", type: "uint256" },
     { name: "totalSamples", type: "uint256" },
     { name: "anchors", type: "BenchmarkAnchors" },
+    { name: "baselineCommitment", type: "bytes32" },
+    { name: "candidateCommitment", type: "bytes32" },
   ],
   BenchmarkAnchors: [
     { name: "benchmarkSpecHash", type: "bytes32" },
@@ -216,7 +219,12 @@ function makeMintRequest(modelId, runId, contributorAddresses) {
   };
 }
 
-function toContractPayload(message) {
+// HOK-2133: write-mode submissions require baselineCommitment to equal the model's current
+// on-chain head (read via DeltaVerifier.currentModelHead) and a fresh unique candidateCommitment.
+// This also requires the deployed contract to have a genesis seeded
+// (ModelRegistry.setWeightGenesis); without it submitMintRequest fail-closes — the same safe
+// pre-launch state noted for the attester preconditions.
+function toContractPayload(message, baselineCommitment) {
   return {
     pipelineRunId: message.eval_id,
     baselineScoreBps: message.evaluation.baseline_score_bps,
@@ -232,6 +240,8 @@ function toContractPayload(message) {
       metricName: message.evaluation.metric_name,
       metricFamily: message.evaluation.metric_family,
     },
+    baselineCommitment,
+    candidateCommitment: hre.ethers.id(`candidate-${message.idempotency_key}-${Date.now()}`),
   };
 }
 
@@ -382,7 +392,9 @@ async function main() {
     signer.address,
     "0x742d35cc6634c0532925a3b844bc9e7595f62341",
   ]);
-  const payload = toContractPayload(message);
+  // HOK-2133: baselineCommitment must equal the model's current on-chain head for write-mode.
+  const baselineCommitment = await deltaVerifier.currentModelHead(modelId);
+  const payload = toContractPayload(message, baselineCommitment);
   const contributors = toContractContributors(message);
 
   // HOK-2132: build the attester signature once; reused for static call and writes.

@@ -13,6 +13,8 @@ const {
   attestMintRequest,
   configureLaunchAttester,
   configureMintBudget,
+  configureLineageGenesis,
+  payloadForNextLink,
 } = require("./helpers/mintRequest");
 
 describe("Allocation accounting separation regression", function () {
@@ -102,6 +104,7 @@ describe("Allocation accounting separation regression", function () {
 
     await configureLaunchAttester(deltaVerifier, owner, owner);
     await configureMintBudget(deltaVerifier, owner, MODEL_ID_UINT);
+    await configureLineageGenesis(modelRegistry, owner, MODEL_ID_UINT);
 
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const usdc = await MockUSDC.deploy();
@@ -492,9 +495,13 @@ describe("Allocation accounting separation regression", function () {
       });
       await firstReward.tx.wait();
 
-      const rewardCapPayload = fixture.buildMintRequest("reward-cap-2", {
+      const rewardCapPayload = await payloadForNextLink(fixture.deltaVerifier, fixture.modelIdUint, {
         baselineScoreBps: 0,
         candidateScoreBps: 2000,
+        pipelineRunId: "reward-cap-2",
+        anchors: {
+          idempotencyKey: ethers.id("reward-cap-2-idempotency"),
+        },
       });
       const rewardCapContributors = [{ walletAddress: fixture.contributor.address, weight: 10000 }];
       const rewardCapSigs = await attestMintRequest(

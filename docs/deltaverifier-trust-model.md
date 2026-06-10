@@ -6,6 +6,8 @@ Audience: security reviewers, launch reviewers, multisig owners, relayer operato
 
 This is a protocol trust-model note, not a deployment-instance runbook. Model-specific parameter values, production addresses, and signer identities belong in deployment artifacts and custody runbooks, not here. See `contracts/DeltaVerifier.sol`, `contracts/HokusaiParams.sol`, and `deployments/TESTNET-CHECKLIST.md` for the implementation and rehearsal sources cited below.
 
+> **Update (HOK-2132 — canonical mint path is now attester-gated).** The "trusted submitter relays honest results" framing below describes the **legacy** `submitEvaluation*` paths (disabled on mainnet, HOK-2125). The canonical `submitMintRequest` path no longer trusts the submitter for *authenticity*: it requires EIP-712 signature(s) from registered **attester(s)** (`attesterThreshold`-of-`n`, fail-closed when unconfigured) over the full economic payload, domain-separated by chainId + verifying contract. `SUBMITTER_ROLE` is now only a relayer; a forged queue message cannot mint without an attester signature. Where this document says the submitter is trusted to relay honest benchmark results, read that as applying to the legacy paths only. See `docs/mint-authority-hardening-design.md` (Decisions 1–5, 9) and the attester custody section of `docs/mainnet-custody-runbook.md`.
+
 ## Purpose and audience
 
 DeltaVerifier v1 is intentionally not a fully trustless benchmark-verification system. The contract trusts an approved submitter to relay honest benchmark results, then applies a narrow set of on-chain checks before minting through `TokenManager` and recording provenance in `DataContributionRegistry` (`contracts/DeltaVerifier.sol:168-205`, `contracts/DeltaVerifier.sol:207-359`).

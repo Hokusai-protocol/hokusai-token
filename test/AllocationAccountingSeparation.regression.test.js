@@ -8,7 +8,11 @@ const {
   buildVestingConfig,
   wholeTokens,
 } = require("./helpers/tokenDeployment");
-const { buildMintRequestPayload } = require("./helpers/mintRequest");
+const {
+  buildMintRequestPayload,
+  attestMintRequest,
+  configureLaunchAttester,
+} = require("./helpers/mintRequest");
 
 describe("Allocation accounting separation regression", function () {
   const MODEL_ID_STR = "1101783";
@@ -95,6 +99,8 @@ describe("Allocation accounting separation regression", function () {
     const submitterRole = await deltaVerifier.SUBMITTER_ROLE();
     await deltaVerifier.grantRole(submitterRole, submitter.address);
 
+    await configureLaunchAttester(deltaVerifier, owner, owner);
+
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const usdc = await MockUSDC.deploy();
     await usdc.waitForDeployment();
@@ -144,12 +150,14 @@ describe("Allocation accounting separation regression", function () {
     async function submitMintRequest(uniqueLabel, payloadOverrides = {}, contributorsOverride) {
       const payload = buildMintRequest(uniqueLabel, payloadOverrides);
       const contributors = contributorsOverride || [{ walletAddress: contributor.address, weight: 10000 }];
+      const sigs = await attestMintRequest(deltaVerifier, owner, modelIdUint, payload, contributors);
       const rewardAmount = await deltaVerifier.connect(submitter).submitMintRequest.staticCall(
         modelIdUint,
         payload,
-        contributors
+        contributors,
+        sigs
       );
-      const tx = await deltaVerifier.connect(submitter).submitMintRequest(modelIdUint, payload, contributors);
+      const tx = await deltaVerifier.connect(submitter).submitMintRequest(modelIdUint, payload, contributors, sigs);
       return { payload, contributors, rewardAmount, tx };
     }
 
@@ -482,14 +490,25 @@ describe("Allocation accounting separation regression", function () {
       });
       await firstReward.tx.wait();
 
+      const rewardCapPayload = fixture.buildMintRequest("reward-cap-2", {
+        baselineScoreBps: 0,
+        candidateScoreBps: 2000,
+      });
+      const rewardCapContributors = [{ walletAddress: fixture.contributor.address, weight: 10000 }];
+      const rewardCapSigs = await attestMintRequest(
+        fixture.deltaVerifier,
+        fixture.owner,
+        fixture.modelIdUint,
+        rewardCapPayload,
+        rewardCapContributors
+      );
+
       await expect(
         fixture.deltaVerifier.connect(fixture.submitter).submitMintRequest(
           fixture.modelIdUint,
-          fixture.buildMintRequest("reward-cap-2", {
-            baselineScoreBps: 0,
-            candidateScoreBps: 2000,
-          }),
-          [{ walletAddress: fixture.contributor.address, weight: 10000 }]
+          rewardCapPayload,
+          rewardCapContributors,
+          rewardCapSigs
         )
       ).to.be.revertedWith("Exceeds reward mint cap");
     });

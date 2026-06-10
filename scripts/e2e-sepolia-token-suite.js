@@ -38,7 +38,7 @@ const ABIS = {
     "event DeltaOneAccepted(uint256 indexed modelId,bytes32 indexed idempotencyKey,bytes32 indexed benchmarkSpecHash,bytes32 attestationHash,bytes32 datasetHash,string metricName,string metricFamily,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 rewardAmount,string pipelineRunId)",
     "event EvaluationSubmitted(string indexed pipelineRunId,uint256 indexed modelId)",
     "function processedIdempotencyKeys(bytes32 idempotencyKey) view returns (bool)",
-    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors) returns (uint256)",
+    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
   ],
   ammFactory: [
     "function getPool(string modelId) view returns (address)",
@@ -80,6 +80,61 @@ const ABIS = {
     "function getSchedule(uint256 scheduleId) view returns (address token,address beneficiary,string modelId,uint256 totalAmount,uint256 claimed,uint64 start,uint64 cliffSeconds,uint64 duration)",
   ],
 };
+
+// HOK-2132: EIP-712 typed-data definition for the attester signature now required
+// by DeltaVerifier.submitMintRequest. Mirrors the contract's struct hashing.
+const MINT_REQUEST_EIP712_TYPES = {
+  MintRequest: [
+    { name: "modelId", type: "uint256" },
+    { name: "payload", type: "MintRequestPayload" },
+    { name: "contributors", type: "Contributor[]" },
+  ],
+  MintRequestPayload: [
+    { name: "pipelineRunId", type: "string" },
+    { name: "baselineScoreBps", type: "uint256" },
+    { name: "candidateScoreBps", type: "uint256" },
+    { name: "maxCostUsdMicro", type: "uint256" },
+    { name: "actualCostUsdMicro", type: "uint256" },
+    { name: "totalSamples", type: "uint256" },
+    { name: "anchors", type: "BenchmarkAnchors" },
+  ],
+  BenchmarkAnchors: [
+    { name: "benchmarkSpecHash", type: "bytes32" },
+    { name: "datasetHash", type: "bytes32" },
+    { name: "attestationHash", type: "bytes32" },
+    { name: "idempotencyKey", type: "bytes32" },
+    { name: "metricName", type: "string" },
+    { name: "metricFamily", type: "string" },
+  ],
+  Contributor: [
+    { name: "walletAddress", type: "address" },
+    { name: "weight", type: "uint256" },
+  ],
+};
+
+// HOK-2132: sign the typed MintRequest with a registered attester key and return
+// the bytes[] attesterSignatures argument for submitMintRequest (single-key setup).
+async function signMintRequestAttestation({
+  attester,
+  deltaVerifierAddress,
+  chainId,
+  modelId,
+  payload,
+  contributors,
+}) {
+  const domain = {
+    name: "HokusaiDeltaVerifier",
+    version: "1",
+    chainId,
+    verifyingContract: deltaVerifierAddress,
+  };
+  const signature = await attester.signTypedData(domain, MINT_REQUEST_EIP712_TYPES, {
+    modelId,
+    payload,
+    contributors,
+  });
+  return [signature];
+}
 
 function parseArgs(argv) {
   const options = {
@@ -463,7 +518,7 @@ function makeMintFixture({ modelId, symbol, contributors }) {
   };
 }
 
-async function checkToken({ tokenInfo, contracts, signer, recorder, options }) {
+async function checkToken({ tokenInfo, contracts, signer, recorder, options, chainId }) {
   const label = `${tokenInfo.symbol} model ${tokenInfo.modelId}`;
 
   if (!/^\d+$/.test(tokenInfo.modelId)) {
@@ -594,6 +649,16 @@ async function checkToken({ tokenInfo, contracts, signer, recorder, options }) {
     idempotencyKey: fixture.idempotencyKey,
   });
 
+  // HOK-2132: build the attester signature once; reused for static call and write.
+  const attesterSignatures = await signMintRequestAttestation({
+    attester: signer,
+    deltaVerifierAddress: await deltaVerifier.getAddress(),
+    chainId,
+    modelId: fixture.modelId,
+    payload: fixture.payload,
+    contributors: fixture.contributors,
+  });
+
   let staticCallError = null;
   let staticCall = null;
   try {
@@ -601,6 +666,7 @@ async function checkToken({ tokenInfo, contracts, signer, recorder, options }) {
       fixture.modelId,
       fixture.payload,
       fixture.contributors,
+      attesterSignatures,
     );
   } catch (error) {
     staticCallError = error instanceof Error ? error.message : String(error);
@@ -618,7 +684,8 @@ async function checkToken({ tokenInfo, contracts, signer, recorder, options }) {
     const beforeSchedules = vestingVault
       ? await Promise.all(fixture.contributors.map((contributor) => vestingVault.getSchedulesByBeneficiary(contributor.walletAddress)))
       : [];
-    const tx = await deltaVerifier.submitMintRequest(fixture.modelId, fixture.payload, fixture.contributors);
+    // HOK-2132: requires the redeployed DeltaVerifier with an attester registered (addAttester + setAttesterThreshold). Until then write-mode mints fail-closed.
+    const tx = await deltaVerifier.submitMintRequest(fixture.modelId, fixture.payload, fixture.contributors, attesterSignatures);
     const receipt = await tx.wait(1);
     const afterBalances = await Promise.all(fixture.contributors.map((contributor) => token.balanceOf(contributor.walletAddress)));
     const afterSchedules = vestingVault
@@ -1002,7 +1069,7 @@ async function main() {
       tokens.push(tokenInfo);
       continue;
     }
-    tokens.push(await checkToken({ tokenInfo, contracts, signer, recorder, options }));
+    tokens.push(await checkToken({ tokenInfo, contracts, signer, recorder, options, chainId }));
   }
 
   const result = {

@@ -18,7 +18,13 @@ export class MintRequestProcessor {
     const modelId = BigInt(message.model_id_uint);
     const payload = this.buildPayload(message);
     const contributors = this.buildContributors(message);
-    const result = await this.deltaVerifierClient.submitMintRequest(modelId, payload, contributors);
+    // HOK-2132: attester signatures required on-chain. Real signing is wired in HOK-2135/HOK-2136; until then this fail-closes (empty array → on-chain revert) which is the intended safe state pre-launch.
+    const result = await this.deltaVerifierClient.submitMintRequest(
+      modelId,
+      payload,
+      contributors,
+      [],
+    );
     const settlement = createMintRequestSettlement({
       idempotency_key: message.idempotency_key,
       attestation_hash: message.attestation_hash,

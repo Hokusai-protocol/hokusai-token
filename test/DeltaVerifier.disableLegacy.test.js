@@ -7,7 +7,11 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { buildMintRequestPayload } = require("./helpers/mintRequest");
+const {
+  buildMintRequestPayload,
+  attestMintRequest,
+  configureLaunchAttester,
+} = require("./helpers/mintRequest");
 
 describe("DeltaVerifier — disable legacy mint entrypoints (HOK-2125)", function () {
   let owner, submitter, contributor1, outsider;
@@ -99,6 +103,7 @@ describe("DeltaVerifier — disable legacy mint entrypoints (HOK-2125)", functio
       await deltaVerifier.getAddress()
     );
     await deltaVerifier.grantRole(await deltaVerifier.SUBMITTER_ROLE(), submitter.address);
+    await configureLaunchAttester(deltaVerifier, owner, owner);
   });
 
   it("legacyMintsDisabled defaults to false (legacy paths active for existing tests/testnet)", async function () {
@@ -137,7 +142,9 @@ describe("DeltaVerifier — disable legacy mint entrypoints (HOK-2125)", functio
     const payload = buildMintRequestPayload();
     const contributors = [{ walletAddress: contributor1.address, weight: 10000 }];
 
-    await expect(deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors))
+    const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, contributors);
+
+    await expect(deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, contributors, sigs))
       .to.emit(deltaVerifier, "DeltaOneAccepted");
   });
 

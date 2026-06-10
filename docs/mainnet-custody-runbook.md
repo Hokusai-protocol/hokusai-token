@@ -83,7 +83,7 @@ Optional but related contracts:
 
 ## Attester Registry Custody (DeltaVerifier, HOK-2126)
 
-The attester registry authorizes mints independently of the `SUBMITTER` relayer (the signature verification that reads it lands in HOK-2132). It is an address **set** plus a **threshold** `m`, governed by `DEFAULT_ADMIN_ROLE`:
+The attester registry authorizes mints independently of the `SUBMITTER` relayer. As of **HOK-2132** the verification is live: `submitMintRequest` requires `attesterThreshold`-of-`n` EIP-712 signatures from registered attesters over the full (modelId, payload, contributors) tuple (domain `{ name: "HokusaiDeltaVerifier", version: "1", chainId, verifyingContract }`), and is **fail-closed** — every mint reverts (`AttestationThresholdNotConfigured`) until the set + threshold are configured. The attester signs `DeltaVerifier.hashMintRequest(...)`; that digest is the exact bytes the human-in-the-loop / HSM signer must approve. The registry is an address **set** plus a **threshold** `m`, governed by `DEFAULT_ADMIN_ROLE`:
 
 | Action | Function | Authority | Path |
 | --- | --- | --- | --- |

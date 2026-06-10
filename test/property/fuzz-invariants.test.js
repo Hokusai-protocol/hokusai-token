@@ -4,7 +4,11 @@ const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 
 const { buildInitialParams, buildVestingConfig, deployTestToken } = require("../helpers/tokenDeployment");
-const { buildMintRequestPayload } = require("../helpers/mintRequest");
+const {
+  buildMintRequestPayload,
+  attestMintRequest,
+  configureLaunchAttester,
+} = require("../helpers/mintRequest");
 
 function makeRng(seed) {
   let state = BigInt(seed);
@@ -95,6 +99,8 @@ describe("Property fuzz invariants", function () {
     await contributionRegistry.grantRole(await contributionRegistry.RECORDER_ROLE(), await deltaVerifier.getAddress());
     await deltaVerifier.grantRole(await deltaVerifier.SUBMITTER_ROLE(), submitter.address);
 
+    await configureLaunchAttester(deltaVerifier, owner, owner);
+
     const params = buildInitialParams(owner.address, {
       tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,
       vestingConfig: buildVestingConfig({
@@ -117,7 +123,7 @@ describe("Property fuzz invariants", function () {
     const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
     await modelRegistry.registerModel(MODEL_ID, tokenAddress, "accuracy");
 
-    return { submitter, outsider, contributors, token, tokenManager, contributionRegistry, deltaVerifier, vestingVault };
+    return { owner, submitter, outsider, contributors, token, tokenManager, contributionRegistry, deltaVerifier, vestingVault };
   }
 
   async function deployAmmFixture() {
@@ -176,7 +182,7 @@ describe("Property fuzz invariants", function () {
   describe("DeltaVerifier reward distribution", function () {
     it("fuzzes contributor splits without over-minting or double-minting", async function () {
       const fixture = await loadFixture(deployDeltaVerifierFixture);
-      const { submitter, contributors, token, contributionRegistry, deltaVerifier, vestingVault } = fixture;
+      const { owner, submitter, contributors, token, contributionRegistry, deltaVerifier, vestingVault } = fixture;
       const rng = makeRng(0xdecafbad);
 
       for (let i = 0; i < 32; i += 1) {
@@ -214,9 +220,10 @@ describe("Property fuzz invariants", function () {
           selected.map((signer) => vestingVault.getSchedulesByBeneficiary(signer.address)),
         );
 
-        const staticReward = await deltaVerifier.connect(submitter).submitMintRequest.staticCall(MODEL_ID, payload, fuzzContributors);
+        const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, fuzzContributors);
+        const staticReward = await deltaVerifier.connect(submitter).submitMintRequest.staticCall(MODEL_ID, payload, fuzzContributors, sigs);
         expect(staticReward).to.equal(expectedTotalReward);
-        await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, fuzzContributors);
+        await deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, fuzzContributors, sigs);
 
         const balancesAfter = await Promise.all(selected.map((signer) => token.balanceOf(signer.address)));
         const vaultAfter = await token.balanceOf(await vestingVault.getAddress());
@@ -251,13 +258,13 @@ describe("Property fuzz invariants", function () {
         expect(vaultAfter - vaultBefore).to.equal(totalVested);
         expect(await deltaVerifier.processedIdempotencyKeys(payload.anchors.idempotencyKey)).to.equal(true);
         await expect(
-          deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, fuzzContributors)
+          deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, fuzzContributors, sigs)
         ).to.be.revertedWith("Idempotency key already processed");
       }
     });
 
     it("fuzzes invalid contributor weights and addresses without minting", async function () {
-      const { submitter, contributors, token, deltaVerifier } = await loadFixture(deployDeltaVerifierFixture);
+      const { owner, submitter, contributors, token, deltaVerifier } = await loadFixture(deployDeltaVerifierFixture);
       const rng = makeRng(0xbadc0de);
 
       for (let i = 0; i < 20; i += 1) {
@@ -272,8 +279,9 @@ describe("Property fuzz invariants", function () {
           ? [{ walletAddress: ZeroAddress, weight: 10000 }]
           : [{ walletAddress: contributors[0].address, weight: invalidMode === "low" ? rng.int(1, 9999) : rng.int(10001, 20000) }];
 
+        const sigs = await attestMintRequest(deltaVerifier, owner, MODEL_ID, payload, invalidContributors);
         const assertion = expect(
-          deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, invalidContributors)
+          deltaVerifier.connect(submitter).submitMintRequest(MODEL_ID, payload, invalidContributors, sigs)
         );
         if (invalidMode === "zero") {
           await assertion.to.be.revertedWithCustomError(deltaVerifier, "ZeroAddress");

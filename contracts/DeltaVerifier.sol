@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./libraries/ValidationLib.sol";
 import "./ModelRegistry.sol";
 import "./TokenManager.sol";
@@ -11,7 +13,9 @@ import "./HokusaiToken.sol";
 import "./interfaces/IHokusaiParams.sol";
 import "./interfaces/IDataContributionRegistry.sol";
 
-contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
+contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
+    using ECDSA for bytes32;
+
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant SUBMITTER_ROLE = keccak256("SUBMITTER_ROLE");
 
@@ -23,6 +27,17 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
     error AttesterNotRegistered(address attester);
     error InvalidAttesterThreshold(uint256 threshold, uint256 attesterCount);
     error AttesterThresholdWouldBeUnmet(uint256 newAttesterCount, uint256 threshold);
+
+    // --- Attester signature verification errors (HOK-2132) ---
+    /// @notice No threshold is set, so no attester can have authorized a mint. Fail-closed: every mint
+    /// reverts until the admin Safe configures at least a 1-of-1 attester set (addAttester + threshold).
+    error AttestationThresholdNotConfigured();
+    error InsufficientAttesterSignatures(uint256 provided, uint256 required);
+    error SignerNotAttester(address signer);
+    /// @notice Signatures must be ordered by strictly ascending recovered signer address; this both
+    /// enforces uniqueness (no double-counting one attester toward the threshold) and makes the call
+    /// deterministic for m-of-n.
+    error UnorderedOrDuplicateAttesters(address signer);
 
     /// @notice Thrown by the legacy submitEvaluation* mint entrypoints once legacy mints are disabled.
     error LegacyMintEntrypointDisabled();
@@ -124,7 +139,28 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
     mapping(address => bool) public isAttester;
     uint256 public attesterCount;
     uint256 public attesterThreshold;
-    
+
+    // --- EIP-712 typed-data definitions for the attested mint payload (HOK-2132) ---
+    // The signature binds the FULL economic payload (modelId + every anchor + scores/costs + samples +
+    // contributors), domain-separated by chainId + this contract's address (via the EIP712 base). The
+    // typehashes embed the exact schema; adding/removing a field changes the typehash and silently
+    // invalidates old signatures (cross-schema replay protection). Referenced struct types are listed in
+    // alphabetical order per EIP-712. Launch is hardware-wallet EOA (ECDSA.recover); the address-keyed
+    // attester registry is already EIP-1271-ready for a later Safe/threshold signer.
+    bytes32 private constant BENCHMARK_ANCHORS_TYPEHASH =
+        keccak256(
+            "BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)"
+        );
+    bytes32 private constant CONTRIBUTOR_TYPEHASH = keccak256("Contributor(address walletAddress,uint256 weight)");
+    bytes32 private constant MINT_REQUEST_PAYLOAD_TYPEHASH =
+        keccak256(
+            "MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)"
+        );
+    bytes32 private constant MINT_REQUEST_TYPEHASH =
+        keccak256(
+            "MintRequest(uint256 modelId,MintRequestPayload payload,Contributor[] contributors)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)Contributor(address walletAddress,uint256 weight)MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors)"
+        );
+
     event EvaluationSubmitted(
         string indexed pipelineRunId,
         uint256 indexed modelId
@@ -181,7 +217,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         uint256 _baseRewardRate,
         uint256 _minImprovementBps,
         uint256 _maxReward
-    ) {
+    ) EIP712("HokusaiDeltaVerifier", "1") {
         ValidationLib.requireNonZeroAddress(_modelRegistry, "model registry");
         ValidationLib.requireNonZeroAddress(_tokenManager, "token manager");
         ValidationLib.requireNonZeroAddress(_contributionRegistry, "contribution registry");
@@ -317,11 +353,15 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
 
     /**
      * @dev Callers must normalize any non-proportion metric to a 0-10000 bps scale before submission.
+     * @param attesterSignatures EIP-712 signatures over the full (modelId, payload, contributors) tuple,
+     *        ordered by strictly ascending recovered signer address. At least `attesterThreshold` distinct
+     *        registered attesters must sign (1-of-1 at launch). The SUBMITTER relays; the attester authorizes.
      */
     function submitMintRequest(
         uint256 modelId,
         MintRequestPayload calldata payload,
-        Contributor[] calldata contributors
+        Contributor[] calldata contributors,
+        bytes[] calldata attesterSignatures
     ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
         require(modelRegistry.isRegistered(modelId), "Model not registered");
         require(modelRegistry.isModelActive(modelId), "Model is deactivated");
@@ -332,6 +372,10 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         require(bytes(payload.anchors.metricName).length > 0, "Metric name cannot be empty");
         require(payload.baselineScoreBps <= 10000, "Baseline score exceeds 10000 bps");
         require(payload.candidateScoreBps <= 10000, "Candidate score exceeds 10000 bps");
+
+        // Authorization gate (HOK-2132): the mint must be signed by registered attester(s) over this exact
+        // payload. Fail-closed if no threshold is configured. Verified before any state change or mint.
+        _verifyAttestation(modelId, payload, contributors, attesterSignatures);
 
         (address[] memory contributorAddresses, uint256[] memory rewardAmounts) = _validateContributors(contributors);
 
@@ -398,6 +442,19 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         emit EvaluationSubmitted(payload.pipelineRunId, modelId);
 
         return totalReward;
+    }
+
+    /**
+     * @notice The EIP-712 digest an attester must sign to authorize a `submitMintRequest`. Off-chain
+     * signers and tests should sign this exact value (domain = chainId + this contract). Exposed so the
+     * human-in-the-loop / HSM attester signs precisely the bytes the contract verifies.
+     */
+    function hashMintRequest(
+        uint256 modelId,
+        MintRequestPayload calldata payload,
+        Contributor[] calldata contributors
+    ) external view returns (bytes32) {
+        return _hashTypedDataV4(_hashMintRequest(modelId, payload, contributors));
     }
 
     function _processEvaluation(
@@ -798,6 +855,94 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable {
         if (tokenManagerToken != address(0) && tokenManagerToken != registryToken) {
             revert ModelTokenMismatch(modelId, registryToken, tokenManagerToken);
         }
+    }
+
+    // --- Attester signature verification (HOK-2132) ---
+
+    /**
+     * @dev Reverts unless at least `attesterThreshold` distinct registered attesters have signed the
+     * EIP-712 digest of (modelId, payload, contributors). Signatures must be ordered by strictly
+     * ascending recovered signer address — this rejects duplicate signers (so one attester cannot be
+     * counted twice toward the threshold) and makes m-of-n deterministic. Fail-closed when unconfigured.
+     */
+    function _verifyAttestation(
+        uint256 modelId,
+        MintRequestPayload calldata payload,
+        Contributor[] calldata contributors,
+        bytes[] calldata attesterSignatures
+    ) private view {
+        uint256 threshold = attesterThreshold;
+        if (threshold == 0) revert AttestationThresholdNotConfigured();
+        if (attesterSignatures.length < threshold) {
+            revert InsufficientAttesterSignatures(attesterSignatures.length, threshold);
+        }
+
+        bytes32 digest = _hashTypedDataV4(_hashMintRequest(modelId, payload, contributors));
+
+        address last = address(0);
+        for (uint256 i = 0; i < attesterSignatures.length; i++) {
+            address signer = digest.recover(attesterSignatures[i]);
+            if (signer <= last) revert UnorderedOrDuplicateAttesters(signer);
+            if (!isAttester[signer]) revert SignerNotAttester(signer);
+            last = signer;
+        }
+    }
+
+    function _hashMintRequest(
+        uint256 modelId,
+        MintRequestPayload calldata payload,
+        Contributor[] calldata contributors
+    ) private pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    MINT_REQUEST_TYPEHASH,
+                    modelId,
+                    _hashPayload(payload),
+                    _hashContributors(contributors)
+                )
+            );
+    }
+
+    function _hashPayload(MintRequestPayload calldata payload) private pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    MINT_REQUEST_PAYLOAD_TYPEHASH,
+                    keccak256(bytes(payload.pipelineRunId)),
+                    payload.baselineScoreBps,
+                    payload.candidateScoreBps,
+                    payload.maxCostUsdMicro,
+                    payload.actualCostUsdMicro,
+                    payload.totalSamples,
+                    _hashAnchors(payload.anchors)
+                )
+            );
+    }
+
+    function _hashAnchors(BenchmarkAnchors calldata anchors) private pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    BENCHMARK_ANCHORS_TYPEHASH,
+                    anchors.benchmarkSpecHash,
+                    anchors.datasetHash,
+                    anchors.attestationHash,
+                    anchors.idempotencyKey,
+                    keccak256(bytes(anchors.metricName)),
+                    keccak256(bytes(anchors.metricFamily))
+                )
+            );
+    }
+
+    function _hashContributors(Contributor[] calldata contributors) private pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](contributors.length);
+        for (uint256 i = 0; i < contributors.length; i++) {
+            hashes[i] = keccak256(
+                abi.encode(CONTRIBUTOR_TYPEHASH, contributors[i].walletAddress, contributors[i].weight)
+            );
+        }
+        return keccak256(abi.encodePacked(hashes));
     }
 
     function _stringToUint(string memory value) private pure returns (uint256 parsed) {

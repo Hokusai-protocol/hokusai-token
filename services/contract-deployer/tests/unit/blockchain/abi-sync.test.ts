@@ -3,7 +3,7 @@ import path from 'path';
 import { Interface } from 'ethers';
 import serviceArtifact from '../../../contracts/DeltaVerifier.json';
 
-const SUBMIT_MINT_REQUEST_SELECTOR = '0x6d2140ad';
+const SUBMIT_MINT_REQUEST_SELECTOR = '0x5d3e811b';
 const HARDHAT_ARTIFACT_PATH = path.resolve(
   __dirname,
   '../../../../..',

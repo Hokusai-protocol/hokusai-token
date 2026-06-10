@@ -22,7 +22,7 @@ const ABIS = {
     "function maxReward() view returns (uint256)",
     "function minImprovementBps() view returns (uint256)",
     "function processedIdempotencyKeys(bytes32 idempotencyKey) view returns (bool)",
-    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors) returns (uint256)",
+    "function submitMintRequest(uint256 modelId,(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily) anchors) payload,(address walletAddress,uint256 weight)[] contributors,bytes[] attesterSignatures) returns (uint256)",
   ],
   contributionRegistry: [
     "event ContributionRecorded(uint256 indexed contributionId,string modelId,address indexed contributor,bytes32 contributionHash,uint256 weightBps,uint256 tokensEarned,string pipelineRunId)",
@@ -52,6 +52,61 @@ const ABIS = {
     "function getSchedule(uint256 scheduleId) view returns ((address token,address beneficiary,string modelId,uint256 totalAmount,uint256 claimed,uint64 start,uint64 cliffSeconds,uint64 duration))",
   ],
 };
+
+// HOK-2132: EIP-712 typed-data definition for the attester signature now required
+// by DeltaVerifier.submitMintRequest. Mirrors the contract's struct hashing.
+const MINT_REQUEST_EIP712_TYPES = {
+  MintRequest: [
+    { name: "modelId", type: "uint256" },
+    { name: "payload", type: "MintRequestPayload" },
+    { name: "contributors", type: "Contributor[]" },
+  ],
+  MintRequestPayload: [
+    { name: "pipelineRunId", type: "string" },
+    { name: "baselineScoreBps", type: "uint256" },
+    { name: "candidateScoreBps", type: "uint256" },
+    { name: "maxCostUsdMicro", type: "uint256" },
+    { name: "actualCostUsdMicro", type: "uint256" },
+    { name: "totalSamples", type: "uint256" },
+    { name: "anchors", type: "BenchmarkAnchors" },
+  ],
+  BenchmarkAnchors: [
+    { name: "benchmarkSpecHash", type: "bytes32" },
+    { name: "datasetHash", type: "bytes32" },
+    { name: "attestationHash", type: "bytes32" },
+    { name: "idempotencyKey", type: "bytes32" },
+    { name: "metricName", type: "string" },
+    { name: "metricFamily", type: "string" },
+  ],
+  Contributor: [
+    { name: "walletAddress", type: "address" },
+    { name: "weight", type: "uint256" },
+  ],
+};
+
+// HOK-2132: sign the typed MintRequest with a registered attester key and return
+// the bytes[] attesterSignatures argument for submitMintRequest (single-key setup).
+async function signMintRequestAttestation({
+  attester,
+  deltaVerifierAddress,
+  chainId,
+  modelId,
+  payload,
+  contributors,
+}) {
+  const domain = {
+    name: "HokusaiDeltaVerifier",
+    version: "1",
+    chainId,
+    verifyingContract: deltaVerifierAddress,
+  };
+  const signature = await attester.signTypedData(domain, MINT_REQUEST_EIP712_TYPES, {
+    modelId,
+    payload,
+    contributors,
+  });
+  return [signature];
+}
 
 function parseTokenModels(value) {
   return value.split(",").map((entry) => {
@@ -242,7 +297,7 @@ function chooseCandidateScore({ baselineScoreBps, defaultDeltaBps, minImprovemen
   return baselineScoreBps + deltaBps;
 }
 
-async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
+async function runHappyPath({ tokenInfo, contracts, signer, recorder, chainId }) {
   const label = `${tokenInfo.symbol} model ${tokenInfo.modelId}`;
   const modelId = BigInt(tokenInfo.modelId);
   const ctx = await tokenContext({ contracts, signer, modelId: tokenInfo.modelId });
@@ -317,7 +372,17 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
     ? await Promise.all(contributors.map((contributor) => contracts.vestingVault.getSchedulesByBeneficiary(contributor.walletAddress)))
     : [];
 
-  const staticReward = await contracts.deltaVerifier.submitMintRequest.staticCall(modelId, payload, contributors);
+  // HOK-2132: build the attester signature once; reused for static call and write.
+  const attesterSignatures = await signMintRequestAttestation({
+    attester: signer,
+    deltaVerifierAddress: await contracts.deltaVerifier.getAddress(),
+    chainId,
+    modelId,
+    payload,
+    contributors,
+  });
+
+  const staticReward = await contracts.deltaVerifier.submitMintRequest.staticCall(modelId, payload, contributors, attesterSignatures);
   recorder.assert(`${label} happy path static reward matches expected total`, staticReward === totalReward, {
     staticReward,
     totalReward,
@@ -327,7 +392,8 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
     tokensPerDeltaOne: ctx.tokensPerDeltaOne,
   });
 
-  const tx = await contracts.deltaVerifier.submitMintRequest(modelId, payload, contributors);
+  // HOK-2132: requires the redeployed DeltaVerifier with an attester registered (addAttester + setAttesterThreshold). Until then write-mode mints fail-closed.
+  const tx = await contracts.deltaVerifier.submitMintRequest(modelId, payload, contributors, attesterSignatures);
   const receipt = await tx.wait(1);
   let investorMintedAfter = null;
   let rewardMintedAfter = null;
@@ -455,11 +521,12 @@ async function runHappyPath({ tokenInfo, contracts, signer, recorder }) {
   return { txHash: receipt.hash, totalReward, rewards };
 }
 
-async function runNegativeCases({ tokenInfo, contracts, signer, recorder }) {
+async function runNegativeCases({ tokenInfo, contracts, signer, recorder, chainId }) {
   const label = `${tokenInfo.symbol} model ${tokenInfo.modelId}`;
   const modelId = BigInt(tokenInfo.modelId);
   const ctx = await tokenContext({ contracts, signer, modelId: tokenInfo.modelId });
   const contributors = [{ walletAddress: signer.address, weight: 10000 }];
+  const deltaVerifierAddress = await contracts.deltaVerifier.getAddress();
 
   const budgetPayload = makePayload({
     symbol: tokenInfo.symbol,
@@ -470,9 +537,19 @@ async function runNegativeCases({ tokenInfo, contracts, signer, recorder }) {
     maxCostUsdMicro: 100,
     actualCostUsdMicro: 125,
   });
+  // HOK-2132: attester signature for the budget-violation payload (reused on replay).
+  const budgetSignatures = await signMintRequestAttestation({
+    attester: signer,
+    deltaVerifierAddress,
+    chainId,
+    modelId,
+    payload: budgetPayload,
+    contributors,
+  });
   const budgetBalanceBefore = await ctx.token.balanceOf(signer.address);
   const budgetCountBefore = await contracts.contributionRegistry.getContributorContributionCount(signer.address);
-  const budgetTx = await contracts.deltaVerifier.submitMintRequest(modelId, budgetPayload, contributors);
+  // HOK-2132: requires the redeployed DeltaVerifier with an attester registered (addAttester + setAttesterThreshold). Until then write-mode mints fail-closed.
+  const budgetTx = await contracts.deltaVerifier.submitMintRequest(modelId, budgetPayload, contributors, budgetSignatures);
   const budgetReceipt = await budgetTx.wait(1);
   const budgetEvents = parseEvents(budgetReceipt, contracts.deltaVerifier, "BudgetConstraintViolated");
   const budgetBalanceAfter = await ctx.token.balanceOf(signer.address);
@@ -493,7 +570,7 @@ async function runNegativeCases({ tokenInfo, contracts, signer, recorder }) {
 
   let replayRejected = false;
   try {
-    await contracts.deltaVerifier.submitMintRequest.staticCall(modelId, budgetPayload, contributors);
+    await contracts.deltaVerifier.submitMintRequest.staticCall(modelId, budgetPayload, contributors, budgetSignatures);
   } catch (error) {
     replayRejected = String(error.message || error).includes("Idempotency key already processed");
   }
@@ -522,10 +599,20 @@ async function runNegativeCases({ tokenInfo, contracts, signer, recorder }) {
   });
   const minImprovementBps = await contracts.deltaVerifier.minImprovementBps();
   const belowDelta = thresholdPayload.candidateScoreBps - thresholdPayload.baselineScoreBps;
-  const belowStaticReward = await contracts.deltaVerifier.submitMintRequest.staticCall(modelId, thresholdPayload, contributors);
+  // HOK-2132: attester signature for the below-threshold payload.
+  const thresholdSignatures = await signMintRequestAttestation({
+    attester: signer,
+    deltaVerifierAddress,
+    chainId,
+    modelId,
+    payload: thresholdPayload,
+    contributors,
+  });
+  const belowStaticReward = await contracts.deltaVerifier.submitMintRequest.staticCall(modelId, thresholdPayload, contributors, thresholdSignatures);
   const belowBalanceBefore = await ctx.token.balanceOf(signer.address);
   const belowCountBefore = await contracts.contributionRegistry.getContributorContributionCount(signer.address);
-  const belowTx = await contracts.deltaVerifier.submitMintRequest(modelId, thresholdPayload, contributors);
+  // HOK-2132: requires the redeployed DeltaVerifier with an attester registered (addAttester + setAttesterThreshold). Until then write-mode mints fail-closed.
+  const belowTx = await contracts.deltaVerifier.submitMintRequest(modelId, thresholdPayload, contributors, thresholdSignatures);
   const belowReceipt = await belowTx.wait(1);
   const belowDeltaEvents = parseEvents(belowReceipt, contracts.deltaVerifier, "DeltaOneAccepted");
   const belowBalanceAfter = await ctx.token.balanceOf(signer.address);
@@ -558,9 +645,19 @@ async function runNegativeCases({ tokenInfo, contracts, signer, recorder }) {
     maxCostUsdMicro: 5_000_000,
     actualCostUsdMicro: 2_340_000,
   });
+  // HOK-2132: sign with the registered attester (main signer) so the only failure
+  // is the unauthorized submitter's missing SUBMITTER_ROLE, not a bad attestation.
+  const unauthorizedSignatures = await signMintRequestAttestation({
+    attester: signer,
+    deltaVerifierAddress,
+    chainId,
+    modelId,
+    payload: unauthorizedPayload,
+    contributors,
+  });
   let unauthorizedRejected = false;
   try {
-    await unauthorizedDeltaVerifier.submitMintRequest.staticCall(modelId, unauthorizedPayload, contributors);
+    await unauthorizedDeltaVerifier.submitMintRequest.staticCall(modelId, unauthorizedPayload, contributors, unauthorizedSignatures);
   } catch (error) {
     const message = String(error.message || error);
     unauthorizedRejected = message.includes("AccessControl") || message.includes("missing role");
@@ -636,7 +733,7 @@ async function main() {
 
   const happyPath = [];
   for (const tokenInfo of options.tokenModels) {
-    const result = await runHappyPath({ tokenInfo, contracts, signer, recorder });
+    const result = await runHappyPath({ tokenInfo, contracts, signer, recorder, chainId });
     happyPath.push({ symbol: tokenInfo.symbol, modelId: tokenInfo.modelId, ...stringify(result) });
   }
   recorder.assert("at least one token executed a positive DeltaOne happy path", happyPath.some((result) => !result.skipped), {
@@ -650,7 +747,7 @@ async function main() {
       actual: negativeToken.symbol,
     });
   }
-  await runNegativeCases({ tokenInfo: negativeToken, contracts, signer, recorder });
+  await runNegativeCases({ tokenInfo: negativeToken, contracts, signer, recorder, chainId });
 
   const result = {
     ok: recorder.checks.every((check) => check.status !== "fail"),

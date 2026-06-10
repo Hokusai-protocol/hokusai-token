@@ -12,6 +12,7 @@ const {
   buildMintRequestPayload,
   attestMintRequest,
   configureLaunchAttester,
+  configureMintBudget,
 } = require("./helpers/mintRequest");
 
 describe("DeltaVerifier MintRequest", function () {
@@ -135,6 +136,7 @@ describe("DeltaVerifier MintRequest", function () {
     await deltaVerifier.grantRole(submitterRole, submitter.address);
 
     await configureLaunchAttester(deltaVerifier, owner, owner);
+    await configureMintBudget(deltaVerifier, owner, MODEL_ID);
 
     deployedToken = await getToken();
     hokusaiParams = await getParams();

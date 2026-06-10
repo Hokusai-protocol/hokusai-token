@@ -3,7 +3,7 @@ const { ethers, network } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 
 const { buildInitialParams, buildVestingConfig } = require("../helpers/tokenDeployment");
-const { buildMintRequestPayload, attestMintRequest, configureLaunchAttester } = require("../helpers/mintRequest");
+const { buildMintRequestPayload, attestMintRequest, configureLaunchAttester, configureMintBudget } = require("../helpers/mintRequest");
 const { deployFactoryWithPoolDeployer } = require("../helpers/factoryDeployment");
 
 describe("Local mainnet readiness end-to-end suite", function () {
@@ -77,6 +77,7 @@ describe("Local mainnet readiness end-to-end suite", function () {
     await contributionRegistry.grantRole(await contributionRegistry.RECORDER_ROLE(), await deltaVerifier.getAddress());
     await deltaVerifier.grantRole(await deltaVerifier.SUBMITTER_ROLE(), submitter.address);
     await configureLaunchAttester(deltaVerifier, owner, owner);
+    await configureMintBudget(deltaVerifier, owner, MODEL_ID);
 
     const params = buildInitialParams(owner.address, {
       tokensPerDeltaOne: TOKENS_PER_DELTA_ONE,

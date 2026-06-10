@@ -17,6 +17,7 @@ const {
   attestMintRequest,
   attestMintRequestMulti,
   configureLaunchAttester,
+  configureMintBudget,
 } = require("./helpers/mintRequest");
 
 const MODEL_ID = 1;
@@ -74,6 +75,8 @@ describe("DeltaVerifier — attester signature verification (HOK-2132)", functio
     contributionRegistry = stack.contribRegistry;
     deltaVerifier = stack.verifier;
     deployedToken = stack.token;
+    // Fund the mint budget so these tests exercise the attester gate, not the HOK-2131 budget gate.
+    await configureMintBudget(deltaVerifier, owner, MODEL_ID);
   });
 
   function singleContributor() {
@@ -203,6 +206,7 @@ describe("DeltaVerifier — attester signature verification (HOK-2132)", functio
       // A second DeltaVerifier with the same attester configured.
       const other = await deployStack();
       await configureLaunchAttester(other.verifier, owner, attester);
+      await configureMintBudget(other.verifier, owner, MODEL_ID);
 
       // Attester signs for the OTHER deployment; replay against the first must fail.
       const foreignSignatures = await attestMintRequest(other.verifier, attester, MODEL_ID, payload, contributors);

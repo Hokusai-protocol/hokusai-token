@@ -151,6 +151,18 @@ and threshold are configured. Every mint must carry EIP-712 signatures from regi
 - [ ] Confirm the attester signs the EIP-712 domain `{ name: "HokusaiDeltaVerifier", version: "1", chainId: <mainnet>, verifyingContract: <DeltaVerifier address> }`. The off-chain signer must reproduce `DeltaVerifier.hashMintRequest(...)` exactly (smoke-test parity before first mint).
 - [ ] Smoke-test: one real attested `submitMintRequest` mints; the same call with an empty/foreign signature reverts (`InsufficientAttesterSignatures` / `SignerNotAttester`).
 
+### Fund the per-model mint budget — required before any mint (HOK-2131, security)
+`submitMintRequest` is also **fail-closed on budget**: a model with `mintBudgetRemaining[modelId] == 0` reverts
+(`MintBudgetExceeded`) on any *paying* mint. The budget is a deterministic per-model loss ceiling — the most
+tokens a model can mint before the admin Safe must top it up. A mint that would exceed it **reverts (never
+truncates) without burning the idempotency key**, so the exact attested request retries verbatim after a top-up
+and pays in full.
+- [ ] From `DEFAULT_ADMIN_ROLE` (the admin Safe — **separate custody from the attester**): `setMintBudget(<modelId>, <startingBudget>)` for each model that will mint.
+- [ ] **HROUT (locked values):** `tokensPerDeltaOne = 250,000`, `maxReward = 2,500,000`, starting `mintBudgetRemaining = 1,500,000` (1.5M tokens). These are per-instance deployment params, not contract constants — set them on the deployed instance, not in code.
+- [ ] Verify `mintBudgetRemaining(<modelId>)` returns the configured amount.
+- [ ] Confirm the budget is sized as a **loss ceiling** (≈1–2M for HROUT), not the model's lifetime reward — refill via `topUpMintBudget(<modelId>, <amount>)` as genuine improvement is earned (top-ups are cheap and a deferred mint pays in full on retry).
+- [ ] Smoke-test: a mint exceeding the budget reverts `MintBudgetExceeded` and does **not** burn the idempotency key; after `topUpMintBudget`, the identical request mints the full amount.
+
 ---
 
 ## Phase 2: Contract Verification on Etherscan

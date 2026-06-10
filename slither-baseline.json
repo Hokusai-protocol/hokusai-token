@@ -940,16 +940,16 @@
       "followUp": "HOK-1823"
     },
     {
-      "id": "55c0bc2803db0854c0dcd9a81e2d145aaa74e32e2271c53d99990e79195ba0d4",
+      "id": "044352de0d56f3845194d1f8821a011d1fdb867009f8cea8c9adebf15748063d",
       "check": "unused-return",
-      "justification": "Residual DeltaVerifier registry-call finding; IDs re-synced after HOK-2131 mint-budget additions shifted the _recordSingleContribution line range. Contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "justification": "Residual DeltaVerifier registry-call finding; IDs re-synced after HOK-2133 lineage additions shifted the _recordSingleContribution line range. Contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
-      "id": "861f96e80741bb231dcc8dd6ac7329a1394139129f17e57212dc03ef4e8fefac",
+      "id": "3a7488a037575903323c8205ee30c6ab7e2fd035e51d19710c8b1d68ee945657",
       "check": "unused-return",
-      "justification": "Residual DeltaVerifier batch registry-call finding; IDs re-synced after HOK-2131 mint-budget additions shifted the _recordContributions line range. Contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "justification": "Residual DeltaVerifier batch registry-call finding; IDs re-synced after HOK-2133 lineage additions shifted the _recordContributions line range. Contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },

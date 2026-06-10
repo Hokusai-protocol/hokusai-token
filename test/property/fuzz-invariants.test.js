@@ -9,6 +9,8 @@ const {
   attestMintRequest,
   configureLaunchAttester,
   configureMintBudget,
+  configureLineageGenesis,
+  payloadForNextLink,
 } = require("../helpers/mintRequest");
 
 function makeRng(seed) {
@@ -124,6 +126,7 @@ describe("Property fuzz invariants", function () {
 
     const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
     await modelRegistry.registerModel(MODEL_ID, tokenAddress, "accuracy");
+    await configureLineageGenesis(modelRegistry, owner, MODEL_ID);
 
     return { owner, submitter, outsider, contributors, token, tokenManager, contributionRegistry, deltaVerifier, vestingVault };
   }
@@ -205,7 +208,7 @@ describe("Property fuzz invariants", function () {
           walletAddress: signer.address,
           weight: weights[index],
         }));
-        const payload = buildMintRequestPayload({
+        const payload = await payloadForNextLink(deltaVerifier, MODEL_ID, {
           pipelineRunId: `fuzz-delta-${i}`,
           baselineScoreBps,
           candidateScoreBps,

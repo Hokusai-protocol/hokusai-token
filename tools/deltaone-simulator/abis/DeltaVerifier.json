@@ -148,12 +148,54 @@
     },
     {
       "inputs": [],
+      "name": "InvalidCandidateCommitment",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidHeadReset",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "InvalidShortString",
       "type": "error"
     },
     {
       "inputs": [],
       "name": "LegacyMintEntrypointDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "modelId",
+          "type": "uint256"
+        }
+      ],
+      "name": "LineageNotSeeded",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "modelId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "expectedHead",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "providedBaseline",
+          "type": "bytes32"
+        }
+      ],
+      "name": "LineageParentMismatch",
       "type": "error"
     },
     {
@@ -544,6 +586,56 @@
         }
       ],
       "name": "MintBudgetToppedUp",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "modelId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "parent",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "child",
+          "type": "bytes32"
+        }
+      ],
+      "name": "ModelLineageAdvanced",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "modelId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "oldHead",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "newHead",
+          "type": "bytes32"
+        }
+      ],
+      "name": "ModelLineageHeadReset",
       "type": "event"
     },
     {
@@ -948,6 +1040,25 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "modelId",
+          "type": "uint256"
+        }
+      ],
+      "name": "currentModelHead",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "disableLegacyMints",
       "outputs": [],
@@ -1133,6 +1244,16 @@
               "internalType": "struct DeltaVerifier.BenchmarkAnchors",
               "name": "anchors",
               "type": "tuple"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "baselineCommitment",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "candidateCommitment",
+              "type": "bytes32"
             }
           ],
           "internalType": "struct DeltaVerifier.MintRequestPayload",
@@ -1259,6 +1380,25 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "modelWeightHead",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "pause",
       "outputs": [],
@@ -1324,6 +1464,24 @@
         }
       ],
       "name": "renounceRole",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "modelId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "newHead",
+          "type": "bytes32"
+        }
+      ],
+      "name": "resetModelHead",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1875,6 +2033,16 @@
               "internalType": "struct DeltaVerifier.BenchmarkAnchors",
               "name": "anchors",
               "type": "tuple"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "baselineCommitment",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "candidateCommitment",
+              "type": "bytes32"
             }
           ],
           "internalType": "struct DeltaVerifier.MintRequestPayload",

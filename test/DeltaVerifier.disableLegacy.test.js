@@ -12,6 +12,7 @@ const {
   attestMintRequest,
   configureLaunchAttester,
   configureMintBudget,
+  configureLineageGenesis,
 } = require("./helpers/mintRequest");
 
 describe("DeltaVerifier — disable legacy mint entrypoints (HOK-2125)", function () {
@@ -106,6 +107,7 @@ describe("DeltaVerifier — disable legacy mint entrypoints (HOK-2125)", functio
     await deltaVerifier.grantRole(await deltaVerifier.SUBMITTER_ROLE(), submitter.address);
     await configureLaunchAttester(deltaVerifier, owner, owner);
     await configureMintBudget(deltaVerifier, owner, MODEL_ID);
+    await configureLineageGenesis(modelRegistry, owner, MODEL_ID);
   });
 
   it("legacyMintsDisabled defaults to false (legacy paths active for existing tests/testnet)", async function () {

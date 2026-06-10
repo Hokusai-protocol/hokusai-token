@@ -79,6 +79,8 @@ describe('DeltaVerifierClient', () => {
           metricName: 'metric',
           metricFamily: 'family',
         },
+        baselineCommitment: ethers.ZeroHash,
+        candidateCommitment: ethers.ZeroHash,
       },
       [],
       [],
@@ -139,6 +141,8 @@ describe('DeltaVerifierClient', () => {
           metricName: 'metric',
           metricFamily: 'family',
         },
+        baselineCommitment: ethers.ZeroHash,
+        candidateCommitment: ethers.ZeroHash,
       },
       [],
       [],
@@ -196,6 +200,8 @@ describe('DeltaVerifierClient', () => {
             metricName: 'metric',
             metricFamily: 'family',
           },
+          baselineCommitment: ethers.ZeroHash,
+          candidateCommitment: ethers.ZeroHash,
         },
         [],
         [],
@@ -243,6 +249,8 @@ describe('DeltaVerifierClient', () => {
             metricName: 'metric',
             metricFamily: 'family',
           },
+          baselineCommitment: ethers.ZeroHash,
+          candidateCommitment: ethers.ZeroHash,
         },
         [],
         [],
@@ -291,6 +299,8 @@ describe('DeltaVerifierClient', () => {
             metricName: 'metric',
             metricFamily: 'family',
           },
+          baselineCommitment: ethers.ZeroHash,
+          candidateCommitment: ethers.ZeroHash,
         },
         [],
         [],
@@ -306,7 +316,7 @@ describe('DeltaVerifierClient', () => {
 describe('submitMintRequest calldata encoding', () => {
   const iface = new Interface(serviceArtifact.abi);
 
-  test('encodes a current-shape payload with selector 0x5d3e811b', () => {
+  test('encodes a current-shape payload with selector 0xc9b4e69b', () => {
     const payload = {
       pipelineRunId: 'eval-1',
       baselineScoreBps: 5000,
@@ -322,6 +332,8 @@ describe('submitMintRequest calldata encoding', () => {
         metricName: 'accuracy',
         metricFamily: 'classification',
       },
+      baselineCommitment: ethers.ZeroHash,
+      candidateCommitment: ethers.ZeroHash,
     };
 
     const contributors = [
@@ -334,7 +346,7 @@ describe('submitMintRequest calldata encoding', () => {
       contributors,
       [],
     ]);
-    expect(calldata.startsWith('0x5d3e811b')).toBe(true);
+    expect(calldata.startsWith('0xc9b4e69b')).toBe(true);
   });
 
   test('encoding fails loudly when totalSamples is missing', () => {

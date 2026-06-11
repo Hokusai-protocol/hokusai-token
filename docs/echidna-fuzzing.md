@@ -14,6 +14,7 @@ npm run echidna:amm
 npm run echidna:phase
 npm run echidna:amm-econ
 npm run echidna:reserve
+npm run echidna:deltaverifier
 ```
 
 Run the full short suite:
@@ -39,6 +40,7 @@ The npm scripts invoke `echidna .` from the repo root so `crytic-compile` can us
 - `EchidnaAMMPhase`: IBR sell gating, sell-enable monotonicity, and graduation one-way behavior under mixed actions.
 - `EchidnaAMMEconomic`: economic/price behavior and broader AMM stress paths.
 - `EchidnaInfrastructureReserve`: infrastructure reserve-specific invariants.
+- `EchidnaDeltaVerifier`: attester-signature authorization, per-model mint-budget accounting, and lineage-head monotonicity.
 
 ## Assumptions And Bounds
 

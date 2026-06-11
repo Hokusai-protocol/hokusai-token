@@ -11,6 +11,7 @@
 ## Harness Map
 
 - `EchidnaAMMEconomic`: bounded AMM economic-attack coverage.
+- `EchidnaDeltaVerifier`: attester-signature, per-model budget, and lineage-head invariants for `submitMintRequest`.
 - Properties:
 - `echidna_no_profitable_roundtrip`: immediate attacker buy/sell round trips do not end with net USDC profit beyond documented rounding tolerance.
 - `echidna_price_monotonic_on_buy`: successful buys do not reduce the reported spot price.
@@ -19,3 +20,6 @@
 - `echidna_no_profitable_repeated_cycle`: repeated bounded buy/sell cycles do not accumulate attacker profit.
 - `echidna_sandwich_preserves_position_and_supply`: a bounded attacker/victim sandwich sequence does not leave attacker token dust or unexpected total supply drift.
 - `echidna_reserve_not_exceeds_usdc_balance`: tracked reserve never exceeds the AMM's actual USDC balance.
+- `echidna_minted_never_exceeds_budget`: tracked successful DeltaVerifier reward mints never exceed each model's seeded budget.
+- `echidna_no_mint_without_valid_signature`: random or malformed attester signatures never authorize a positive-reward mint.
+- `echidna_lineage_monotonic`: successful paying mints only advance the canonical lineage head, and stale parents never succeed.

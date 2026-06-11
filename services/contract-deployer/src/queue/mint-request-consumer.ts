@@ -203,7 +203,7 @@ export class MintRequestConsumer extends EventEmitter {
             message.model_id,
             errorMessage,
             failureClass,
-            'budget_exceeded_retry',
+            isBudgetRetry ? 'budget_exceeded_retry' : 'error',
           ),
         ),
         { EX: this.config.recordStore.getTtlSeconds() },

@@ -1,8 +1,10 @@
+const fs = require("fs");
 const hre = require("hardhat");
 
 const {
   EXPECTED_ADDRESSES,
   assertExpectedAddress,
+  buildUpdatedDeploymentArtifact,
   formatError,
   loadDeployment,
   parseArgs,
@@ -24,7 +26,7 @@ async function main() {
     args.wallet || process.env.SETTLEMENT_WALLET_ADDRESS,
     "SETTLEMENT_WALLET_ADDRESS",
   );
-  const { deployment } = loadDeployment(args["deployment-file"]);
+  const { deployment, fullPath } = loadDeployment(args["deployment-file"]);
 
   const routerAddress = assertExpectedAddress(
     requireDeploymentAddress(deployment, "UsageFeeRouter"),
@@ -46,7 +48,7 @@ async function main() {
 
   const alreadyDepositor = await router.isDepositor(wallet);
   if (alreadyDepositor) {
-    printJson({
+    const result = {
       network: hre.network.name,
       router: routerAddress,
       settlementWallet: wallet,
@@ -54,7 +56,10 @@ async function main() {
       grantedBy: adminSigner.address,
       blockNumber: await hre.ethers.provider.getBlockNumber(),
       alreadyDepositor: true,
-    });
+    };
+    const updated = buildUpdatedDeploymentArtifact(deployment, wallet, null);
+    fs.writeFileSync(fullPath, JSON.stringify(updated, null, 2) + "\n", "utf8");
+    printJson(result);
     return;
   }
 
@@ -82,6 +87,9 @@ async function main() {
   if (!postGrantDepositor) {
     throw new Error(`Post-check failed: ${wallet} is not a depositor.`);
   }
+
+  const updated = buildUpdatedDeploymentArtifact(deployment, wallet, tx.hash);
+  fs.writeFileSync(fullPath, JSON.stringify(updated, null, 2) + "\n", "utf8");
 
   printJson({
     network: hre.network.name,

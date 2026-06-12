@@ -73,6 +73,7 @@ const envSchema = Joi.object({
   MINT_REQUEST_QUEUE: Joi.string().default('hokusai:mint_requests'),
   MINT_REQUEST_PROCESSING_QUEUE: Joi.string().default('hokusai:mint_requests:processing'),
   MINT_REQUEST_DLQ: Joi.string().default('hokusai:mint_requests:dlq'),
+  MINT_DLQ_AUDIT_KEY: Joi.string().default('hokusai:mint_requests:dlq:audit'),
   MINT_REQUEST_PROCESSED_SET: Joi.string().default('hokusai:mint_requests:processed'),
   MINT_REQUEST_SETTLEMENT_QUEUE: Joi.string().default('hokusai:mint_request_settlements'),
   MINT_REQUEST_MAX_RETRIES: Joi.number().integer().min(0).default(3),
@@ -171,6 +172,7 @@ export interface Config {
   MINT_REQUEST_QUEUE: string;
   MINT_REQUEST_PROCESSING_QUEUE: string;
   MINT_REQUEST_DLQ: string;
+  MINT_DLQ_AUDIT_KEY: string;
   MINT_REQUEST_PROCESSED_SET: string;
   MINT_REQUEST_SETTLEMENT_QUEUE: string;
   MINT_REQUEST_MAX_RETRIES: number;
@@ -466,4 +468,47 @@ export function validateEnvSync(): Config {
   }
 
   return config;
+}
+
+export interface DlqCliConfig {
+  REDIS_HOST: string;
+  REDIS_PORT: number;
+  REDIS_URL?: string;
+  RPC_URL: string;
+  MODEL_REGISTRY_ADDRESS: string;
+  DELTA_VERIFIER_ADDRESS: string;
+  MINT_REQUEST_QUEUE: string;
+  MINT_REQUEST_DLQ: string;
+  MINT_DLQ_AUDIT_KEY: string;
+  MINT_RECORD_KEY_PREFIX: string;
+  MINT_RECORD_TTL_SECONDS: number;
+}
+
+export function validateDlqCliEnvSync(): DlqCliConfig {
+  const cliSchema = envSchema
+    .fork(['TOKEN_MANAGER_ADDRESS', 'DEPLOYER_PRIVATE_KEY'], (schema) => schema.optional())
+    .fork(['DELTA_VERIFIER_ADDRESS'], (schema) => schema.required());
+
+  const { error, value } = cliSchema.validate(process.env, {
+    abortEarly: false,
+  });
+
+  if (error) {
+    throw new Error(`Environment validation error: ${error.message}`);
+  }
+
+  const config = value as Config;
+  return {
+    REDIS_HOST: config.REDIS_HOST,
+    REDIS_PORT: config.REDIS_PORT,
+    REDIS_URL: config.REDIS_URL,
+    RPC_URL: config.RPC_URL,
+    MODEL_REGISTRY_ADDRESS: config.MODEL_REGISTRY_ADDRESS,
+    DELTA_VERIFIER_ADDRESS: config.DELTA_VERIFIER_ADDRESS ?? '',
+    MINT_REQUEST_QUEUE: config.MINT_REQUEST_QUEUE,
+    MINT_REQUEST_DLQ: config.MINT_REQUEST_DLQ,
+    MINT_DLQ_AUDIT_KEY: config.MINT_DLQ_AUDIT_KEY,
+    MINT_RECORD_KEY_PREFIX: config.MINT_RECORD_KEY_PREFIX,
+    MINT_RECORD_TTL_SECONDS: config.MINT_RECORD_TTL_SECONDS,
+  };
 }

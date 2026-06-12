@@ -18,7 +18,8 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "sync:abi": "tsx scripts/sync-abi.ts",
-    "sync:abi:check": "tsx scripts/sync-abi.ts --check"
+    "sync:abi:check": "tsx scripts/sync-abi.ts --check",
+    "dlq": "tsx scripts/dlq.ts"
   },
   "keywords": [
     "hokusai",

@@ -133,7 +133,7 @@ export class EventListener {
     this.poolContracts.set(ammAddress, pool);
 
     // Listen for Buy events
-    pool.on('Buy', async (buyer, reserveIn, tokensOut, fee, spotPrice, event) => {
+    void pool.on('Buy', async (buyer, reserveIn, tokensOut, fee, spotPrice, event) => {
       await this.handleBuyEvent(poolConfig, {
         buyer,
         reserveIn,
@@ -145,7 +145,7 @@ export class EventListener {
     });
 
     // Listen for Sell events
-    pool.on('Sell', async (seller, tokensIn, reserveOut, fee, spotPrice, event) => {
+    void pool.on('Sell', async (seller, tokensIn, reserveOut, fee, spotPrice, event) => {
       await this.handleSellEvent(poolConfig, {
         seller,
         tokensIn,
@@ -157,7 +157,7 @@ export class EventListener {
     });
 
     // Listen for FeesDeposited events
-    pool.on('FeesDeposited', async (depositor, amount, newReserveBalance, newSpotPrice, event) => {
+    void pool.on('FeesDeposited', async (depositor, amount, newReserveBalance, newSpotPrice, event) => {
       await this.handleFeesDepositedEvent(poolConfig, {
         depositor,
         amount,
@@ -168,12 +168,12 @@ export class EventListener {
     });
 
     // Listen for Paused events
-    pool.on('Paused', async (account, event) => {
+    void pool.on('Paused', async (account, event) => {
       await this.handlePausedEvent(poolConfig, account, event, true);
     });
 
     // Listen for Unpaused events
-    pool.on('Unpaused', async (account, event) => {
+    void pool.on('Unpaused', async (account, event) => {
       await this.handlePausedEvent(poolConfig, account, event, false);
     });
 

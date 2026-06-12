@@ -189,8 +189,8 @@ export class KmsSigner extends ethers.AbstractSigner {
     });
   }
 
-  async getAddress(): Promise<string> {
-    return this.address;
+  getAddress(): Promise<string> {
+    return Promise.resolve(this.address);
   }
 
   connect(provider: Provider): KmsSigner {

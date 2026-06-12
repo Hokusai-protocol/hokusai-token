@@ -21,7 +21,6 @@
   ],
   "signers": [
     {
-      "private_key": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
       "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
       "signature": "0xdaaa0ddca65f04e6b6d83b8d1abab03782281c29694db4b8972fcde8e8959a5548e7e5a41bd24b36023536621e726a8fb9d9076b8aac9ddc3fec463c8543be481b"
     }

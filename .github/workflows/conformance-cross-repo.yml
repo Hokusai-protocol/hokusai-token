@@ -20,6 +20,8 @@ jobs:
         with:
           repository: Hokusai-protocol/hokusai-data-pipeline
           path: hokusai-data-pipeline
+          # token required if repo is private; set PIPELINE_REPO_PAT secret if so
+          token: ${{ secrets.PIPELINE_REPO_PAT || github.token }}
 
       - uses: actions/setup-node@v4
         with:

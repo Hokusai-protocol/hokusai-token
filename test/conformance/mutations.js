@@ -168,6 +168,7 @@ const MUTATIONS = [
   {
     name: "contributors[0].weight",
     mutate({ modelId, payload, contributors }) {
+      if (contributors.length < 2) throw new Error("contributors[0].weight mutation requires ≥2 contributors in golden fixture");
       const nextContributors = cloneContributors(contributors);
       // Keep the 10000 bps invariant intact so signature verification is the failing seam.
       nextContributors[0].weight -= 1;
@@ -178,6 +179,7 @@ const MUTATIONS = [
   {
     name: "contributors[1].walletAddress",
     mutate({ modelId, payload, contributors }) {
+      if (contributors.length < 2) throw new Error("contributors[1].walletAddress mutation requires ≥2 contributors in golden fixture");
       const nextContributors = cloneContributors(contributors);
       nextContributors[1].walletAddress = "0x2222222222222222222222222222222222222222";
       return { modelId, payload: clonePayload(payload), contributors: nextContributors };
@@ -186,6 +188,7 @@ const MUTATIONS = [
   {
     name: "contributors[1].weight",
     mutate({ modelId, payload, contributors }) {
+      if (contributors.length < 2) throw new Error("contributors[1].weight mutation requires ≥2 contributors in golden fixture");
       const nextContributors = cloneContributors(contributors);
       // Keep the 10000 bps invariant intact so signature verification is the failing seam.
       nextContributors[1].weight -= 1;

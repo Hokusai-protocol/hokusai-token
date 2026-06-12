@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { CostReconciliationService } from '../monitoring/cost-reconciliation-service';
-import { asyncHandler } from '../middleware/async-handler';
 
 /**
  * Reconciliation API Routes
@@ -252,124 +251,121 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
    *   "metadata": { ... }
    * }
    */
-  router.post(
-    '/:modelId/costs',
-    asyncHandler((req: Request, res: Response) => {
-      try {
-        const { modelId } = req.params;
-        const { provider, amount, period, invoiceId, metadata } = req.body;
+  router.post('/:modelId/costs', (req: Request, res: Response) => {
+    try {
+      const { modelId } = req.params;
+      const { provider, amount, period, invoiceId, metadata } = req.body;
 
-        if (!modelId) {
-          res.status(400).json({
-            success: false,
-            error: {
-              code: 'INVALID_REQUEST',
-              message: 'Missing required path parameter: modelId',
-              timestamp: new Date().toISOString(),
-            },
-          });
-          return;
-        }
-
-        // Validate required fields
-        if (!provider || !amount || !period) {
-          res.status(400).json({
-            success: false,
-            error: {
-              code: 'INVALID_REQUEST',
-              message: 'Missing required fields: provider, amount, period',
-              timestamp: new Date().toISOString(),
-            },
-          });
-          return;
-        }
-
-        if (!period.start || !period.end) {
-          res.status(400).json({
-            success: false,
-            error: {
-              code: 'INVALID_REQUEST',
-              message: 'Period must have start and end dates',
-              timestamp: new Date().toISOString(),
-            },
-          });
-          return;
-        }
-
-        // Validate amount
-        const parsedAmount = parseFloat(amount);
-        if (isNaN(parsedAmount) || parsedAmount < 0) {
-          res.status(400).json({
-            success: false,
-            error: {
-              code: 'INVALID_AMOUNT',
-              message: 'Amount must be a valid positive number',
-              timestamp: new Date().toISOString(),
-            },
-          });
-          return;
-        }
-
-        // Validate dates
-        const startDate = new Date(period.start);
-        const endDate = new Date(period.end);
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-          res.status(400).json({
-            success: false,
-            error: {
-              code: 'INVALID_DATES',
-              message: 'Period start and end must be valid dates',
-              timestamp: new Date().toISOString(),
-            },
-          });
-          return;
-        }
-
-        if (endDate < startDate) {
-          res.status(400).json({
-            success: false,
-            error: {
-              code: 'INVALID_PERIOD',
-              message: 'Period end must be after period start',
-              timestamp: new Date().toISOString(),
-            },
-          });
-          return;
-        }
-
-        // Ingest costs
-        reconciliationService.ingestActualCosts({
-          modelId,
-          provider,
-          amount: parsedAmount,
-          period: {
-            start: startDate,
-            end: endDate,
-          },
-          invoiceId,
-          metadata,
-        });
-
-        res.json({
-          success: true,
-          data: {
-            modelId,
-            message: 'Costs ingested successfully',
-          },
-          timestamp: new Date().toISOString(),
-        });
-      } catch (error) {
-        res.status(500).json({
+      if (!modelId) {
+        res.status(400).json({
           success: false,
           error: {
-            code: 'INGEST_ERROR',
-            message: error instanceof Error ? error.message : 'Unknown error',
+            code: 'INVALID_REQUEST',
+            message: 'Missing required path parameter: modelId',
             timestamp: new Date().toISOString(),
           },
         });
+        return;
       }
-    }),
-  );
+
+      // Validate required fields
+      if (!provider || !amount || !period) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Missing required fields: provider, amount, period',
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+
+      if (!period.start || !period.end) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Period must have start and end dates',
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+
+      // Validate amount
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount < 0) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_AMOUNT',
+            message: 'Amount must be a valid positive number',
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+
+      // Validate dates
+      const startDate = new Date(period.start);
+      const endDate = new Date(period.end);
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_DATES',
+            message: 'Period start and end must be valid dates',
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+
+      if (endDate < startDate) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_PERIOD',
+            message: 'Period end must be after period start',
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+
+      // Ingest costs
+      reconciliationService.ingestActualCosts({
+        modelId,
+        provider,
+        amount: parsedAmount,
+        period: {
+          start: startDate,
+          end: endDate,
+        },
+        invoiceId,
+        metadata,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          modelId,
+          message: 'Costs ingested successfully',
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INGEST_ERROR',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+  });
 
   /**
    * GET /api/reconciliation/summary

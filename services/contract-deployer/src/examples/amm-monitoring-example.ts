@@ -76,18 +76,16 @@ async function main() {
       logger.info('\n\nReceived SIGINT, shutting down gracefully...');
       clearInterval(metricsInterval);
       clearInterval(healthInterval);
-      void monitor.stop().then(() => {
-        process.exit(0);
-      });
+      monitor.stop();
+      process.exit(0);
     });
 
     process.on('SIGTERM', () => {
       logger.info('\n\nReceived SIGTERM, shutting down gracefully...');
       clearInterval(metricsInterval);
       clearInterval(healthInterval);
-      void monitor.stop().then(() => {
-        process.exit(0);
-      });
+      monitor.stop();
+      process.exit(0);
     });
 
     // Keep running

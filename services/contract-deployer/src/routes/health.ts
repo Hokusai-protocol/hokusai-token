@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { ethers } from 'ethers';
 import { createClient } from 'redis';
 import { getBackendSigner } from '../blockchain/signer-singleton';
+import { asyncHandler } from '../middleware/async-handler';
 
 const DELTA_VERIFIER_ABI = [
   'function SUBMITTER_ROLE() view returns (bytes32)',
@@ -151,14 +152,14 @@ export function healthRouter() {
     });
   });
 
-  router.get('/ready', async (_req, res) => {
+  router.get('/ready', asyncHandler(async (_req, res) => {
     const readiness = await checkReadiness();
     res.status(readiness.ready ? 200 : 503).json({
       status: readiness.ready ? 'ready' : 'not_ready',
       timestamp: new Date().toISOString(),
       checks: readiness.checks,
     });
-  });
+  }));
 
   return router;
 }

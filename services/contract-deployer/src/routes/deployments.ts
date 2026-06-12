@@ -3,6 +3,7 @@ import { QueueService } from '../services/queue.service';
 import { BlockchainService } from '../services/blockchain.service';
 import { DeploymentService } from '../services/deployment.service';
 import { apiKeyAuth, validateUserAddress } from '../middleware/auth';
+import { asyncHandler } from '../middleware/async-handler';
 import { ValidationHelpers } from '../schemas/api-schemas';
 import { ApiErrorFactory, toApiError } from '../types/errors';
 import { createLogger } from '../utils/logger';
@@ -103,7 +104,7 @@ export function deploymentRouter(
    * GET /api/deployments/:id/status
    * Get deployment status
    */
-  router.get('/:id/status', async (req: Request, res: Response, _next: NextFunction) => {
+  router.get('/:id/status', asyncHandler(async (req: Request, res: Response) => {
     try {
       const deploymentId = req.params.id;
 
@@ -156,13 +157,13 @@ export function deploymentRouter(
         error: apiError.toApiResponse(),
       });
     }
-  });
+  }));
 
   /**
    * GET /api/deployments/:id
    * Legacy endpoint - redirects to status endpoint
    */
-  router.get('/:id', async (req: Request, res: Response, _next: NextFunction) => {
+  router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
     try {
       const deploymentId = req.params.id;
 
@@ -199,7 +200,7 @@ export function deploymentRouter(
         error: apiError.toApiResponse(),
       });
     }
-  });
+  }));
 
   return router;
 }

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { CostReconciliationService } from '../monitoring/cost-reconciliation-service';
+import { asyncHandler } from '../middleware/async-handler';
 
 /**
  * Reconciliation API Routes
@@ -251,7 +252,7 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
    *   "metadata": { ... }
    * }
    */
-  router.post('/:modelId/costs', async (req: Request, res: Response) => {
+  router.post('/:modelId/costs', asyncHandler(async (req: Request, res: Response) => {
     try {
       const { modelId } = req.params;
       const { provider, amount, period, invoiceId, metadata } = req.body;
@@ -418,7 +419,7 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         },
       });
     }
-  });
+  }));
 
   return router;
 }

@@ -8,6 +8,7 @@ import { HealthCheckService } from './monitoring/health-check';
 import { logger } from './utils/logger';
 import { createClient } from 'redis';
 import { ethers } from 'ethers';
+import { buildBackendSigner } from './blockchain/signer-factory';
 
 // Load environment variables
 dotenv.config();
@@ -28,6 +29,17 @@ async function main(): Promise<void> {
       process.env.RPC_URLS = config.RPC_URL;
     }
 
+    const backendProvider = new ethers.JsonRpcProvider(config.RPC_URL.split(',')[0]);
+    const backendSigner = await buildBackendSigner(
+      {
+        awsRegion: config.AWS_REGION,
+        kmsBackendKeyId: config.KMS_BACKEND_KEY_ID,
+        kmsBackendExpectedAddress: config.KMS_BACKEND_EXPECTED_ADDRESS,
+        privateKey: config.DEPLOYER_PRIVATE_KEY,
+      },
+      backendProvider,
+    );
+
     // Try to initialize the contract deploy listener (with optional Redis)
     let listener: ContractDeployListener | null = null;
     let mintListener: MintRequestListener | null = null;
@@ -40,7 +52,7 @@ async function main(): Promise<void> {
         },
         blockchain: {
           rpcUrls: config.RPC_URL.split(','),
-          privateKey: config.DEPLOYER_PRIVATE_KEY,
+          signer: backendSigner,
           tokenManagerAddress: config.TOKEN_MANAGER_ADDRESS,
           modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
           gasMultiplier: config.GAS_PRICE_MULTIPLIER,
@@ -89,7 +101,10 @@ async function main(): Promise<void> {
           },
           blockchain: {
             rpcUrls: config.RPC_URL.split(','),
-            privateKey: config.DEPLOYER_PRIVATE_KEY,
+            signer: backendSigner,
+            kmsKeyId: config.KMS_BACKEND_KEY_ID,
+            kmsExpectedAddress: config.KMS_BACKEND_EXPECTED_ADDRESS,
+            awsRegion: config.AWS_REGION,
             deltaVerifierAddress: config.DELTA_VERIFIER_ADDRESS,
             modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
             confirmations: config.CONFIRMATION_BLOCKS,

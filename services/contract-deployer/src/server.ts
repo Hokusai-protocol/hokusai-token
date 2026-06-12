@@ -8,6 +8,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import { createClient } from 'redis';
+import { ethers } from 'ethers';
 import { QueueService } from './services/queue.service';
 import { BlockchainService } from './services/blockchain.service';
 import { DeploymentService } from './services/deployment.service';
@@ -23,6 +24,7 @@ import { validateEnv, type Config } from './config/env.validation';
 import { AMMMonitor } from './monitoring/amm-monitor';
 import { createMonitoringConfig } from './config/monitoring-config';
 import { MintRequestListener } from './mint-request-listener';
+import { buildBackendSigner } from './blockchain/signer-factory';
 
 // Load environment variables
 dotenv.config();
@@ -92,17 +94,24 @@ async function createServer(): Promise<express.Application> {
     queueService = null;
   }
 
-  // Initialize blockchain service
-  const blockchainService = new BlockchainService(
-    config.RPC_URL,
-    config.DEPLOYER_PRIVATE_KEY,
-    logger,
+  const signerProvider = new ethers.JsonRpcProvider(config.RPC_URL.split(',')[0]);
+  const backendSigner = await buildBackendSigner(
+    {
+      awsRegion: config.AWS_REGION,
+      kmsBackendKeyId: config.KMS_BACKEND_KEY_ID,
+      kmsBackendExpectedAddress: config.KMS_BACKEND_EXPECTED_ADDRESS,
+      privateKey: config.DEPLOYER_PRIVATE_KEY,
+    },
+    signerProvider,
   );
+
+  // Initialize blockchain service
+  const blockchainService = new BlockchainService(config.RPC_URL, backendSigner, logger);
 
   // Initialize contract deployer
   const contractDeployer = new ContractDeployer({
     rpcUrls: [config.RPC_URL],
-    privateKey: config.DEPLOYER_PRIVATE_KEY,
+    signer: backendSigner,
     tokenManagerAddress: config.TOKEN_MANAGER_ADDRESS,
     modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
     gasMultiplier: config.GAS_PRICE_MULTIPLIER,
@@ -288,6 +297,16 @@ async function startServer(): Promise<void> {
   try {
     console.log('[STARTUP] Getting config...');
     const serverConfig: Config = await validateEnv();
+    const serverSignerProvider = new ethers.JsonRpcProvider(serverConfig.RPC_URL.split(',')[0]);
+    const serverBackendSigner = await buildBackendSigner(
+      {
+        awsRegion: serverConfig.AWS_REGION,
+        kmsBackendKeyId: serverConfig.KMS_BACKEND_KEY_ID,
+        kmsBackendExpectedAddress: serverConfig.KMS_BACKEND_EXPECTED_ADDRESS,
+        privateKey: serverConfig.DEPLOYER_PRIVATE_KEY,
+      },
+      serverSignerProvider,
+    );
     console.log('[STARTUP] Creating server application...');
     const app = await createServer();
     console.log('[STARTUP] Server application created');
@@ -319,7 +338,10 @@ async function startServer(): Promise<void> {
           },
           blockchain: {
             rpcUrls: serverConfig.RPC_URL.split(','),
-            privateKey: serverConfig.DEPLOYER_PRIVATE_KEY,
+            signer: serverBackendSigner,
+            kmsKeyId: serverConfig.KMS_BACKEND_KEY_ID,
+            kmsExpectedAddress: serverConfig.KMS_BACKEND_EXPECTED_ADDRESS,
+            awsRegion: serverConfig.AWS_REGION,
             deltaVerifierAddress: serverConfig.DELTA_VERIFIER_ADDRESS,
             modelRegistryAddress: serverConfig.MODEL_REGISTRY_ADDRESS,
             confirmations: serverConfig.CONFIRMATION_BLOCKS,

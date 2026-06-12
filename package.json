@@ -45,6 +45,8 @@
     "hardhat": "^2.24.2"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "^3.1067.0",
+    "@noble/curves": "^1.9.7",
     "redis": "^5.8.2"
   }
 }

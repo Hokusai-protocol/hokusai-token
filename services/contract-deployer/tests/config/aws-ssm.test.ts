@@ -179,9 +179,10 @@ describe('SSMParameterStore', () => {
         InvalidParameters: [],
       };
 
-      // getAllParameters makes 2 batch requests (19 params, batch size 10)
+      // getAllParameters makes 3 batch requests (21 params, batch size 10)
       mockSSMClient.send
         .mockResolvedValueOnce(mockResponse)
+        .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] })
         .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] });
 
       const ssm = new SSMParameterStore({
@@ -192,6 +193,8 @@ describe('SSMParameterStore', () => {
 
       expect(result).toEqual({
         deployer_key: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12',
+        kms_backend_key_id: undefined,
+        kms_backend_expected_address: undefined,
         token_manager_address: '0x1234567890123456789012345678901234567890',
         model_registry_address: '0x0987654321098765432109876543210987654321',
         rpc_endpoint: 'https://ethereum-rpc.com',
@@ -225,9 +228,10 @@ describe('SSMParameterStore', () => {
         InvalidParameters: [],
       };
 
-      // getAllParameters makes 2 batch requests (19 params, batch size 10)
+      // getAllParameters makes 3 batch requests (21 params, batch size 10)
       mockSSMClient.send
         .mockResolvedValueOnce(mockResponse)
+        .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] })
         .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] });
 
       const ssm = new SSMParameterStore({
@@ -315,10 +319,11 @@ describe('loadSSMConfiguration', () => {
       InvalidParameters: [],
     };
 
-    // Mock: testConnection (ParameterNotFound = success) + 2 batch getAllParameters requests
+    // Mock: testConnection (ParameterNotFound = success) + 3 batch getAllParameters requests
     mockSSMClient.send
       .mockRejectedValueOnce({ name: 'ParameterNotFound' })
       .mockResolvedValueOnce(mockResponse)
+      .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] })
       .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] });
 
     const result = await loadSSMConfiguration();
@@ -362,10 +367,11 @@ describe('loadSSMConfiguration', () => {
       InvalidParameters: [],
     };
 
-    // Mock: testConnection (ParameterNotFound = success) + 2 batch getAllParameters requests
+    // Mock: testConnection (ParameterNotFound = success) + 3 batch getAllParameters requests
     mockSSMClient.send
       .mockRejectedValueOnce({ name: 'ParameterNotFound' })
       .mockResolvedValueOnce(mockResponse)
+      .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] })
       .mockResolvedValueOnce({ Parameters: [], InvalidParameters: [] });
 
     const result = await loadSSMConfiguration();

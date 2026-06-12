@@ -55,7 +55,11 @@ const envSchema = Joi.object({
   // Deployer configuration
   DEPLOYER_PRIVATE_KEY: Joi.string()
     .pattern(/^0x[a-fA-F0-9]{64}$/)
-    .required(),
+    .optional(),
+  KMS_BACKEND_KEY_ID: Joi.string().optional(),
+  KMS_BACKEND_EXPECTED_ADDRESS: Joi.string()
+    .pattern(/^0x[a-fA-F0-9]{40}$/)
+    .optional(),
 
   // Gas configuration
   GAS_PRICE_MULTIPLIER: Joi.number().min(1).max(5).default(1.2),
@@ -159,7 +163,9 @@ export interface Config {
   LICENSE_HASH: string;
   LICENSE_URI: string;
   GOVERNOR_ADDRESS: string;
-  DEPLOYER_PRIVATE_KEY: string;
+  DEPLOYER_PRIVATE_KEY?: string;
+  KMS_BACKEND_KEY_ID?: string;
+  KMS_BACKEND_EXPECTED_ADDRESS?: string;
   GAS_PRICE_MULTIPLIER: number;
   MAX_GAS_PRICE_GWEI: number;
   DEFAULT_GAS_LIMIT: number;
@@ -248,6 +254,12 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
   if (ssmParams.deployer_key) {
     mapping.DEPLOYER_PRIVATE_KEY = ssmParams.deployer_key;
   }
+  if (ssmParams.kms_backend_key_id) {
+    mapping.KMS_BACKEND_KEY_ID = ssmParams.kms_backend_key_id;
+  }
+  if (ssmParams.kms_backend_expected_address) {
+    mapping.KMS_BACKEND_EXPECTED_ADDRESS = ssmParams.kms_backend_expected_address;
+  }
   if (ssmParams.api_keys) {
     mapping.API_KEYS = ssmParams.api_keys;
   }
@@ -300,6 +312,8 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
         'model_registry_address',
         'token_manager_address',
         'deployer_key',
+        'kms_backend_key_id',
+        'kms_backend_expected_address',
         'api_keys',
         'jwt_secret',
         'webhook_url',
@@ -394,18 +408,15 @@ export async function validateEnv(): Promise<Config> {
   }
 
   // Final validation for required fields
-  const requiredFields = [
-    'RPC_URL',
-    'MODEL_REGISTRY_ADDRESS',
-    'TOKEN_MANAGER_ADDRESS',
-    'DEPLOYER_PRIVATE_KEY',
-  ];
+  const requiredFields = ['RPC_URL', 'MODEL_REGISTRY_ADDRESS', 'TOKEN_MANAGER_ADDRESS'];
 
   const missingFields = requiredFields.filter((field) => !config[field as keyof Config]);
 
   if (missingFields.length > 0) {
     throw new Error(`Missing required configuration fields: ${missingFields.join(', ')}`);
   }
+
+  validateSignerConfiguration(config);
 
   // In production, deployment addresses must be non-zero — DeployableTokenManager rejects
   // zero supplier recipient and governor at the contract level.
@@ -465,5 +476,31 @@ export function validateEnvSync(): Config {
     logger.warn('SSM loading requested but not available in sync mode');
   }
 
+  validateSignerConfiguration(config);
+
   return config;
+}
+
+function validateSignerConfiguration(config: Config): void {
+  if (config.DEPLOYER_PRIVATE_KEY && config.KMS_BACKEND_KEY_ID) {
+    throw new Error(
+      'Env validation: DEPLOYER_PRIVATE_KEY and KMS_BACKEND_KEY_ID are mutually exclusive',
+    );
+  }
+
+  if (!config.DEPLOYER_PRIVATE_KEY && !config.KMS_BACKEND_KEY_ID) {
+    throw new Error(
+      'Env validation: one of DEPLOYER_PRIVATE_KEY or KMS_BACKEND_KEY_ID is required',
+    );
+  }
+
+  if (config.KMS_BACKEND_KEY_ID && !config.KMS_BACKEND_EXPECTED_ADDRESS) {
+    throw new Error(
+      'Env validation: KMS_BACKEND_EXPECTED_ADDRESS is required when KMS_BACKEND_KEY_ID is set',
+    );
+  }
+
+  if (config.NODE_ENV === 'production' && !config.KMS_BACKEND_KEY_ID) {
+    throw new Error('Env validation: KMS_BACKEND_KEY_ID required when NODE_ENV=production');
+  }
 }

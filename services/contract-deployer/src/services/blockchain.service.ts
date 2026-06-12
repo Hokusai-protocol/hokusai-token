@@ -3,15 +3,16 @@ import { Logger } from 'winston';
 
 export class BlockchainService {
   private provider: ethers.Provider;
-  private wallet: ethers.Wallet;
+  private signer: ethers.Signer;
+  private signerAddress?: string;
 
   constructor(
     rpcUrl: string,
-    privateKey: string,
+    signer: ethers.Signer,
     private readonly logger: Logger,
   ) {
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
-    this.wallet = new ethers.Wallet(privateKey, this.provider);
+    this.signer = signer.connect(this.provider);
   }
 
   async deployContract(
@@ -20,7 +21,7 @@ export class BlockchainService {
     args: unknown[],
   ): Promise<ethers.Contract> {
     try {
-      const factory = new ethers.ContractFactory(abi, bytecode, this.wallet);
+      const factory = new ethers.ContractFactory(abi, bytecode, this.signer);
       const contract = (await factory.deploy(...args)) as unknown as ethers.Contract;
       await contract.waitForDeployment();
 
@@ -54,7 +55,10 @@ export class BlockchainService {
     return this.provider.getFeeData().then((feeData) => feeData.gasPrice || 0n);
   }
 
-  getWalletAddress(): string {
-    return this.wallet.address;
+  async getWalletAddress(): Promise<string> {
+    if (!this.signerAddress) {
+      this.signerAddress = await this.signer.getAddress();
+    }
+    return this.signerAddress;
   }
 }

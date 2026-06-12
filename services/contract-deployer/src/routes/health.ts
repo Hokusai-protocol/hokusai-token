@@ -36,20 +36,22 @@ async function checkReadiness() {
         blockNumber,
       };
 
-      const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-      if (!privateKey) {
+      const signerAddress = getBackendSignerAddress();
+      if (!signerAddress) {
         ready = false;
-        checks.signer = { ok: false, error: 'DEPLOYER_PRIVATE_KEY is not configured' };
+        checks.signer = {
+          ok: false,
+          error: 'KMS_BACKEND_EXPECTED_ADDRESS or DEPLOYER_PRIVATE_KEY is not configured',
+        };
       } else {
-        const wallet = new ethers.Wallet(privateKey, provider);
         const balance = await withTimeout(
-          provider.getBalance(wallet.address),
+          provider.getBalance(signerAddress),
           5000,
           'Signer balance check timeout',
         );
         checks.signer = {
           ok: balance > 0n,
-          address: wallet.address,
+          address: signerAddress,
           balanceEth: ethers.formatEther(balance),
         };
         if (balance === 0n) {
@@ -75,7 +77,7 @@ async function checkReadiness() {
             'DeltaVerifier role lookup timeout',
           );
           const hasSubmitterRole = await withTimeout(
-            deltaVerifier.hasRole(role, wallet.address),
+            deltaVerifier.hasRole(role, signerAddress),
             5000,
             'DeltaVerifier submitter role check timeout',
           );
@@ -136,6 +138,18 @@ async function checkReadiness() {
   };
 
   return { ready, checks };
+}
+
+function getBackendSignerAddress(): string | null {
+  if (process.env.KMS_BACKEND_EXPECTED_ADDRESS) {
+    return ethers.getAddress(process.env.KMS_BACKEND_EXPECTED_ADDRESS);
+  }
+
+  if (process.env.DEPLOYER_PRIVATE_KEY) {
+    return new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY).address;
+  }
+
+  return null;
 }
 
 export function healthRouter() {

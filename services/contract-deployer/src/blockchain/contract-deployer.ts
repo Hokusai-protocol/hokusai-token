@@ -17,7 +17,8 @@ export interface DeploymentParams {
 
 export interface ContractDeployerConfig {
   rpcUrls: string[];
-  privateKey: string;
+  privateKey?: string;
+  signer?: ethers.Signer;
   tokenManagerAddress: string;
   modelRegistryAddress: string;
   gasMultiplier: number;
@@ -50,7 +51,13 @@ export class ContractDeployer {
   constructor(config: ContractDeployerConfig) {
     this.config = config;
     this.provider = this.createProvider();
-    this.signer = new ethers.Wallet(config.privateKey, this.provider);
+    if (config.signer) {
+      this.signer = config.signer.connect(this.provider);
+    } else if (config.privateKey) {
+      this.signer = new ethers.Wallet(config.privateKey, this.provider);
+    } else {
+      throw new Error('ContractDeployer requires either signer or privateKey');
+    }
   }
 
   private createProvider(): ethers.Provider {

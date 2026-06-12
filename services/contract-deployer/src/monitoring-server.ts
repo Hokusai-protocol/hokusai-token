@@ -286,16 +286,19 @@ async function getSignerReadiness(
   provider: ethers.JsonRpcProvider,
 ): Promise<{ ok: boolean; address?: string; balanceWei?: string; error?: string }> {
   try {
-    if (!process.env.DEPLOYER_PRIVATE_KEY) {
-      return { ok: false, error: 'DEPLOYER_PRIVATE_KEY is not set' };
+    const signerAddress = getBackendSignerAddress();
+    if (!signerAddress) {
+      return {
+        ok: false,
+        error: 'KMS_BACKEND_EXPECTED_ADDRESS or DEPLOYER_PRIVATE_KEY is not set',
+      };
     }
 
-    const wallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider);
-    const balance = await provider.getBalance(wallet.address);
+    const balance = await provider.getBalance(signerAddress);
 
     return {
       ok: balance > 0n,
-      address: wallet.address,
+      address: signerAddress,
       balanceWei: balance.toString(),
       ...(balance > 0n ? {} : { error: 'signer balance is zero' }),
     };
@@ -305,6 +308,18 @@ async function getSignerReadiness(
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function getBackendSignerAddress(): string | null {
+  if (process.env.KMS_BACKEND_EXPECTED_ADDRESS) {
+    return ethers.getAddress(process.env.KMS_BACKEND_EXPECTED_ADDRESS);
+  }
+
+  if (process.env.DEPLOYER_PRIVATE_KEY) {
+    return new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY).address;
+  }
+
+  return null;
 }
 
 async function getDeltaVerifierRoleReadiness(

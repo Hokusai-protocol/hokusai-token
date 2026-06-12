@@ -12,6 +12,15 @@ const VALID_ADDRESS_2 = '0x0987654321098765432109876543210987654321';
 const VALID_PRIVATE_KEY = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
 const NONZERO_SUPPLIER = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const NONZERO_GOVERNOR = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const KMS_BACKEND_KEY_ID = 'alias/hokusai/test/submitter';
+const KMS_BACKEND_EXPECTED_ADDRESS = '0x1234567890123456789012345678901234567890';
+
+function useProductionKmsEnv(): void {
+  process.env.NODE_ENV = 'production';
+  delete process.env.DEPLOYER_PRIVATE_KEY;
+  process.env.KMS_BACKEND_KEY_ID = KMS_BACKEND_KEY_ID;
+  process.env.KMS_BACKEND_EXPECTED_ADDRESS = KMS_BACKEND_EXPECTED_ADDRESS;
+}
 
 describe('Environment Validation', () => {
   const originalEnv = process.env;
@@ -82,7 +91,7 @@ describe('Environment Validation', () => {
 
     it('should warn when SSM is required but sync validation is used', () => {
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-      process.env.NODE_ENV = 'production';
+      useProductionKmsEnv();
 
       validateEnvSync();
 
@@ -103,10 +112,11 @@ describe('Environment Validation', () => {
     });
 
     it('should load SSM configuration in production', async () => {
-      process.env.NODE_ENV = 'production';
+      useProductionKmsEnv();
 
       const mockSSMParams = {
-        deployer_key: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+        kms_backend_key_id: KMS_BACKEND_KEY_ID,
+        kms_backend_expected_address: KMS_BACKEND_EXPECTED_ADDRESS,
         token_manager_address: '0x2234567890123456789012345678901234567890',
         model_registry_address: '0x3334567890123456789012345678901234567890',
         rpc_endpoint: 'https://prod-ethereum-rpc.com',
@@ -123,7 +133,8 @@ describe('Environment Validation', () => {
 
       const config = await validateEnv();
 
-      expect(config.DEPLOYER_PRIVATE_KEY).toBe(mockSSMParams.deployer_key);
+      expect(config.KMS_BACKEND_KEY_ID).toBe(mockSSMParams.kms_backend_key_id);
+      expect(config.KMS_BACKEND_EXPECTED_ADDRESS).toBe(mockSSMParams.kms_backend_expected_address);
       expect(config.TOKEN_MANAGER_ADDRESS).toBe(mockSSMParams.token_manager_address);
       expect(config.MODEL_REGISTRY_ADDRESS).toBe(mockSSMParams.model_registry_address);
       expect(config.RPC_URL).toBe(mockSSMParams.rpc_endpoint);
@@ -136,10 +147,11 @@ describe('Environment Validation', () => {
     });
 
     it('should parse Redis URL from SSM configuration', async () => {
-      process.env.NODE_ENV = 'production';
+      useProductionKmsEnv();
 
       const mockSSMParams = {
-        deployer_key: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+        kms_backend_key_id: KMS_BACKEND_KEY_ID,
+        kms_backend_expected_address: KMS_BACKEND_EXPECTED_ADDRESS,
         token_manager_address: '0x2234567890123456789012345678901234567890',
         model_registry_address: '0x3334567890123456789012345678901234567890',
         rpc_endpoint: 'https://prod-ethereum-rpc.com',
@@ -178,7 +190,7 @@ describe('Environment Validation', () => {
     });
 
     it('should throw error when SSM loading fails in production', async () => {
-      process.env.NODE_ENV = 'production';
+      useProductionKmsEnv();
 
       const mockError = new Error('SSM connection failed');
       mockLoadSSMConfiguration.mockRejectedValueOnce(mockError);
@@ -209,11 +221,12 @@ describe('Environment Validation', () => {
     });
 
     it('should handle optional SSM parameters correctly', async () => {
-      process.env.NODE_ENV = 'production';
+      useProductionKmsEnv();
 
       const mockSSMParams = {
         // Only required parameters + non-zero deployment addresses
-        deployer_key: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+        kms_backend_key_id: KMS_BACKEND_KEY_ID,
+        kms_backend_expected_address: KMS_BACKEND_EXPECTED_ADDRESS,
         token_manager_address: '0x2234567890123456789012345678901234567890',
         model_registry_address: '0x3334567890123456789012345678901234567890',
         rpc_endpoint: 'https://prod-ethereum-rpc.com',
@@ -234,10 +247,11 @@ describe('Environment Validation', () => {
     });
 
     it('should validate SSM configuration with schema', async () => {
-      process.env.NODE_ENV = 'production';
+      useProductionKmsEnv();
 
       const mockSSMParams = {
-        deployer_key: 'invalid-private-key', // Should fail validation
+        kms_backend_key_id: KMS_BACKEND_KEY_ID,
+        kms_backend_expected_address: 'invalid-address',
         token_manager_address: '0x2234567890123456789012345678901234567890',
         model_registry_address: '0x3334567890123456789012345678901234567890',
         rpc_endpoint: 'https://prod-ethereum-rpc.com',
@@ -251,10 +265,11 @@ describe('Environment Validation', () => {
     });
 
     it('should load deployment params from SSM and override defaults', async () => {
-      process.env.NODE_ENV = 'production';
+      useProductionKmsEnv();
 
       const mockSSMParams = {
-        deployer_key: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+        kms_backend_key_id: KMS_BACKEND_KEY_ID,
+        kms_backend_expected_address: KMS_BACKEND_EXPECTED_ADDRESS,
         token_manager_address: '0x2234567890123456789012345678901234567890',
         model_registry_address: '0x3334567890123456789012345678901234567890',
         rpc_endpoint: 'https://prod-ethereum-rpc.com',
@@ -282,7 +297,7 @@ describe('Environment Validation', () => {
     });
 
     it('should reject zero MODEL_SUPPLIER_RECIPIENT in production', async () => {
-      process.env.NODE_ENV = 'production';
+      useProductionKmsEnv();
       process.env.GOVERNOR_ADDRESS = NONZERO_GOVERNOR;
       delete process.env.MODEL_SUPPLIER_RECIPIENT; // ensure Joi default (zero) is used
       mockLoadSSMConfiguration.mockResolvedValueOnce(null);
@@ -291,7 +306,7 @@ describe('Environment Validation', () => {
     });
 
     it('should reject zero GOVERNOR_ADDRESS in production', async () => {
-      process.env.NODE_ENV = 'production';
+      useProductionKmsEnv();
       process.env.MODEL_SUPPLIER_RECIPIENT = NONZERO_SUPPLIER;
       delete process.env.GOVERNOR_ADDRESS; // ensure Joi default (zero) is used
       mockLoadSSMConfiguration.mockResolvedValueOnce(null);

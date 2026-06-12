@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { getDeploySigner } = require("./get-deploy-signer");
 
 const DEFAULT_BATCH_SIZE = 200;
 
@@ -108,7 +109,7 @@ function chunkAddresses(addresses, batchSize = DEFAULT_BATCH_SIZE) {
 async function getWhitelistContract(runtime, options = {}) {
   const { deploymentPath, deployment } = loadDeployment(runtime, options.deploymentPath);
   const { address, source } = resolveWhitelistAddress(runtime, deployment);
-  const signer = options.signer || (await runtime.ethers.getSigners())[0];
+  const signer = options.signer || (await getDeploySigner(runtime));
   const whitelist = await runtime.ethers.getContractAt("PurchaserWhitelist", address, signer);
   return { whitelist, signer, address, source, deployment, deploymentPath };
 }

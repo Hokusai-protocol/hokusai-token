@@ -1,4 +1,5 @@
 const { buildArtifact, writeArtifactFiles } = require("./deployment-artifact");
+const { getDeploySigner } = require("./get-deploy-signer");
 
 const HARDHAT_DRY_RUN_CHAIN_ID = 31337n;
 const DEFAULT_VERIFIER_ADDRESS = null;
@@ -54,7 +55,7 @@ async function deployFullStack(networkConfig, runtime) {
     scriptPaths,
   } = runtime;
   const { ethers } = hre;
-  const [deployer] = await ethers.getSigners();
+  const deployer = await getDeploySigner(hre);
   const providerNetwork = await ethers.provider.getNetwork();
   const actualChainId = BigInt(hre.network.config.chainId ?? providerNetwork.chainId);
   const expectedChainId = BigInt(networkConfig.expectedChainId);
@@ -114,19 +115,19 @@ async function deployFullStack(networkConfig, runtime) {
   };
 
   logger.log("Phase 1: core infrastructure");
-  const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
+  const ModelRegistry = await ethers.getContractFactory("ModelRegistry", deployer);
   const modelRegistry = await ModelRegistry.deploy();
   await modelRegistry.waitForDeployment();
   recordReceipt(await recordDeployment(modelRegistry, gasUsed, "ModelRegistry"));
   contracts.ModelRegistry = await modelRegistry.getAddress();
 
-  const TokenDeploymentFactory = await ethers.getContractFactory("TokenDeploymentFactory");
+  const TokenDeploymentFactory = await ethers.getContractFactory("TokenDeploymentFactory", deployer);
   const tokenDeploymentFactory = await TokenDeploymentFactory.deploy();
   await tokenDeploymentFactory.waitForDeployment();
   recordReceipt(await recordDeployment(tokenDeploymentFactory, gasUsed, "TokenDeploymentFactory"));
   contracts.TokenDeploymentFactory = await tokenDeploymentFactory.getAddress();
 
-  const DeployableTokenManager = await ethers.getContractFactory("DeployableTokenManager");
+  const DeployableTokenManager = await ethers.getContractFactory("DeployableTokenManager", deployer);
   const tokenManager = await DeployableTokenManager.deploy(
     contracts.ModelRegistry,
     contracts.TokenDeploymentFactory
@@ -136,7 +137,7 @@ async function deployFullStack(networkConfig, runtime) {
   contracts.TokenManager = await tokenManager.getAddress();
   contracts._tokenManagerImpl = "DeployableTokenManager";
 
-  const RewardVestingVault = await ethers.getContractFactory("RewardVestingVault");
+  const RewardVestingVault = await ethers.getContractFactory("RewardVestingVault", deployer);
   const rewardVestingVault = await RewardVestingVault.deploy(contracts.TokenManager);
   await rewardVestingVault.waitForDeployment();
   recordReceipt(await recordDeployment(rewardVestingVault, gasUsed, "RewardVestingVault"));
@@ -150,7 +151,7 @@ async function deployFullStack(networkConfig, runtime) {
     )
   );
 
-  const DataContributionRegistry = await ethers.getContractFactory("DataContributionRegistry");
+  const DataContributionRegistry = await ethers.getContractFactory("DataContributionRegistry", deployer);
   const contributionRegistry = await DataContributionRegistry.deploy();
   await contributionRegistry.waitForDeployment();
   recordReceipt(await recordDeployment(contributionRegistry, gasUsed, "DataContributionRegistry"));
@@ -172,7 +173,7 @@ async function deployFullStack(networkConfig, runtime) {
     }
 
     logger.warn("No Sepolia reserve token configured; deploying MockUSDC fallback");
-    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const MockUSDC = await ethers.getContractFactory("MockUSDC", deployer);
     const mockUsdc = await MockUSDC.deploy();
     await mockUsdc.waitForDeployment();
     recordReceipt(await recordDeployment(mockUsdc, gasUsed, "MockUSDC"));
@@ -188,7 +189,7 @@ async function deployFullStack(networkConfig, runtime) {
     );
   }
 
-  const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
+  const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory", deployer);
   const factory = await HokusaiAMMFactory.deploy(
     contracts.ModelRegistry,
     contracts.TokenManager,
@@ -199,7 +200,7 @@ async function deployFullStack(networkConfig, runtime) {
   recordReceipt(await recordDeployment(factory, gasUsed, "HokusaiAMMFactory"));
   contracts.HokusaiAMMFactory = await factory.getAddress();
 
-  const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
+  const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer", deployer);
   const poolDeployer = await HokusaiAMMPoolDeployer.deploy(contracts.HokusaiAMMFactory);
   await poolDeployer.waitForDeployment();
   recordReceipt(await recordDeployment(poolDeployer, gasUsed, "HokusaiAMMPoolDeployer"));
@@ -232,14 +233,14 @@ async function deployFullStack(networkConfig, runtime) {
     )
   );
 
-  const PurchaserWhitelist = await ethers.getContractFactory("PurchaserWhitelist");
+  const PurchaserWhitelist = await ethers.getContractFactory("PurchaserWhitelist", deployer);
   const purchaserWhitelist = await PurchaserWhitelist.deploy(deployer.address);
   await purchaserWhitelist.waitForDeployment();
   recordReceipt(await recordDeployment(purchaserWhitelist, gasUsed, "PurchaserWhitelist"));
   contracts.PurchaserWhitelist = await purchaserWhitelist.getAddress();
 
   logger.log("Phase 3: infrastructure and fee routing");
-  const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
+  const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve", deployer);
   const infrastructureReserve = await InfrastructureReserve.deploy(
     reserveTokenAddress,
     contracts.HokusaiAMMFactory,
@@ -249,7 +250,7 @@ async function deployFullStack(networkConfig, runtime) {
   recordReceipt(await recordDeployment(infrastructureReserve, gasUsed, "InfrastructureReserve"));
   contracts.InfrastructureReserve = await infrastructureReserve.getAddress();
 
-  const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
+  const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle", deployer);
   const infrastructureCostOracle = await InfrastructureCostOracle.deploy(
     deployer.address,
     networkConfig.infrastructureCostOracleParams.initialGrossMarginBps
@@ -258,7 +259,7 @@ async function deployFullStack(networkConfig, runtime) {
   recordReceipt(await recordDeployment(infrastructureCostOracle, gasUsed, "InfrastructureCostOracle"));
   contracts.InfrastructureCostOracle = await infrastructureCostOracle.getAddress();
 
-  const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
+  const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter", deployer);
   const usageFeeRouter = await UsageFeeRouter.deploy(
     contracts.HokusaiAMMFactory,
     reserveTokenAddress,
@@ -298,7 +299,7 @@ async function deployFullStack(networkConfig, runtime) {
   }
 
   logger.log("Phase 4: delta verifier");
-  const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier");
+  const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier", deployer);
   const deltaVerifier = await DeltaVerifier.deploy(
     contracts.ModelRegistry,
     contracts.TokenManager,

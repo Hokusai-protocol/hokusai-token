@@ -330,7 +330,9 @@ export class InfrastructureMonitor {
           memo,
         });
 
-        void this.handleInfrastructureCostPaid(modelId, amount, payee, invoiceHash, memo);
+        void this.handleInfrastructureCostPaid(modelId, amount, payee, invoiceHash, memo).catch((error) => {
+          logger.error(`Failed to handle infrastructure cost paid for ${modelId}`, { error });
+        });
       },
     );
 
@@ -352,7 +354,9 @@ export class InfrastructureMonitor {
     const paramsContract = this.paramsContracts.get(modelId);
     if (paramsContract && this.thresholds.alertOnSplitChange) {
       void paramsContract.on('InfrastructureAccrualBpsSet', (oldBps, newBps, updatedBy, _event) => {
-        void this.handleSplitChange(modelId, oldBps, newBps, updatedBy);
+        void this.handleSplitChange(modelId, oldBps, newBps, updatedBy).catch((error) => {
+          logger.error(`Failed to handle split change for ${modelId}`, { error });
+        });
       });
     }
   }

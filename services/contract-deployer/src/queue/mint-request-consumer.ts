@@ -3,13 +3,13 @@ import { RedisClientType } from 'redis';
 import {
   MintRequestMessage,
   MintRequestSettlement,
-  validateMintRequestMessage,
+  mintRequestSchema,
 } from '../schemas/mint-request-schema';
 import { MintBudgetExceededError } from '../blockchain/delta-verifier-client';
 import { MintRecordStore } from './mint-record-store';
 import { classifyError, computeBackoffMs, FailureClass } from './retry-policy';
 import { logger } from '../utils/logger';
-import { parseTrusted } from '../utils/json';
+import { parseValidated, parseTrusted } from '../utils/json';
 
 export interface MintRequestConsumerConfig {
   redis: RedisClientType;
@@ -55,26 +55,15 @@ export class MintRequestConsumer extends EventEmitter {
       return;
     }
 
-    let parsedMessage: MintRequestMessage;
+    let message: MintRequestMessage;
     try {
-      parsedMessage = parseTrusted<MintRequestMessage>(messageStr);
+      message = parseValidated<MintRequestMessage>(messageStr, mintRequestSchema);
     } catch (error) {
-      logger.error('Failed to parse MintRequest JSON', { error, messageStr });
-      await this.moveToDeadLetterQueue(messageStr, undefined, 'Invalid JSON');
+      const errorMessage = error instanceof Error ? error.message : 'Invalid message';
+      logger.error('Failed to parse/validate MintRequest', { error, messageStr });
+      await this.moveToDeadLetterQueue(messageStr, undefined, errorMessage);
       return;
     }
-
-    const validation = validateMintRequestMessage(parsedMessage);
-    if (validation.error) {
-      logger.error('MintRequest validation failed', {
-        error: validation.error.message,
-        message: parsedMessage,
-      });
-      await this.moveToDeadLetterQueue(messageStr, undefined, validation.error.message);
-      return;
-    }
-
-    const message = validation.value;
     const alreadyProcessed = await this.redis.sIsMember(
       this.config.processedSetKey,
       message.idempotency_key,

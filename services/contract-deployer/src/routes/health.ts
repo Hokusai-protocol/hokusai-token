@@ -2,7 +2,13 @@ import { Router } from 'express';
 import { ethers } from 'ethers';
 import { createClient } from 'redis';
 import { getBackendSigner } from '../blockchain/signer-singleton';
+import { typedContract } from '../blockchain/contract-types';
 import { asyncHandler } from '../middleware/async-handler';
+
+type DeltaVerifierHealthContract = ethers.Contract & {
+  SUBMITTER_ROLE(): Promise<string>;
+  hasRole(role: string, account: string): Promise<boolean>;
+};
 
 const DELTA_VERIFIER_ABI = [
   'function SUBMITTER_ROLE() view returns (bytes32)',
@@ -63,14 +69,11 @@ async function checkReadiness() {
           ready = false;
           checks.deltaVerifier = { ok: false, error: 'DELTA_VERIFIER_ADDRESS is not configured' };
         } else {
-          const deltaVerifier = new ethers.Contract(
+          const deltaVerifier = typedContract<DeltaVerifierHealthContract>(
             deltaVerifierAddress,
             DELTA_VERIFIER_ABI,
             provider,
-          ) as unknown as {
-            SUBMITTER_ROLE(): Promise<string>;
-            hasRole(role: string, account: string): Promise<boolean>;
-          };
+          );
           const role = await withTimeout(
             deltaVerifier.SUBMITTER_ROLE(),
             5000,
@@ -152,14 +155,17 @@ export function healthRouter() {
     });
   });
 
-  router.get('/ready', asyncHandler(async (_req, res) => {
-    const readiness = await checkReadiness();
-    res.status(readiness.ready ? 200 : 503).json({
-      status: readiness.ready ? 'ready' : 'not_ready',
-      timestamp: new Date().toISOString(),
-      checks: readiness.checks,
-    });
-  }));
+  router.get(
+    '/ready',
+    asyncHandler(async (_req, res) => {
+      const readiness = await checkReadiness();
+      res.status(readiness.ready ? 200 : 503).json({
+        status: readiness.ready ? 'ready' : 'not_ready',
+        timestamp: new Date().toISOString(),
+        checks: readiness.checks,
+      });
+    }),
+  );
 
   return router;
 }

@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { ModelRegistryContract, typedContract } from './contract-types';
 import { logger } from '../utils/logger';
 
 const MODEL_REGISTRY_ABI = [
@@ -39,12 +40,16 @@ export interface ModelInfo {
 }
 
 export class ModelRegistryService {
-  private contract: ethers.Contract;
+  private contract: ModelRegistryContract;
   private config: ModelRegistryConfig;
 
   constructor(config: ModelRegistryConfig) {
     this.config = config;
-    this.contract = new ethers.Contract(config.registryAddress, MODEL_REGISTRY_ABI, config.signer);
+    this.contract = typedContract<ModelRegistryContract>(
+      config.registryAddress,
+      MODEL_REGISTRY_ABI,
+      config.signer,
+    );
   }
 
   async registerModel(data: RegistrationData): Promise<RegistrationResult> {

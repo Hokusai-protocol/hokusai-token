@@ -19,9 +19,7 @@ export type ModelRegistryContract = ethers.Contract & {
     mlflowRunId: string,
   ): Promise<ethers.ContractTransactionResponse | null>;
   getTokenAddress(modelId: string): Promise<string>;
-  getModelInfo(
-    modelId: string,
-  ): Promise<[string, string, string, bigint, boolean]>;
+  getModelInfo(modelId: string): Promise<[string, string, string, bigint, boolean]>;
   owner(): Promise<string>;
 };
 
@@ -38,12 +36,43 @@ export type BurnAuctionContract = ethers.Contract & {
     modelId: bigint,
     initialPrice: bigint,
   ): Promise<ethers.ContractTransactionResponse | null>;
-  placeBid(auctionId: bigint, bidAmount: bigint): Promise<ethers.ContractTransactionResponse | null>;
+  placeBid(
+    auctionId: bigint,
+    bidAmount: bigint,
+  ): Promise<ethers.ContractTransactionResponse | null>;
+};
+
+export interface TokenManagerInitialParams {
+  tokensPerDeltaOne: bigint;
+  infrastructureAccrualBps: number;
+  initialOraclePricePerThousandUsd: bigint;
+  licenseHash: string;
+  licenseURI: string;
+  governor: string;
+  vestingConfig: {
+    enabled: boolean;
+    immediateUnlockBps: number;
+    vestingDurationSeconds: number;
+    cliffSeconds: number;
+  };
+}
+
+export type TokenManagerContract = ethers.Contract & {
+  deployTokenWithAllocations(
+    modelId: string,
+    tokenName: string,
+    tokenSymbol: string,
+    modelSupplierAllocation: bigint,
+    modelSupplierRecipient: string,
+    investorAllocation: bigint,
+    initialParams: TokenManagerInitialParams,
+    overrides?: { gasPrice: bigint },
+  ): Promise<ethers.TransactionResponse>;
 };
 
 export function typedContract<T>(
   address: string,
-  abi: string[] | ethers.Interface,
+  abi: ethers.InterfaceAbi | ethers.Interface,
   runner: ethers.Provider | ethers.Signer | null,
 ): T {
   return new ethers.Contract(address, abi, runner) as T;

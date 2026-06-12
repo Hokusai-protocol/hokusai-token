@@ -168,7 +168,7 @@ async function createServer(context?: ServerContext): Promise<express.Applicatio
       );
 
       // Start background processing
-      await deploymentProcessor.start();
+      deploymentProcessor.start();
       console.log('[STARTUP] Deployment processor started');
       logger.info('Deployment processor started');
     } catch (error) {
@@ -395,7 +395,7 @@ async function startServer(): Promise<void> {
       // Stop AMM monitoring
       if (monitorRef) {
         try {
-          await monitorRef.stop();
+          monitorRef.stop();
           logger.info('AMM monitoring stopped');
         } catch (error) {
           logger.warn('Error stopping AMM monitoring', { error });
@@ -424,8 +424,12 @@ async function startServer(): Promise<void> {
       process.exit(0);
     };
 
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => {
+      void gracefulShutdown('SIGTERM');
+    });
+    process.on('SIGINT', () => {
+      void gracefulShutdown('SIGINT');
+    });
   } catch (error) {
     logger.error('Failed to start server', { error });
     process.exit(1);

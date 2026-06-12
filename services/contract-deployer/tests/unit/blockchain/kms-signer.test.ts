@@ -59,7 +59,7 @@ function createMockProvider(chainId = 11155111n): ethers.Provider {
       maxPriorityFeePerGas: 1_000_000_000n,
       toJSON: () => ({}),
     }),
-    resolveName: jest.fn().mockImplementation(async (value: string) => value),
+    resolveName: jest.fn().mockImplementation((value: string) => value),
     getBalance: jest.fn(),
   } as unknown as ethers.Provider;
 }
@@ -73,7 +73,7 @@ describe('KmsSigner', () => {
 
   let returnHighS = false;
   const mockClient = {
-    send: jest.fn(async (command: unknown) => {
+    send: jest.fn((command: unknown) => {
       if (command instanceof GetPublicKeyCommand) {
         return { PublicKey: publicKeyDer };
       }

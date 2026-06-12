@@ -258,7 +258,7 @@ describe('MintRequestConsumer', () => {
     let startCalls = 0;
 
     mockRedis.zRangeByScore.mockResolvedValueOnce([retryMessage]).mockResolvedValueOnce([]);
-    mockRedis.brPopLPush.mockImplementation(async () => {
+    mockRedis.brPopLPush.mockImplementation(() => {
       startCalls += 1;
       if (startCalls === 1) {
         consumer.stop();

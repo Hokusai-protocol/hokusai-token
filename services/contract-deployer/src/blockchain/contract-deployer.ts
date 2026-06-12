@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { ModelReadyToDeployMessage } from '../schemas/message-schemas';
+import { TokenManagerContract, TokenManagerInitialParams, typedContract } from './contract-types';
 import { logger } from '../utils/logger';
 import TokenManagerABI from '../../contracts/TokenManager.json';
 
@@ -91,7 +92,7 @@ export class ContractDeployer {
 
     while (attempts < maxAttempts) {
       try {
-        const tokenManager = new ethers.Contract(
+        const tokenManager = typedContract<TokenManagerContract>(
           this.config.tokenManagerAddress,
           TokenManagerABI.abi,
           this.signer,
@@ -104,7 +105,7 @@ export class ContractDeployer {
           gasPrice = maxGasPrice;
         }
 
-        const initialParams = {
+        const initialParams: TokenManagerInitialParams = {
           tokensPerDeltaOne: params.tokensPerDeltaOne,
           infrastructureAccrualBps: params.infrastructureAccrualBps,
           initialOraclePricePerThousandUsd: params.initialOraclePricePerThousandUsd,
@@ -119,11 +120,7 @@ export class ContractDeployer {
           },
         };
 
-        const tx = await (
-          tokenManager as ethers.Contract & {
-            deployTokenWithAllocations: (...args: unknown[]) => Promise<ethers.TransactionResponse>;
-          }
-        ).deployTokenWithAllocations(
+        const tx = await tokenManager.deployTokenWithAllocations(
           message.model_id,
           tokenName,
           tokenSymbol,

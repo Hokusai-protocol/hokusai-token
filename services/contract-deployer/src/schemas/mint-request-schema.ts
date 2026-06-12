@@ -189,6 +189,8 @@ const mintRequestSchema = Joi.object<MintRequestMessage>({
   .messages({ 'any.custom': '{{#message}}' })
   .options({ abortEarly: false });
 
+export { mintRequestSchema };
+
 export function validateMintRequestMessage(
   message: unknown,
 ): Joi.ValidationResult<MintRequestMessage> {

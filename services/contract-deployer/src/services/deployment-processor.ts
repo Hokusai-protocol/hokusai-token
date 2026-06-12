@@ -18,7 +18,7 @@ export class DeploymentProcessor {
     private readonly config: Config,
   ) {}
 
-  async start(): Promise<void> {
+  start(): void {
     if (this.running) {
       this.logger.warn('Deployment processor is already running');
       return;
@@ -28,10 +28,10 @@ export class DeploymentProcessor {
     this.logger.info('Starting deployment processor');
 
     // Start processing queue
-    this.processQueue();
+    void this.processQueue();
   }
 
-  async stop(): Promise<void> {
+  stop(): void {
     this.running = false;
     if (this.processingInterval) {
       clearInterval(this.processingInterval);

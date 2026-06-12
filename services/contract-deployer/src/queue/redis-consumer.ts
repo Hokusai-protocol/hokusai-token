@@ -125,7 +125,9 @@ export class RedisQueueConsumer extends EventEmitter {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Message processing failed', { error: errorMessage });
 
-      const message = parseTrusted<ModelReadyToDeployMessage & { _retryCount?: number }>(messageStr);
+      const message = parseTrusted<ModelReadyToDeployMessage & { _retryCount?: number }>(
+        messageStr,
+      );
       const retryCount = message._retryCount ?? 0;
 
       if (retryCount < this.config.maxRetries) {

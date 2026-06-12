@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import DeltaVerifierArtifact from '../../contracts/DeltaVerifier.json';
+import { typedContract } from './contract-types';
 import { logger } from '../utils/logger';
 
 const MODEL_REGISTRY_ABI = [
@@ -157,16 +158,16 @@ export class DeltaVerifierClient {
 
   constructor(config: DeltaVerifierClientConfig) {
     this.config = config;
-    this.contract = new ethers.Contract(
+    this.contract = typedContract<DeltaVerifierContract>(
       config.deltaVerifierAddress,
       DeltaVerifierArtifact.abi,
       config.signer,
-    ) as unknown as DeltaVerifierContract;
-    this.modelRegistry = new ethers.Contract(
+    );
+    this.modelRegistry = typedContract<ModelRegistryContract>(
       config.modelRegistryAddress,
       MODEL_REGISTRY_ABI,
       config.signer,
-    ) as unknown as ModelRegistryContract;
+    );
   }
 
   private parseMintBudgetExceeded(error: unknown): {

@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { typedContract } from '../blockchain/contract-types';
 import { logger } from '../utils/logger';
 import { PoolConfig, AlertThresholds } from '../config/monitoring-config';
 
@@ -119,7 +120,7 @@ export class EventListener {
   /**
    * Start listening to events for a pool
    */
-  async startListeningToPool(poolConfig: PoolConfig): Promise<void> {
+  startListeningToPool(poolConfig: PoolConfig): void {
     const { ammAddress, modelId } = poolConfig;
 
     if (this.poolContracts.has(ammAddress)) {
@@ -129,24 +130,17 @@ export class EventListener {
 
     logger.info(`Starting event listener for ${modelId} (${ammAddress})`);
 
-    const pool = new ethers.Contract(ammAddress, EventListener.POOL_ABI, this.provider);
+    const pool = typedContract<ethers.Contract>(ammAddress, EventListener.POOL_ABI, this.provider);
     this.poolContracts.set(ammAddress, pool);
 
     // Listen for Buy events
-    void pool.on('Buy', async (buyer, reserveIn, tokensOut, fee, spotPrice, event) => {
-      await this.handleBuyEvent(poolConfig, {
-        buyer,
-        reserveIn,
-        tokensOut,
-        fee,
-        spotPrice,
-        event,
-      });
+    void pool.on('Buy', (buyer, reserveIn, tokensOut, fee, spotPrice, event) => {
+      void this.handleBuyEvent(poolConfig, { buyer, reserveIn, tokensOut, fee, spotPrice, event });
     });
 
     // Listen for Sell events
-    void pool.on('Sell', async (seller, tokensIn, reserveOut, fee, spotPrice, event) => {
-      await this.handleSellEvent(poolConfig, {
+    void pool.on('Sell', (seller, tokensIn, reserveOut, fee, spotPrice, event) => {
+      void this.handleSellEvent(poolConfig, {
         seller,
         tokensIn,
         reserveOut,
@@ -157,8 +151,8 @@ export class EventListener {
     });
 
     // Listen for FeesDeposited events
-    void pool.on('FeesDeposited', async (depositor, amount, newReserveBalance, newSpotPrice, event) => {
-      await this.handleFeesDepositedEvent(poolConfig, {
+    void pool.on('FeesDeposited', (depositor, amount, newReserveBalance, newSpotPrice, event) => {
+      void this.handleFeesDepositedEvent(poolConfig, {
         depositor,
         amount,
         newReserveBalance,
@@ -168,23 +162,23 @@ export class EventListener {
     });
 
     // Listen for Paused events
-    void pool.on('Paused', async (account, event) => {
-      await this.handlePausedEvent(poolConfig, account, event, true);
+    void pool.on('Paused', (account, event) => {
+      void this.handlePausedEvent(poolConfig, account, event, true);
     });
 
     // Listen for Unpaused events
-    void pool.on('Unpaused', async (account, event) => {
-      await this.handlePausedEvent(poolConfig, account, event, false);
+    void pool.on('Unpaused', (account, event) => {
+      void this.handlePausedEvent(poolConfig, account, event, false);
     });
 
     // Listen for OwnershipTransferred events
-    pool.on('OwnershipTransferred', async (previousOwner, newOwner, event) => {
-      await this.handleOwnershipTransferredEvent(poolConfig, previousOwner, newOwner, event);
+    void pool.on('OwnershipTransferred', (previousOwner, newOwner, event) => {
+      void this.handleOwnershipTransferredEvent(poolConfig, previousOwner, newOwner, event);
     });
 
     // Listen for ParametersUpdated events
-    pool.on('ParametersUpdated', async (newCrr, newTradeFee, newProtocolFee, event) => {
-      await this.handleParametersUpdatedEvent(poolConfig, {
+    void pool.on('ParametersUpdated', (newCrr, newTradeFee, newProtocolFee, event) => {
+      void this.handleParametersUpdatedEvent(poolConfig, {
         newCrr,
         newTradeFee,
         newProtocolFee,
@@ -202,7 +196,7 @@ export class EventListener {
   stopListeningToPool(poolAddress: string): void {
     const pool = this.poolContracts.get(poolAddress);
     if (pool) {
-      pool.removeAllListeners();
+      void pool.removeAllListeners();
       this.poolContracts.delete(poolAddress);
       logger.info(`Stopped listening to pool ${poolAddress}`);
     }
@@ -213,7 +207,7 @@ export class EventListener {
    */
   stopAllListening(): void {
     for (const [poolAddress, pool] of this.poolContracts) {
-      pool.removeAllListeners();
+      void pool.removeAllListeners();
       logger.info(`Stopped listening to pool ${poolAddress}`);
     }
     this.poolContracts.clear();

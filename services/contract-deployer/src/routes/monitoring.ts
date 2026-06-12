@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { AMMMonitor } from '../monitoring/amm-monitor';
-import { asyncHandler } from '../middleware/async-handler';
 
 export function monitoringRouter(ammMonitor: AMMMonitor): Router {
   const router = Router();
@@ -9,7 +8,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    * GET /api/monitoring/health
    * Health check for monitoring system
    */
-  router.get('/health', asyncHandler(async (_req: Request, res: Response) => {
+  router.get('/health', (_req: Request, res: Response) => {
     try {
       const health = ammMonitor.getHealth();
       res.json({
@@ -27,13 +26,13 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         },
       });
     }
-  }));
+  });
 
   /**
    * GET /api/monitoring/metrics
    * Get current metrics for all pools
    */
-  router.get('/metrics', asyncHandler(async (_req: Request, res: Response) => {
+  router.get('/metrics', (_req: Request, res: Response) => {
     try {
       const metrics = ammMonitor.getMetrics();
       res.json({
@@ -51,7 +50,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         },
       });
     }
-  }));
+  });
 
   /**
    * GET /api/monitoring/pools
@@ -276,7 +275,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    * GET /api/monitoring/summary
    * Get system-wide summary metrics
    */
-  router.get('/summary', asyncHandler(async (_req: Request, res: Response) => {
+  router.get('/summary', (_req: Request, res: Response) => {
     try {
       const metrics = ammMonitor.getMetrics();
       const pools = ammMonitor.getDiscoveredPools();
@@ -323,7 +322,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
         },
       });
     }
-  }));
+  });
 
   return router;
 }

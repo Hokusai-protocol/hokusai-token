@@ -171,12 +171,10 @@ export class InfrastructureMonitor {
     this.setupEventListeners(modelId);
 
     // Periodic polling as fallback
-    const interval = setInterval(async () => {
-      try {
-        await this.pollInfrastructureState(modelId, dailyBurnRateUSD);
-      } catch (error) {
+    const interval = setInterval(() => {
+      void this.pollInfrastructureState(modelId, dailyBurnRateUSD).catch((error) => {
         logger.error(`Error polling infrastructure state for ${modelId}:`, error);
-      }
+      });
     }, pollingIntervalMs);
 
     this.pollingIntervals.set(modelId, interval);
@@ -186,7 +184,7 @@ export class InfrastructureMonitor {
   /**
    * Stop monitoring a model
    */
-  async stopMonitoring(modelId: string): Promise<void> {
+  stopMonitoring(modelId: string): void {
     const interval = this.pollingIntervals.get(modelId);
     if (interval) {
       clearInterval(interval);
@@ -197,14 +195,14 @@ export class InfrastructureMonitor {
     // Remove event listeners
     const paramsContract = this.paramsContracts.get(modelId);
     if (paramsContract) {
-      paramsContract.removeAllListeners();
+      void paramsContract.removeAllListeners();
       this.paramsContracts.delete(modelId);
     }
 
     if (this.infraReserveContract) {
       // Remove model-specific listeners
-      this.infraReserveContract.removeAllListeners(`InfrastructureDeposited(${modelId})`);
-      this.infraReserveContract.removeAllListeners(`InfrastructureCostPaid(${modelId})`);
+      void this.infraReserveContract.removeAllListeners(`InfrastructureDeposited(${modelId})`);
+      void this.infraReserveContract.removeAllListeners(`InfrastructureCostPaid(${modelId})`);
     }
 
     if (this.pollingIntervals.size === 0) {
@@ -215,14 +213,14 @@ export class InfrastructureMonitor {
   /**
    * Stop all monitoring
    */
-  async stopAll(): Promise<void> {
+  stopAll(): void {
     const modelIds = Array.from(this.pollingIntervals.keys());
     for (const modelId of modelIds) {
-      await this.stopMonitoring(modelId);
+      this.stopMonitoring(modelId);
     }
 
     if (this.infraReserveContract) {
-      this.infraReserveContract.removeAllListeners();
+      void this.infraReserveContract.removeAllListeners();
     }
 
     logger.info('Stopped all infrastructure monitoring');
@@ -306,40 +304,60 @@ export class InfrastructureMonitor {
     }
 
     // Listen for deposits
-    infraReserveContract.on(
+    void infraReserveContract.on(
       infraReserveContract.getEvent('InfrastructureDeposited')(modelId),
-      async (_modelIdEvent, amount, newBalance, depositor, _event) => {
-        logger.info(`Infrastructure deposited for ${modelId}: $${ethers.formatUnits(amount, 6)}`, {
-          newBalance: ethers.formatUnits(newBalance, 6),
-          depositor,
-        });
-        await this.pollInfrastructureState(modelId);
+      (
+        _modelIdEvent: unknown,
+        amount: unknown,
+        newBalance: unknown,
+        depositor: unknown,
+        _event: unknown,
+      ) => {
+        logger.info(
+          `Infrastructure deposited for ${modelId}: $${ethers.formatUnits(amount as bigint, 6)}`,
+          {
+            newBalance: ethers.formatUnits(newBalance as bigint, 6),
+            depositor,
+          },
+        );
+        void this.pollInfrastructureState(modelId);
       },
     );
 
     // Listen for payments
-    infraReserveContract.on(
+    void infraReserveContract.on(
       infraReserveContract.getEvent('InfrastructureCostPaid')(modelId),
-      async (_modelIdEvent, payee, amount, invoiceHash, memo, _event) => {
-        logger.info(`Infrastructure paid for ${modelId}: $${ethers.formatUnits(amount, 6)}`, {
-          payee,
-          invoiceHash,
-          memo,
-        });
+      (
+        _modelIdEvent: unknown,
+        payee: unknown,
+        amount: unknown,
+        invoiceHash: unknown,
+        memo: unknown,
+        _event: unknown,
+      ) => {
+        logger.info(
+          `Infrastructure paid for ${modelId}: $${ethers.formatUnits(amount as bigint, 6)}`,
+          {
+            payee,
+            invoiceHash,
+            memo,
+          },
+        );
 
         // Check if this is a large payment
         const currentState = this.getCurrentState(modelId);
         if (currentState) {
-          const paymentPercent = (Number(amount) / Number(currentState.accrued + amount)) * 100;
+          const paymentPercent =
+            (Number(amount) / Number(currentState.accrued + (amount as bigint))) * 100;
           if (paymentPercent > this.thresholds.largePaymentPercentage) {
-            await this.sendAlert({
+            void this.sendAlert({
               type: 'large_payment',
               priority: 'high',
               modelId,
-              message: `Large infrastructure payment: $${ethers.formatUnits(amount, 6)} (${paymentPercent.toFixed(1)}% of accrued balance)`,
+              message: `Large infrastructure payment: $${ethers.formatUnits(amount as bigint, 6)} (${paymentPercent.toFixed(1)}% of accrued balance)`,
               currentState,
               metadata: {
-                amount: ethers.formatUnits(amount, 6),
+                amount: ethers.formatUnits(amount as bigint, 6),
                 payee,
                 invoiceHash,
                 memo,
@@ -349,46 +367,46 @@ export class InfrastructureMonitor {
           }
         }
 
-        await this.pollInfrastructureState(modelId);
+        void this.pollInfrastructureState(modelId);
       },
     );
 
     // Listen for provider changes
-    infraReserveContract.on(
+    void infraReserveContract.on(
       infraReserveContract.getEvent('ProviderSet')(modelId),
-      async (_modelIdEvent, oldProvider, newProvider, _event) => {
+      (_modelIdEvent: unknown, oldProvider: unknown, newProvider: unknown, _event: unknown) => {
         logger.info(`Provider changed for ${modelId}`, {
           oldProvider,
           newProvider,
         });
-        await this.pollInfrastructureState(modelId);
+        void this.pollInfrastructureState(modelId);
       },
     );
 
     // Listen for split changes
     const paramsContract = this.paramsContracts.get(modelId);
     if (paramsContract && this.thresholds.alertOnSplitChange) {
-      paramsContract.on(
+      void paramsContract.on(
         'InfrastructureAccrualBpsSet',
-        async (oldBps, newBps, updatedBy, _event) => {
+        (oldBps: unknown, newBps: unknown, updatedBy: unknown, _event: unknown) => {
           const currentState = this.getCurrentState(modelId);
           if (currentState) {
-            await this.sendAlert({
+            void this.sendAlert({
               type: 'split_change',
               priority: 'medium',
               modelId,
-              message: `Infrastructure split changed from ${oldBps / 100}% to ${newBps / 100}% by governance`,
+              message: `Infrastructure split changed from ${Number(oldBps) / 100}% to ${Number(newBps) / 100}% by governance`,
               currentState,
               metadata: {
                 oldBps,
                 newBps,
                 updatedBy,
-                oldSplit: `${oldBps / 100}/${(10000 - oldBps) / 100}`,
-                newSplit: `${newBps / 100}/${(10000 - newBps) / 100}`,
+                oldSplit: `${Number(oldBps) / 100}/${(10000 - Number(oldBps)) / 100}`,
+                newSplit: `${Number(newBps) / 100}/${(10000 - Number(newBps)) / 100}`,
               },
             });
           }
-          await this.pollInfrastructureState(modelId);
+          void this.pollInfrastructureState(modelId);
         },
       );
     }

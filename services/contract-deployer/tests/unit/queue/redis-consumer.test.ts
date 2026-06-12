@@ -187,7 +187,7 @@ describe('RedisQueueConsumer', () => {
       // Bound the loop deterministically: stop after a few empty polls so the
       // unbounded `while (running)` loop cannot busy-spin to OOM in the test.
       let polls = 0;
-      mockRedis.brPopLPush.mockImplementation(async () => {
+      mockRedis.brPopLPush.mockImplementation(() => {
         polls++;
         if (polls >= 3) {
           consumer.stop();
@@ -210,7 +210,7 @@ describe('RedisQueueConsumer', () => {
       // test is bounded. The handler holds the loop in-flight long enough to
       // exercise the graceful-shutdown drain (processingCount > 0).
       let delivered = false;
-      mockRedis.brPopLPush.mockImplementation(async () => {
+      mockRedis.brPopLPush.mockImplementation(() => {
         if (!delivered) {
           delivered = true;
           return messageStr;

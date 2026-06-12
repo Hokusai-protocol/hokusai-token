@@ -156,7 +156,7 @@ async function main(): Promise<void> {
     });
 
     // Health check endpoint
-    app.get('/health', async (_req: Request, res: Response) => {
+    app.get('/health', (_req: Request, res: Response) => {
       const health = ammMonitor.getHealth();
       res.status(health.isHealthy ? 200 : 503).json({
         status: health.isHealthy ? 'healthy' : 'unhealthy',
@@ -166,15 +166,15 @@ async function main(): Promise<void> {
       });
     });
 
-    app.get('/health/ready', async (_req: Request, res: Response) => {
-      const readiness = await getReadiness({
+    app.get('/health/ready', (_req: Request, res: Response) => {
+      void getReadiness({
         ammMonitor,
         provider,
         networkChainId: network.chainId,
         redis,
+      }).then((readiness) => {
+        res.status(readiness.ready ? 200 : 503).json(readiness);
       });
-
-      res.status(readiness.ready ? 200 : 503).json(readiness);
     });
 
     // Monitoring API routes
@@ -203,24 +203,23 @@ async function main(): Promise<void> {
     });
 
     // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      logger.info('[MONITORING-SERVER] SIGTERM received, shutting down gracefully...');
-      await reconciliationService.stop();
-      await ammMonitor.stop();
+    const shutdownGracefully = async () => {
+      reconciliationService.stop();
+      ammMonitor.stop();
       if (redis) {
         await redis.quit();
       }
       process.exit(0);
+    };
+
+    process.on('SIGTERM', () => {
+      logger.info('[MONITORING-SERVER] SIGTERM received, shutting down gracefully...');
+      void shutdownGracefully();
     });
 
-    process.on('SIGINT', async () => {
+    process.on('SIGINT', () => {
       logger.info('[MONITORING-SERVER] SIGINT received, shutting down gracefully...');
-      await reconciliationService.stop();
-      await ammMonitor.stop();
-      if (redis) {
-        await redis.quit();
-      }
-      process.exit(0);
+      void shutdownGracefully();
     });
   } catch (error) {
     logger.error('[MONITORING-SERVER] Fatal error:', error);

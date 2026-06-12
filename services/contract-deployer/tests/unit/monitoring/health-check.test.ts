@@ -2,6 +2,7 @@ import request from 'supertest';
 import express from 'express';
 import { ethers } from 'ethers';
 import { HealthCheckService } from '../../../src/monitoring/health-check';
+import { asyncHandler } from '../../../src/middleware/async-handler';
 import { createMockRedisClient } from '../../mocks/redis-mock';
 import { createMockProvider } from '../../mocks/ethers-mock';
 
@@ -23,8 +24,8 @@ describe('HealthCheckService', () => {
     });
 
     app = express();
-    app.get('/health', healthService.getHealthHandler());
-    app.get('/health/detailed', healthService.getDetailedHealthHandler());
+    app.get('/health', asyncHandler(healthService.getHealthHandler()));
+    app.get('/health/detailed', asyncHandler(healthService.getDetailedHealthHandler()));
     app.get('/health/live', healthService.getLivenessHandler());
   });
 

@@ -49,13 +49,13 @@ describe('CostReconciliationService', () => {
     });
   });
 
-  afterEach(async () => {
-    await service.stop();
+  afterEach(() => {
+    service.stop();
     jest.clearAllMocks();
   });
 
   describe('Cost Ingestion', () => {
-    it('should ingest actual costs', async () => {
+    it('should ingest actual costs', () => {
       const cost = {
         modelId: 'gpt-4',
         provider: 'AWS',
@@ -67,22 +67,22 @@ describe('CostReconciliationService', () => {
         invoiceId: 'INV-2026-03',
       };
 
-      await service.ingestActualCosts(cost);
+      service.ingestActualCosts(cost);
 
       const history = service.getCostHistory('gpt-4');
       expect(history).toHaveLength(1);
       expect(history[0]).toMatchObject(cost);
     });
 
-    it('should track costs for multiple models', async () => {
-      await service.ingestActualCosts({
+    it('should track costs for multiple models', () => {
+      service.ingestActualCosts({
         modelId: 'gpt-4',
         provider: 'AWS',
         amount: 1000,
         period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') },
       });
 
-      await service.ingestActualCosts({
+      service.ingestActualCosts({
         modelId: 'claude-3',
         provider: 'AWS',
         amount: 2000,
@@ -95,12 +95,12 @@ describe('CostReconciliationService', () => {
       expect(models).toHaveLength(2);
     });
 
-    it('should limit cost history to 12 months', async () => {
+    it('should limit cost history to 12 months', () => {
       const modelId = 'gpt-4';
 
       // Ingest 15 months of costs
       for (let i = 0; i < 15; i++) {
-        await service.ingestActualCosts({
+        service.ingestActualCosts({
           modelId,
           provider: 'AWS',
           amount: 1000 + i,
@@ -120,18 +120,18 @@ describe('CostReconciliationService', () => {
   });
 
   describe('Variance Calculation', () => {
-    it('should calculate variance from cost history', async () => {
+    it('should calculate variance from cost history', () => {
       const modelId = 'gpt-4';
 
       // Ingest some costs
-      await service.ingestActualCosts({
+      service.ingestActualCosts({
         modelId,
         provider: 'AWS',
         amount: 1000,
         period: { start: new Date('2026-03-01'), end: new Date('2026-03-31') },
       });
 
-      await service.ingestActualCosts({
+      service.ingestActualCosts({
         modelId,
         provider: 'AWS',
         amount: 1100,
@@ -145,13 +145,13 @@ describe('CostReconciliationService', () => {
       expect(variance).toBeUndefined();
     });
 
-    it('should return variance history', async () => {
+    it('should return variance history', () => {
       const modelId = 'gpt-4';
       const history = service.getVarianceHistory(modelId, 5);
       expect(Array.isArray(history)).toBe(true);
     });
 
-    it('should limit variance history', async () => {
+    it('should limit variance history', () => {
       const modelId = 'gpt-4';
       const history = service.getVarianceHistory(modelId, 3);
       expect(history.length).toBeLessThanOrEqual(3);
@@ -184,7 +184,7 @@ describe('CostReconciliationService', () => {
 
     it('should stop successfully', async () => {
       await service.start();
-      await service.stop();
+      service.stop();
       const status = service.getStatus();
       expect(status.isRunning).toBe(false);
     });
@@ -206,8 +206,8 @@ describe('CostReconciliationService', () => {
       expect(status).toHaveProperty('config');
     });
 
-    it('should track model count', async () => {
-      await service.ingestActualCosts({
+    it('should track model count', () => {
+      service.ingestActualCosts({
         modelId: 'gpt-4',
         provider: 'AWS',
         amount: 1000,
@@ -229,9 +229,9 @@ describe('CostReconciliationService', () => {
   });
 
   describe('Data Access', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       // Ingest test data
-      await service.ingestActualCosts({
+      service.ingestActualCosts({
         modelId: 'test-model',
         provider: 'AWS',
         amount: 1000,
@@ -262,8 +262,8 @@ describe('CostReconciliationService', () => {
       expect(variance).toBeUndefined();
     });
 
-    it('should handle cost with missing optional fields', async () => {
-      await service.ingestActualCosts({
+    it('should handle cost with missing optional fields', () => {
+      service.ingestActualCosts({
         modelId: 'minimal-model',
         provider: 'AWS',
         amount: 500,
@@ -277,8 +277,8 @@ describe('CostReconciliationService', () => {
       expect(history[0].metadata).toBeUndefined();
     });
 
-    it('should handle zero amount cost', async () => {
-      await service.ingestActualCosts({
+    it('should handle zero amount cost', () => {
+      service.ingestActualCosts({
         modelId: 'zero-cost',
         provider: 'AWS',
         amount: 0,

@@ -168,9 +168,15 @@ export class StateTracker {
     };
 
     // Listen for trade events that change state
-    pool.on('Buy', updateState);
-    pool.on('Sell', updateState);
-    pool.on('FeesDeposited', updateState);
+    void pool.on('Buy', () => {
+      void updateState();
+    });
+    void pool.on('Sell', () => {
+      void updateState();
+    });
+    void pool.on('FeesDeposited', () => {
+      void updateState();
+    });
 
     // Store listeners for cleanup
     this.poolContracts.set(ammAddress, pool);
@@ -178,12 +184,10 @@ export class StateTracker {
     // Fallback: Periodic polling at much longer interval (5 minutes instead of 12s)
     // This catches any state changes we might have missed
     const fallbackIntervalMs = Math.max(pollingIntervalMs, 5 * 60 * 1000); // Min 5 minutes
-    const interval = setInterval(async () => {
-      try {
-        await this.pollPoolState(poolConfig);
-      } catch (error) {
+    const interval = setInterval(() => {
+      void this.pollPoolState(poolConfig).catch((error) => {
         logger.error(`Failed to poll state for ${modelId}:`, error);
-      }
+      });
     }, fallbackIntervalMs);
 
     this.pollingIntervals.set(ammAddress, interval);
@@ -208,7 +212,7 @@ export class StateTracker {
     // Clean up event listeners
     const pool = this.poolContracts.get(poolAddress);
     if (pool) {
-      pool.removeAllListeners();
+      void pool.removeAllListeners();
       this.poolContracts.delete(poolAddress);
     }
 
@@ -242,7 +246,7 @@ export class StateTracker {
 
     // Clean up all event listeners
     for (const [poolAddress, pool] of this.poolContracts) {
-      pool.removeAllListeners();
+      void pool.removeAllListeners();
       logger.info(`Cleaned up event listeners for pool ${poolAddress}`);
     }
     this.poolContracts.clear();

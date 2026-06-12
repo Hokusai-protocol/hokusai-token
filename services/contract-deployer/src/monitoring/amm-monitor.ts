@@ -102,8 +102,9 @@ export class AMMMonitor {
     this.poolDiscovery = new PoolDiscovery(this.provider, this.config.contracts.ammFactory);
 
     this.stateTracker = new StateTracker(this.provider, this.config.thresholds, {
-      onStateUpdate: async (state) => {
+      onStateUpdate: (state) => {
         this.metricsCollector.updatePoolState(state);
+        return Promise.resolve();
       },
       onAlert: async (alert) => {
         await this.handleAlert(alert);
@@ -111,16 +112,19 @@ export class AMMMonitor {
     });
 
     this.eventListener = new EventListener(this.provider, this.config.thresholds, {
-      onTradeEvent: async (event) => {
+      onTradeEvent: (event) => {
         this.metricsCollector.recordTrade(event);
-        await this.logTradeEvent(event);
+        this.logTradeEvent(event);
+        return Promise.resolve();
       },
-      onSecurityEvent: async (event) => {
-        await this.logSecurityEvent(event);
+      onSecurityEvent: (event) => {
+        this.logSecurityEvent(event);
+        return Promise.resolve();
       },
-      onFeeEvent: async (event) => {
+      onFeeEvent: (event) => {
         this.metricsCollector.recordFeeDeposit(event);
-        await this.logFeeEvent(event);
+        this.logFeeEvent(event);
+        return Promise.resolve();
       },
       onAlert: async (alert) => {
         await this.handleAlert(alert);
@@ -204,7 +208,7 @@ export class AMMMonitor {
   /**
    * Stop monitoring
    */
-  async stop(): Promise<void> {
+  stop(): void {
     if (!this.isRunning) {
       logger.warn('AMM Monitor not running');
       return;
@@ -214,7 +218,7 @@ export class AMMMonitor {
 
     try {
       // Stop all components
-      await this.poolDiscovery.stopListening();
+      this.poolDiscovery.stopListening();
       this.stateTracker.stopAllTracking();
       this.eventListener.stopAllListening();
 
@@ -293,7 +297,7 @@ export class AMMMonitor {
 
       // Start event listening (if enabled)
       if (this.config.eventListenersEnabled) {
-        await this.eventListener.startListeningToPool(poolConfig);
+        this.eventListener.startListeningToPool(poolConfig);
       }
 
       logger.info(`✅ Monitoring started for ${poolConfig.modelId}`);
@@ -415,7 +419,7 @@ export class AMMMonitor {
   /**
    * Log trade event
    */
-  private async logTradeEvent(event: TradeEvent): Promise<void> {
+  private logTradeEvent(event: TradeEvent): void {
     // Store event for API access (keep last 200)
     this.events.push(event);
     if (this.events.length > 200) {
@@ -437,7 +441,7 @@ export class AMMMonitor {
   /**
    * Log security event
    */
-  private async logSecurityEvent(event: SecurityEvent): Promise<void> {
+  private logSecurityEvent(event: SecurityEvent): void {
     // Store event for API access (keep last 200)
     this.events.push(event);
     if (this.events.length > 200) {
@@ -454,7 +458,7 @@ export class AMMMonitor {
   /**
    * Log fee event
    */
-  private async logFeeEvent(event: FeeEvent): Promise<void> {
+  private logFeeEvent(event: FeeEvent): void {
     // Store event for API access (keep last 200)
     this.events.push(event);
     if (this.events.length > 200) {

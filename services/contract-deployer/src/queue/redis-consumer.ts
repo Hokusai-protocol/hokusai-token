@@ -5,6 +5,7 @@ import {
   validateModelReadyToDeployMessage,
 } from '../schemas/message-schemas';
 import { logger } from '../utils/logger';
+import { parseTrusted } from '../utils/json';
 
 export interface RedisQueueConsumerConfig {
   redis: RedisClientType;
@@ -85,7 +86,7 @@ export class RedisQueueConsumer extends EventEmitter {
       // Parse and validate message
       let message: ModelReadyToDeployMessage;
       try {
-        message = JSON.parse(messageStr);
+        message = parseTrusted<ModelReadyToDeployMessage>(messageStr);
       } catch (parseError) {
         logger.error('Failed to parse message JSON', { error: parseError, messageStr });
         await this.moveToDeadLetterQueue(messageStr, 'Invalid JSON');
@@ -124,9 +125,7 @@ export class RedisQueueConsumer extends EventEmitter {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Message processing failed', { error: errorMessage });
 
-      const message = JSON.parse(messageStr) as ModelReadyToDeployMessage & {
-        _retryCount?: number;
-      };
+      const message = parseTrusted<ModelReadyToDeployMessage & { _retryCount?: number }>(messageStr);
       const retryCount = message._retryCount ?? 0;
 
       if (retryCount < this.config.maxRetries) {
@@ -153,7 +152,7 @@ export class RedisQueueConsumer extends EventEmitter {
     let originalMessage: unknown;
     let modelId: string | undefined;
     try {
-      const parsed = JSON.parse(messageStr) as { model_id?: string };
+      const parsed = parseTrusted<{ model_id?: string }>(messageStr);
       originalMessage = parsed;
       modelId = parsed.model_id;
     } catch {

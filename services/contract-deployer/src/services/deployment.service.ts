@@ -13,6 +13,7 @@ import { ModelReadyToDeployMessage } from '../schemas/message-schemas';
 import { QueueService } from './queue.service';
 import { ApiErrorFactory } from '../types/errors';
 import { createLogger } from '../utils/logger';
+import { parseTrusted } from '../utils/json';
 
 export interface DeploymentServiceConfig {
   redisHost: string;
@@ -230,7 +231,7 @@ export class DeploymentService {
       throw ApiErrorFactory.deploymentNotFound(requestId, correlationId);
     }
 
-    const status = JSON.parse(statusData) as DeploymentStatusResponse;
+    const status = parseTrusted<DeploymentStatusResponse>(statusData);
 
     this.logger.debug('Deployment status retrieved', {
       correlationId,
@@ -397,7 +398,7 @@ export class DeploymentService {
       throw new Error(`Deployment status not found: ${requestId}`);
     }
 
-    const currentStatus = JSON.parse(currentStatusData) as DeploymentStatusResponse;
+    const currentStatus = parseTrusted<DeploymentStatusResponse>(currentStatusData);
     const updatedStatus = { ...currentStatus, ...updates };
 
     await this.redisClient.set(

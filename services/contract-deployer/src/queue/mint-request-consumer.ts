@@ -9,6 +9,7 @@ import { MintBudgetExceededError } from '../blockchain/delta-verifier-client';
 import { MintRecordStore } from './mint-record-store';
 import { classifyError, computeBackoffMs, FailureClass } from './retry-policy';
 import { logger } from '../utils/logger';
+import { parseTrusted } from '../utils/json';
 
 export interface MintRequestConsumerConfig {
   redis: RedisClientType;
@@ -56,7 +57,7 @@ export class MintRequestConsumer extends EventEmitter {
 
     let parsedMessage: MintRequestMessage;
     try {
-      parsedMessage = JSON.parse(messageStr) as MintRequestMessage;
+      parsedMessage = parseTrusted<MintRequestMessage>(messageStr);
     } catch (error) {
       logger.error('Failed to parse MintRequest JSON', { error, messageStr });
       await this.moveToDeadLetterQueue(messageStr, undefined, 'Invalid JSON');
@@ -255,7 +256,7 @@ export class MintRequestConsumer extends EventEmitter {
 
   private safeJsonParse(messageStr: string): unknown {
     try {
-      return JSON.parse(messageStr);
+      return parseTrusted<unknown>(messageStr);
     } catch {
       return messageStr;
     }

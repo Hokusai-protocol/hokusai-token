@@ -1,5 +1,6 @@
 import { RedisClientType } from 'redis';
 import { MintRequestSettlement } from '../schemas/mint-request-schema';
+import { parseTrusted } from '../utils/json';
 
 export interface MintRecordStoreConfig {
   redis: RedisClientType;
@@ -62,7 +63,7 @@ export class MintRecordStore {
       return null;
     }
 
-    return JSON.parse(value) as MintRecord;
+    return parseTrusted<MintRecord>(value);
   }
 
   getKey(idempotencyKey: string): string {

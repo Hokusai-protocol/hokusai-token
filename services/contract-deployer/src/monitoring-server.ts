@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import { KMSClient } from '@aws-sdk/client-kms';
 import { ethers } from 'ethers';
 import { createClient, RedisClientType } from 'redis';
 import { AMMMonitor } from './monitoring/amm-monitor';
@@ -16,9 +17,45 @@ import { monitoringRouter } from './routes/monitoring';
 import { reconciliationRouter } from './routes/reconciliation';
 import { logger } from './utils/logger';
 import { CostReconciliationService } from './monitoring/cost-reconciliation-service';
+import { KmsSigner } from './blockchain/kms-signer';
+import { getBackendSigner, setBackendSigner } from './blockchain/signer-singleton';
 
 // Load environment variables
 dotenv.config();
+
+async function initializeBackendSigner(
+  provider: ethers.JsonRpcProvider,
+): Promise<ethers.Signer | null> {
+  const existingSigner = getBackendSigner();
+  if (existingSigner) {
+    return existingSigner;
+  }
+
+  if (process.env.KMS_BACKEND_KEY_ID && process.env.KMS_BACKEND_EXPECTED_ADDRESS) {
+    const signer = await KmsSigner.fromKeyId({
+      client: new KMSClient({ region: process.env.AWS_REGION ?? 'us-east-1' }),
+      keyId: process.env.KMS_BACKEND_KEY_ID,
+      provider,
+    });
+    const derivedAddress = ethers.getAddress(await signer.getAddress());
+    const expectedAddress = ethers.getAddress(process.env.KMS_BACKEND_EXPECTED_ADDRESS);
+    if (derivedAddress !== expectedAddress) {
+      throw new Error(
+        `KMS backend address pin mismatch: derived=${derivedAddress}, expected=${expectedAddress}, alias=${process.env.KMS_BACKEND_KEY_ID}`,
+      );
+    }
+    setBackendSigner(signer);
+    return signer;
+  }
+
+  if (process.env.DEPLOYER_PRIVATE_KEY) {
+    const signer = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider);
+    setBackendSigner(signer);
+    return signer;
+  }
+
+  return null;
+}
 
 async function main(): Promise<void> {
   let redis: RedisClientType | null = null;
@@ -50,6 +87,7 @@ async function main(): Promise<void> {
     logger.info(
       `[MONITORING-SERVER] Connected to network: ${network.name} (chainId: ${network.chainId})`,
     );
+    await initializeBackendSigner(provider);
 
     if (process.env.REDIS_URL) {
       try {
@@ -286,16 +324,17 @@ async function getSignerReadiness(
   provider: ethers.JsonRpcProvider,
 ): Promise<{ ok: boolean; address?: string; balanceWei?: string; error?: string }> {
   try {
-    if (!process.env.DEPLOYER_PRIVATE_KEY) {
-      return { ok: false, error: 'DEPLOYER_PRIVATE_KEY is not set' };
+    const signer = getBackendSigner();
+    if (!signer) {
+      return { ok: false, error: 'backend signer is not initialized' };
     }
 
-    const wallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider);
-    const balance = await provider.getBalance(wallet.address);
+    const signerAddress = await signer.getAddress();
+    const balance = await provider.getBalance(signerAddress);
 
     return {
       ok: balance > 0n,
-      address: wallet.address,
+      address: signerAddress,
       balanceWei: balance.toString(),
       ...(balance > 0n ? {} : { error: 'signer balance is zero' }),
     };

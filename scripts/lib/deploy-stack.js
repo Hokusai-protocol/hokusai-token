@@ -48,13 +48,17 @@ async function recordDeployment(contract, bucket, key) {
 async function deployFullStack(networkConfig, runtime) {
   const {
     hre,
+    deployer: injectedDeployer,
     dryRun = false,
     logger = console,
     skipArtifactWrite = false,
     scriptPaths,
   } = runtime;
   const { ethers } = hre;
-  const [deployer] = await ethers.getSigners();
+  const deployer = injectedDeployer || (await ethers.getSigners())[0];
+  if (!deployer) {
+    throw new Error("No deploy signer available");
+  }
   const providerNetwork = await ethers.provider.getNetwork();
   const actualChainId = BigInt(hre.network.config.chainId ?? providerNetwork.chainId);
   const expectedChainId = BigInt(networkConfig.expectedChainId);

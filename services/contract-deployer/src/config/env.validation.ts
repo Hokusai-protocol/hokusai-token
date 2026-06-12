@@ -55,7 +55,15 @@ const envSchema = Joi.object({
   // Deployer configuration
   DEPLOYER_PRIVATE_KEY: Joi.string()
     .pattern(/^0x[a-fA-F0-9]{64}$/)
-    .required(),
+    .optional(),
+  KMS_BACKEND_KEY_ID: Joi.string().optional(),
+  KMS_BACKEND_EXPECTED_ADDRESS: Joi.string()
+    .pattern(/^0x[a-fA-F0-9]{40}$/)
+    .optional(),
+  KMS_DEPLOYER_KEY_ID: Joi.string().optional(),
+  KMS_DEPLOYER_EXPECTED_ADDRESS: Joi.string()
+    .pattern(/^0x[a-fA-F0-9]{40}$/)
+    .optional(),
 
   // Gas configuration
   GAS_PRICE_MULTIPLIER: Joi.number().min(1).max(5).default(1.2),
@@ -159,7 +167,11 @@ export interface Config {
   LICENSE_HASH: string;
   LICENSE_URI: string;
   GOVERNOR_ADDRESS: string;
-  DEPLOYER_PRIVATE_KEY: string;
+  DEPLOYER_PRIVATE_KEY?: string;
+  KMS_BACKEND_KEY_ID?: string;
+  KMS_BACKEND_EXPECTED_ADDRESS?: string;
+  KMS_DEPLOYER_KEY_ID?: string;
+  KMS_DEPLOYER_EXPECTED_ADDRESS?: string;
   GAS_PRICE_MULTIPLIER: number;
   MAX_GAS_PRICE_GWEI: number;
   DEFAULT_GAS_LIMIT: number;
@@ -245,7 +257,7 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
   if (ssmParams.token_manager_address) {
     mapping.TOKEN_MANAGER_ADDRESS = ssmParams.token_manager_address;
   }
-  if (ssmParams.deployer_key) {
+  if (ssmParams.deployer_key && !process.env.KMS_BACKEND_KEY_ID) {
     mapping.DEPLOYER_PRIVATE_KEY = ssmParams.deployer_key;
   }
   if (ssmParams.api_keys) {
@@ -328,6 +340,50 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
   return mapping;
 }
 
+function enforceSignerConfiguration(
+  config: Config,
+  sources: { envPrivateKey: boolean; ssmPrivateKey: boolean },
+): void {
+  const hasKmsBackend = Boolean(config.KMS_BACKEND_KEY_ID);
+  const hasExpectedAddress = Boolean(config.KMS_BACKEND_EXPECTED_ADDRESS);
+  const hasRawPrivateKey = Boolean(config.DEPLOYER_PRIVATE_KEY);
+
+  if (config.NODE_ENV === 'production') {
+    if (!hasKmsBackend) {
+      throw new Error('KMS_BACKEND_KEY_ID is required when NODE_ENV=production');
+    }
+    if (!hasExpectedAddress) {
+      throw new Error(
+        'KMS_BACKEND_EXPECTED_ADDRESS is required when NODE_ENV=production and KMS_BACKEND_KEY_ID is set',
+      );
+    }
+  }
+
+  if (hasKmsBackend && (sources.envPrivateKey || sources.ssmPrivateKey || hasRawPrivateKey)) {
+    const conflictingSources: string[] = ['KMS_BACKEND_KEY_ID'];
+    if (sources.envPrivateKey) {
+      conflictingSources.push('DEPLOYER_PRIVATE_KEY');
+    }
+    if (sources.ssmPrivateKey) {
+      conflictingSources.push('SSM deployer_key');
+    }
+
+    throw new Error(`Signer configuration is mutually exclusive: ${conflictingSources.join(', ')}`);
+  }
+
+  if (hasKmsBackend !== hasExpectedAddress) {
+    throw new Error(
+      'KMS_BACKEND_KEY_ID and KMS_BACKEND_EXPECTED_ADDRESS must be set together',
+    );
+  }
+
+  if (!hasKmsBackend && !hasRawPrivateKey) {
+    throw new Error(
+      'Missing required signer configuration: set KMS_BACKEND_KEY_ID or DEPLOYER_PRIVATE_KEY',
+    );
+  }
+}
+
 /**
  * Validate environment variables, optionally loading from SSM Parameter Store
  */
@@ -347,6 +403,8 @@ export async function validateEnv(): Promise<Config> {
 
   console.log('[STARTUP] Basic environment validation passed');
   let config = value as Config;
+  const envPrivateKeySet = Boolean(process.env.DEPLOYER_PRIVATE_KEY);
+  let ssmDeployerKeySet = false;
 
   // Try to load from SSM Parameter Store
   console.log('[STARTUP] Loading SSM configuration...');
@@ -355,6 +413,7 @@ export async function validateEnv(): Promise<Config> {
     console.log('[STARTUP] SSM configuration loaded:', ssmParams ? 'success' : 'no params');
 
     if (ssmParams) {
+      ssmDeployerKeySet = Boolean(ssmParams.deployer_key);
       // Map SSM parameters to environment variables
       const envOverrides = mapSSMToEnvVars(ssmParams);
 
@@ -394,18 +453,18 @@ export async function validateEnv(): Promise<Config> {
   }
 
   // Final validation for required fields
-  const requiredFields = [
-    'RPC_URL',
-    'MODEL_REGISTRY_ADDRESS',
-    'TOKEN_MANAGER_ADDRESS',
-    'DEPLOYER_PRIVATE_KEY',
-  ];
+  const requiredFields = ['RPC_URL', 'MODEL_REGISTRY_ADDRESS', 'TOKEN_MANAGER_ADDRESS'];
 
   const missingFields = requiredFields.filter((field) => !config[field as keyof Config]);
 
   if (missingFields.length > 0) {
     throw new Error(`Missing required configuration fields: ${missingFields.join(', ')}`);
   }
+
+  enforceSignerConfiguration(config, {
+    envPrivateKey: envPrivateKeySet,
+    ssmPrivateKey: ssmDeployerKeySet,
+  });
 
   // In production, deployment addresses must be non-zero — DeployableTokenManager rejects
   // zero supplier recipient and governor at the contract level.
@@ -464,6 +523,11 @@ export function validateEnvSync(): Config {
   if (config.NODE_ENV === 'production' && config.USE_SSM) {
     logger.warn('SSM loading requested but not available in sync mode');
   }
+
+  enforceSignerConfiguration(config, {
+    envPrivateKey: Boolean(process.env.DEPLOYER_PRIVATE_KEY),
+    ssmPrivateKey: false,
+  });
 
   return config;
 }

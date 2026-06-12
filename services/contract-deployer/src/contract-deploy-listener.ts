@@ -36,7 +36,7 @@ export class ContractDeployListener {
 
     // Initialize blockchain components
     this.provider = new ethers.JsonRpcProvider(config.blockchain.rpcUrls[0]);
-    this.signer = new ethers.Wallet(config.blockchain.privateKey, this.provider);
+    this.signer = config.blockchain.signer.connect(this.provider);
 
     // Initialize services
     this.consumer = new RedisQueueConsumer({
@@ -48,7 +48,10 @@ export class ContractDeployListener {
       blockingTimeout: 5,
     });
 
-    this.deployer = new ContractDeployer(config.blockchain);
+    this.deployer = new ContractDeployer({
+      ...config.blockchain,
+      signer: this.signer,
+    });
 
     this.registry = new ModelRegistryService({
       registryAddress: config.blockchain.modelRegistryAddress,

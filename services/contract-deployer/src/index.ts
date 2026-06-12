@@ -8,6 +8,8 @@ import { HealthCheckService } from './monitoring/health-check';
 import { logger } from './utils/logger';
 import { createClient } from 'redis';
 import { ethers } from 'ethers';
+import { createBackendSigner } from './blockchain/signer-factory';
+import { setBackendSigner } from './blockchain/signer-singleton';
 
 // Load environment variables
 dotenv.config();
@@ -28,6 +30,10 @@ async function main(): Promise<void> {
       process.env.RPC_URLS = config.RPC_URL;
     }
 
+    const provider = new ethers.JsonRpcProvider(config.RPC_URL.split(',')[0]);
+    const signer = await createBackendSigner(config, provider);
+    setBackendSigner(signer);
+
     // Try to initialize the contract deploy listener (with optional Redis)
     let listener: ContractDeployListener | null = null;
     let mintListener: MintRequestListener | null = null;
@@ -40,7 +46,7 @@ async function main(): Promise<void> {
         },
         blockchain: {
           rpcUrls: config.RPC_URL.split(','),
-          privateKey: config.DEPLOYER_PRIVATE_KEY,
+          signer,
           tokenManagerAddress: config.TOKEN_MANAGER_ADDRESS,
           modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
           gasMultiplier: config.GAS_PRICE_MULTIPLIER,
@@ -89,7 +95,7 @@ async function main(): Promise<void> {
           },
           blockchain: {
             rpcUrls: config.RPC_URL.split(','),
-            privateKey: config.DEPLOYER_PRIVATE_KEY,
+            signer,
             deltaVerifierAddress: config.DELTA_VERIFIER_ADDRESS,
             modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
             confirmations: config.CONFIRMATION_BLOCKS,
@@ -145,8 +151,6 @@ async function main(): Promise<void> {
     }
 
     // Create provider for health checks
-    const provider = new ethers.JsonRpcProvider(config.RPC_URL.split(',')[0]);
-
     // Initialize health check service
     const healthCheck = new HealthCheckService({
       redis,

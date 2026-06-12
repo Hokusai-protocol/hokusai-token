@@ -113,9 +113,15 @@ async function deployFullStack(networkConfig, runtime) {
     rewardVestingVaultWired: true,
   };
   const receipts = [];
+  const deploymentBlocks = {};
 
   const recordReceipt = (receipt) => {
     receipts.push(receipt);
+    return receipt;
+  };
+  const recordDeploymentReceipt = async (contract, key) => {
+    const receipt = recordReceipt(await recordDeployment(contract, gasUsed, key));
+    deploymentBlocks[key] = receipt.blockNumber;
     return receipt;
   };
 
@@ -123,13 +129,13 @@ async function deployFullStack(networkConfig, runtime) {
   const ModelRegistry = await getFactory("ModelRegistry");
   const modelRegistry = await ModelRegistry.deploy();
   await modelRegistry.waitForDeployment();
-  recordReceipt(await recordDeployment(modelRegistry, gasUsed, "ModelRegistry"));
+  await recordDeploymentReceipt(modelRegistry, "ModelRegistry");
   contracts.ModelRegistry = await modelRegistry.getAddress();
 
   const TokenDeploymentFactory = await getFactory("TokenDeploymentFactory");
   const tokenDeploymentFactory = await TokenDeploymentFactory.deploy();
   await tokenDeploymentFactory.waitForDeployment();
-  recordReceipt(await recordDeployment(tokenDeploymentFactory, gasUsed, "TokenDeploymentFactory"));
+  await recordDeploymentReceipt(tokenDeploymentFactory, "TokenDeploymentFactory");
   contracts.TokenDeploymentFactory = await tokenDeploymentFactory.getAddress();
 
   const DeployableTokenManager = await getFactory("DeployableTokenManager");
@@ -138,14 +144,14 @@ async function deployFullStack(networkConfig, runtime) {
     contracts.TokenDeploymentFactory
   );
   await tokenManager.waitForDeployment();
-  recordReceipt(await recordDeployment(tokenManager, gasUsed, "TokenManager"));
+  await recordDeploymentReceipt(tokenManager, "TokenManager");
   contracts.TokenManager = await tokenManager.getAddress();
   contracts._tokenManagerImpl = "DeployableTokenManager";
 
   const RewardVestingVault = await getFactory("RewardVestingVault");
   const rewardVestingVault = await RewardVestingVault.deploy(contracts.TokenManager);
   await rewardVestingVault.waitForDeployment();
-  recordReceipt(await recordDeployment(rewardVestingVault, gasUsed, "RewardVestingVault"));
+  await recordDeploymentReceipt(rewardVestingVault, "RewardVestingVault");
   contracts.RewardVestingVault = await rewardVestingVault.getAddress();
 
   recordReceipt(
@@ -159,7 +165,7 @@ async function deployFullStack(networkConfig, runtime) {
   const DataContributionRegistry = await getFactory("DataContributionRegistry");
   const contributionRegistry = await DataContributionRegistry.deploy();
   await contributionRegistry.waitForDeployment();
-  recordReceipt(await recordDeployment(contributionRegistry, gasUsed, "DataContributionRegistry"));
+  await recordDeploymentReceipt(contributionRegistry, "DataContributionRegistry");
   contracts.DataContributionRegistry = await contributionRegistry.getAddress();
 
   recordReceipt(
@@ -181,7 +187,7 @@ async function deployFullStack(networkConfig, runtime) {
     const MockUSDC = await getFactory("MockUSDC");
     const mockUsdc = await MockUSDC.deploy();
     await mockUsdc.waitForDeployment();
-    recordReceipt(await recordDeployment(mockUsdc, gasUsed, "MockUSDC"));
+    await recordDeploymentReceipt(mockUsdc, "MockUSDC");
     reserveTokenAddress = await mockUsdc.getAddress();
     contracts.MockUSDC = reserveTokenAddress;
 
@@ -202,13 +208,13 @@ async function deployFullStack(networkConfig, runtime) {
     treasury
   );
   await factory.waitForDeployment();
-  recordReceipt(await recordDeployment(factory, gasUsed, "HokusaiAMMFactory"));
+  await recordDeploymentReceipt(factory, "HokusaiAMMFactory");
   contracts.HokusaiAMMFactory = await factory.getAddress();
 
   const HokusaiAMMPoolDeployer = await getFactory("HokusaiAMMPoolDeployer");
   const poolDeployer = await HokusaiAMMPoolDeployer.deploy(contracts.HokusaiAMMFactory);
   await poolDeployer.waitForDeployment();
-  recordReceipt(await recordDeployment(poolDeployer, gasUsed, "HokusaiAMMPoolDeployer"));
+  await recordDeploymentReceipt(poolDeployer, "HokusaiAMMPoolDeployer");
   contracts.HokusaiAMMPoolDeployer = await poolDeployer.getAddress();
 
   recordReceipt(
@@ -241,7 +247,7 @@ async function deployFullStack(networkConfig, runtime) {
   const PurchaserWhitelist = await getFactory("PurchaserWhitelist");
   const purchaserWhitelist = await PurchaserWhitelist.deploy(deployerAddress);
   await purchaserWhitelist.waitForDeployment();
-  recordReceipt(await recordDeployment(purchaserWhitelist, gasUsed, "PurchaserWhitelist"));
+  await recordDeploymentReceipt(purchaserWhitelist, "PurchaserWhitelist");
   contracts.PurchaserWhitelist = await purchaserWhitelist.getAddress();
 
   logger.log("Phase 3: infrastructure and fee routing");
@@ -252,7 +258,7 @@ async function deployFullStack(networkConfig, runtime) {
     treasury
   );
   await infrastructureReserve.waitForDeployment();
-  recordReceipt(await recordDeployment(infrastructureReserve, gasUsed, "InfrastructureReserve"));
+  await recordDeploymentReceipt(infrastructureReserve, "InfrastructureReserve");
   contracts.InfrastructureReserve = await infrastructureReserve.getAddress();
 
   const InfrastructureCostOracle = await getFactory("InfrastructureCostOracle");
@@ -261,7 +267,7 @@ async function deployFullStack(networkConfig, runtime) {
     networkConfig.infrastructureCostOracleParams.initialGrossMarginBps
   );
   await infrastructureCostOracle.waitForDeployment();
-  recordReceipt(await recordDeployment(infrastructureCostOracle, gasUsed, "InfrastructureCostOracle"));
+  await recordDeploymentReceipt(infrastructureCostOracle, "InfrastructureCostOracle");
   contracts.InfrastructureCostOracle = await infrastructureCostOracle.getAddress();
 
   const UsageFeeRouter = await getFactory("UsageFeeRouter");
@@ -272,7 +278,7 @@ async function deployFullStack(networkConfig, runtime) {
     contracts.InfrastructureCostOracle
   );
   await usageFeeRouter.waitForDeployment();
-  recordReceipt(await recordDeployment(usageFeeRouter, gasUsed, "UsageFeeRouter"));
+  await recordDeploymentReceipt(usageFeeRouter, "UsageFeeRouter");
   contracts.UsageFeeRouter = await usageFeeRouter.getAddress();
 
   const depositorRole = await infrastructureReserve.DEPOSITOR_ROLE();
@@ -314,7 +320,7 @@ async function deployFullStack(networkConfig, runtime) {
     networkConfig.deltaVerifierParams.maxReward
   );
   await deltaVerifier.waitForDeployment();
-  recordReceipt(await recordDeployment(deltaVerifier, gasUsed, "DeltaVerifier"));
+  await recordDeploymentReceipt(deltaVerifier, "DeltaVerifier");
   contracts.DeltaVerifier = await deltaVerifier.getAddress();
 
   const recorderRole = await contributionRegistry.RECORDER_ROLE();
@@ -445,6 +451,7 @@ async function deployFullStack(networkConfig, runtime) {
   };
   roles.DeltaVerifier = {
     DEFAULT_ADMIN_ROLE: [deployerAddress],
+    PAUSER_ROLE: [deployerAddress],
     SUBMITTER_ROLE: [deployerAddress],
   };
   roles.InfrastructureCostOracle = {
@@ -459,6 +466,7 @@ async function deployFullStack(networkConfig, runtime) {
     treasury,
     backendService,
     contracts,
+    deploymentBlocks,
     roles,
     config: {
       reserveToken: reserveTokenAddress,

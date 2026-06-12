@@ -83,6 +83,7 @@ function buildArtifact({
     treasury,
     backendService: backendService || null,
     contracts: deploymentResult.contracts,
+    deploymentBlocks: deploymentResult.deploymentBlocks || {},
     roles: deploymentResult.roles,
     config: deploymentResult.config,
     gasUsed: deploymentResult.gasUsed,

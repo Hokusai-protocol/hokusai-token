@@ -29,6 +29,15 @@ async function runInitLaunchPosture(hre, argv = process.argv.slice(2)) {
     configPath: args.config,
     deploymentArtifactPath: args.deployment,
   });
+  if (mode === "execute" && (hre.network.name === "mainnet" || loaded.config.chainId === 1)) {
+    console.error(
+      "ERROR: --execute is not allowed on mainnet. " +
+        "Generate a Safe Transaction Builder JSON with --safe-txs <output.json> and submit via the admin Safe."
+    );
+    process.exitCode = 2;
+    return null;
+  }
+
   const plan = await planLaunchPostureInit({
     hre,
     config: loaded.config,

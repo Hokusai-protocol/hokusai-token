@@ -1,4 +1,5 @@
 const { ethers } = require("hardhat");
+const { MINT_REQUEST_EIP712_TYPES: _SHARED_TYPES, EIP712_DOMAIN } = require("../../shared/mint-request-eip712");
 
 // Default model-weight lineage genesis (HOK-2133). configureLineageGenesis seeds the registry with this, and
 // the default payload's baselineCommitment matches it, so a model's first mint parents off genesis.
@@ -58,38 +59,8 @@ async function payloadForNextLink(deltaVerifier, modelId, overrides = {}) {
   });
 }
 
-// EIP-712 typed-data schema mirroring DeltaVerifier's typehashes (HOK-2132). ethers derives the
-// encodeType in alphabetical order of referenced structs, matching the on-chain MINT_REQUEST_TYPEHASH.
-const MINT_REQUEST_EIP712_TYPES = {
-  MintRequest: [
-    { name: "modelId", type: "uint256" },
-    { name: "payload", type: "MintRequestPayload" },
-    { name: "contributors", type: "Contributor[]" },
-  ],
-  MintRequestPayload: [
-    { name: "pipelineRunId", type: "string" },
-    { name: "baselineScoreBps", type: "uint256" },
-    { name: "candidateScoreBps", type: "uint256" },
-    { name: "maxCostUsdMicro", type: "uint256" },
-    { name: "actualCostUsdMicro", type: "uint256" },
-    { name: "totalSamples", type: "uint256" },
-    { name: "anchors", type: "BenchmarkAnchors" },
-    { name: "baselineCommitment", type: "bytes32" },
-    { name: "candidateCommitment", type: "bytes32" },
-  ],
-  BenchmarkAnchors: [
-    { name: "benchmarkSpecHash", type: "bytes32" },
-    { name: "datasetHash", type: "bytes32" },
-    { name: "attestationHash", type: "bytes32" },
-    { name: "idempotencyKey", type: "bytes32" },
-    { name: "metricName", type: "string" },
-    { name: "metricFamily", type: "string" },
-  ],
-  Contributor: [
-    { name: "walletAddress", type: "address" },
-    { name: "weight", type: "uint256" },
-  ],
-};
+// Re-exported from shared/mint-request-eip712.js (Gate 6: single source of truth).
+const MINT_REQUEST_EIP712_TYPES = _SHARED_TYPES;
 
 // EIP-712 domain must match the contract's EIP712("HokusaiDeltaVerifier", "1") + chainId + address.
 async function eip712Domain(deltaVerifier) {
@@ -159,6 +130,7 @@ module.exports = {
   nextCandidateCommitment,
   LINEAGE_GENESIS,
   MINT_REQUEST_EIP712_TYPES,
+  EIP712_DOMAIN,
   eip712Domain,
   signMintRequest,
   attestMintRequest,

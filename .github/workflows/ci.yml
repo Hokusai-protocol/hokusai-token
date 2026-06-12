@@ -66,3 +66,34 @@ jobs:
       # Unit + integration suites (mint-path conformance, consumer, schemas, etc.).
       - name: Test
         run: npm test -- --ci
+
+  conformance:
+    name: Cross-repo conformance (Gate 6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Install contract-deployer deps
+        run: npm ci
+        working-directory: services/contract-deployer
+
+      - name: Check known-answer freshness
+        run: node scripts/generate-mint-request-known-answer.js --check
+
+      - name: Compile contracts
+        run: npx hardhat compile
+
+      - name: Hardhat conformance (assertions A + C)
+        run: npx hardhat test test/conformance/golden-fixture.test.js
+
+      - name: Consumer parity (assertions A + B)
+        run: npm test -- --ci --testPathPattern='golden-fixture-parity'
+        working-directory: services/contract-deployer

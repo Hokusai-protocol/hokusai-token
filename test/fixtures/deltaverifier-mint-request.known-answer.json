@@ -1,0 +1,20 @@
+{
+  "_comment": "SECURITY: test-only keys from Hardhat canonical mnemonic. Zero value on any network.",
+  "structHash": "0x33c6e1bafd1b9a3f40715481fa519ff893c66463ac2f613bcd67795378288066",
+  "domain": {
+    "name": "HokusaiDeltaVerifier",
+    "version": "1",
+    "chainId": 31337,
+    "verifyingContract": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
+  },
+  "typedDataDigest": "0x2ccbd18cfc52eff6962f9a5b76bbe73d163fb108b2acfaeba92f5761ac4deeb2",
+  "signatures": [
+    "0x120121dd2cf97e7c9338b2ac284d835fff4141cb38a97520ab7d7fedb37ecdd363269568717cb8c611ca1bfd6c0d7a19c1ffb41ced94ec02c3e7109912e7de701b"
+  ],
+  "signerAddresses": [
+    "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+  ],
+  "attesterPrivateKeys": [
+    "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
+  ]
+}

@@ -244,6 +244,18 @@ These omissions are acceptable only if operators and reviewers understand that v
 - MintRequest relayer mapping: [relayer-schema-mapping.md](../features/define-mintrequest-to-deltaverifier-relayer-schema-mapping/relayer-schema-mapping.md)
 - Parent launch issue follow-up: after merge, post the final document link to Linear issue `HOK-1269` so launch reviewers can find the trust model from the launch tracker.
 
+## Gate 6 — Cross-repo conformance (HOK-2175)
+
+The HOK-2134/2135 work exposed a class of drift where the pipeline and token repos could each pass their own CI while having incompatible EIP-712 domains, struct encodings, or wire formats. Gate 6 closes this loophole with a single canonical signed MintRequest fixture committed in both repos, plus three byte-level parity assertions enforced in blocking CI.
+
+- **Fixture**: `test/fixtures/deltaverifier-mint-request.golden.json` + `test/fixtures/deltaverifier-mint-request.known-answer.json`
+- **Assertion A (digest parity)**: on-chain `hashMintRequest`, JS `TypedDataEncoder`, and consumer `buildPayload` all produce the same digest as the committed known-answer.
+- **Assertion B (wire parity)**: the vendored pipeline fixture is byte-identical to the upstream copy, and validates against both Joi and JSON Schema.
+- **Assertion C (accept/reject)**: the golden fixture with committed signatures mints successfully; mutating any signed field causes a revert.
+- **CI**: blocking `conformance` job on every PR; daily `conformance-cross-repo` scheduled workflow that clones both repos.
+
+See [`docs/mint-request-fixture-bump-protocol.md`](mint-request-fixture-bump-protocol.md) for the protocol to update fixtures when the schema changes.
+
 ## Reviewer summary
 
 For launch review, the shortest accurate summary is:

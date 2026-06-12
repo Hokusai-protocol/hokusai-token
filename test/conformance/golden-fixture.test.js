@@ -3,21 +3,27 @@ const path = require("path");
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther } = require("ethers");
+const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 
 const { deployTestToken } = require("../helpers/tokenDeployment");
 const {
-  attestMintRequest,
+  MINT_REQUEST_EIP712_TYPES,
   configureLaunchAttester,
   configureMintBudget,
   configureLineageGenesis,
 } = require("../helpers/mintRequest");
 
 const GOLDEN_FIXTURE_PATH = path.resolve(__dirname, "../fixtures/deltaverifier-mint-request.golden.json");
+const KNOWN_ANSWER_PATH = path.resolve(__dirname, "../fixtures/deltaverifier-mint-request.known-answer.json");
 const MIN_IMPROVEMENT_BPS = 100;
 const MAX_REWARD = parseEther("1000000");
 
 function loadGoldenFixture() {
   return JSON.parse(fs.readFileSync(GOLDEN_FIXTURE_PATH, "utf8"));
+}
+
+function loadKnownAnswer() {
+  return JSON.parse(fs.readFileSync(KNOWN_ANSWER_PATH, "utf8"));
 }
 
 function buildPayload(golden) {
@@ -41,10 +47,116 @@ function buildPayload(golden) {
   };
 }
 
+// Walk the EIP-712 type schema and produce a flat list of dotted paths to every leaf field,
+// along with each field's Solidity type. Generated from the schema so new fields auto-test.
+function enumerateSignedFields(types) {
+  const paths = [];
+
+  function walk(typeName, prefix) {
+    const fields = types[typeName];
+    if (!fields) return;
+    for (const { name, type } of fields) {
+      const fieldPath = prefix ? `${prefix}.${name}` : name;
+      const arrayBase = type.replace("[]", "");
+      if (types[arrayBase]) {
+        if (type.endsWith("[]")) {
+          walk(arrayBase, `${fieldPath}[0]`);
+          walk(arrayBase, `${fieldPath}[1]`);
+        } else {
+          walk(arrayBase, fieldPath);
+        }
+      } else {
+        paths.push({ path: fieldPath, type });
+      }
+    }
+  }
+
+  walk("MintRequest", "");
+  return paths;
+}
+
+function mutateValue(value, solidityType) {
+  if (solidityType === "uint256") {
+    return typeof value === "bigint" ? value + 1n : BigInt(value) + 1n;
+  }
+  if (solidityType === "bytes32") {
+    const bytes = ethers.getBytes(value);
+    bytes[31] = (bytes[31] + 1) % 256;
+    return ethers.hexlify(bytes);
+  }
+  if (solidityType === "string") {
+    return value + "X";
+  }
+  if (solidityType === "address") {
+    const n = BigInt(value) + 1n;
+    return ethers.zeroPadValue(ethers.toBeHex(n), 20);
+  }
+  throw new Error(`Unknown type: ${solidityType}`);
+}
+
+function deepGet(obj, dottedPath) {
+  const segments = dottedPath.split(".");
+  let cursor = obj;
+  for (const seg of segments) {
+    const match = seg.match(/^(.+)\[(\d+)\]$/);
+    if (match) {
+      cursor = cursor[match[1]][parseInt(match[2])];
+    } else {
+      cursor = cursor[seg];
+    }
+  }
+  return cursor;
+}
+
+function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj, (_, v) => typeof v === "bigint" ? `__bigint__${v}` : v), (_, v) => {
+    if (typeof v === "string" && v.startsWith("__bigint__")) return BigInt(v.slice(10));
+    return v;
+  });
+}
+
+function deepSet(obj, dottedPath, value) {
+  const clone = deepClone(obj);
+  const segments = dottedPath.split(".");
+  let cursor = clone;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const match = segments[i].match(/^(.+)\[(\d+)\]$/);
+    if (match) {
+      cursor = cursor[match[1]][parseInt(match[2])];
+    } else {
+      cursor = cursor[segments[i]];
+    }
+  }
+  const last = segments[segments.length - 1];
+  const lastMatch = last.match(/^(.+)\[(\d+)\]$/);
+  if (lastMatch) {
+    cursor[lastMatch[1]][parseInt(lastMatch[2])] = value;
+  } else {
+    cursor[last] = value;
+  }
+  return clone;
+}
+
+function buildEip712Value(golden) {
+  return {
+    modelId: BigInt(golden.modelId),
+    payload: buildPayload(golden),
+    contributors: golden.contributors.map(c => ({
+      walletAddress: c.walletAddress,
+      weight: c.weight,
+    })),
+  };
+}
+
 describe("DeltaVerifier golden fixture conformance", function () {
-  async function deployFixture() {
+  const knownAnswer = loadKnownAnswer();
+  const golden = loadGoldenFixture();
+
+  async function deployConformanceFixture() {
+    // Reset the chain so signer[0] starts at nonce 0, ensuring DeltaVerifier
+    // deploys at the deterministic address regardless of test execution order.
+    await ethers.provider.send("hardhat_reset", []);
     const [owner, submitter, attester] = await ethers.getSigners();
-    const golden = loadGoldenFixture();
     const modelId = BigInt(golden.modelId);
     const modelIdStr = golden.modelId;
 
@@ -80,29 +192,92 @@ describe("DeltaVerifier golden fixture conformance", function () {
     await configureMintBudget(deltaVerifier, owner, modelId);
     await configureLineageGenesis(modelRegistry, owner, modelId, golden.baselineCommitment);
 
-    return { attester, deltaVerifier, golden, modelId, submitter };
+    return { owner, attester, deltaVerifier, modelId, submitter, modelRegistry };
   }
 
-  it("accepts the canonical golden payload when signed by the attester", async function () {
-    const { attester, deltaVerifier, golden, modelId, submitter } = await deployFixture();
-    const payload = buildPayload(golden);
-    const contributors = golden.contributors;
-    const signatures = await attestMintRequest(deltaVerifier, attester, modelId, payload, contributors);
-
-    await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(modelId, payload, contributors, signatures)
-    ).to.emit(deltaVerifier, "DeltaOneAccepted");
+  describe("deployment pinning", function () {
+    it("deploys DeltaVerifier at the pinned verifyingContract address", async function () {
+      const { deltaVerifier } = await loadFixture(deployConformanceFixture);
+      const actual = await deltaVerifier.getAddress();
+      expect(actual).to.equal(
+        knownAnswer.domain.verifyingContract,
+        "DeltaVerifier deployed at unexpected address. If the deploy sequence changed, run: npm run conformance:regen"
+      );
+    });
   });
 
-  it("rejects a one-field mutation of the golden payload with the original signature", async function () {
-    const { attester, deltaVerifier, golden, modelId, submitter } = await deployFixture();
-    const payload = buildPayload(golden);
-    const contributors = golden.contributors;
-    const signatures = await attestMintRequest(deltaVerifier, attester, modelId, payload, contributors);
-    const tampered = { ...payload, totalSamples: payload.totalSamples + 1 };
+  describe("assertion A — digest parity", function () {
+    it("on-chain hashMintRequest equals committed typedDataDigest", async function () {
+      const { deltaVerifier } = await loadFixture(deployConformanceFixture);
+      const payload = buildPayload(golden);
+      const modelId = BigInt(golden.modelId);
+      const contributors = golden.contributors.map(c => ({
+        walletAddress: c.walletAddress,
+        weight: c.weight,
+      }));
 
-    await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(modelId, tampered, contributors, signatures)
-    ).to.be.revertedWithCustomError(deltaVerifier, "SignerNotAttester");
+      const onChainDigest = await deltaVerifier.hashMintRequest(modelId, payload, contributors);
+      expect(onChainDigest).to.equal(knownAnswer.typedDataDigest);
+    });
+
+    it("ethers TypedDataEncoder.hashStruct equals committed structHash", async function () {
+      const value = buildEip712Value(golden);
+      const structHash = ethers.TypedDataEncoder.hashStruct("MintRequest", MINT_REQUEST_EIP712_TYPES, value);
+      expect(structHash).to.equal(knownAnswer.structHash);
+    });
+
+    it("ethers TypedDataEncoder.hash under pinned domain equals committed typedDataDigest", async function () {
+      const value = buildEip712Value(golden);
+      const typedDataDigest = ethers.TypedDataEncoder.hash(
+        knownAnswer.domain,
+        MINT_REQUEST_EIP712_TYPES,
+        value,
+      );
+      expect(typedDataDigest).to.equal(knownAnswer.typedDataDigest);
+    });
+  });
+
+  describe("assertion C — accept path", function () {
+    it("accepts the canonical golden payload with committed signatures", async function () {
+      const { deltaVerifier, modelId, submitter } = await loadFixture(deployConformanceFixture);
+      const payload = buildPayload(golden);
+      const contributors = golden.contributors.map(c => ({
+        walletAddress: c.walletAddress,
+        weight: c.weight,
+      }));
+
+      await expect(
+        deltaVerifier.connect(submitter).submitMintRequest(
+          modelId, payload, contributors, knownAnswer.signatures
+        )
+      ).to.emit(deltaVerifier, "DeltaOneAccepted");
+    });
+  });
+
+  describe("assertion C — parameterized mutation matrix", function () {
+    const signedFields = enumerateSignedFields(MINT_REQUEST_EIP712_TYPES);
+
+    for (const { path: fieldPath, type: solidityType } of signedFields) {
+      it(`rejects mutation of ${fieldPath} (${solidityType})`, async function () {
+        const { deltaVerifier, submitter } = await loadFixture(deployConformanceFixture);
+        const eip712Value = buildEip712Value(golden);
+
+        const currentValue = deepGet(eip712Value, fieldPath);
+        const mutated = mutateValue(currentValue, solidityType);
+        const tampered = deepSet(eip712Value, fieldPath, mutated);
+
+        const tx = deltaVerifier.connect(submitter).submitMintRequest(
+          tampered.modelId, tampered.payload, tampered.contributors, knownAnswer.signatures
+        );
+
+        // modelId mutation triggers "Model not registered" before reaching signature check;
+        // all other fields reach signature verification and revert with SignerNotAttester.
+        if (fieldPath === "modelId") {
+          await expect(tx).to.be.reverted;
+        } else {
+          await expect(tx).to.be.revertedWithCustomError(deltaVerifier, "SignerNotAttester");
+        }
+      });
+    }
   });
 });

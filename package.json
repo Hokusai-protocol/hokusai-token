@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "test": "hardhat test",
+    "conformance:regen": "node scripts/generate-mint-request-known-answer.js",
+    "conformance:check": "node scripts/generate-mint-request-known-answer.js --check",
     "slither": "node scripts/slither-gate.js",
     "slither:report": "node scripts/slither-gate.js --report",
     "echidna:sanity": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaSanity --config echidna.config.yaml",

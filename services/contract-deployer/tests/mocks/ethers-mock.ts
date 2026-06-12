@@ -1,7 +1,9 @@
 import { ethers } from 'ethers';
 
-export function createMockProvider(): jest.Mocked<ethers.Provider> {
-  return {
+export function createMockProvider<T extends Partial<jest.Mocked<ethers.Provider>>>(
+  overrides?: T,
+): jest.Mocked<ethers.Provider> & T {
+  const mock = {
     getNetwork: jest.fn(),
     getBlockNumber: jest.fn(),
     getBlock: jest.fn(),
@@ -48,11 +50,15 @@ export function createMockProvider(): jest.Mocked<ethers.Provider> {
 
     // Required properties
     _isProvider: true,
-  } as any;
+  } as unknown as jest.Mocked<ethers.Provider>;
+
+  return Object.assign(mock, overrides);
 }
 
-export function createMockSigner(): jest.Mocked<ethers.Signer> {
-  return {
+export function createMockSigner<T extends Partial<jest.Mocked<ethers.Signer>>>(
+  overrides?: T,
+): jest.Mocked<ethers.Signer> & T {
+  const mock = {
     provider: createMockProvider(),
     getAddress: jest.fn(),
     signMessage: jest.fn(),
@@ -76,10 +82,14 @@ export function createMockSigner(): jest.Mocked<ethers.Signer> {
 
     // Required properties
     _isSigner: true,
-  } as any;
+  } as unknown as jest.Mocked<ethers.Signer>;
+
+  return Object.assign(mock, overrides);
 }
 
-export function createMockContract(): jest.Mocked<ethers.Contract> {
+export function createMockContract<T extends Partial<jest.Mocked<ethers.Contract>>>(
+  overrides?: T,
+): jest.Mocked<ethers.Contract> & T {
   // Helper to create a contract-method jest.fn that also carries an
   // `.estimateGas` jest.fn, matching ethers v6's getFunction(name) accessor
   // which returns a callable with an attached estimateGas method.
@@ -170,11 +180,13 @@ export function createMockContract(): jest.Mocked<ethers.Contract> {
     return filters[name];
   });
 
-  return mock;
+  return Object.assign(mock as jest.Mocked<ethers.Contract>, overrides);
 }
 
-export function createMockContractFactory(): jest.Mocked<ethers.ContractFactory> {
-  return {
+export function createMockContractFactory<T extends Partial<jest.Mocked<ethers.ContractFactory>>>(
+  overrides?: T,
+): jest.Mocked<ethers.ContractFactory> & T {
+  const mock = {
     deploy: jest.fn(),
     attach: jest.fn(),
     connect: jest.fn().mockReturnThis(),
@@ -186,7 +198,9 @@ export function createMockContractFactory(): jest.Mocked<ethers.ContractFactory>
 
     // Deployment helpers
     getDeployTransaction: jest.fn(),
-  } as any;
+  } as unknown as jest.Mocked<ethers.ContractFactory>;
+
+  return Object.assign(mock, overrides);
 }
 
 export function createMockTransactionResponse(): any {

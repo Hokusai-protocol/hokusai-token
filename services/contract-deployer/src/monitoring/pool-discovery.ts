@@ -124,9 +124,9 @@ export class PoolDiscovery {
 
     try {
       // Listen for PoolCreated events
-      this.factoryContract.on(
+      void this.factoryContract.on(
         'PoolCreated',
-        async (
+        (
           modelId: string,
           poolAddress: string,
           tokenAddress: string,
@@ -136,7 +136,7 @@ export class PoolDiscovery {
           ibrDuration: bigint,
           event: ethers.EventLog,
         ) => {
-          await this.handlePoolCreated({
+          void this.handlePoolCreated({
             modelId,
             poolAddress,
             tokenAddress,
@@ -145,6 +145,8 @@ export class PoolDiscovery {
             protocolFeeBps,
             ibrDuration: Number(ibrDuration),
             event,
+          }).catch((error) => {
+            logger.error('Failed to handle PoolCreated event:', error);
           });
         },
       );
@@ -165,13 +167,13 @@ export class PoolDiscovery {
   /**
    * Stop listening for PoolCreated events
    */
-  async stopListening(): Promise<void> {
+  stopListening(): void {
     if (!this.isListening) {
       return;
     }
 
     logger.info('Stopping pool discovery listener');
-    this.factoryContract.removeAllListeners('PoolCreated');
+    void this.factoryContract.removeAllListeners('PoolCreated');
     this.isListening = false;
     logger.info('Pool discovery listener stopped');
   }

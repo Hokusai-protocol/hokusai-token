@@ -119,7 +119,7 @@ export class EventListener {
   /**
    * Start listening to events for a pool
    */
-  async startListeningToPool(poolConfig: PoolConfig): Promise<void> {
+  startListeningToPool(poolConfig: PoolConfig): void {
     const { ammAddress, modelId } = poolConfig;
 
     if (this.poolContracts.has(ammAddress)) {
@@ -133,62 +133,78 @@ export class EventListener {
     this.poolContracts.set(ammAddress, pool);
 
     // Listen for Buy events
-    pool.on('Buy', async (buyer, reserveIn, tokensOut, fee, spotPrice, event) => {
-      await this.handleBuyEvent(poolConfig, {
+    void pool.on('Buy', (buyer, reserveIn, tokensOut, fee, spotPrice, event) => {
+      void this.handleBuyEvent(poolConfig, {
         buyer,
         reserveIn,
         tokensOut,
         fee,
         spotPrice,
         event,
+      }).catch((error) => {
+        logger.error(`Failed to handle Buy event for ${modelId}:`, error);
       });
     });
 
     // Listen for Sell events
-    pool.on('Sell', async (seller, tokensIn, reserveOut, fee, spotPrice, event) => {
-      await this.handleSellEvent(poolConfig, {
+    void pool.on('Sell', (seller, tokensIn, reserveOut, fee, spotPrice, event) => {
+      void this.handleSellEvent(poolConfig, {
         seller,
         tokensIn,
         reserveOut,
         fee,
         spotPrice,
         event,
+      }).catch((error) => {
+        logger.error(`Failed to handle Sell event for ${modelId}:`, error);
       });
     });
 
     // Listen for FeesDeposited events
-    pool.on('FeesDeposited', async (depositor, amount, newReserveBalance, newSpotPrice, event) => {
-      await this.handleFeesDepositedEvent(poolConfig, {
+    void pool.on('FeesDeposited', (depositor, amount, newReserveBalance, newSpotPrice, event) => {
+      void this.handleFeesDepositedEvent(poolConfig, {
         depositor,
         amount,
         newReserveBalance,
         newSpotPrice,
         event,
+      }).catch((error) => {
+        logger.error(`Failed to handle FeesDeposited event for ${modelId}:`, error);
       });
     });
 
     // Listen for Paused events
-    pool.on('Paused', async (account, event) => {
-      await this.handlePausedEvent(poolConfig, account, event, true);
+    void pool.on('Paused', (account, event) => {
+      void this.handlePausedEvent(poolConfig, account, event, true).catch((error) => {
+        logger.error(`Failed to handle Paused event for ${modelId}:`, error);
+      });
     });
 
     // Listen for Unpaused events
-    pool.on('Unpaused', async (account, event) => {
-      await this.handlePausedEvent(poolConfig, account, event, false);
+    void pool.on('Unpaused', (account, event) => {
+      void this.handlePausedEvent(poolConfig, account, event, false).catch((error) => {
+        logger.error(`Failed to handle Unpaused event for ${modelId}:`, error);
+      });
     });
 
     // Listen for OwnershipTransferred events
-    pool.on('OwnershipTransferred', async (previousOwner, newOwner, event) => {
-      await this.handleOwnershipTransferredEvent(poolConfig, previousOwner, newOwner, event);
+    void pool.on('OwnershipTransferred', (previousOwner, newOwner, event) => {
+      void this.handleOwnershipTransferredEvent(poolConfig, previousOwner, newOwner, event).catch(
+        (error) => {
+          logger.error(`Failed to handle OwnershipTransferred event for ${modelId}:`, error);
+        },
+      );
     });
 
     // Listen for ParametersUpdated events
-    pool.on('ParametersUpdated', async (newCrr, newTradeFee, newProtocolFee, event) => {
-      await this.handleParametersUpdatedEvent(poolConfig, {
+    void pool.on('ParametersUpdated', (newCrr, newTradeFee, newProtocolFee, event) => {
+      void this.handleParametersUpdatedEvent(poolConfig, {
         newCrr,
         newTradeFee,
         newProtocolFee,
         event,
+      }).catch((error) => {
+        logger.error(`Failed to handle ParametersUpdated event for ${modelId}:`, error);
       });
     });
 
@@ -202,7 +218,7 @@ export class EventListener {
   stopListeningToPool(poolAddress: string): void {
     const pool = this.poolContracts.get(poolAddress);
     if (pool) {
-      pool.removeAllListeners();
+      void pool.removeAllListeners();
       this.poolContracts.delete(poolAddress);
       logger.info(`Stopped listening to pool ${poolAddress}`);
     }
@@ -213,7 +229,7 @@ export class EventListener {
    */
   stopAllListening(): void {
     for (const [poolAddress, pool] of this.poolContracts) {
-      pool.removeAllListeners();
+      void pool.removeAllListeners();
       logger.info(`Stopped listening to pool ${poolAddress}`);
     }
     this.poolContracts.clear();

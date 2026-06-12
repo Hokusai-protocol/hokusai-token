@@ -168,7 +168,7 @@ async function createServer(context?: ServerContext): Promise<express.Applicatio
       );
 
       // Start background processing
-      await deploymentProcessor.start();
+      deploymentProcessor.start();
       console.log('[STARTUP] Deployment processor started');
       logger.info('Deployment processor started');
     } catch (error) {
@@ -424,8 +424,18 @@ async function startServer(): Promise<void> {
       process.exit(0);
     };
 
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => {
+      void gracefulShutdown('SIGTERM').catch((shutdownError) => {
+        logger.error('Graceful shutdown failed', { signal: 'SIGTERM', error: shutdownError });
+        process.exit(1);
+      });
+    });
+    process.on('SIGINT', () => {
+      void gracefulShutdown('SIGINT').catch((shutdownError) => {
+        logger.error('Graceful shutdown failed', { signal: 'SIGINT', error: shutdownError });
+        process.exit(1);
+      });
+    });
   } catch (error) {
     logger.error('Failed to start server', { error });
     process.exit(1);

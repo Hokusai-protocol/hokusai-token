@@ -258,13 +258,13 @@ describe('MintRequestConsumer', () => {
     let startCalls = 0;
 
     mockRedis.zRangeByScore.mockResolvedValueOnce([retryMessage]).mockResolvedValueOnce([]);
-    mockRedis.brPopLPush.mockImplementation(async () => {
+    mockRedis.brPopLPush.mockImplementation(() => {
       startCalls += 1;
       if (startCalls === 1) {
         consumer.stop();
-        return messageStr;
+        return Promise.resolve(messageStr);
       }
-      return null;
+      return Promise.resolve(null);
     });
     mockRedis.sIsMember.mockResolvedValueOnce(false);
     mockRedis.multi.mockReturnValueOnce(retryMulti as any).mockReturnValueOnce(successMulti as any);

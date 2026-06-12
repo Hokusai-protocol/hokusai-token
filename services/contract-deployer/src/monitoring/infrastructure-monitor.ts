@@ -171,12 +171,10 @@ export class InfrastructureMonitor {
     this.setupEventListeners(modelId);
 
     // Periodic polling as fallback
-    const interval = setInterval(async () => {
-      try {
-        await this.pollInfrastructureState(modelId, dailyBurnRateUSD);
-      } catch (error) {
+    const interval = setInterval(() => {
+      void this.pollInfrastructureState(modelId, dailyBurnRateUSD).catch((error) => {
         logger.error(`Error polling infrastructure state for ${modelId}:`, error);
-      }
+      });
     }, pollingIntervalMs);
 
     this.pollingIntervals.set(modelId, interval);
@@ -186,7 +184,7 @@ export class InfrastructureMonitor {
   /**
    * Stop monitoring a model
    */
-  async stopMonitoring(modelId: string): Promise<void> {
+  stopMonitoring(modelId: string): Promise<void> {
     const interval = this.pollingIntervals.get(modelId);
     if (interval) {
       clearInterval(interval);
@@ -197,19 +195,21 @@ export class InfrastructureMonitor {
     // Remove event listeners
     const paramsContract = this.paramsContracts.get(modelId);
     if (paramsContract) {
-      paramsContract.removeAllListeners();
+      void paramsContract.removeAllListeners();
       this.paramsContracts.delete(modelId);
     }
 
     if (this.infraReserveContract) {
       // Remove model-specific listeners
-      this.infraReserveContract.removeAllListeners(`InfrastructureDeposited(${modelId})`);
-      this.infraReserveContract.removeAllListeners(`InfrastructureCostPaid(${modelId})`);
+      void this.infraReserveContract.removeAllListeners(`InfrastructureDeposited(${modelId})`);
+      void this.infraReserveContract.removeAllListeners(`InfrastructureCostPaid(${modelId})`);
     }
 
     if (this.pollingIntervals.size === 0) {
       this.isMonitoring = false;
     }
+
+    return Promise.resolve();
   }
 
   /**
@@ -222,10 +222,11 @@ export class InfrastructureMonitor {
     }
 
     if (this.infraReserveContract) {
-      this.infraReserveContract.removeAllListeners();
+      void this.infraReserveContract.removeAllListeners();
     }
 
     logger.info('Stopped all infrastructure monitoring');
+    return Promise.resolve();
   }
 
   /**
@@ -306,91 +307,129 @@ export class InfrastructureMonitor {
     }
 
     // Listen for deposits
-    infraReserveContract.on(
+    void infraReserveContract.on(
       infraReserveContract.getEvent('InfrastructureDeposited')(modelId),
-      async (_modelIdEvent, amount, newBalance, depositor, _event) => {
+      (_modelIdEvent, amount, newBalance, depositor, _event) => {
         logger.info(`Infrastructure deposited for ${modelId}: $${ethers.formatUnits(amount, 6)}`, {
           newBalance: ethers.formatUnits(newBalance, 6),
           depositor,
         });
-        await this.pollInfrastructureState(modelId);
+        void this.pollInfrastructureState(modelId).catch((error) => {
+          logger.error(`Failed to poll infrastructure state after deposit for ${modelId}`, {
+            error,
+          });
+        });
       },
     );
 
     // Listen for payments
-    infraReserveContract.on(
+    void infraReserveContract.on(
       infraReserveContract.getEvent('InfrastructureCostPaid')(modelId),
-      async (_modelIdEvent, payee, amount, invoiceHash, memo, _event) => {
+      (_modelIdEvent, payee, amount, invoiceHash, memo, _event) => {
         logger.info(`Infrastructure paid for ${modelId}: $${ethers.formatUnits(amount, 6)}`, {
           payee,
           invoiceHash,
           memo,
         });
 
-        // Check if this is a large payment
-        const currentState = this.getCurrentState(modelId);
-        if (currentState) {
-          const paymentPercent = (Number(amount) / Number(currentState.accrued + amount)) * 100;
-          if (paymentPercent > this.thresholds.largePaymentPercentage) {
-            await this.sendAlert({
-              type: 'large_payment',
-              priority: 'high',
-              modelId,
-              message: `Large infrastructure payment: $${ethers.formatUnits(amount, 6)} (${paymentPercent.toFixed(1)}% of accrued balance)`,
-              currentState,
-              metadata: {
-                amount: ethers.formatUnits(amount, 6),
-                payee,
-                invoiceHash,
-                memo,
-                percentOfAccrued: paymentPercent,
-              },
-            });
-          }
-        }
-
-        await this.pollInfrastructureState(modelId);
+        void this.handleInfrastructureCostPaid(modelId, amount, payee, invoiceHash, memo).catch(
+          (error) => {
+            logger.error(`Failed to handle infrastructure cost paid for ${modelId}`, { error });
+          },
+        );
       },
     );
 
     // Listen for provider changes
-    infraReserveContract.on(
+    void infraReserveContract.on(
       infraReserveContract.getEvent('ProviderSet')(modelId),
-      async (_modelIdEvent, oldProvider, newProvider, _event) => {
+      (_modelIdEvent, oldProvider, newProvider, _event) => {
         logger.info(`Provider changed for ${modelId}`, {
           oldProvider,
           newProvider,
         });
-        await this.pollInfrastructureState(modelId);
+        void this.pollInfrastructureState(modelId).catch((error) => {
+          logger.error(`Failed to poll infrastructure state after provider change for ${modelId}`, {
+            error,
+          });
+        });
       },
     );
 
     // Listen for split changes
     const paramsContract = this.paramsContracts.get(modelId);
     if (paramsContract && this.thresholds.alertOnSplitChange) {
-      paramsContract.on(
-        'InfrastructureAccrualBpsSet',
-        async (oldBps, newBps, updatedBy, _event) => {
-          const currentState = this.getCurrentState(modelId);
-          if (currentState) {
-            await this.sendAlert({
-              type: 'split_change',
-              priority: 'medium',
-              modelId,
-              message: `Infrastructure split changed from ${oldBps / 100}% to ${newBps / 100}% by governance`,
-              currentState,
-              metadata: {
-                oldBps,
-                newBps,
-                updatedBy,
-                oldSplit: `${oldBps / 100}/${(10000 - oldBps) / 100}`,
-                newSplit: `${newBps / 100}/${(10000 - newBps) / 100}`,
-              },
-            });
-          }
-          await this.pollInfrastructureState(modelId);
-        },
-      );
+      void paramsContract.on('InfrastructureAccrualBpsSet', (oldBps, newBps, updatedBy, _event) => {
+        void this.handleSplitChange(modelId, oldBps, newBps, updatedBy).catch((error) => {
+          logger.error(`Failed to handle split change for ${modelId}`, { error });
+        });
+      });
+    }
+  }
+
+  private async handleInfrastructureCostPaid(
+    modelId: string,
+    amount: bigint,
+    payee: string,
+    invoiceHash: string,
+    memo: string,
+  ): Promise<void> {
+    try {
+      const currentState = this.getCurrentState(modelId);
+      if (currentState) {
+        const paymentPercent = (Number(amount) / Number(currentState.accrued + amount)) * 100;
+        if (paymentPercent > this.thresholds.largePaymentPercentage) {
+          await this.sendAlert({
+            type: 'large_payment',
+            priority: 'high',
+            modelId,
+            message: `Large infrastructure payment: $${ethers.formatUnits(amount, 6)} (${paymentPercent.toFixed(1)}% of accrued balance)`,
+            currentState,
+            metadata: {
+              amount: ethers.formatUnits(amount, 6),
+              payee,
+              invoiceHash,
+              memo,
+              percentOfAccrued: paymentPercent,
+            },
+          });
+        }
+      }
+
+      await this.pollInfrastructureState(modelId);
+    } catch (error) {
+      logger.error(`Failed to handle infrastructure payment event for ${modelId}:`, error);
+    }
+  }
+
+  private async handleSplitChange(
+    modelId: string,
+    oldBps: number,
+    newBps: number,
+    updatedBy: string,
+  ): Promise<void> {
+    try {
+      const currentState = this.getCurrentState(modelId);
+      if (currentState) {
+        await this.sendAlert({
+          type: 'split_change',
+          priority: 'medium',
+          modelId,
+          message: `Infrastructure split changed from ${oldBps / 100}% to ${newBps / 100}% by governance`,
+          currentState,
+          metadata: {
+            oldBps,
+            newBps,
+            updatedBy,
+            oldSplit: `${oldBps / 100}/${(10000 - oldBps) / 100}`,
+            newSplit: `${newBps / 100}/${(10000 - newBps) / 100}`,
+          },
+        });
+      }
+
+      await this.pollInfrastructureState(modelId);
+    } catch (error) {
+      logger.error(`Failed to handle split change event for ${modelId}:`, error);
     }
   }
 

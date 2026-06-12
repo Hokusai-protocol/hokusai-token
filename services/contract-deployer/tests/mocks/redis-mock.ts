@@ -1,7 +1,23 @@
 import { RedisClientType } from 'redis';
 
-export function createMockRedisClient(): jest.Mocked<RedisClientType> {
-  return {
+type RedisMulti = ReturnType<RedisClientType['multi']>;
+type MockRedisMulti = RedisMulti & {
+  sAdd: jest.Mock;
+  lRem: jest.Mock;
+  lPush: jest.Mock;
+  rPush: jest.Mock;
+  hSet: jest.Mock;
+  set: jest.Mock;
+  expire: jest.Mock;
+  zAdd: jest.Mock;
+  zRem: jest.Mock;
+  exec: jest.Mock;
+};
+
+export function createMockRedisClient<T extends Partial<jest.Mocked<RedisClientType>>>(
+  overrides?: T,
+): jest.Mocked<RedisClientType> & T {
+  const mock = {
     connect: jest.fn().mockResolvedValue(undefined),
     disconnect: jest.fn().mockResolvedValue(undefined),
     quit: jest.fn().mockResolvedValue(undefined),
@@ -66,10 +82,18 @@ export function createMockRedisClient(): jest.Mocked<RedisClientType> {
     // Connection state
     isOpen: true,
     isReady: true,
-  } as any;
+  } as unknown as jest.Mocked<RedisClientType>;
+
+  return Object.assign(mock, overrides);
 }
 
-export function createMockRedisMulti() {
+export function createMockRedisMulti<T extends Partial<MockRedisMulti>>(
+  overrides?: T,
+): MockRedisMulti & T {
+  return Object.assign(createMockRedisMultiBase(), overrides);
+}
+
+function createMockRedisMultiBase(): MockRedisMulti {
   return {
     sAdd: jest.fn().mockReturnThis(),
     lRem: jest.fn().mockReturnThis(),
@@ -81,5 +105,5 @@ export function createMockRedisMulti() {
     zAdd: jest.fn().mockReturnThis(),
     zRem: jest.fn().mockReturnThis(),
     exec: jest.fn().mockResolvedValue([]),
-  };
+  } as unknown as MockRedisMulti;
 }

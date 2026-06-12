@@ -20,6 +20,7 @@ import { validateEnv } from './config/env.validation';
 import { createBackendSigner } from './blockchain/signer-factory';
 import { getBackendSigner, setBackendSigner } from './blockchain/signer-singleton';
 import type { Config } from './config/env.validation';
+import { asyncHandler } from './middleware/async-handler';
 
 // Load environment variables
 dotenv.config();
@@ -156,7 +157,7 @@ async function main(): Promise<void> {
     });
 
     // Health check endpoint
-    app.get('/health', async (_req: Request, res: Response) => {
+    app.get('/health', (_req: Request, res: Response) => {
       const health = ammMonitor.getHealth();
       res.status(health.isHealthy ? 200 : 503).json({
         status: health.isHealthy ? 'healthy' : 'unhealthy',
@@ -166,16 +167,19 @@ async function main(): Promise<void> {
       });
     });
 
-    app.get('/health/ready', async (_req: Request, res: Response) => {
-      const readiness = await getReadiness({
-        ammMonitor,
-        provider,
-        networkChainId: network.chainId,
-        redis,
-      });
+    app.get(
+      '/health/ready',
+      asyncHandler(async (_req: Request, res: Response) => {
+        const readiness = await getReadiness({
+          ammMonitor,
+          provider,
+          networkChainId: network.chainId,
+          redis,
+        });
 
-      res.status(readiness.ready ? 200 : 503).json(readiness);
-    });
+        res.status(readiness.ready ? 200 : 503).json(readiness);
+      }),
+    );
 
     // Monitoring API routes
     app.use('/api/monitoring', monitoringRouter(ammMonitor));
@@ -203,24 +207,38 @@ async function main(): Promise<void> {
     });
 
     // Graceful shutdown
-    process.on('SIGTERM', async () => {
+    process.on('SIGTERM', () => {
       logger.info('[MONITORING-SERVER] SIGTERM received, shutting down gracefully...');
-      await reconciliationService.stop();
-      await ammMonitor.stop();
-      if (redis) {
-        await redis.quit();
-      }
-      process.exit(0);
+      void reconciliationService
+        .stop()
+        .then(() => ammMonitor.stop())
+        .then(async () => {
+          if (redis) {
+            await redis.quit();
+          }
+          process.exit(0);
+        })
+        .catch((shutdownError) => {
+          logger.error('[MONITORING-SERVER] Shutdown failed:', shutdownError);
+          process.exit(1);
+        });
     });
 
-    process.on('SIGINT', async () => {
+    process.on('SIGINT', () => {
       logger.info('[MONITORING-SERVER] SIGINT received, shutting down gracefully...');
-      await reconciliationService.stop();
-      await ammMonitor.stop();
-      if (redis) {
-        await redis.quit();
-      }
-      process.exit(0);
+      void reconciliationService
+        .stop()
+        .then(() => ammMonitor.stop())
+        .then(async () => {
+          if (redis) {
+            await redis.quit();
+          }
+          process.exit(0);
+        })
+        .catch((shutdownError) => {
+          logger.error('[MONITORING-SERVER] Shutdown failed:', shutdownError);
+          process.exit(1);
+        });
     });
   } catch (error) {
     logger.error('[MONITORING-SERVER] Fatal error:', error);

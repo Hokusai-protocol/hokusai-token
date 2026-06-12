@@ -14,16 +14,16 @@ import { logger } from '../utils/logger';
 // Load environment variables
 dotenv.config();
 
-async function main() {
+async function main(): Promise<void> {
   logger.info('Starting AMM Monitoring Example...\n');
 
   // Create monitor (loads config from environment)
   const monitor = new AMMMonitor();
 
   // Register alert callback
-  monitor.onAlert(async (alert) => {
+  monitor.onAlert((alert) => {
     logger.info(`📧 Would send email alert: ${alert.message}`);
-    // In production, this would send email via AWS SES
+    return Promise.resolve();
   });
 
   try {
@@ -71,20 +71,24 @@ async function main() {
     }, 60000);
 
     // Graceful shutdown
-    process.on('SIGINT', async () => {
+    process.on('SIGINT', () => {
       logger.info('\n\nReceived SIGINT, shutting down gracefully...');
       clearInterval(metricsInterval);
       clearInterval(healthInterval);
-      await monitor.stop();
-      process.exit(0);
+      void monitor
+        .stop()
+        .then(() => process.exit(0))
+        .catch(handleShutdownError);
     });
 
-    process.on('SIGTERM', async () => {
+    process.on('SIGTERM', () => {
       logger.info('\n\nReceived SIGTERM, shutting down gracefully...');
       clearInterval(metricsInterval);
       clearInterval(healthInterval);
-      await monitor.stop();
-      process.exit(0);
+      void monitor
+        .stop()
+        .then(() => process.exit(0))
+        .catch(handleShutdownError);
     });
 
     // Keep running
@@ -95,4 +99,9 @@ async function main() {
   }
 }
 
-main();
+function handleShutdownError(error: unknown): void {
+  logger.error('Failed to stop monitoring cleanly:', error);
+  process.exit(1);
+}
+
+void main();

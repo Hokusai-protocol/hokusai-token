@@ -6,6 +6,7 @@ import { apiKeyAuth, validateUserAddress } from '../middleware/auth';
 import { ValidationHelpers } from '../schemas/api-schemas';
 import { ApiErrorFactory, toApiError } from '../types/errors';
 import { createLogger } from '../utils/logger';
+import { asyncHandler } from '../middleware/async-handler';
 
 const logger = createLogger('deployment-routes');
 
@@ -29,7 +30,7 @@ export function deploymentRouter(
   router.post(
     '/',
     validateUserAddress,
-    async (req: Request, res: Response, _next: NextFunction) => {
+    asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
       try {
         logger.info('Deployment request received', {
           correlationId: req.correlationId,
@@ -96,73 +97,76 @@ export function deploymentRouter(
           error: apiError.toApiResponse(),
         });
       }
-    },
+    }),
   );
 
   /**
    * GET /api/deployments/:id/status
    * Get deployment status
    */
-  router.get('/:id/status', async (req: Request, res: Response, _next: NextFunction) => {
-    try {
-      const deploymentId = req.params.id;
+  router.get(
+    '/:id/status',
+    asyncHandler(async (req: Request, res: Response, _next: NextFunction) => {
+      try {
+        const deploymentId = req.params.id;
 
-      logger.info('Deployment status request received', {
-        correlationId: req.correlationId,
-        deploymentId,
-        userId: req.user?.userId,
-      });
+        logger.info('Deployment status request received', {
+          correlationId: req.correlationId,
+          deploymentId,
+          userId: req.user?.userId,
+        });
 
-      // Validate deployment ID format
-      if (!deploymentId || !UUID_V4_REGEX.test(deploymentId)) {
-        const error = ApiErrorFactory.validationError(
-          'Invalid deployment ID format. Must be a valid UUID.',
-          req.correlationId,
-        );
-        return res.status(error.statusCode).json({
+        // Validate deployment ID format
+        if (!deploymentId || !UUID_V4_REGEX.test(deploymentId)) {
+          const error = ApiErrorFactory.validationError(
+            'Invalid deployment ID format. Must be a valid UUID.',
+            req.correlationId,
+          );
+          return res.status(error.statusCode).json({
+            success: false,
+            error: error.toApiResponse(),
+          });
+        }
+
+        // Get deployment status
+        const status = await deploymentService.getDeploymentStatus(deploymentId, req.correlationId);
+
+        logger.info('Deployment status retrieved', {
+          correlationId: req.correlationId,
+          deploymentId,
+          status: status.status,
+        });
+
+        return res.status(200).json({
+          success: true,
+          data: status,
+          meta: {
+            requestId: req.correlationId || 'unknown',
+            timestamp: new Date().toISOString(),
+            version: '1.0',
+          },
+        });
+      } catch (error) {
+        logger.error('Failed to get deployment status', {
+          correlationId: req.correlationId,
+          deploymentId: req.params.id,
+          error,
+        });
+
+        const apiError = toApiError(error, req.correlationId);
+        return res.status(apiError.statusCode).json({
           success: false,
-          error: error.toApiResponse(),
+          error: apiError.toApiResponse(),
         });
       }
-
-      // Get deployment status
-      const status = await deploymentService.getDeploymentStatus(deploymentId, req.correlationId);
-
-      logger.info('Deployment status retrieved', {
-        correlationId: req.correlationId,
-        deploymentId,
-        status: status.status,
-      });
-
-      return res.status(200).json({
-        success: true,
-        data: status,
-        meta: {
-          requestId: req.correlationId || 'unknown',
-          timestamp: new Date().toISOString(),
-          version: '1.0',
-        },
-      });
-    } catch (error) {
-      logger.error('Failed to get deployment status', {
-        correlationId: req.correlationId,
-        deploymentId: req.params.id,
-        error,
-      });
-
-      const apiError = toApiError(error, req.correlationId);
-      return res.status(apiError.statusCode).json({
-        success: false,
-        error: apiError.toApiResponse(),
-      });
-    }
-  });
+    }),
+  );
 
   /**
    * GET /api/deployments/:id
    * Legacy endpoint - redirects to status endpoint
    */
-  router.get('/:id', async (req: Request, res: Response, _next: NextFunction) => {
+  router.get('/:id', (req: Request, res: Response, _next: NextFunction) => {
     try {
       const deploymentId = req.params.id;
 

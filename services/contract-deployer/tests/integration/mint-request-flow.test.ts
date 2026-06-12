@@ -165,7 +165,7 @@ describe('MintRequest flow integration', () => {
     expect(fixture.attester_signatures.length).toBeGreaterThan(0);
   });
 
-  test('validates the pipeline v1 fixture and detects vendored drift when possible', async () => {
+  test('validates the pipeline v1 fixture and detects vendored drift when possible', () => {
     const vendoredFixturePath = path.resolve(__dirname, '../fixtures/mint_request.v1.json');
     const envPipelineDir = process.env.HOKUSAI_DATA_PIPELINE_DIR;
     const candidatePipelinePaths = [
@@ -350,7 +350,7 @@ describe('MintRequest flow integration', () => {
       mockRedis.brPopLPush.mockResolvedValue(JSON.stringify(validMessage));
       mockRedis.sIsMember.mockResolvedValue(false);
       mockRedis.zRangeByScore.mockResolvedValue([]);
-      mockRedis.multi.mockReturnValue(createMockRedisMulti() as any);
+      mockRedis.multi.mockReturnValue(createMockRedisMulti());
     });
 
     test('routes ambiguous post-submit RPC drops to the DLQ and never emits a minted settlement', async () => {
@@ -358,11 +358,11 @@ describe('MintRequest flow integration', () => {
       const pushedEntries: Array<{ queue: string; payload: string }> = [];
       const recordErrorSpy = jest.spyOn(recordStore, 'recordError').mockResolvedValue(undefined);
 
-      mockRedis.lPush.mockImplementation(async (...args: unknown[]) => {
+      mockRedis.lPush.mockImplementation((...args: unknown[]) => {
         const queue = String(args[0]);
         const payload = String(args[1]);
         pushedEntries.push({ queue, payload });
-        return 1;
+        return Promise.resolve(1);
       });
 
       const processor = new MintRequestProcessor({
@@ -404,11 +404,11 @@ describe('MintRequest flow integration', () => {
       const pushedEntries: Array<{ queue: string; payload: string }> = [];
       const recordErrorSpy = jest.spyOn(recordStore, 'recordError').mockResolvedValue(undefined);
 
-      mockRedis.lPush.mockImplementation(async (...args: unknown[]) => {
+      mockRedis.lPush.mockImplementation((...args: unknown[]) => {
         const queue = String(args[0]);
         const payload = String(args[1]);
         pushedEntries.push({ queue, payload });
-        return 1;
+        return Promise.resolve(1);
       });
 
       const processor = new MintRequestProcessor({
@@ -449,9 +449,9 @@ describe('MintRequest flow integration', () => {
       jest.spyOn(Date, 'now').mockReturnValue(1000);
 
       mockRedis.multi.mockReturnValue(multi as any);
-      mockRedis.lPush.mockImplementation(async (...args: unknown[]) => {
+      mockRedis.lPush.mockImplementation((...args: unknown[]) => {
         pushedEntries.push({ queue: String(args[0]), payload: String(args[1]) });
-        return 1;
+        return Promise.resolve(1);
       });
 
       const processor = new MintRequestProcessor({
@@ -495,9 +495,9 @@ describe('MintRequest flow integration', () => {
       const mockRedis = createMockRedisClient();
       const capturedSettlements: string[] = [];
 
-      mockRedis.lPush.mockImplementation(async (...args: unknown[]) => {
+      mockRedis.lPush.mockImplementation((...args: unknown[]) => {
         capturedSettlements.push(args[1] as string);
-        return 1;
+        return Promise.resolve(1);
       });
 
       const recordStore = new MintRecordStore({
@@ -565,11 +565,11 @@ describe('MintRequest flow integration', () => {
       const multiSuccess = createMockRedisMulti();
       const capturedSettlements: string[] = [];
 
-      mockRedis.lPush.mockImplementation(async (...args: unknown[]) => {
+      mockRedis.lPush.mockImplementation((...args: unknown[]) => {
         if (args[0] === 'hokusai:mint_request_settlements') {
           capturedSettlements.push(args[1] as string);
         }
-        return 1;
+        return Promise.resolve(1);
       });
 
       const recordStore = new MintRecordStore({
@@ -683,50 +683,50 @@ describe('MintRequest flow integration', () => {
       const strings = new Map<string, string>();
       const processedSet = new Set<string>();
 
-      redis.lRange.mockImplementation((async (...args: unknown[]) => {
+      redis.lRange.mockImplementation(((...args: unknown[]) => {
         const [key, start, stop] = args as [string, number, number];
         const values = [...(queues.get(key) ?? [])];
         const end = stop === -1 ? values.length : stop + 1;
-        return values.slice(start, end);
+        return Promise.resolve(values.slice(start, end));
       }) as any);
-      redis.lPush.mockImplementation((async (...args: unknown[]) => {
+      redis.lPush.mockImplementation(((...args: unknown[]) => {
         const [key, value] = args as [string, string];
         const values = queues.get(key) ?? [];
         values.unshift(value);
         queues.set(key, values);
-        return values.length;
+        return Promise.resolve(values.length);
       }) as any);
-      redis.lRem.mockImplementation((async (...args: unknown[]) => {
+      redis.lRem.mockImplementation(((...args: unknown[]) => {
         const [key, _count, value] = args as [string, number, string];
         const values = queues.get(key) ?? [];
         const index = values.indexOf(value);
         if (index >= 0) {
           values.splice(index, 1);
           queues.set(key, values);
-          return 1;
+          return Promise.resolve(1);
         }
-        return 0;
+        return Promise.resolve(0);
       }) as any);
-      redis.brPopLPush.mockImplementation((async (...args: unknown[]) => {
+      redis.brPopLPush.mockImplementation(((...args: unknown[]) => {
         const [source, dest] = args as [string, string];
         const sourceValues = queues.get(source) ?? [];
         if (sourceValues.length === 0) {
-          return null;
+          return Promise.resolve(null);
         }
         const value = sourceValues.pop()!;
         const destValues = queues.get(dest) ?? [];
         destValues.unshift(value);
         queues.set(source, sourceValues);
         queues.set(dest, destValues);
-        return value;
+        return Promise.resolve(value);
       }) as any);
-      redis.sIsMember.mockImplementation((async (...args: unknown[]) => {
+      redis.sIsMember.mockImplementation(((...args: unknown[]) => {
         const [_key, value] = args as [string, string];
-        return processedSet.has(value);
+        return Promise.resolve(processedSet.has(value));
       }) as any);
-      redis.get.mockImplementation((async (...args: unknown[]) => {
+      redis.get.mockImplementation(((...args: unknown[]) => {
         const [key] = args as [string];
-        return strings.get(key) ?? null;
+        return Promise.resolve(strings.get(key) ?? null);
       }) as any);
       redis.zRangeByScore.mockResolvedValue([]);
       redis.multi.mockImplementation(() => {
@@ -763,9 +763,9 @@ describe('MintRequest flow integration', () => {
             });
             return multi;
           }),
-          exec: jest.fn().mockImplementation(async () => {
+          exec: jest.fn().mockImplementation(() => {
             commands.forEach((command) => command());
-            return [];
+            return Promise.resolve([]);
           }),
         };
 
@@ -912,7 +912,7 @@ describe('MintRequest flow integration', () => {
     });
   });
 
-  test('requires explicit integration environment', async () => {
+  test('requires explicit integration environment', () => {
     if (!process.env.RUN_INTEGRATION_TESTS) {
       expect(true).toBe(true);
       return;

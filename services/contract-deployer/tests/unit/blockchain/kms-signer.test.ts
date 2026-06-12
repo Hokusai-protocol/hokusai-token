@@ -59,7 +59,7 @@ function createMockProvider(chainId = 11155111n): ethers.Provider {
       maxPriorityFeePerGas: 1_000_000_000n,
       toJSON: () => ({}),
     }),
-    resolveName: jest.fn().mockImplementation(async (value: string) => value),
+    resolveName: jest.fn().mockImplementation((value: string) => Promise.resolve(value)),
     getBalance: jest.fn(),
   } as unknown as ethers.Provider;
 }
@@ -73,9 +73,9 @@ describe('KmsSigner', () => {
 
   let returnHighS = false;
   const mockClient = {
-    send: jest.fn(async (command: unknown) => {
+    send: jest.fn((command: unknown) => {
       if (command instanceof GetPublicKeyCommand) {
-        return { PublicKey: publicKeyDer };
+        return Promise.resolve({ PublicKey: publicKeyDer });
       }
 
       if (command instanceof SignCommand) {
@@ -85,12 +85,12 @@ describe('KmsSigner', () => {
         const sValue = BigInt(signature.s);
         const adjustedS =
           returnHighS && sValue < SECP256K1_HALF_ORDER ? SECP256K1_ORDER - sValue : sValue;
-        return {
+        return Promise.resolve({
           Signature: encodeDerSignature(BigInt(signature.r), adjustedS),
-        };
+        });
       }
 
-      throw new Error('Unexpected KMS command');
+      return Promise.reject(new Error('Unexpected KMS command'));
     }),
   } as any;
 

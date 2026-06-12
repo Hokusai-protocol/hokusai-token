@@ -72,10 +72,10 @@ function createErrorResponse<T = unknown>(error: ApiError, requestId: string): A
 /**
  * Example: Deploy token endpoint handler
  */
-async function deployTokenHandler(
+function deployTokenHandler(
   requestData: unknown,
   requestId: string,
-): Promise<ApiResponse<DeployTokenResponse>> {
+): ApiResponse<DeployTokenResponse> {
   try {
     // Validate request (throws if invalid)
     validateDeployRequest(requestData);
@@ -112,9 +112,7 @@ async function deployTokenHandler(
 /**
  * Example: Deployment status endpoint handler
  */
-async function getDeploymentStatusHandler(
-  requestId: string,
-): Promise<ApiResponse<DeploymentStatusResponse>> {
+function getDeploymentStatusHandler(requestId: string): ApiResponse<DeploymentStatusResponse> {
   try {
     // Validate request ID format
     const validation = ValidationHelpers.validateDeploymentStatusQuery({ requestId });

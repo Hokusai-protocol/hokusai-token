@@ -177,7 +177,7 @@ async function errorHandlingExample() {
     },
     {
       name: 'Network Connection Error',
-      test: async () => {
+      test: () => {
         // This would test network error handling in a real scenario
         console.log('Network error handling would be tested here');
         return null;

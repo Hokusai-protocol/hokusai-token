@@ -151,14 +151,11 @@ export class ModelRegistryService {
     }
   }
 
-  async onModelRegistered(
-    handler: (event: any) => void,
-    errorHandler?: (error: Error) => void,
-  ): Promise<void> {
+  onModelRegistered(handler: (event: any) => void, errorHandler?: (error: Error) => void): void {
     try {
       const filter = this.contract.getEvent('ModelRegistered')();
 
-      this.contract.on(filter, (modelId, tokenAddress, metricName, mlflowRunId, event) => {
+      void this.contract.on(filter, (modelId, tokenAddress, metricName, mlflowRunId, event) => {
         handler({
           modelId,
           tokenAddress,
@@ -169,7 +166,7 @@ export class ModelRegistryService {
       });
 
       if (errorHandler) {
-        this.contract.on('error', errorHandler);
+        void this.contract.on('error', errorHandler);
       }
     } catch (error: any) {
       logger.error('Failed to setup event listener', { error });

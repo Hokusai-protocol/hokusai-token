@@ -145,13 +145,13 @@ describe('CostReconciliationService', () => {
       expect(variance).toBeUndefined();
     });
 
-    it('should return variance history', async () => {
+    it('should return variance history', () => {
       const modelId = 'gpt-4';
       const history = service.getVarianceHistory(modelId, 5);
       expect(Array.isArray(history)).toBe(true);
     });
 
-    it('should limit variance history', async () => {
+    it('should limit variance history', () => {
       const modelId = 'gpt-4';
       const history = service.getVarianceHistory(modelId, 3);
       expect(history.length).toBeLessThanOrEqual(3);

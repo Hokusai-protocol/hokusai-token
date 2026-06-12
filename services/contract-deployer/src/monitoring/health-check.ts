@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { RedisClientType } from 'redis';
 import { ethers } from 'ethers';
 import { logger } from '../utils/logger';
+import { asyncHandler } from '../middleware/async-handler';
 
 export interface HealthCheckConfig {
   redis: RedisClientType;
@@ -55,7 +56,7 @@ export class HealthCheckService {
   }
 
   getHealthHandler() {
-    return async (_req: Request, res: Response) => {
+    return asyncHandler(async (_req: Request, res: Response) => {
       try {
         const isHealthy = await this.checkBasicHealth();
         const status = isHealthy ? 200 : 503;
@@ -72,11 +73,11 @@ export class HealthCheckService {
           error: 'Health check failed',
         });
       }
-    };
+    });
   }
 
   getDetailedHealthHandler() {
-    return async (_req: Request, res: Response) => {
+    return asyncHandler(async (_req: Request, res: Response) => {
       try {
         const health = await this.getDetailedHealth();
         const status = health.status === 'healthy' ? 200 : 503;
@@ -89,7 +90,7 @@ export class HealthCheckService {
           error: 'Detailed health check failed',
         });
       }
-    };
+    });
   }
 
   getLivenessHandler() {

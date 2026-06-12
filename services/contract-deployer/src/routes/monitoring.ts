@@ -8,7 +8,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    * GET /api/monitoring/health
    * Health check for monitoring system
    */
-  router.get('/health', async (_req: Request, res: Response) => {
+  router.get('/health', (_req: Request, res: Response) => {
     try {
       const health = ammMonitor.getHealth();
       res.json({
@@ -32,7 +32,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    * GET /api/monitoring/metrics
    * Get current metrics for all pools
    */
-  router.get('/metrics', async (_req: Request, res: Response) => {
+  router.get('/metrics', (_req: Request, res: Response) => {
     try {
       const metrics = ammMonitor.getMetrics();
       res.json({
@@ -275,7 +275,7 @@ export function monitoringRouter(ammMonitor: AMMMonitor): Router {
    * GET /api/monitoring/summary
    * Get system-wide summary metrics
    */
-  router.get('/summary', async (_req: Request, res: Response) => {
+  router.get('/summary', (_req: Request, res: Response) => {
     try {
       const metrics = ammMonitor.getMetrics();
       const pools = ammMonitor.getDiscoveredPools();

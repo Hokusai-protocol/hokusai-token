@@ -315,7 +315,9 @@ export class InfrastructureMonitor {
           depositor,
         });
         void this.pollInfrastructureState(modelId).catch((error) => {
-          logger.error(`Failed to poll infrastructure state after deposit for ${modelId}`, { error });
+          logger.error(`Failed to poll infrastructure state after deposit for ${modelId}`, {
+            error,
+          });
         });
       },
     );
@@ -330,9 +332,11 @@ export class InfrastructureMonitor {
           memo,
         });
 
-        void this.handleInfrastructureCostPaid(modelId, amount, payee, invoiceHash, memo).catch((error) => {
-          logger.error(`Failed to handle infrastructure cost paid for ${modelId}`, { error });
-        });
+        void this.handleInfrastructureCostPaid(modelId, amount, payee, invoiceHash, memo).catch(
+          (error) => {
+            logger.error(`Failed to handle infrastructure cost paid for ${modelId}`, { error });
+          },
+        );
       },
     );
 
@@ -345,7 +349,9 @@ export class InfrastructureMonitor {
           newProvider,
         });
         void this.pollInfrastructureState(modelId).catch((error) => {
-          logger.error(`Failed to poll infrastructure state after provider change for ${modelId}`, { error });
+          logger.error(`Failed to poll infrastructure state after provider change for ${modelId}`, {
+            error,
+          });
         });
       },
     );

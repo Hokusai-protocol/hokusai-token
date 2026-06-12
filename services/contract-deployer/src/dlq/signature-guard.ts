@@ -3,40 +3,10 @@ import { DeltaVerifierClient } from '../blockchain/delta-verifier-client';
 import { MintRequestMessage } from '../schemas/mint-request-schema';
 import { MintRequestProcessor } from '../services/mint-request-processor';
 
-const MINT_REQUEST_EIP712_TYPES = {
-  MintRequest: [
-    { name: 'modelId', type: 'uint256' },
-    { name: 'payload', type: 'MintRequestPayload' },
-    { name: 'contributors', type: 'Contributor[]' },
-  ],
-  MintRequestPayload: [
-    { name: 'pipelineRunId', type: 'string' },
-    { name: 'baselineScoreBps', type: 'uint256' },
-    { name: 'candidateScoreBps', type: 'uint256' },
-    { name: 'maxCostUsdMicro', type: 'uint256' },
-    { name: 'actualCostUsdMicro', type: 'uint256' },
-    { name: 'totalSamples', type: 'uint256' },
-    { name: 'anchors', type: 'BenchmarkAnchors' },
-    { name: 'baselineCommitment', type: 'bytes32' },
-    { name: 'candidateCommitment', type: 'bytes32' },
-  ],
-  BenchmarkAnchors: [
-    { name: 'benchmarkSpecHash', type: 'bytes32' },
-    { name: 'datasetHash', type: 'bytes32' },
-    { name: 'attestationHash', type: 'bytes32' },
-    { name: 'idempotencyKey', type: 'bytes32' },
-    { name: 'metricName', type: 'string' },
-    { name: 'metricFamily', type: 'string' },
-  ],
-  Contributor: [
-    { name: 'walletAddress', type: 'address' },
-    { name: 'weight', type: 'uint256' },
-  ],
-};
-
-const EIP712_DOMAIN = {
-  name: 'HokusaiDeltaVerifier',
-  version: '1',
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { MINT_REQUEST_EIP712_TYPES, EIP712_DOMAIN } = require('../../../../shared/mint-request-eip712') as {
+  MINT_REQUEST_EIP712_TYPES: Record<string, { name: string; type: string }[]>;
+  EIP712_DOMAIN: { name: string; version: string };
 };
 
 export interface SignatureValidationResult {

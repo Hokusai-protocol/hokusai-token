@@ -348,7 +348,7 @@ async function main(): Promise<void> {
       const decision = decideReplay(entry, onChain);
       process.stdout.write(renderDecision(decision) + '\n');
       if (!decision.allowed) {
-        process.exitCode = 2;
+        process.exitCode = 3;
         return;
       }
 

@@ -61,6 +61,7 @@ Both PRs must land within the same 24-hour window. If only one side lands:
 | `services/contract-deployer/tests/fixtures/mint_request.v1.json` | Byte-identical copy of pipeline fixture |
 | `services/contract-deployer/src/schemas/mint-request-schema.ts` | Joi schema (if wire format changes) |
 | `services/contract-deployer/src/services/mint-request-processor.ts` | `buildPayload`/`buildContributors` mapping |
+| `services/contract-deployer/src/dlq/signature-guard.ts` | Imports from `shared/mint-request-eip712.js` — verify `buildPayload`/`buildContributors` still produce the correct typed-data value after struct changes |
 | `contracts/DeltaVerifier.sol` | Typehash constants + struct definitions |
 
 ### Pipeline repo

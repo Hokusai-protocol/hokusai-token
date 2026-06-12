@@ -372,9 +372,7 @@ function enforceSignerConfiguration(
   }
 
   if (hasKmsBackend !== hasExpectedAddress) {
-    throw new Error(
-      'KMS_BACKEND_KEY_ID and KMS_BACKEND_EXPECTED_ADDRESS must be set together',
-    );
+    throw new Error('KMS_BACKEND_KEY_ID and KMS_BACKEND_EXPECTED_ADDRESS must be set together');
   }
 
   if (!hasKmsBackend && !hasRawPrivateKey) {

@@ -35,6 +35,11 @@ describe('Contract Deploy Listener - Integration Tests', () => {
 
     // Initialize blockchain provider
     provider = new ethers.JsonRpcProvider('http://localhost:8545');
+    const signer = new ethers.Wallet(
+      process.env.DEPLOYER_PRIVATE_KEY ||
+        '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      provider,
+    );
 
     // Initialize listener
     listener = new ContractDeployListener({
@@ -43,9 +48,7 @@ describe('Contract Deploy Listener - Integration Tests', () => {
       },
       blockchain: {
         rpcUrls: ['http://localhost:8545'],
-        privateKey:
-          process.env.DEPLOYER_PRIVATE_KEY ||
-          '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+        signer,
         tokenManagerAddress:
           process.env.TOKEN_MANAGER_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3',
         modelRegistryAddress:

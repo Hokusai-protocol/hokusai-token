@@ -52,7 +52,8 @@ export class MintRequestProcessor {
     return settlement;
   }
 
-  private buildPayload(message: MintRequestMessage): MintRequestPayloadInput {
+  // Public so the conformance tests pin the REAL fixture→calldata mapping, not a hand-copied twin.
+  buildPayload(message: MintRequestMessage): MintRequestPayloadInput {
     return {
       pipelineRunId: message.eval_id,
       baselineScoreBps: message.evaluation.baseline_score_bps,
@@ -73,7 +74,7 @@ export class MintRequestProcessor {
     };
   }
 
-  private buildContributors(message: MintRequestMessage): DeltaVerifierContributor[] {
+  buildContributors(message: MintRequestMessage): DeltaVerifierContributor[] {
     return message.contributors.map((contributor) => ({
       walletAddress: contributor.wallet_address,
       weight: contributor.weight_bps,

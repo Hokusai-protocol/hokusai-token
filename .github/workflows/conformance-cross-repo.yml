@@ -1,0 +1,80 @@
+name: Cross-repo conformance (scheduled)
+
+# Daily check that the token and pipeline repos' MintRequest fixtures + digests
+# have not drifted. Clones both repos at main and runs the full conformance matrix.
+# Fires a GitHub issue on failure so the on-call team catches drift within 24 hours.
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  cross-repo-conformance:
+    name: Fixture + digest parity (token ↔ pipeline)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout token repo
+        uses: actions/checkout@v4
+        with:
+          path: hokusai-token
+
+      - name: Clone pipeline repo
+        uses: actions/checkout@v4
+        with:
+          repository: Hokusai-protocol/hokusai-data-pipeline
+          path: hokusai-data-pipeline
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install token repo deps
+        run: npm ci
+        working-directory: hokusai-token
+
+      - name: Install contract-deployer deps
+        run: npm ci
+        working-directory: hokusai-token/services/contract-deployer
+
+      - name: Check known-answer freshness
+        run: node scripts/generate-mint-request-known-answer.js --check
+        working-directory: hokusai-token
+
+      - name: Compile contracts
+        run: npx hardhat compile
+        working-directory: hokusai-token
+
+      - name: Hardhat conformance (assertions A + C)
+        run: npx hardhat test test/conformance/golden-fixture.test.js
+        working-directory: hokusai-token
+
+      - name: Consumer parity (assertions A + B, strict)
+        run: STRICT_CROSS_REPO=1 npm test -- --ci --testPathPattern='golden-fixture-parity'
+        working-directory: hokusai-token/services/contract-deployer
+
+      - name: Byte-hash fixture parity (token ↔ pipeline)
+        run: node scripts/cross-repo-fixture-parity.js
+        working-directory: hokusai-token
+
+      - name: Pipeline digest check
+        if: env.STRICT_PIPELINE_DIGEST == '1'
+        run: |
+          echo "TODO: run pipeline's compute_digest script and compare against committed known-answer."
+          echo "This step becomes blocking after the pipeline mirror PR lands."
+        working-directory: hokusai-token
+
+      - name: File drift issue on failure
+        if: failure()
+        run: |
+          gh issue create \
+            --title "Cross-repo conformance drift detected ($(date -u +%Y-%m-%d))" \
+            --label "p0,seam-drift" \
+            --body "The scheduled cross-repo conformance job failed. This means the MintRequest fixture, digest, or wire format has drifted between the token and pipeline repos. See the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details. Refer to docs/mint-request-fixture-bump-protocol.md for the resolution protocol."
+        working-directory: hokusai-token
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

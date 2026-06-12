@@ -125,6 +125,10 @@ interface TxResponseLike {
 
 interface DeltaVerifierContract {
   processedIdempotencyKeys(idempotencyKey: string): Promise<boolean>;
+  mintBudgetRemaining(modelId: bigint): Promise<bigint>;
+  currentModelHead(modelId: bigint): Promise<string>;
+  isAttester(attester: string): Promise<boolean>;
+  attesterThreshold(): Promise<bigint>;
   interface: {
     parseLog(log: ethers.Log): ParsedLogLike | null;
     parseError(data: ethers.BytesLike): ethers.ErrorDescription | null;
@@ -228,6 +232,22 @@ export class DeltaVerifierClient {
 
   async isIdempotencyKeyProcessed(idempotencyKey: string): Promise<boolean> {
     return await this.contract.processedIdempotencyKeys(idempotencyKey);
+  }
+
+  async mintBudgetRemaining(modelId: bigint): Promise<bigint> {
+    return await this.contract.mintBudgetRemaining(modelId);
+  }
+
+  async currentModelHead(modelId: bigint): Promise<string> {
+    return await this.contract.currentModelHead(modelId);
+  }
+
+  async isAttester(attester: string): Promise<boolean> {
+    return await this.contract.isAttester(attester);
+  }
+
+  async attesterThreshold(): Promise<bigint> {
+    return await this.contract.attesterThreshold();
   }
 
   async validateModel(modelId: bigint): Promise<void> {

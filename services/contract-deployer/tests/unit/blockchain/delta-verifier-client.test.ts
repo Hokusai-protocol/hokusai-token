@@ -51,6 +51,10 @@ describe('DeltaVerifierClient', () => {
   beforeEach(() => {
     deltaVerifierContract = {
       processedIdempotencyKeys: jest.fn(),
+      mintBudgetRemaining: jest.fn(),
+      currentModelHead: jest.fn(),
+      isAttester: jest.fn(),
+      attesterThreshold: jest.fn(),
       interface: new Interface(serviceArtifact.abi),
       submitMintRequest: jest.fn(),
     };
@@ -94,6 +98,31 @@ describe('DeltaVerifierClient', () => {
 
     expect(result.status).toBe('replay');
     expect(deltaVerifierContract.submitMintRequest).not.toHaveBeenCalled();
+  });
+
+  test('reads current mint budget and model head for operator tooling', async () => {
+    deltaVerifierContract.mintBudgetRemaining.mockResolvedValue(123n);
+    deltaVerifierContract.currentModelHead.mockResolvedValue(
+      '0x1111111111111111111111111111111111111111111111111111111111111111',
+    );
+    deltaVerifierContract.isAttester.mockResolvedValue(true);
+    deltaVerifierContract.attesterThreshold.mockResolvedValue(1n);
+
+    await expect(createClient().mintBudgetRemaining(21n)).resolves.toBe(123n);
+    await expect(createClient().currentModelHead(21n)).resolves.toBe(
+      '0x1111111111111111111111111111111111111111111111111111111111111111',
+    );
+    await expect(
+      createClient().isAttester('0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d'),
+    ).resolves.toBe(true);
+    await expect(createClient().attesterThreshold()).resolves.toBe(1n);
+
+    expect(deltaVerifierContract.mintBudgetRemaining).toHaveBeenCalledWith(21n);
+    expect(deltaVerifierContract.currentModelHead).toHaveBeenCalledWith(21n);
+    expect(deltaVerifierContract.isAttester).toHaveBeenCalledWith(
+      '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
+    );
+    expect(deltaVerifierContract.attesterThreshold).toHaveBeenCalledWith();
   });
 
   test('submits and classifies minted receipts', async () => {

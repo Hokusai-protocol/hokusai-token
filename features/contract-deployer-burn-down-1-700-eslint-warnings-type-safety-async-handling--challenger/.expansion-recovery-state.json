@@ -1,0 +1,10 @@
+{
+  "attempted": true,
+  "issue": "HOK-2118_c",
+  "reason": "missing",
+  "status": "failed",
+  "attemptedAt": "2026-06-12T20:38:03Z",
+  "completedAt": "2026-06-12T20:38:04Z",
+  "exitCode": 1,
+  "detail": "expand-issue-exited-non-zero"
+}

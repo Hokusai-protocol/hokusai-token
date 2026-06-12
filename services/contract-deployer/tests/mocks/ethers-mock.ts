@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-export function createMockProvider(): jest.Mocked<ethers.Provider> {
+export function createMockProvider(): Partial<jest.Mocked<ethers.Provider>> {
   return {
     getNetwork: jest.fn(),
     getBlockNumber: jest.fn(),
@@ -42,18 +42,18 @@ export function createMockProvider(): jest.Mocked<ethers.Provider> {
     // Provider info
     connection: {
       url: 'http://localhost:8545',
-    },
+    } as unknown as ethers.Connection,
 
     destroy: jest.fn(),
 
     // Required properties
     _isProvider: true,
-  } as any;
+  };
 }
 
-export function createMockSigner(): jest.Mocked<ethers.Signer> {
+export function createMockSigner(): Partial<jest.Mocked<ethers.Signer>> {
   return {
-    provider: createMockProvider(),
+    provider: createMockProvider() as any,
     getAddress: jest.fn(),
     signMessage: jest.fn(),
     signTransaction: jest.fn(),
@@ -76,15 +76,15 @@ export function createMockSigner(): jest.Mocked<ethers.Signer> {
 
     // Required properties
     _isSigner: true,
-  } as any;
+  };
 }
 
-export function createMockContract(): jest.Mocked<ethers.Contract> {
+export function createMockContract(): Partial<jest.Mocked<ethers.Contract>> {
   // Helper to create a contract-method jest.fn that also carries an
   // `.estimateGas` jest.fn, matching ethers v6's getFunction(name) accessor
   // which returns a callable with an attached estimateGas method.
-  const makeMethodFn = (): jest.Mock => {
-    const fn: any = jest.fn();
+  const makeMethodFn = (): jest.Mock & { estimateGas?: jest.Mock } => {
+    const fn = jest.fn() as jest.Mock & { estimateGas?: jest.Mock };
     fn.estimateGas = jest.fn();
     return fn;
   };
@@ -97,20 +97,20 @@ export function createMockContract(): jest.Mocked<ethers.Contract> {
 
   // Cache of lazily-created functions for names not predefined above, so that
   // getFunction('x') returns a stable jest.fn across calls within a test.
-  const lazyFns: Record<string, jest.Mock> = {};
+  const lazyFns: Record<string, jest.Mock & { estimateGas?: jest.Mock }> = {};
 
-  const filters = {
+  const filters: Record<string, jest.Mock> = {
     ModelRegistered: jest.fn(),
     Transfer: jest.fn(),
     Approval: jest.fn(),
-  } as Record<string, jest.Mock>;
+  };
 
-  const mock: any = {
+  const mock: Partial<jest.Mocked<ethers.Contract>> & Record<string, any> = {
     // Contract properties
     address: '0x1234567890123456789012345678901234567890',
-    interface: {} as any,
-    provider: createMockProvider(),
-    signer: createMockSigner(),
+    interface: {} as unknown as ethers.Interface,
+    provider: createMockProvider() as any,
+    signer: createMockSigner() as any,
 
     // Deployment
     deploymentTransaction: jest.fn(),
@@ -173,20 +173,20 @@ export function createMockContract(): jest.Mocked<ethers.Contract> {
   return mock;
 }
 
-export function createMockContractFactory(): jest.Mocked<ethers.ContractFactory> {
+export function createMockContractFactory(): Partial<jest.Mocked<ethers.ContractFactory>> {
   return {
     deploy: jest.fn(),
     attach: jest.fn(),
     connect: jest.fn().mockReturnThis(),
 
     // Factory properties
-    interface: {} as any,
+    interface: {} as unknown as ethers.Interface,
     bytecode: '0x',
-    signer: createMockSigner(),
+    signer: createMockSigner() as any,
 
     // Deployment helpers
     getDeployTransaction: jest.fn(),
-  } as any;
+  };
 }
 
 export function createMockTransactionResponse(): any {
@@ -218,7 +218,7 @@ export function createMockTransactionResponse(): any {
   return tx;
 }
 
-export function createMockTransactionReceipt(): jest.Mocked<ethers.TransactionReceipt> {
+export function createMockTransactionReceipt(): Partial<ethers.TransactionReceipt> {
   return {
     to: '0x1234567890123456789012345678901234567890',
     from: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
@@ -230,7 +230,6 @@ export function createMockTransactionReceipt(): jest.Mocked<ethers.TransactionRe
     gasUsed: ethers.toBigInt('2845632'),
     gasPrice: ethers.toBigInt('35000000000'),
     status: 1,
-    confirmations: jest.fn(),
 
     // Required properties
     index: 0,
@@ -238,5 +237,5 @@ export function createMockTransactionReceipt(): jest.Mocked<ethers.TransactionRe
     logsBloom: '0x',
     cumulativeGasUsed: ethers.toBigInt('5000000'),
     effectiveGasPrice: ethers.toBigInt('35000000000'),
-  } as any;
+  };
 }

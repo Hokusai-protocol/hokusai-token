@@ -1,6 +1,6 @@
 import { RedisClientType } from 'redis';
 
-export function createMockRedisClient(): jest.Mocked<RedisClientType> {
+export function createMockRedisClient(): Partial<jest.Mocked<RedisClientType>> {
   return {
     connect: jest.fn().mockResolvedValue(undefined),
     disconnect: jest.fn().mockResolvedValue(undefined),
@@ -66,7 +66,7 @@ export function createMockRedisClient(): jest.Mocked<RedisClientType> {
     // Connection state
     isOpen: true,
     isReady: true,
-  } as any;
+  };
 }
 
 export function createMockRedisMulti() {

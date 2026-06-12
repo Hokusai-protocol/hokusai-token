@@ -1,0 +1,21 @@
+{
+  "planner": "claude-opus-4-7",
+  "coder": "claude-haiku-4-5-20251001",
+  "reviewer": "claude-sonnet-4-6",
+  "planDepth": "deep",
+  "codeDepth": "deep",
+  "reviewMode": "static+llm",
+  "reviewRecommended": "static+llm",
+  "provenance": {
+    "source": "bootstrap",
+    "inputKind": "issue",
+    "inputPath": "features/contract-deployer-burn-down-1-700-eslint-warnings-type-safety-async-handling--challenger/selected-task.json",
+    "inputHash": "",
+    "routedAt": "2026-06-12T19:57:51Z",
+    "routerMode": "normal"
+  },
+  "maxCostUsd": 25.00,
+  "constraints": {
+    "maxCostUsd": 25.00
+  }
+}

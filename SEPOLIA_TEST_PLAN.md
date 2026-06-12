@@ -96,7 +96,7 @@
 ```bash
 # Sepolia Configuration
 export NETWORK="sepolia"
-export RPC_URL="https://eth-sepolia.g.alchemy.com/v2/p4ekL3z6khieGFgCH3m-n..."
+export RPC_URL="https://eth-sepolia.g.alchemy.com/v2/<YOUR_ALCHEMY_API_KEY>"
 export DEPLOYER_PRIVATE_KEY="<FUNDED_WALLET_KEY>"
 export CHAIN_ID="11155111"
 

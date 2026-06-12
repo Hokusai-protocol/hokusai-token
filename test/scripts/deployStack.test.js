@@ -203,4 +203,48 @@ describe("deployFullStack", function () {
       )
     ).to.be.rejectedWith("Wrong network! Expected mainnet (1), got 137");
   });
+
+  it("deploys with accounts disabled when an injected signer is provided", async function () {
+    const [deployer, treasury] = await hre.ethers.getSigners();
+    const fakeHre = {
+      ...hre,
+      ethers: {
+        ...hre.ethers,
+        getSigners: async () => {
+          throw new Error("deployFullStack must not use implicit signers");
+        },
+        getContractFactory: async (name, signer) => {
+          expect(signer).to.equal(deployer);
+          return hre.ethers.getContractFactory(name, signer);
+        },
+      },
+      network: {
+        ...hre.network,
+        config: {
+          ...hre.network.config,
+          accounts: [],
+        },
+      },
+    };
+
+    const result = await deployFullStack(
+      {
+        ...baseConfig,
+        name: "sepolia",
+        expectedChainId: 11155111n,
+        treasury: treasury.address,
+      },
+      {
+        hre: fakeHre,
+        deployer,
+        dryRun: true,
+        skipArtifactWrite: true,
+        logger: { log() {}, warn() {} },
+        scriptPaths: [__filename],
+      }
+    );
+
+    expect(result.deployer).to.equal(deployer.address);
+    expect(result.contracts.DeltaVerifier).to.properAddress;
+  });
 });

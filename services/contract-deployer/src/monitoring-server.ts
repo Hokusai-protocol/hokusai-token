@@ -16,9 +16,27 @@ import { monitoringRouter } from './routes/monitoring';
 import { reconciliationRouter } from './routes/reconciliation';
 import { logger } from './utils/logger';
 import { CostReconciliationService } from './monitoring/cost-reconciliation-service';
+import { validateEnv } from './config/env.validation';
+import { createBackendSigner } from './blockchain/signer-factory';
+import { getBackendSigner, setBackendSigner } from './blockchain/signer-singleton';
+import type { Config } from './config/env.validation';
 
 // Load environment variables
 dotenv.config();
+
+async function initializeBackendSigner(
+  config: Config,
+  provider: ethers.JsonRpcProvider,
+): Promise<ethers.Signer> {
+  const existingSigner = getBackendSigner();
+  if (existingSigner) {
+    return existingSigner;
+  }
+
+  const signer = await createBackendSigner(config, provider);
+  setBackendSigner(signer);
+  return signer;
+}
 
 async function main(): Promise<void> {
   let redis: RedisClientType | null = null;
@@ -28,15 +46,10 @@ async function main(): Promise<void> {
     logger.info(`[MONITORING-SERVER] Node version: ${process.version}`);
     logger.info(`[MONITORING-SERVER] NODE_ENV: ${process.env.NODE_ENV}`);
 
-    // Validate required environment variables
-    const requiredVars = [
-      'RPC_URL',
-      'FACTORY_ADDRESS',
-      'USDC_ADDRESS',
-      'ALERT_EMAIL_FROM',
-      'ALERT_EMAIL_TO',
-      'AWS_REGION',
-    ];
+    const config = await validateEnv();
+
+    // Validate required monitoring-only environment variables
+    const requiredVars = ['FACTORY_ADDRESS', 'USDC_ADDRESS', 'ALERT_EMAIL_FROM', 'ALERT_EMAIL_TO'];
 
     const missing = requiredVars.filter((v) => !process.env[v]);
     if (missing.length > 0) {
@@ -45,11 +58,12 @@ async function main(): Promise<void> {
 
     // Create Ethereum provider
     logger.info('[MONITORING-SERVER] Creating Ethereum provider...');
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    const provider = new ethers.JsonRpcProvider(config.RPC_URL);
     const network = await provider.getNetwork();
     logger.info(
       `[MONITORING-SERVER] Connected to network: ${network.name} (chainId: ${network.chainId})`,
     );
+    await initializeBackendSigner(config, provider);
 
     if (process.env.REDIS_URL) {
       try {
@@ -286,16 +300,17 @@ async function getSignerReadiness(
   provider: ethers.JsonRpcProvider,
 ): Promise<{ ok: boolean; address?: string; balanceWei?: string; error?: string }> {
   try {
-    if (!process.env.DEPLOYER_PRIVATE_KEY) {
-      return { ok: false, error: 'DEPLOYER_PRIVATE_KEY is not set' };
+    const signer = getBackendSigner();
+    if (!signer) {
+      return { ok: false, error: 'backend signer is not initialized' };
     }
 
-    const wallet = new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider);
-    const balance = await provider.getBalance(wallet.address);
+    const signerAddress = await signer.getAddress();
+    const balance = await provider.getBalance(signerAddress);
 
     return {
       ok: balance > 0n,
-      address: wallet.address,
+      address: signerAddress,
       balanceWei: balance.toString(),
       ...(balance > 0n ? {} : { error: 'signer balance is zero' }),
     };

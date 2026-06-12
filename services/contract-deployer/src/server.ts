@@ -8,6 +8,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import { createClient } from 'redis';
+import { ethers } from 'ethers';
 import { QueueService } from './services/queue.service';
 import { BlockchainService } from './services/blockchain.service';
 import { DeploymentService } from './services/deployment.service';
@@ -23,6 +24,8 @@ import { validateEnv, type Config } from './config/env.validation';
 import { AMMMonitor } from './monitoring/amm-monitor';
 import { createMonitoringConfig } from './config/monitoring-config';
 import { MintRequestListener } from './mint-request-listener';
+import { createBackendSigner } from './blockchain/signer-factory';
+import { setBackendSigner } from './blockchain/signer-singleton';
 
 // Load environment variables
 dotenv.config();
@@ -31,13 +34,29 @@ console.log('[STARTUP] Environment variables loaded');
 const logger = createLogger('server');
 console.log('[STARTUP] Logger created');
 
-async function createServer(): Promise<express.Application> {
+interface ServerContext {
+  config: Config;
+  provider: ethers.JsonRpcProvider;
+  signer: ethers.Signer;
+}
+
+async function createServer(context?: ServerContext): Promise<express.Application> {
   console.log('[STARTUP] createServer() called');
 
   // Validate environment variables (including SSM parameters if enabled)
-  console.log('[STARTUP] Validating environment...');
-  const config: Config = await validateEnv();
-  console.log('[STARTUP] Environment validated successfully');
+  let config: Config;
+  let provider: ethers.JsonRpcProvider;
+  let signer: ethers.Signer;
+  if (context) {
+    ({ config, provider, signer } = context);
+  } else {
+    console.log('[STARTUP] Validating environment...');
+    config = await validateEnv();
+    console.log('[STARTUP] Environment validated successfully');
+    provider = new ethers.JsonRpcProvider(config.RPC_URL);
+    signer = await createBackendSigner(config, provider);
+    setBackendSigner(signer);
+  }
 
   // Initialize services
   console.log('[STARTUP] Creating Redis client...');
@@ -93,16 +112,12 @@ async function createServer(): Promise<express.Application> {
   }
 
   // Initialize blockchain service
-  const blockchainService = new BlockchainService(
-    config.RPC_URL,
-    config.DEPLOYER_PRIVATE_KEY,
-    logger,
-  );
+  const blockchainService = new BlockchainService(provider, signer, logger);
 
   // Initialize contract deployer
   const contractDeployer = new ContractDeployer({
     rpcUrls: [config.RPC_URL],
-    privateKey: config.DEPLOYER_PRIVATE_KEY,
+    signer,
     tokenManagerAddress: config.TOKEN_MANAGER_ADDRESS,
     modelRegistryAddress: config.MODEL_REGISTRY_ADDRESS,
     gasMultiplier: config.GAS_PRICE_MULTIPLIER,
@@ -288,8 +303,11 @@ async function startServer(): Promise<void> {
   try {
     console.log('[STARTUP] Getting config...');
     const serverConfig: Config = await validateEnv();
+    const provider = new ethers.JsonRpcProvider(serverConfig.RPC_URL.split(',')[0]);
+    const signer = await createBackendSigner(serverConfig, provider);
+    setBackendSigner(signer);
     console.log('[STARTUP] Creating server application...');
-    const app = await createServer();
+    const app = await createServer({ config: serverConfig, provider, signer });
     console.log('[STARTUP] Server application created');
 
     const port = serverConfig.PORT;
@@ -319,7 +337,7 @@ async function startServer(): Promise<void> {
           },
           blockchain: {
             rpcUrls: serverConfig.RPC_URL.split(','),
-            privateKey: serverConfig.DEPLOYER_PRIVATE_KEY,
+            signer,
             deltaVerifierAddress: serverConfig.DELTA_VERIFIER_ADDRESS,
             modelRegistryAddress: serverConfig.MODEL_REGISTRY_ADDRESS,
             confirmations: serverConfig.CONFIRMATION_BLOCKS,

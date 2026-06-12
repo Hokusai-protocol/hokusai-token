@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { ethers } from 'ethers';
 import { createClient } from 'redis';
+import { getBackendSigner } from '../blockchain/signer-singleton';
 
 const DELTA_VERIFIER_ABI = [
   'function SUBMITTER_ROLE() view returns (bytes32)',
@@ -36,20 +37,20 @@ async function checkReadiness() {
         blockNumber,
       };
 
-      const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-      if (!privateKey) {
+      const signer = getBackendSigner();
+      if (!signer) {
         ready = false;
-        checks.signer = { ok: false, error: 'DEPLOYER_PRIVATE_KEY is not configured' };
+        checks.signer = { ok: false, error: 'backend signer is not initialized' };
       } else {
-        const wallet = new ethers.Wallet(privateKey, provider);
+        const signerAddress = await signer.getAddress();
         const balance = await withTimeout(
-          provider.getBalance(wallet.address),
+          provider.getBalance(signerAddress),
           5000,
           'Signer balance check timeout',
         );
         checks.signer = {
           ok: balance > 0n,
-          address: wallet.address,
+          address: signerAddress,
           balanceEth: ethers.formatEther(balance),
         };
         if (balance === 0n) {
@@ -75,7 +76,7 @@ async function checkReadiness() {
             'DeltaVerifier role lookup timeout',
           );
           const hasSubmitterRole = await withTimeout(
-            deltaVerifier.hasRole(role, wallet.address),
+            deltaVerifier.hasRole(role, signerAddress),
             5000,
             'DeltaVerifier submitter role check timeout',
           );

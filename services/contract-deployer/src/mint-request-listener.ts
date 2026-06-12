@@ -12,7 +12,7 @@ export interface MintRequestListenerConfig {
   };
   blockchain: {
     rpcUrls: string[];
-    privateKey: string;
+    signer: ethers.Signer;
     deltaVerifierAddress: string;
     modelRegistryAddress: string;
     confirmations: number;
@@ -47,7 +47,7 @@ export class MintRequestListener {
     this.redis = createClient({ url: config.redis.url });
 
     const provider = new ethers.JsonRpcProvider(config.blockchain.rpcUrls[0]);
-    const signer = new ethers.Wallet(config.blockchain.privateKey, provider);
+    const signer = config.blockchain.signer.connect(provider);
     const client = new DeltaVerifierClient({
       provider,
       signer,

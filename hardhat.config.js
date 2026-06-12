@@ -31,7 +31,7 @@ module.exports = {
     },
     mainnet: {
       url: process.env.MAINNET_RPC_URL || "",
-      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+      accounts: [],
       chainId: 1
     },
     sepolia: {

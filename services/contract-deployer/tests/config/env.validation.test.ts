@@ -83,6 +83,9 @@ describe('Environment Validation', () => {
     it('should warn when SSM is required but sync validation is used', () => {
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
       process.env.NODE_ENV = 'production';
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
 
       validateEnvSync();
 
@@ -104,9 +107,11 @@ describe('Environment Validation', () => {
 
     it('should load SSM configuration in production', async () => {
       process.env.NODE_ENV = 'production';
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
 
       const mockSSMParams = {
-        deployer_key: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
         token_manager_address: '0x2234567890123456789012345678901234567890',
         model_registry_address: '0x3334567890123456789012345678901234567890',
         rpc_endpoint: 'https://prod-ethereum-rpc.com',
@@ -123,7 +128,6 @@ describe('Environment Validation', () => {
 
       const config = await validateEnv();
 
-      expect(config.DEPLOYER_PRIVATE_KEY).toBe(mockSSMParams.deployer_key);
       expect(config.TOKEN_MANAGER_ADDRESS).toBe(mockSSMParams.token_manager_address);
       expect(config.MODEL_REGISTRY_ADDRESS).toBe(mockSSMParams.model_registry_address);
       expect(config.RPC_URL).toBe(mockSSMParams.rpc_endpoint);
@@ -137,9 +141,11 @@ describe('Environment Validation', () => {
 
     it('should parse Redis URL from SSM configuration', async () => {
       process.env.NODE_ENV = 'production';
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
 
       const mockSSMParams = {
-        deployer_key: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
         token_manager_address: '0x2234567890123456789012345678901234567890',
         model_registry_address: '0x3334567890123456789012345678901234567890',
         rpc_endpoint: 'https://prod-ethereum-rpc.com',
@@ -210,10 +216,12 @@ describe('Environment Validation', () => {
 
     it('should handle optional SSM parameters correctly', async () => {
       process.env.NODE_ENV = 'production';
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
 
       const mockSSMParams = {
         // Only required parameters + non-zero deployment addresses
-        deployer_key: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
         token_manager_address: '0x2234567890123456789012345678901234567890',
         model_registry_address: '0x3334567890123456789012345678901234567890',
         rpc_endpoint: 'https://prod-ethereum-rpc.com',
@@ -252,9 +260,11 @@ describe('Environment Validation', () => {
 
     it('should load deployment params from SSM and override defaults', async () => {
       process.env.NODE_ENV = 'production';
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
 
       const mockSSMParams = {
-        deployer_key: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
         token_manager_address: '0x2234567890123456789012345678901234567890',
         model_registry_address: '0x3334567890123456789012345678901234567890',
         rpc_endpoint: 'https://prod-ethereum-rpc.com',
@@ -283,8 +293,11 @@ describe('Environment Validation', () => {
 
     it('should reject zero MODEL_SUPPLIER_RECIPIENT in production', async () => {
       process.env.NODE_ENV = 'production';
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
       process.env.GOVERNOR_ADDRESS = NONZERO_GOVERNOR;
       delete process.env.MODEL_SUPPLIER_RECIPIENT; // ensure Joi default (zero) is used
+      delete process.env.DEPLOYER_PRIVATE_KEY;
       mockLoadSSMConfiguration.mockResolvedValueOnce(null);
 
       await expect(validateEnv()).rejects.toThrow('MODEL_SUPPLIER_RECIPIENT');
@@ -292,11 +305,96 @@ describe('Environment Validation', () => {
 
     it('should reject zero GOVERNOR_ADDRESS in production', async () => {
       process.env.NODE_ENV = 'production';
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
       process.env.MODEL_SUPPLIER_RECIPIENT = NONZERO_SUPPLIER;
       delete process.env.GOVERNOR_ADDRESS; // ensure Joi default (zero) is used
+      delete process.env.DEPLOYER_PRIVATE_KEY;
       mockLoadSSMConfiguration.mockResolvedValueOnce(null);
 
       await expect(validateEnv()).rejects.toThrow('GOVERNOR_ADDRESS');
+    });
+
+    it('requires KMS backend configuration in production', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.MODEL_SUPPLIER_RECIPIENT = NONZERO_SUPPLIER;
+      process.env.GOVERNOR_ADDRESS = NONZERO_GOVERNOR;
+      delete process.env.KMS_BACKEND_KEY_ID;
+      delete process.env.KMS_BACKEND_EXPECTED_ADDRESS;
+      mockLoadSSMConfiguration.mockResolvedValueOnce(null);
+
+      await expect(validateEnv()).rejects.toThrow('KMS_BACKEND_KEY_ID is required');
+    });
+
+    it('requires the expected KMS backend address pin in production', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.MODEL_SUPPLIER_RECIPIENT = NONZERO_SUPPLIER;
+      process.env.GOVERNOR_ADDRESS = NONZERO_GOVERNOR;
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      delete process.env.KMS_BACKEND_EXPECTED_ADDRESS;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
+      mockLoadSSMConfiguration.mockResolvedValueOnce(null);
+
+      await expect(validateEnv()).rejects.toThrow('KMS_BACKEND_EXPECTED_ADDRESS is required');
+    });
+
+    it('rejects KMS plus raw private key in production', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.MODEL_SUPPLIER_RECIPIENT = NONZERO_SUPPLIER;
+      process.env.GOVERNOR_ADDRESS = NONZERO_GOVERNOR;
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      mockLoadSSMConfiguration.mockResolvedValueOnce(null);
+
+      await expect(validateEnv()).rejects.toThrow(
+        'Signer configuration is mutually exclusive: KMS_BACKEND_KEY_ID, DEPLOYER_PRIVATE_KEY',
+      );
+    });
+
+    it('rejects KMS plus SSM deployer key in production', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.MODEL_SUPPLIER_RECIPIENT = NONZERO_SUPPLIER;
+      process.env.GOVERNOR_ADDRESS = NONZERO_GOVERNOR;
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
+      mockLoadSSMConfiguration.mockResolvedValueOnce({
+        deployer_key: VALID_PRIVATE_KEY,
+        token_manager_address: VALID_ADDRESS_2,
+        model_registry_address: VALID_ADDRESS_1,
+        rpc_endpoint: 'https://prod-ethereum-rpc.com',
+        model_supplier_recipient: NONZERO_SUPPLIER,
+        governor_address: NONZERO_GOVERNOR,
+      });
+
+      await expect(validateEnv()).rejects.toThrow(
+        'Signer configuration is mutually exclusive: KMS_BACKEND_KEY_ID, SSM deployer_key',
+      );
+    });
+
+    it('allows KMS-only configuration in production', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.MODEL_SUPPLIER_RECIPIENT = NONZERO_SUPPLIER;
+      process.env.GOVERNOR_ADDRESS = NONZERO_GOVERNOR;
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
+      mockLoadSSMConfiguration.mockResolvedValueOnce(null);
+
+      const config = await validateEnv();
+      expect(config.KMS_BACKEND_KEY_ID).toBe('alias/hokusai/backend');
+      expect(config.KMS_BACKEND_EXPECTED_ADDRESS).toBe(VALID_ADDRESS_1);
+    });
+
+    it('allows KMS-only configuration in development', async () => {
+      process.env.NODE_ENV = 'development';
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
+      mockLoadSSMConfiguration.mockResolvedValueOnce(null);
+
+      const config = await validateEnv();
+      expect(config.KMS_BACKEND_KEY_ID).toBe('alias/hokusai/backend');
     });
   });
 });

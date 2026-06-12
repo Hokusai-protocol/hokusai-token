@@ -30,7 +30,7 @@ describe('ContractDeployer', () => {
 
   const config: ContractDeployerConfig = {
     rpcUrls: ['https://sepolia-rpc.com'],
-    privateKey: '0x1234567890123456789012345678901234567890123456789012345678901234',
+    signer: {} as ethers.Signer,
     tokenManagerAddress: '0x4ebC3558Ec08c81AbB9F220fd2C98c838b96De68',
     modelRegistryAddress: '0x8E891850C0677c2D9581c953bF1Df5446cB4c54f',
     gasMultiplier: 1.2,
@@ -71,6 +71,7 @@ describe('ContractDeployer', () => {
   beforeEach(() => {
     mockProvider = createMockProvider();
     mockSigner = createMockSigner();
+    config.signer = mockSigner;
 
     const mockInterface = {
       parseLog: jest.fn().mockReturnValue({
@@ -90,7 +91,6 @@ describe('ContractDeployer', () => {
     mockProvider.getNetwork.mockResolvedValue({ chainId: 11155111n, name: 'sepolia' } as any);
 
     jest.spyOn(ethers, 'JsonRpcProvider').mockReturnValue(mockProvider as any);
-    jest.spyOn(ethers, 'Wallet').mockReturnValue(mockSigner as any);
     jest.spyOn(ethers, 'Contract').mockReturnValue(mockTokenManager);
 
     mockSigner.connect.mockReturnValue(mockSigner);

@@ -1,6 +1,7 @@
 const hre = require("hardhat");
 const { ethers } = hre;
 const { deployFullStack, stringifyError } = require("./lib/deploy-stack");
+const { getDeploySigner } = require("./lib/get-deploy-signer");
 
 function getSepoliaConfig(deployerAddress) {
   return {
@@ -34,9 +35,9 @@ function getSepoliaConfig(deployerAddress) {
 }
 
 async function main() {
-  const [deployer] = await hre.ethers.getSigners();
+  const deployer = await getDeploySigner(hre);
   const dryRun = process.env.DRY_RUN === "true";
-  const config = getSepoliaConfig(deployer.address);
+  const config = getSepoliaConfig(await deployer.getAddress());
 
   console.log("Starting Sepolia deployment");
   console.log(`Deployer: ${deployer.address}`);
@@ -47,6 +48,7 @@ async function main() {
 
   const result = await deployFullStack(config, {
     hre,
+    deployer,
     dryRun,
     logger: console,
     skipArtifactWrite: process.env.SKIP_ARTIFACT_WRITE === "true",

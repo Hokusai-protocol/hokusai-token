@@ -18,6 +18,7 @@ import {
   MintRequestSubmissionError,
 } from '../../src/blockchain/delta-verifier-client';
 import { MintRequestProcessor } from '../../src/services/mint-request-processor';
+import { runDlqCli } from '../../scripts/dlq';
 import { createMockRedisClient, createMockRedisMulti } from '../mocks/redis-mock';
 
 const VENDORED_FIXTURE_PATH = path.resolve(__dirname, '../fixtures/mint_request.v1.json');
@@ -651,6 +652,263 @@ describe('MintRequest flow integration', () => {
         'hokusai:mint_requests:processed',
         IDEMPOTENCY_KEY,
       );
+    });
+  });
+
+  describe('DLQ replay flow', () => {
+    function buildDlqEntry(overrides?: {
+      reason?: string;
+      failureClass?: 'transient' | 'permanent';
+      originalMessage?: unknown;
+    }): string {
+      return JSON.stringify({
+        originalMessage: overrides?.originalMessage ?? { ...validMessage, _retryCount: 24 },
+        error: overrides?.reason ?? 'budget_exhausted (retries=24): MintBudgetExceeded',
+        reason: overrides?.reason ?? 'budget_exhausted (retries=24): MintBudgetExceeded',
+        failureClass: overrides?.failureClass ?? 'transient',
+        timestamp: '2026-06-10T13:00:00.000Z',
+        queue: 'hokusai:mint_requests',
+      });
+    }
+
+    function createInMemoryRedis(dlqEntries: string[]) {
+      const redis = createMockRedisClient();
+      const queues = new Map<string, string[]>([
+        ['hokusai:mint_requests', []],
+        ['hokusai:mint_requests:processing', []],
+        ['hokusai:mint_requests:dlq', [...dlqEntries]],
+        ['hokusai:mint_requests:dlq:audit', []],
+        ['hokusai:mint_request_settlements', []],
+      ]);
+      const strings = new Map<string, string>();
+      const processedSet = new Set<string>();
+
+      redis.lRange.mockImplementation((async (...args: unknown[]) => {
+        const [key, start, stop] = args as [string, number, number];
+        const values = [...(queues.get(key) ?? [])];
+        const end = stop === -1 ? values.length : stop + 1;
+        return values.slice(start, end);
+      }) as any);
+      redis.lPush.mockImplementation((async (...args: unknown[]) => {
+        const [key, value] = args as [string, string];
+        const values = queues.get(key) ?? [];
+        values.unshift(value);
+        queues.set(key, values);
+        return values.length;
+      }) as any);
+      redis.lRem.mockImplementation((async (...args: unknown[]) => {
+        const [key, _count, value] = args as [string, number, string];
+        const values = queues.get(key) ?? [];
+        const index = values.indexOf(value);
+        if (index >= 0) {
+          values.splice(index, 1);
+          queues.set(key, values);
+          return 1;
+        }
+        return 0;
+      }) as any);
+      redis.brPopLPush.mockImplementation((async (...args: unknown[]) => {
+        const [source, dest] = args as [string, string];
+        const sourceValues = queues.get(source) ?? [];
+        if (sourceValues.length === 0) {
+          return null;
+        }
+        const value = sourceValues.pop()!;
+        const destValues = queues.get(dest) ?? [];
+        destValues.unshift(value);
+        queues.set(source, sourceValues);
+        queues.set(dest, destValues);
+        return value;
+      }) as any);
+      redis.sIsMember.mockImplementation((async (...args: unknown[]) => {
+        const [_key, value] = args as [string, string];
+        return processedSet.has(value);
+      }) as any);
+      redis.get.mockImplementation((async (...args: unknown[]) => {
+        const [key] = args as [string];
+        return strings.get(key) ?? null;
+      }) as any);
+      redis.zRangeByScore.mockResolvedValue([]);
+      redis.multi.mockImplementation(() => {
+        const commands: Array<() => void> = [];
+        const multi = {
+          lPush: jest.fn().mockImplementation((key: string, value: string) => {
+            commands.push(() => {
+              const values = queues.get(key) ?? [];
+              values.unshift(value);
+              queues.set(key, values);
+            });
+            return multi;
+          }),
+          lRem: jest.fn().mockImplementation((key: string, _count: number, value: string) => {
+            commands.push(() => {
+              const values = queues.get(key) ?? [];
+              const index = values.indexOf(value);
+              if (index >= 0) {
+                values.splice(index, 1);
+                queues.set(key, values);
+              }
+            });
+            return multi;
+          }),
+          sAdd: jest.fn().mockImplementation((_key: string, value: string) => {
+            commands.push(() => {
+              processedSet.add(value);
+            });
+            return multi;
+          }),
+          set: jest.fn().mockImplementation((key: string, value: string) => {
+            commands.push(() => {
+              strings.set(key, value);
+            });
+            return multi;
+          }),
+          exec: jest.fn().mockImplementation(async () => {
+            commands.forEach((command) => command());
+            return [];
+          }),
+        };
+
+        return multi as any;
+      });
+
+      return { redis, queues };
+    }
+
+    function createCliDeps(redis: jest.Mocked<RedisClientType>, processed: boolean) {
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      return {
+        stdout,
+        stderr,
+        deps: {
+          redis: redis as any,
+          deltaVerifier: {
+            processedIdempotencyKeys: jest.fn().mockResolvedValue(processed),
+            modelWeightHead: jest.fn().mockResolvedValue(validMessage.baseline_commitment),
+            mintBudgetRemaining: jest.fn().mockResolvedValue(10n),
+          },
+          recordStore: {
+            get: jest.fn().mockResolvedValue(null),
+          },
+          env: {
+            REDIS_HOST: 'localhost',
+            REDIS_PORT: 6379,
+            RPC_URL: 'http://localhost:8545',
+            MODEL_REGISTRY_ADDRESS: '0x1111111111111111111111111111111111111111',
+            DELTA_VERIFIER_ADDRESS: '0x2222222222222222222222222222222222222222',
+            MINT_REQUEST_QUEUE: 'hokusai:mint_requests',
+            MINT_REQUEST_DLQ: 'hokusai:mint_requests:dlq',
+            MINT_DLQ_AUDIT_KEY: 'hokusai:mint_requests:dlq:audit',
+          },
+          stdout: { write: (message: string) => stdout.push(message) },
+          stderr: { write: (message: string) => stderr.push(message) },
+          now: () => new Date('2026-06-12T12:00:00.000Z'),
+        },
+      };
+    }
+
+    test('replay after budget top-up emits exactly one minted settlement', async () => {
+      const { redis, queues } = createInMemoryRedis([buildDlqEntry()]);
+      const cli = createCliDeps(redis, false);
+      const recordStore = new MintRecordStore({
+        redis,
+        keyPrefix: 'mint:record:',
+        ttlSeconds: 7200,
+      });
+      const consumer = new MintRequestConsumer({
+        redis,
+        inboundQueue: 'hokusai:mint_requests',
+        processingQueue: 'hokusai:mint_requests:processing',
+        deadLetterQueue: 'hokusai:mint_requests:dlq',
+        processedSetKey: 'hokusai:mint_requests:processed',
+        retryQueue: 'hokusai:mint_requests:retry',
+        maxRetries: 3,
+        budgetMaxRetries: 24,
+        blockingTimeout: 5,
+        backoffBaseMs: 1000,
+        backoffMaxMs: 30000,
+        budgetRetryBackoffBaseMs: 60000,
+        budgetRetryBackoffMaxMs: 1800000,
+        backoffMultiplier: 2,
+        recordStore,
+      });
+      const settlement = createMintRequestSettlement({
+        idempotency_key: IDEMPOTENCY_KEY,
+        attestation_hash: validMessage.attestation_hash,
+        model_id: validMessage.model_id,
+        model_id_uint: validMessage.model_id_uint,
+        eval_id: validMessage.eval_id,
+        tx_hash: TX_HASH,
+        block_number: 42,
+        status: 'minted',
+        reward_amount: '10',
+        gas_used: '21000',
+      });
+
+      expect(await runDlqCli(['replay', '#0', '--execute'], cli.deps as any)).toBe(0);
+      expect(queues.get('hokusai:mint_requests:dlq')).toHaveLength(0);
+      expect(queues.get('hokusai:mint_requests:dlq:audit')).toHaveLength(1);
+
+      await consumer.processMessage(async (message) => {
+        await redis.lPush(
+          'hokusai:mint_request_settlements',
+          JSON.stringify({
+            ...settlement,
+            idempotency_key: message.idempotency_key,
+          }),
+        );
+        return settlement;
+      });
+
+      expect(queues.get('hokusai:mint_request_settlements')).toHaveLength(1);
+      const emitted = JSON.parse(
+        queues.get('hokusai:mint_request_settlements')![0],
+      ) as MintRequestSettlement;
+      expect(emitted.status).toBe('minted');
+    });
+
+    test('replay refuses an already-minted idempotency key', async () => {
+      const { redis, queues } = createInMemoryRedis([buildDlqEntry()]);
+      const cli = createCliDeps(redis, true);
+
+      expect(await runDlqCli(['replay', '#0', '--execute'], cli.deps as any)).toBe(1);
+      expect(queues.get('hokusai:mint_requests')).toHaveLength(0);
+      expect(queues.get('hokusai:mint_requests:dlq')).toHaveLength(1);
+      expect(queues.get('hokusai:mint_requests:dlq:audit')).toHaveLength(0);
+    });
+
+    test('replay refuses a tampered message', async () => {
+      const { redis, queues } = createInMemoryRedis([
+        buildDlqEntry({
+          reason: 'permanent: validation failure',
+          failureClass: 'permanent',
+          originalMessage: { ...validMessage, attester_signatures: [] },
+        }),
+      ]);
+      const cli = createCliDeps(redis, false);
+
+      expect(await runDlqCli(['replay', '#0', '--execute'], cli.deps as any)).toBe(1);
+      expect(cli.stdout.join('')).toContain('Schema validation failed');
+      expect(queues.get('hokusai:mint_requests')).toHaveLength(0);
+      expect(queues.get('hokusai:mint_requests:dlq')).toHaveLength(1);
+    });
+
+    test('outcome-unknown that already landed shows minted on inspect and replay refuses', async () => {
+      const { redis } = createInMemoryRedis([
+        buildDlqEntry({
+          reason: 'MintRequest transaction outcome unknown after submit: ECONNRESET',
+          failureClass: 'permanent',
+        }),
+      ]);
+      const cli = createCliDeps(redis, true);
+
+      expect(await runDlqCli(['inspect', '#0', '--json'], cli.deps as any)).toBe(0);
+      expect(cli.stdout.join('')).toContain('"processed": true');
+
+      cli.stdout.length = 0;
+      expect(await runDlqCli(['replay', '#0', '--execute'], cli.deps as any)).toBe(1);
+      expect(cli.stdout.join('')).toContain('already processed');
     });
   });
 

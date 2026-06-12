@@ -34,13 +34,29 @@ console.log('[STARTUP] Environment variables loaded');
 const logger = createLogger('server');
 console.log('[STARTUP] Logger created');
 
-async function createServer(): Promise<express.Application> {
+interface ServerContext {
+  config: Config;
+  provider: ethers.JsonRpcProvider;
+  signer: ethers.Signer;
+}
+
+async function createServer(context?: ServerContext): Promise<express.Application> {
   console.log('[STARTUP] createServer() called');
 
   // Validate environment variables (including SSM parameters if enabled)
-  console.log('[STARTUP] Validating environment...');
-  const config: Config = await validateEnv();
-  console.log('[STARTUP] Environment validated successfully');
+  let config: Config;
+  let provider: ethers.JsonRpcProvider;
+  let signer: ethers.Signer;
+  if (context) {
+    ({ config, provider, signer } = context);
+  } else {
+    console.log('[STARTUP] Validating environment...');
+    config = await validateEnv();
+    console.log('[STARTUP] Environment validated successfully');
+    provider = new ethers.JsonRpcProvider(config.RPC_URL);
+    signer = await createBackendSigner(config, provider);
+    setBackendSigner(signer);
+  }
 
   // Initialize services
   console.log('[STARTUP] Creating Redis client...');
@@ -94,10 +110,6 @@ async function createServer(): Promise<express.Application> {
     console.log('[STARTUP] Continuing without queue service');
     queueService = null;
   }
-
-  const provider = new ethers.JsonRpcProvider(config.RPC_URL);
-  const signer = await createBackendSigner(config, provider);
-  setBackendSigner(signer);
 
   // Initialize blockchain service
   const blockchainService = new BlockchainService(provider, signer, logger);
@@ -295,7 +307,7 @@ async function startServer(): Promise<void> {
     const signer = await createBackendSigner(serverConfig, provider);
     setBackendSigner(signer);
     console.log('[STARTUP] Creating server application...');
-    const app = await createServer();
+    const app = await createServer({ config: serverConfig, provider, signer });
     console.log('[STARTUP] Server application created');
 
     const port = serverConfig.PORT;

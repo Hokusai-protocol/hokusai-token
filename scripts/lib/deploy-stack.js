@@ -59,6 +59,8 @@ async function deployFullStack(networkConfig, runtime) {
   if (!deployer) {
     throw new Error("No deploy signer available");
   }
+  const deployerAddress = await deployer.getAddress();
+  const getFactory = (name) => ethers.getContractFactory(name, deployer);
   const providerNetwork = await ethers.provider.getNetwork();
   const actualChainId = BigInt(hre.network.config.chainId ?? providerNetwork.chainId);
   const expectedChainId = BigInt(networkConfig.expectedChainId);
@@ -72,10 +74,10 @@ async function deployFullStack(networkConfig, runtime) {
     logger.log(`DRY_RUN enabled: allowing local chainId ${actualChainId} for ${networkConfig.name}`);
   }
 
-  const treasury = networkConfig.treasury || deployer.address;
+  const treasury = networkConfig.treasury || deployerAddress;
   const backendService = networkConfig.backendService || null;
-  const verifierAddress = networkConfig.verifierAddress || DEFAULT_VERIFIER_ADDRESS || deployer.address;
-  const balance = await ethers.provider.getBalance(deployer.address);
+  const verifierAddress = networkConfig.verifierAddress || DEFAULT_VERIFIER_ADDRESS || deployerAddress;
+  const balance = await ethers.provider.getBalance(deployerAddress);
   const minBalanceWei = ethers.parseEther(networkConfig.minDeployerBalanceEth);
 
   if (balance < minBalanceWei) {
@@ -118,19 +120,19 @@ async function deployFullStack(networkConfig, runtime) {
   };
 
   logger.log("Phase 1: core infrastructure");
-  const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
+  const ModelRegistry = await getFactory("ModelRegistry");
   const modelRegistry = await ModelRegistry.deploy();
   await modelRegistry.waitForDeployment();
   recordReceipt(await recordDeployment(modelRegistry, gasUsed, "ModelRegistry"));
   contracts.ModelRegistry = await modelRegistry.getAddress();
 
-  const TokenDeploymentFactory = await ethers.getContractFactory("TokenDeploymentFactory");
+  const TokenDeploymentFactory = await getFactory("TokenDeploymentFactory");
   const tokenDeploymentFactory = await TokenDeploymentFactory.deploy();
   await tokenDeploymentFactory.waitForDeployment();
   recordReceipt(await recordDeployment(tokenDeploymentFactory, gasUsed, "TokenDeploymentFactory"));
   contracts.TokenDeploymentFactory = await tokenDeploymentFactory.getAddress();
 
-  const DeployableTokenManager = await ethers.getContractFactory("DeployableTokenManager");
+  const DeployableTokenManager = await getFactory("DeployableTokenManager");
   const tokenManager = await DeployableTokenManager.deploy(
     contracts.ModelRegistry,
     contracts.TokenDeploymentFactory
@@ -140,7 +142,7 @@ async function deployFullStack(networkConfig, runtime) {
   contracts.TokenManager = await tokenManager.getAddress();
   contracts._tokenManagerImpl = "DeployableTokenManager";
 
-  const RewardVestingVault = await ethers.getContractFactory("RewardVestingVault");
+  const RewardVestingVault = await getFactory("RewardVestingVault");
   const rewardVestingVault = await RewardVestingVault.deploy(contracts.TokenManager);
   await rewardVestingVault.waitForDeployment();
   recordReceipt(await recordDeployment(rewardVestingVault, gasUsed, "RewardVestingVault"));
@@ -154,7 +156,7 @@ async function deployFullStack(networkConfig, runtime) {
     )
   );
 
-  const DataContributionRegistry = await ethers.getContractFactory("DataContributionRegistry");
+  const DataContributionRegistry = await getFactory("DataContributionRegistry");
   const contributionRegistry = await DataContributionRegistry.deploy();
   await contributionRegistry.waitForDeployment();
   recordReceipt(await recordDeployment(contributionRegistry, gasUsed, "DataContributionRegistry"));
@@ -176,7 +178,7 @@ async function deployFullStack(networkConfig, runtime) {
     }
 
     logger.warn("No Sepolia reserve token configured; deploying MockUSDC fallback");
-    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const MockUSDC = await getFactory("MockUSDC");
     const mockUsdc = await MockUSDC.deploy();
     await mockUsdc.waitForDeployment();
     recordReceipt(await recordDeployment(mockUsdc, gasUsed, "MockUSDC"));
@@ -185,14 +187,14 @@ async function deployFullStack(networkConfig, runtime) {
 
     recordReceipt(
       await waitForTx(
-        mockUsdc.mint(deployer.address, ethers.parseUnits("1000000", 6)),
+        mockUsdc.mint(deployerAddress, ethers.parseUnits("1000000", 6)),
         gasUsed.wiring,
         "mockUsdcMint"
       )
     );
   }
 
-  const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
+  const HokusaiAMMFactory = await getFactory("HokusaiAMMFactory");
   const factory = await HokusaiAMMFactory.deploy(
     contracts.ModelRegistry,
     contracts.TokenManager,
@@ -203,7 +205,7 @@ async function deployFullStack(networkConfig, runtime) {
   recordReceipt(await recordDeployment(factory, gasUsed, "HokusaiAMMFactory"));
   contracts.HokusaiAMMFactory = await factory.getAddress();
 
-  const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
+  const HokusaiAMMPoolDeployer = await getFactory("HokusaiAMMPoolDeployer");
   const poolDeployer = await HokusaiAMMPoolDeployer.deploy(contracts.HokusaiAMMFactory);
   await poolDeployer.waitForDeployment();
   recordReceipt(await recordDeployment(poolDeployer, gasUsed, "HokusaiAMMPoolDeployer"));
@@ -236,14 +238,14 @@ async function deployFullStack(networkConfig, runtime) {
     )
   );
 
-  const PurchaserWhitelist = await ethers.getContractFactory("PurchaserWhitelist");
-  const purchaserWhitelist = await PurchaserWhitelist.deploy(deployer.address);
+  const PurchaserWhitelist = await getFactory("PurchaserWhitelist");
+  const purchaserWhitelist = await PurchaserWhitelist.deploy(deployerAddress);
   await purchaserWhitelist.waitForDeployment();
   recordReceipt(await recordDeployment(purchaserWhitelist, gasUsed, "PurchaserWhitelist"));
   contracts.PurchaserWhitelist = await purchaserWhitelist.getAddress();
 
   logger.log("Phase 3: infrastructure and fee routing");
-  const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
+  const InfrastructureReserve = await getFactory("InfrastructureReserve");
   const infrastructureReserve = await InfrastructureReserve.deploy(
     reserveTokenAddress,
     contracts.HokusaiAMMFactory,
@@ -253,16 +255,16 @@ async function deployFullStack(networkConfig, runtime) {
   recordReceipt(await recordDeployment(infrastructureReserve, gasUsed, "InfrastructureReserve"));
   contracts.InfrastructureReserve = await infrastructureReserve.getAddress();
 
-  const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
+  const InfrastructureCostOracle = await getFactory("InfrastructureCostOracle");
   const infrastructureCostOracle = await InfrastructureCostOracle.deploy(
-    deployer.address,
+    deployerAddress,
     networkConfig.infrastructureCostOracleParams.initialGrossMarginBps
   );
   await infrastructureCostOracle.waitForDeployment();
   recordReceipt(await recordDeployment(infrastructureCostOracle, gasUsed, "InfrastructureCostOracle"));
   contracts.InfrastructureCostOracle = await infrastructureCostOracle.getAddress();
 
-  const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
+  const UsageFeeRouter = await getFactory("UsageFeeRouter");
   const usageFeeRouter = await UsageFeeRouter.deploy(
     contracts.HokusaiAMMFactory,
     reserveTokenAddress,
@@ -291,7 +293,7 @@ async function deployFullStack(networkConfig, runtime) {
       "infraPayerRole"
     )
   );
-  if (backendService && normalizeAddress(backendService) !== normalizeAddress(deployer.address)) {
+  if (backendService && normalizeAddress(backendService) !== normalizeAddress(deployerAddress)) {
     recordReceipt(
       await waitForTx(
         usageFeeRouter.grantRole(feeDepositorRole, backendService),
@@ -302,7 +304,7 @@ async function deployFullStack(networkConfig, runtime) {
   }
 
   logger.log("Phase 4: delta verifier");
-  const DeltaVerifier = await ethers.getContractFactory("DeltaVerifier");
+  const DeltaVerifier = await getFactory("DeltaVerifier");
   const deltaVerifier = await DeltaVerifier.deploy(
     contracts.ModelRegistry,
     contracts.TokenManager,
@@ -381,7 +383,7 @@ async function deployFullStack(networkConfig, runtime) {
     throw new Error("ModelRegistry pool registrar role missing on HokusaiAMMFactory");
   }
   const whitelistAdminRole = await purchaserWhitelist.WHITELIST_ADMIN_ROLE();
-  if (!(await purchaserWhitelist.hasRole(whitelistAdminRole, deployer.address))) {
+  if (!(await purchaserWhitelist.hasRole(whitelistAdminRole, deployerAddress))) {
     throw new Error("PurchaserWhitelist admin role missing on deployer");
   }
 
@@ -397,7 +399,7 @@ async function deployFullStack(networkConfig, runtime) {
   if (!(await infrastructureReserve.hasRole(payerRole, treasury))) {
     throw new Error("InfrastructureReserve payer role missing on treasury");
   }
-  if (!(await usageFeeRouter.hasRole(feeDepositorRole, deployer.address))) {
+  if (!(await usageFeeRouter.hasRole(feeDepositorRole, deployerAddress))) {
     throw new Error("UsageFeeRouter fee depositor role missing on deployer");
   }
   if (backendService && !(await usageFeeRouter.hasRole(feeDepositorRole, backendService))) {
@@ -424,36 +426,36 @@ async function deployFullStack(networkConfig, runtime) {
     vestingVault: await tokenManager.vestingVault(),
   };
   roles.PurchaserWhitelist = {
-    DEFAULT_ADMIN_ROLE: [deployer.address],
-    WHITELIST_ADMIN_ROLE: [deployer.address],
+    DEFAULT_ADMIN_ROLE: [deployerAddress],
+    WHITELIST_ADMIN_ROLE: [deployerAddress],
   };
   roles.DataContributionRegistry = {
-    DEFAULT_ADMIN_ROLE: [deployer.address],
-    RECORDER_ROLE: [deployer.address, contracts.DeltaVerifier],
+    DEFAULT_ADMIN_ROLE: [deployerAddress],
+    RECORDER_ROLE: [deployerAddress, contracts.DeltaVerifier],
     VERIFIER_ROLE: [verifierAddress],
   };
   roles.InfrastructureReserve = {
-    DEFAULT_ADMIN_ROLE: [deployer.address],
+    DEFAULT_ADMIN_ROLE: [deployerAddress],
     DEPOSITOR_ROLE: [contracts.UsageFeeRouter],
     PAYER_ROLE: [treasury],
   };
   roles.UsageFeeRouter = {
-    DEFAULT_ADMIN_ROLE: [deployer.address],
-    FEE_DEPOSITOR_ROLE: uniqueAddresses([deployer.address, backendService]),
+    DEFAULT_ADMIN_ROLE: [deployerAddress],
+    FEE_DEPOSITOR_ROLE: uniqueAddresses([deployerAddress, backendService]),
   };
   roles.DeltaVerifier = {
-    DEFAULT_ADMIN_ROLE: [deployer.address],
-    SUBMITTER_ROLE: [deployer.address],
+    DEFAULT_ADMIN_ROLE: [deployerAddress],
+    SUBMITTER_ROLE: [deployerAddress],
   };
   roles.InfrastructureCostOracle = {
-    DEFAULT_ADMIN_ROLE: [deployer.address],
-    GOV_ROLE: [deployer.address],
+    DEFAULT_ADMIN_ROLE: [deployerAddress],
+    GOV_ROLE: [deployerAddress],
   };
 
   const result = {
     network: networkConfig.name,
     chainId: actualChainId,
-    deployer: deployer.address,
+    deployer: deployerAddress,
     treasury,
     backendService,
     contracts,
@@ -474,7 +476,7 @@ async function deployFullStack(networkConfig, runtime) {
         network: networkConfig.name,
         dryRun,
         chainId: actualChainId,
-        deployer: deployer.address,
+        deployer: deployerAddress,
         treasury,
         backendService,
         timestamp: overrides.timestamp,

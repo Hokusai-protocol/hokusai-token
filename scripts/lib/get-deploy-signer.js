@@ -1,4 +1,14 @@
-const { KmsSigner, createKmsClient } = require("./kms-signer");
+const { KMSClient } = require("@aws-sdk/client-kms");
+
+function loadKmsSigner() {
+  try {
+    return require("../../services/contract-deployer/dist/blockchain/kms-signer").KmsSigner;
+  } catch (error) {
+    throw new Error(
+      "KMS deploy signer requires services/contract-deployer to be built first: run npm run build in services/contract-deployer"
+    );
+  }
+}
 
 async function getDeploySigner(hre) {
   const { ethers } = hre;
@@ -24,11 +34,11 @@ async function getDeploySigner(hre) {
   }
 
   const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const KmsSigner = loadKmsSigner();
   const signer = await KmsSigner.fromKeyId({
-    client: createKmsClient(process.env.AWS_REGION || "us-east-1"),
+    client: new KMSClient({ region: process.env.AWS_REGION || "us-east-1" }),
     keyId,
     provider,
-    ethers,
   });
   const derivedAddress = ethers.getAddress(await signer.getAddress());
   const expected = ethers.getAddress(expectedAddress);

@@ -15,7 +15,6 @@ export interface SSMConfig {
 
 export interface SSMParameters {
   // Required parameters
-  deployer_key: string;
   token_manager_address: string;
   model_registry_address: string;
   rpc_endpoint: string;
@@ -23,6 +22,7 @@ export interface SSMParameters {
   api_keys: string;
 
   // Optional parameters
+  deployer_key?: string;
   jwt_secret?: string;
   webhook_url?: string;
   webhook_secret?: string;
@@ -198,7 +198,6 @@ export class SSMParameterStore {
    */
   async getAllParameters(): Promise<SSMParameters> {
     const requiredParams = [
-      'deployer_key',
       'token_manager_address',
       'model_registry_address',
       'rpc_endpoint',
@@ -207,6 +206,7 @@ export class SSMParameterStore {
     ];
 
     const optionalParams = [
+      'deployer_key',
       'jwt_secret',
       'webhook_url',
       'webhook_secret',
@@ -247,7 +247,7 @@ export class SSMParameterStore {
 
       // Return typed parameters object
       return {
-        deployer_key: results.deployer_key!,
+        deployer_key: results.deployer_key,
         token_manager_address: results.token_manager_address!,
         model_registry_address: results.model_registry_address!,
         rpc_endpoint: results.rpc_endpoint!,

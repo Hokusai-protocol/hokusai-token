@@ -56,7 +56,6 @@ Both PRs must land within the same 24-hour window. If only one side lands:
 | File | Change |
 |------|--------|
 | `shared/mint-request-eip712.js` | EIP-712 types (add/remove/rename fields) |
-| `shared/mint-request-eip712.ts` | TS mirror (keep in sync with JS) |
 | `test/fixtures/deltaverifier-mint-request.golden.json` | camelCase contract-side fixture |
 | `test/fixtures/deltaverifier-mint-request.known-answer.json` | Regenerated via `npm run conformance:regen` |
 | `services/contract-deployer/tests/fixtures/mint_request.v1.json` | Byte-identical copy of pipeline fixture |

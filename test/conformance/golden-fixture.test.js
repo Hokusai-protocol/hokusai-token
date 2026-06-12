@@ -49,21 +49,25 @@ function buildPayload(golden) {
 
 // Walk the EIP-712 type schema and produce a flat list of dotted paths to every leaf field,
 // along with each field's Solidity type. Generated from the schema so new fields auto-test.
-function enumerateSignedFields(types) {
+// Array fields are expanded against the sample value, so fixtures of any length work.
+function enumerateSignedFields(types, sampleValue) {
   const paths = [];
 
-  function walk(typeName, prefix) {
+  function walk(typeName, prefix, value) {
     const fields = types[typeName];
     if (!fields) return;
     for (const { name, type } of fields) {
       const fieldPath = prefix ? `${prefix}.${name}` : name;
+      const fieldValue = value === undefined ? undefined : value[name];
       const arrayBase = type.replace("[]", "");
       if (types[arrayBase]) {
         if (type.endsWith("[]")) {
-          walk(arrayBase, `${fieldPath}[0]`);
-          walk(arrayBase, `${fieldPath}[1]`);
+          const length = Array.isArray(fieldValue) ? fieldValue.length : 0;
+          for (let i = 0; i < length; i++) {
+            walk(arrayBase, `${fieldPath}[${i}]`, fieldValue[i]);
+          }
         } else {
-          walk(arrayBase, fieldPath);
+          walk(arrayBase, fieldPath, fieldValue);
         }
       } else {
         paths.push({ path: fieldPath, type });
@@ -71,7 +75,7 @@ function enumerateSignedFields(types) {
     }
   }
 
-  walk("MintRequest", "");
+  walk("MintRequest", "", sampleValue);
   return paths;
 }
 
@@ -185,6 +189,13 @@ describe("DeltaVerifier golden fixture conformance", function () {
 
     await deployTestToken(tokenManager, modelIdStr, "Golden Fixture Token", "GLDN", parseEther("10000"), owner.address);
     await modelRegistry.registerModel(modelId, await tokenManager.getTokenAddress(modelIdStr), golden.metricName);
+
+    // Register the mutated model id (modelId + 1) too, so the mutation matrix's modelId case
+    // reaches signature verification (SignerNotAttester) instead of "Model not registered".
+    const mutatedModelId = modelId + 1n;
+    const mutatedModelIdStr = mutatedModelId.toString();
+    await deployTestToken(tokenManager, mutatedModelIdStr, "Golden Fixture Token (mutated)", "GLDM", parseEther("10000"), owner.address);
+    await modelRegistry.registerModel(mutatedModelId, await tokenManager.getTokenAddress(mutatedModelIdStr), golden.metricName);
     await tokenManager.setDeltaVerifier(await deltaVerifier.getAddress());
     await contributionRegistry.grantRole(await contributionRegistry.RECORDER_ROLE(), await deltaVerifier.getAddress());
     await deltaVerifier.grantRole(await deltaVerifier.SUBMITTER_ROLE(), submitter.address);
@@ -255,7 +266,7 @@ describe("DeltaVerifier golden fixture conformance", function () {
   });
 
   describe("assertion C — parameterized mutation matrix", function () {
-    const signedFields = enumerateSignedFields(MINT_REQUEST_EIP712_TYPES);
+    const signedFields = enumerateSignedFields(MINT_REQUEST_EIP712_TYPES, buildEip712Value(golden));
 
     for (const { path: fieldPath, type: solidityType } of signedFields) {
       it(`rejects mutation of ${fieldPath} (${solidityType})`, async function () {
@@ -270,13 +281,9 @@ describe("DeltaVerifier golden fixture conformance", function () {
           tampered.modelId, tampered.payload, tampered.contributors, knownAnswer.signatures
         );
 
-        // modelId mutation triggers "Model not registered" before reaching signature check;
-        // all other fields reach signature verification and revert with SignerNotAttester.
-        if (fieldPath === "modelId") {
-          await expect(tx).to.be.reverted;
-        } else {
-          await expect(tx).to.be.revertedWithCustomError(deltaVerifier, "SignerNotAttester");
-        }
+        // Every mutation — including modelId, whose mutated value is pre-registered in the
+        // fixture — must reach signature verification and revert with SignerNotAttester.
+        await expect(tx).to.be.revertedWithCustomError(deltaVerifier, "SignerNotAttester");
       });
     }
   });

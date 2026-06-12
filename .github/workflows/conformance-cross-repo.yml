@@ -25,10 +25,9 @@ jobs:
       - name: Clone pipeline repo
         uses: actions/checkout@v4
         with:
-          repository: anthropics/hokusai-data-pipeline
+          repository: Hokusai-protocol/hokusai-data-pipeline
           path: hokusai-data-pipeline
           ref: main
-        continue-on-error: true
 
       - uses: actions/setup-node@v4
         with:
@@ -61,7 +60,6 @@ jobs:
       - name: Byte-hash fixture parity (token ↔ pipeline)
         run: node scripts/cross-repo-fixture-parity.js
         working-directory: hokusai-token
-        if: hashFiles('hokusai-data-pipeline/schema/examples/mint_request.v1.json') != ''
 
       - name: Pipeline digest check
         if: env.STRICT_PIPELINE_DIGEST == '1'

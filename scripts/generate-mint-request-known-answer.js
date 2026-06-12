@@ -14,6 +14,8 @@ const { MINT_REQUEST_EIP712_TYPES, EIP712_DOMAIN } = require("../shared/mint-req
 
 const GOLDEN_FIXTURE_PATH = path.resolve(__dirname, "../test/fixtures/deltaverifier-mint-request.golden.json");
 const KNOWN_ANSWER_PATH = path.resolve(__dirname, "../test/fixtures/deltaverifier-mint-request.known-answer.json");
+// Vendored consumer-side ABI (kept in lockstep with artifacts by the abi-sync test).
+const DEPLOYER_ABI_PATH = path.resolve(__dirname, "../services/contract-deployer/contracts/DeltaVerifier.json");
 
 // Hardhat signer[0] (owner/deployer): deterministic from the canonical mnemonic
 // "test test test test test test test test test test test junk"
@@ -90,11 +92,22 @@ async function generate() {
     throw new Error(`Signature recovery mismatch: expected ${ATTESTER_ADDRESS}, got ${recovered}`);
   }
 
+  // Pin the exact submitMintRequest calldata bytes. The consumer parity test rebuilds this
+  // from the production MintRequestProcessor mapping; byte-equality pins every signed field.
+  const deployerAbi = JSON.parse(fs.readFileSync(DEPLOYER_ABI_PATH, "utf8")).abi;
+  const submitCalldata = new ethers.Interface(deployerAbi).encodeFunctionData("submitMintRequest", [
+    value.modelId,
+    value.payload,
+    value.contributors,
+    [signature],
+  ]);
+
   const knownAnswer = {
     _comment: "SECURITY: test-only keys from Hardhat canonical mnemonic. Zero value on any network.",
     structHash,
     domain,
     typedDataDigest,
+    submitCalldata,
     signatures: [signature],
     signerAddresses: [ATTESTER_ADDRESS],
     attesterPrivateKeys: [ATTESTER_PRIVATE_KEY],

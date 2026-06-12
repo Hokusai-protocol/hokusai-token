@@ -29,75 +29,30 @@ type MintRequestFixture = MintRequestMessage & {
   };
 };
 
-type MintRequestFixtureInput = Partial<MintRequestFixture> & {
-  contributors?: Array<Record<string, unknown>>;
-};
-
+// Only a checkout explicitly named hokusai-data-pipeline (or pointed at via
+// HOKUSAI_DATA_PIPELINE_DIR) counts as the sibling. Scanning arbitrary sibling
+// directories risks byte-comparing against stale feature-branch worktrees.
 function findSiblingPipelineFixture(): string | null {
+  const override = process.env.HOKUSAI_DATA_PIPELINE_DIR;
+  if (override) {
+    const candidate = path.resolve(override, 'schema/examples/mint_request.v1.json');
+    return fs.existsSync(candidate) ? candidate : null;
+  }
+
   const workspaceRoot = path.resolve(__dirname, '../../../..');
-  const siblingRoot = path.dirname(workspaceRoot);
-  const preferredNames = [
-    'hokusai-data-pipeline',
-    'gate-2-cross-repo-mintrequest-deltaverifier-abi-conformance',
-  ];
-
-  for (const name of preferredNames) {
-    const candidate = path.join(siblingRoot, name, 'schema/examples/mint_request.v1.json');
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  for (const entry of fs.readdirSync(siblingRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    const candidate = path.join(siblingRoot, entry.name, 'schema/examples/mint_request.v1.json');
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  return null;
-}
-
-function normalizeFixture(
-  candidate: MintRequestFixtureInput,
-  vendoredFixture: MintRequestFixture,
-): MintRequestFixture {
-  return {
-    ...vendoredFixture,
-    ...candidate,
-    benchmark_spec_id: candidate.benchmark_spec_id ?? vendoredFixture.benchmark_spec_id,
-    dataset_hash: candidate.dataset_hash ?? vendoredFixture.dataset_hash,
-    baseline_commitment: candidate.baseline_commitment ?? vendoredFixture.baseline_commitment,
-    candidate_commitment: candidate.candidate_commitment ?? vendoredFixture.candidate_commitment,
-    attester_signatures: candidate.attester_signatures ?? vendoredFixture.attester_signatures,
-    totalSamples: candidate.totalSamples ?? vendoredFixture.totalSamples,
-    contributors: (candidate.contributors ?? vendoredFixture.contributors).map(
-      (contributor, index) => ({
-        wallet_address:
-          typeof contributor.wallet_address === 'string'
-            ? contributor.wallet_address
-            : (vendoredFixture.contributors[index]?.wallet_address ?? ''),
-        weight_bps:
-          typeof contributor.weight_bps === 'number'
-            ? contributor.weight_bps
-            : (vendoredFixture.contributors[index]?.weight_bps ?? 0),
-      }),
-    ),
-  } as MintRequestFixture;
+  const candidate = path.join(
+    path.dirname(workspaceRoot),
+    'hokusai-data-pipeline/schema/examples/mint_request.v1.json',
+  );
+  return fs.existsSync(candidate) ? candidate : null;
 }
 
 function loadFixture(): { fixture: MintRequestFixture; raw: string; sourcePath: string } {
   const siblingPath = findSiblingPipelineFixture();
   const sourcePath = siblingPath ?? VENDORED_FIXTURE_PATH;
   const raw = fs.readFileSync(sourcePath, 'utf8');
-  const vendoredFixture = JSON.parse(
-    fs.readFileSync(VENDORED_FIXTURE_PATH, 'utf8'),
-  ) as MintRequestFixture;
   return {
-    fixture: normalizeFixture(JSON.parse(raw) as MintRequestFixtureInput, vendoredFixture),
+    fixture: JSON.parse(raw) as MintRequestFixture,
     raw,
     sourcePath,
   };
@@ -145,25 +100,25 @@ const validMessage: MintRequestMessage = {
 describe('MintRequest flow integration', () => {
   test('fixture stays byte-identical with the vendored copy when a sibling pipeline checkout exists', () => {
     const siblingPath = findSiblingPipelineFixture();
-    const vendoredRaw = fs.readFileSync(VENDORED_FIXTURE_PATH, 'utf8');
+    const vendoredRaw = fs.readFileSync(VENDORED_FIXTURE_PATH);
 
     if (!siblingPath) {
       expect(vendoredRaw.length).toBeGreaterThan(0);
       return;
     }
 
-    const vendoredFixture = JSON.parse(vendoredRaw) as MintRequestFixture;
-    const siblingFixture = JSON.parse(
-      fs.readFileSync(siblingPath, 'utf8'),
-    ) as MintRequestFixtureInput;
-    expect(normalizeFixture(siblingFixture, vendoredFixture)).toEqual(vendoredFixture);
+    const siblingRaw = fs.readFileSync(siblingPath);
+    expect(createHash('sha256').update(siblingRaw).digest('hex')).toBe(
+      createHash('sha256').update(vendoredRaw).digest('hex'),
+    );
+    expect(Buffer.compare(siblingRaw, vendoredRaw)).toBe(0);
   });
 
   test('maps the golden fixture into submitMintRequest calldata', () => {
     const { fixture, sourcePath } = loadFixture();
     const processor = new MintRequestProcessor({ submitMintRequest: jest.fn() } as any);
-    const payload = (processor as any).buildPayload(fixture);
-    const contributors = (processor as any).buildContributors(fixture);
+    const payload = processor.buildPayload(fixture);
+    const contributors = processor.buildContributors(fixture);
     const modelId = BigInt(fixture.model_id_uint);
     const calldata = new ethers.Interface(DeltaVerifierArtifact.abi).encodeFunctionData(
       'submitMintRequest',
@@ -256,14 +211,12 @@ describe('MintRequest flow integration', () => {
     expect(unexpectedKeys).toEqual([]);
 
     if (siblingFixturePath && vendoredExists) {
-      const vendoredJson = JSON.parse(
-        fs.readFileSync(vendoredFixturePath, 'utf8'),
-      ) as MintRequestFixture;
-      const siblingJson = JSON.parse(
-        fs.readFileSync(siblingFixturePath, 'utf8'),
-      ) as MintRequestFixtureInput;
-
-      expect(normalizeFixture(siblingJson, vendoredJson)).toEqual(vendoredJson);
+      const vendoredRaw = fs.readFileSync(vendoredFixturePath);
+      const siblingRaw = fs.readFileSync(siblingFixturePath);
+      expect(createHash('sha256').update(siblingRaw).digest('hex')).toBe(
+        createHash('sha256').update(vendoredRaw).digest('hex'),
+      );
+      expect(Buffer.compare(siblingRaw, vendoredRaw)).toBe(0);
     }
   });
 

@@ -2,10 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { ethers } from 'ethers';
+import DeltaVerifierArtifact from '../../../contracts/DeltaVerifier.json';
 import {
   MintRequestMessage,
   validateMintRequestMessage,
 } from '../../../src/schemas/mint-request-schema';
+import { MintRequestProcessor } from '../../../src/services/mint-request-processor';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const sharedEip712 = require('../../../../../shared/mint-request-eip712');
@@ -20,9 +22,11 @@ const KNOWN_ANSWER_PATH = path.resolve(
   __dirname,
   '../../../../../test/fixtures/deltaverifier-mint-request.known-answer.json',
 );
+// Repo root is 5 levels up; the pipeline checkout sits NEXT TO the repo root (6 levels up),
+// matching the scheduled cross-repo workflow's checkout layout.
 const PIPELINE_SIBLING_PATH = path.resolve(
   __dirname,
-  '../../../../../../../hokusai-data-pipeline/schema/examples/mint_request.v1.json',
+  '../../../../../../hokusai-data-pipeline/schema/examples/mint_request.v1.json',
 );
 
 interface KnownAnswer {
@@ -34,6 +38,7 @@ interface KnownAnswer {
     verifyingContract: string;
   };
   typedDataDigest: string;
+  submitCalldata: string;
   signatures: string[];
   signerAddresses: string[];
 }
@@ -62,31 +67,15 @@ function canonicalSubset(message: MintRequestMessage) {
   };
 }
 
+// The PRODUCTION fixture→contract mapping. Tests below hash and ABI-encode exactly what
+// MintRequestProcessor would submit, so any drift in its mapping breaks the known answer.
+const processor = new MintRequestProcessor({ submitMintRequest: jest.fn() } as never);
+
 function buildEip712ValueFromMessage(message: MintRequestMessage) {
   return {
     modelId: BigInt(message.model_id_uint),
-    payload: {
-      pipelineRunId: message.eval_id,
-      baselineScoreBps: message.evaluation.baseline_score_bps,
-      candidateScoreBps: message.evaluation.new_score_bps,
-      maxCostUsdMicro: message.evaluation.max_cost_usd_micro,
-      actualCostUsdMicro: message.evaluation.actual_cost_usd_micro,
-      totalSamples: message.totalSamples,
-      anchors: {
-        benchmarkSpecHash: ethers.keccak256(ethers.toUtf8Bytes(message.benchmark_spec_id)),
-        datasetHash: message.dataset_hash,
-        attestationHash: message.attestation_hash,
-        idempotencyKey: message.idempotency_key,
-        metricName: message.evaluation.metric_name,
-        metricFamily: message.evaluation.metric_family,
-      },
-      baselineCommitment: message.baseline_commitment,
-      candidateCommitment: message.candidate_commitment,
-    },
-    contributors: message.contributors.map((c) => ({
-      walletAddress: c.wallet_address,
-      weight: c.weight_bps,
-    })),
+    payload: processor.buildPayload(message),
+    contributors: processor.buildContributors(message),
   };
 }
 
@@ -109,7 +98,7 @@ describe('MintRequest golden fixture parity', () => {
   });
 
   describe('assertion A — digest parity (consumer side)', () => {
-    test('consumer buildPayload + pinned domain produces the committed structHash', () => {
+    test('production buildPayload + pinned domain produces the committed structHash', () => {
       const value = buildEip712ValueFromMessage(fixture);
       const structHash = ethers.TypedDataEncoder.hashStruct(
         'MintRequest',
@@ -119,7 +108,7 @@ describe('MintRequest golden fixture parity', () => {
       expect(structHash).toBe(knownAnswer.structHash);
     });
 
-    test('consumer buildPayload + pinned domain produces the committed typedDataDigest', () => {
+    test('production buildPayload + pinned domain produces the committed typedDataDigest', () => {
       const value = buildEip712ValueFromMessage(fixture);
       const typedDataDigest = ethers.TypedDataEncoder.hash(
         knownAnswer.domain,
@@ -128,11 +117,31 @@ describe('MintRequest golden fixture parity', () => {
       );
       expect(typedDataDigest).toBe(knownAnswer.typedDataDigest);
     });
+
+    test('production processor mapping produces the committed submitMintRequest calldata, byte-equal', () => {
+      const calldata = new ethers.Interface(DeltaVerifierArtifact.abi).encodeFunctionData(
+        'submitMintRequest',
+        [
+          BigInt(fixture.model_id_uint),
+          processor.buildPayload(fixture),
+          processor.buildContributors(fixture),
+          knownAnswer.signatures,
+        ],
+      );
+      expect(calldata).toBe(knownAnswer.submitCalldata);
+    });
   });
 
   describe('assertion B — wire parity', () => {
-    test('vendored fixture is byte-identical (SHA256) to sibling pipeline copy when present', () => {
+    test('vendored fixture is byte-identical (SHA256) to sibling pipeline copy', () => {
+      const strict = process.env['STRICT_CROSS_REPO'] === '1';
       if (!fs.existsSync(PIPELINE_SIBLING_PATH)) {
+        if (strict) {
+          throw new Error(
+            `STRICT_CROSS_REPO=1 but sibling pipeline fixture not found at ${PIPELINE_SIBLING_PATH}. ` +
+              'The cross-repo workflow must check out hokusai-data-pipeline next to this repo.',
+          );
+        }
         console.log(
           `SKIP: sibling pipeline fixture not found at ${PIPELINE_SIBLING_PATH}. ` +
             'This check runs in the scheduled cross-repo CI job.',
@@ -141,7 +150,7 @@ describe('MintRequest golden fixture parity', () => {
       }
       const vendoredHash = sha256File(VENDORED_FIXTURE_PATH);
       const siblingHash = sha256File(PIPELINE_SIBLING_PATH);
-      if (process.env['STRICT_CROSS_REPO'] === '1') {
+      if (strict) {
         expect(vendoredHash).toBe(siblingHash);
       } else if (vendoredHash !== siblingHash) {
         console.warn(
@@ -154,8 +163,7 @@ describe('MintRequest golden fixture parity', () => {
   });
 
   describe('EIP-712 types structural parity', () => {
-    test('TS types mirror matches JS shared module', () => {
-      // The JS module is the single source of truth; verify the types object shape matches.
+    test('shared JS module exposes the expected EIP-712 type structure', () => {
       expect(MINT_REQUEST_EIP712_TYPES).toHaveProperty('MintRequest');
       expect(MINT_REQUEST_EIP712_TYPES).toHaveProperty('MintRequestPayload');
       expect(MINT_REQUEST_EIP712_TYPES).toHaveProperty('BenchmarkAnchors');

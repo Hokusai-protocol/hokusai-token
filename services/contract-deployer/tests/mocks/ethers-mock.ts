@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-export function createMockProvider(): Partial<jest.Mocked<ethers.Provider>> {
+export function createMockProvider(): jest.Mocked<ethers.Provider> {
   return {
     getNetwork: jest.fn(),
     getBlockNumber: jest.fn(),
@@ -42,16 +42,16 @@ export function createMockProvider(): Partial<jest.Mocked<ethers.Provider>> {
     // Provider info
     connection: {
       url: 'http://localhost:8545',
-    } as unknown as ethers.Connection,
+    } as any,
 
     destroy: jest.fn(),
 
     // Required properties
     _isProvider: true,
-  };
+  } as unknown as jest.Mocked<ethers.Provider>;
 }
 
-export function createMockSigner(): Partial<jest.Mocked<ethers.Signer>> {
+export function createMockSigner(): jest.Mocked<ethers.Signer> {
   return {
     provider: createMockProvider() as any,
     getAddress: jest.fn(),
@@ -76,10 +76,10 @@ export function createMockSigner(): Partial<jest.Mocked<ethers.Signer>> {
 
     // Required properties
     _isSigner: true,
-  };
+  } as unknown as jest.Mocked<ethers.Signer>;
 }
 
-export function createMockContract(): Partial<jest.Mocked<ethers.Contract>> {
+export function createMockContract(): jest.Mocked<ethers.Contract> {
   // Helper to create a contract-method jest.fn that also carries an
   // `.estimateGas` jest.fn, matching ethers v6's getFunction(name) accessor
   // which returns a callable with an attached estimateGas method.
@@ -105,7 +105,7 @@ export function createMockContract(): Partial<jest.Mocked<ethers.Contract>> {
     Approval: jest.fn(),
   };
 
-  const mock: Partial<jest.Mocked<ethers.Contract>> & Record<string, any> = {
+  const mock: Record<string, any> = {
     // Contract properties
     address: '0x1234567890123456789012345678901234567890',
     interface: {} as unknown as ethers.Interface,
@@ -170,10 +170,10 @@ export function createMockContract(): Partial<jest.Mocked<ethers.Contract>> {
     return filters[name];
   });
 
-  return mock;
+  return mock as unknown as jest.Mocked<ethers.Contract>;
 }
 
-export function createMockContractFactory(): Partial<jest.Mocked<ethers.ContractFactory>> {
+export function createMockContractFactory(): jest.Mocked<ethers.ContractFactory> {
   return {
     deploy: jest.fn(),
     attach: jest.fn(),
@@ -186,7 +186,7 @@ export function createMockContractFactory(): Partial<jest.Mocked<ethers.Contract
 
     // Deployment helpers
     getDeployTransaction: jest.fn(),
-  };
+  } as unknown as jest.Mocked<ethers.ContractFactory>;
 }
 
 export function createMockTransactionResponse(): any {
@@ -218,7 +218,7 @@ export function createMockTransactionResponse(): any {
   return tx;
 }
 
-export function createMockTransactionReceipt(): Partial<ethers.TransactionReceipt> {
+export function createMockTransactionReceipt(): ethers.TransactionReceipt {
   return {
     to: '0x1234567890123456789012345678901234567890',
     from: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
@@ -237,5 +237,5 @@ export function createMockTransactionReceipt(): Partial<ethers.TransactionReceip
     logsBloom: '0x',
     cumulativeGasUsed: ethers.toBigInt('5000000'),
     effectiveGasPrice: ethers.toBigInt('35000000000'),
-  };
+  } as unknown as ethers.TransactionReceipt;
 }

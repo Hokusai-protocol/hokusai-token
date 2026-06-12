@@ -366,7 +366,7 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         },
       });
     }
-  });
+  }));
 
   /**
    * GET /api/reconciliation/summary
@@ -419,7 +419,7 @@ export function reconciliationRouter(reconciliationService: CostReconciliationSe
         },
       });
     }
-  }));
+  });
 
   return router;
 }

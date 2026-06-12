@@ -4,6 +4,15 @@ on:
   pull_request:
     branches:
       - main
+    # Fuzz properties are over the Solidity state machines; off-chain-only PRs
+    # can't violate them. push-to-main below stays UNFILTERED on purpose, so
+    # every merge still gets one fuzz run (catches contract-affecting changes
+    # these paths miss, e.g. an OpenZeppelin bump via the lockfile only).
+    paths:
+      - "contracts/**"
+      - "echidna.config.yaml"
+      - "hardhat.config.js"
+      - ".github/workflows/echidna.yml"
   push:
     branches:
       - main

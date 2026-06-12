@@ -21,6 +21,7 @@ import { MintRequestProcessor } from '../../src/services/mint-request-processor'
 import { createMockRedisClient, createMockRedisMulti } from '../mocks/redis-mock';
 
 const VENDORED_FIXTURE_PATH = path.resolve(__dirname, '../fixtures/mint_request.v1.json');
+const KNOWN_ANSWER_PATH = path.resolve(__dirname, '../fixtures/mint_request.v1.known_answer.json');
 const SUBMIT_MINT_REQUEST_SELECTOR = '0xc9b4e69b';
 type MintRequestFixture = MintRequestMessage & {
   totalSamples: number;
@@ -29,11 +30,13 @@ type MintRequestFixture = MintRequestMessage & {
   };
 };
 
-type MintRequestFixtureInput = Partial<MintRequestFixture> & {
-  contributors?: Array<Record<string, unknown>>;
-};
-
 function findSiblingPipelineFixture(): string | null {
+  const override = process.env.HOKUSAI_DATA_PIPELINE_DIR;
+  if (override) {
+    const candidate = path.resolve(override, 'schema/examples/mint_request.v1.json');
+    return fs.existsSync(candidate) ? candidate : null;
+  }
+
   const workspaceRoot = path.resolve(__dirname, '../../../..');
   const siblingRoot = path.dirname(workspaceRoot);
   const preferredNames = [
@@ -61,43 +64,12 @@ function findSiblingPipelineFixture(): string | null {
   return null;
 }
 
-function normalizeFixture(
-  candidate: MintRequestFixtureInput,
-  vendoredFixture: MintRequestFixture,
-): MintRequestFixture {
-  return {
-    ...vendoredFixture,
-    ...candidate,
-    benchmark_spec_id: candidate.benchmark_spec_id ?? vendoredFixture.benchmark_spec_id,
-    dataset_hash: candidate.dataset_hash ?? vendoredFixture.dataset_hash,
-    baseline_commitment: candidate.baseline_commitment ?? vendoredFixture.baseline_commitment,
-    candidate_commitment: candidate.candidate_commitment ?? vendoredFixture.candidate_commitment,
-    attester_signatures: candidate.attester_signatures ?? vendoredFixture.attester_signatures,
-    totalSamples: candidate.totalSamples ?? vendoredFixture.totalSamples,
-    contributors: (candidate.contributors ?? vendoredFixture.contributors).map(
-      (contributor, index) => ({
-        wallet_address:
-          typeof contributor.wallet_address === 'string'
-            ? contributor.wallet_address
-            : (vendoredFixture.contributors[index]?.wallet_address ?? ''),
-        weight_bps:
-          typeof contributor.weight_bps === 'number'
-            ? contributor.weight_bps
-            : (vendoredFixture.contributors[index]?.weight_bps ?? 0),
-      }),
-    ),
-  } as MintRequestFixture;
-}
-
 function loadFixture(): { fixture: MintRequestFixture; raw: string; sourcePath: string } {
   const siblingPath = findSiblingPipelineFixture();
   const sourcePath = siblingPath ?? VENDORED_FIXTURE_PATH;
   const raw = fs.readFileSync(sourcePath, 'utf8');
-  const vendoredFixture = JSON.parse(
-    fs.readFileSync(VENDORED_FIXTURE_PATH, 'utf8'),
-  ) as MintRequestFixture;
   return {
-    fixture: normalizeFixture(JSON.parse(raw) as MintRequestFixtureInput, vendoredFixture),
+    fixture: JSON.parse(raw) as MintRequestFixture,
     raw,
     sourcePath,
   };
@@ -145,22 +117,28 @@ const validMessage: MintRequestMessage = {
 describe('MintRequest flow integration', () => {
   test('fixture stays byte-identical with the vendored copy when a sibling pipeline checkout exists', () => {
     const siblingPath = findSiblingPipelineFixture();
-    const vendoredRaw = fs.readFileSync(VENDORED_FIXTURE_PATH, 'utf8');
+    const vendoredRaw = fs.readFileSync(VENDORED_FIXTURE_PATH);
 
     if (!siblingPath) {
       expect(vendoredRaw.length).toBeGreaterThan(0);
       return;
     }
 
-    const vendoredFixture = JSON.parse(vendoredRaw) as MintRequestFixture;
-    const siblingFixture = JSON.parse(
-      fs.readFileSync(siblingPath, 'utf8'),
-    ) as MintRequestFixtureInput;
-    expect(normalizeFixture(siblingFixture, vendoredFixture)).toEqual(vendoredFixture);
+    const siblingRaw = fs.readFileSync(siblingPath);
+    expect(createHash('sha256').update(siblingRaw).digest('hex')).toBe(
+      createHash('sha256').update(vendoredRaw).digest('hex'),
+    );
+    expect(Buffer.compare(siblingRaw, vendoredRaw)).toBe(0);
   });
 
   test('maps the golden fixture into submitMintRequest calldata', () => {
     const { fixture, sourcePath } = loadFixture();
+    const knownAnswer = JSON.parse(fs.readFileSync(KNOWN_ANSWER_PATH, 'utf8')) as {
+      submit_calldata: string;
+      submit_calldata_selector: string;
+      signatures: string[];
+      eip712: { digest: string };
+    };
     const processor = new MintRequestProcessor({ submitMintRequest: jest.fn() } as any);
     const payload = (processor as any).buildPayload(fixture);
     const contributors = (processor as any).buildContributors(fixture);
@@ -178,6 +156,10 @@ describe('MintRequest flow integration', () => {
 
     expect(sourcePath.endsWith('mint_request.v1.json')).toBe(true);
     expect(calldata.startsWith(SUBMIT_MINT_REQUEST_SELECTOR)).toBe(true);
+    expect(calldata).toBe(knownAnswer.submit_calldata);
+    expect(knownAnswer.submit_calldata_selector).toBe(SUBMIT_MINT_REQUEST_SELECTOR);
+    expect(fixture.attester_signatures).toEqual(knownAnswer.signatures);
+    expect(knownAnswer.eip712.digest).toMatch(/^0x[0-9a-f]{64}$/);
     expect(payload.anchors.benchmarkSpecHash).toBe(
       ethers.keccak256(ethers.toUtf8Bytes(fixture.benchmark_spec_id)),
     );
@@ -212,17 +194,18 @@ describe('MintRequest flow integration', () => {
   test('validates the pipeline v1 fixture and detects vendored drift when possible', async () => {
     const vendoredFixturePath = path.resolve(__dirname, '../fixtures/mint_request.v1.json');
     const envPipelineDir = process.env.HOKUSAI_DATA_PIPELINE_DIR;
-    const candidatePipelinePaths = [
-      envPipelineDir ? path.resolve(envPipelineDir, 'schema/examples/mint_request.v1.json') : null,
-      path.resolve(
-        __dirname,
-        '../../../../../hokusai-data-pipeline/schema/examples/mint_request.v1.json',
-      ),
-      path.resolve(
-        __dirname,
-        '../../../../hokusai-data-pipeline/schema/examples/mint_request.v1.json',
-      ),
-    ].filter((candidatePath): candidatePath is string => candidatePath !== null);
+    const candidatePipelinePaths = envPipelineDir
+      ? [path.resolve(envPipelineDir, 'schema/examples/mint_request.v1.json')]
+      : [
+          path.resolve(
+            __dirname,
+            '../../../../../hokusai-data-pipeline/schema/examples/mint_request.v1.json',
+          ),
+          path.resolve(
+            __dirname,
+            '../../../../hokusai-data-pipeline/schema/examples/mint_request.v1.json',
+          ),
+        ];
 
     const siblingFixturePath = candidatePipelinePaths.find((candidatePath) =>
       fs.existsSync(candidatePath),
@@ -256,14 +239,12 @@ describe('MintRequest flow integration', () => {
     expect(unexpectedKeys).toEqual([]);
 
     if (siblingFixturePath && vendoredExists) {
-      const vendoredJson = JSON.parse(
-        fs.readFileSync(vendoredFixturePath, 'utf8'),
-      ) as MintRequestFixture;
-      const siblingJson = JSON.parse(
-        fs.readFileSync(siblingFixturePath, 'utf8'),
-      ) as MintRequestFixtureInput;
-
-      expect(normalizeFixture(siblingJson, vendoredJson)).toEqual(vendoredJson);
+      const vendoredRaw = fs.readFileSync(vendoredFixturePath);
+      const siblingRaw = fs.readFileSync(siblingFixturePath);
+      expect(createHash('sha256').update(siblingRaw).digest('hex')).toBe(
+        createHash('sha256').update(vendoredRaw).digest('hex'),
+      );
+      expect(Buffer.compare(siblingRaw, vendoredRaw)).toBe(0);
     }
   });
 

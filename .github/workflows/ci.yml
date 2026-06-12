@@ -15,6 +15,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  conformance:
+    name: Cross-repo MintRequest conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - run: npx hardhat compile
+
+      - run: npx hardhat test test/conformance/*.js
+
+      - working-directory: services/contract-deployer
+        run: npm ci
+
+      - working-directory: services/contract-deployer
+        run: npm test -- --ci tests/unit/blockchain/golden-fixture-parity.test.ts tests/integration/mint-request-flow.test.ts
+
   contracts:
     name: Hardhat contracts
     runs-on: ubuntu-latest

@@ -13,7 +13,7 @@
   "baseline_commitment": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "candidate_commitment": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "attester_signatures": [
-    "0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b"
+    "0xdaaa0ddca65f04e6b6d83b8d1abab03782281c29694db4b8972fcde8e8959a5548e7e5a41bd24b36023536621e726a8fb9d9076b8aac9ddc3fec463c8543be481b"
   ],
   "totalSamples": 1000,
   "evaluation": {

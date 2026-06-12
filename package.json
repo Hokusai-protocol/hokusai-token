@@ -39,6 +39,8 @@
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@openzeppelin/contracts": "^4.9.6",
     "@prb/math": "^4.1.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "dotenv": "^16.5.0",
     "hardhat": "^2.24.2"
   },

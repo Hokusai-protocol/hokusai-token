@@ -1,0 +1,59 @@
+name: Cross-repo conformance (scheduled)
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  cross-repo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: hokusai-token
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Hokusai-protocol/hokusai-data-pipeline
+          path: hokusai-data-pipeline
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: hokusai-token/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - working-directory: hokusai-token
+        run: npm ci
+
+      - working-directory: hokusai-token
+        run: npx hardhat compile
+
+      - working-directory: hokusai-token
+        env:
+          HOKUSAI_DATA_PIPELINE_DIR: ${{ github.workspace }}/hokusai-data-pipeline
+        run: npx hardhat test test/conformance/*.js
+
+      - working-directory: hokusai-token/services/contract-deployer
+        env:
+          HOKUSAI_DATA_PIPELINE_DIR: ${{ github.workspace }}/hokusai-data-pipeline
+        run: npm ci && npm test -- --ci tests/unit/blockchain/golden-fixture-parity.test.ts tests/integration/mint-request-flow.test.ts
+
+      - working-directory: hokusai-data-pipeline
+        env:
+          HOKUSAI_TOKEN_FIXTURE_PATH: ${{ github.workspace }}/hokusai-token/services/contract-deployer/tests/fixtures/mint_request.v1.json
+        run: |
+          python -m pip install -e .[test] || python -m pip install -r requirements.txt
+          python -m pytest tests/unit/test_mint_request_consumer_conformance.py -q
+
+      - name: Alert on failure
+        if: failure()
+        run: echo "::error::cross-repo conformance drift detected"

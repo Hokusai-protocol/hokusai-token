@@ -46,6 +46,7 @@ The launch-gate delta from the earlier pre-hardening DeltaVerifier audit is the 
 - Confirm only paying mints advance `modelWeightHead`.
 - Confirm attester rotation, threshold configuration, and legacy-disable behavior are fail-closed.
 - Confirm cross-repo fixture parity between contract tests and `services/contract-deployer`.
+- Confirm the scheduled cross-repo conformance workflow is green and the fixture-bump protocol in `docs/cross-repo-fixture-protocol.md` is being followed.
 
 ### Open issues
 

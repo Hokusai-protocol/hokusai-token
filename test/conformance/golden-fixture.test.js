@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { parseEther } = require("ethers");
+const { parseEther, TypedDataEncoder } = require("ethers");
 
 const { deployTestToken } = require("../helpers/tokenDeployment");
 const {
@@ -10,7 +10,10 @@ const {
   configureLaunchAttester,
   configureMintBudget,
   configureLineageGenesis,
+  eip712Domain,
+  MINT_REQUEST_EIP712_TYPES,
 } = require("../helpers/mintRequest");
+const { MUTATIONS } = require("./mutations");
 
 const GOLDEN_FIXTURE_PATH = path.resolve(__dirname, "../fixtures/deltaverifier-mint-request.golden.json");
 const MIN_IMPROVEMENT_BPS = 100;
@@ -47,6 +50,8 @@ describe("DeltaVerifier golden fixture conformance", function () {
     const golden = loadGoldenFixture();
     const modelId = BigInt(golden.modelId);
     const modelIdStr = golden.modelId;
+    const alternateModelId = modelId + 1n;
+    const alternateModelIdStr = alternateModelId.toString();
 
     const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
     const modelRegistry = await ModelRegistry.deploy();
@@ -79,6 +84,21 @@ describe("DeltaVerifier golden fixture conformance", function () {
     await configureLaunchAttester(deltaVerifier, owner, attester);
     await configureMintBudget(deltaVerifier, owner, modelId);
     await configureLineageGenesis(modelRegistry, owner, modelId, golden.baselineCommitment);
+    await deployTestToken(
+      tokenManager,
+      alternateModelIdStr,
+      "Golden Fixture Token Alt",
+      "GLD2",
+      parseEther("10000"),
+      owner.address
+    );
+    await modelRegistry.registerModel(
+      alternateModelId,
+      await tokenManager.getTokenAddress(alternateModelIdStr),
+      golden.metricName
+    );
+    await configureMintBudget(deltaVerifier, owner, alternateModelId);
+    await configureLineageGenesis(modelRegistry, owner, alternateModelId, golden.baselineCommitment);
 
     return { attester, deltaVerifier, golden, modelId, submitter };
   }
@@ -88,21 +108,32 @@ describe("DeltaVerifier golden fixture conformance", function () {
     const payload = buildPayload(golden);
     const contributors = golden.contributors;
     const signatures = await attestMintRequest(deltaVerifier, attester, modelId, payload, contributors);
+    const domain = await eip712Domain(deltaVerifier);
+    const expectedDigest = TypedDataEncoder.hash(domain, MINT_REQUEST_EIP712_TYPES, {
+      modelId,
+      payload,
+      contributors,
+    });
 
+    expect(await deltaVerifier.hashMintRequest(modelId, payload, contributors)).to.equal(expectedDigest);
     await expect(
       deltaVerifier.connect(submitter).submitMintRequest(modelId, payload, contributors, signatures)
     ).to.emit(deltaVerifier, "DeltaOneAccepted");
   });
 
-  it("rejects a one-field mutation of the golden payload with the original signature", async function () {
-    const { attester, deltaVerifier, golden, modelId, submitter } = await deployFixture();
-    const payload = buildPayload(golden);
-    const contributors = golden.contributors;
-    const signatures = await attestMintRequest(deltaVerifier, attester, modelId, payload, contributors);
-    const tampered = { ...payload, totalSamples: payload.totalSamples + 1 };
+  MUTATIONS.forEach(({ name, mutate }) => {
+    it(`rejects a signed-field mutation for ${name} with SignerNotAttester`, async function () {
+      const { attester, deltaVerifier, golden, modelId, submitter } = await deployFixture();
+      const payload = buildPayload(golden);
+      const contributors = golden.contributors.map((contributor) => ({ ...contributor }));
+      const signatures = await attestMintRequest(deltaVerifier, attester, modelId, payload, contributors);
+      const tampered = mutate({ modelId, payload, contributors });
 
-    await expect(
-      deltaVerifier.connect(submitter).submitMintRequest(modelId, tampered, contributors, signatures)
-    ).to.be.revertedWithCustomError(deltaVerifier, "SignerNotAttester");
+      await expect(
+        deltaVerifier
+          .connect(submitter)
+          .submitMintRequest(tampered.modelId, tampered.payload, tampered.contributors, signatures)
+      ).to.be.revertedWithCustomError(deltaVerifier, "SignerNotAttester");
+    });
   });
 });

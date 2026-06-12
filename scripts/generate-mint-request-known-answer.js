@@ -80,7 +80,6 @@ async function signKnownAnswer(message) {
     }
 
     signers.push({
-      private_key: privateKey,
       address: wallet.address,
       signature,
     });

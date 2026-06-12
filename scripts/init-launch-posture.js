@@ -62,6 +62,7 @@ async function runInitLaunchPosture(hre, argv = process.argv.slice(2)) {
 async function main() {
   const hre = require("hardhat");
   const result = await runInitLaunchPosture(hre);
+  if (result === null) return;
   if (result.mode === "dry-run" && result.hasChanges) {
     process.exitCode = 1;
   }

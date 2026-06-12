@@ -1,0 +1,95 @@
+{
+  "_comment": "Fill attester, relayer, and weight genesis values before using on live mainnet.",
+  "network": "mainnet",
+  "chainId": 1,
+  "deploymentArtifactPath": "deployments/mainnet-latest.json",
+  "roleScanFromBlock": null,
+  "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+  "emergencySafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+  "deployerAddress": "0x3937A9B521298D4c6D9d438cEFF396eD18DD7Bb6",
+  "submitterRelayer": "0x0000000000000000000000000000000000000001",
+  "deltaVerifier": {
+    "legacyMintsDisabled": true,
+    "paused": false,
+    "attesterThreshold": 1,
+    "expectedAttesters": [
+      "0x0000000000000000000000000000000000000002"
+    ],
+    "baseRewardRate": "1000",
+    "minImprovementBps": 100,
+    "maxReward": "2500000000000000000000000"
+  },
+  "models": [
+    {
+      "modelId": 27,
+      "expectedMintBudgetRemaining": "1500000000000000000000000",
+      "expectedWeightGenesis": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "expectedTokensPerDeltaOne": "250000000000000000000000"
+    },
+    {
+      "modelId": 28,
+      "expectedMintBudgetRemaining": "1500000000000000000000000",
+      "expectedWeightGenesis": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "expectedTokensPerDeltaOne": "250000000000000000000000"
+    },
+    {
+      "modelId": 30,
+      "expectedMintBudgetRemaining": "1500000000000000000000000",
+      "expectedWeightGenesis": "0x3333333333333333333333333333333333333333333333333333333333333333",
+      "expectedTokensPerDeltaOne": "250000000000000000000000"
+    }
+  ],
+  "roleAudit": {
+    "DeltaVerifier": {
+      "DEFAULT_ADMIN_ROLE": {
+        "expected": [
+          "ADMIN_SAFE"
+        ],
+        "forbidden": [
+          "DEPLOYER"
+        ]
+      },
+      "PAUSER_ROLE": {
+        "expected": [
+          "EMERGENCY_SAFE"
+        ],
+        "forbidden": [
+          "DEPLOYER"
+        ]
+      },
+      "SUBMITTER_ROLE": {
+        "expected": [
+          "RELAYER"
+        ],
+        "forbidden": [
+          "DEPLOYER"
+        ]
+      }
+    },
+    "DataContributionRegistry": {
+      "DEFAULT_ADMIN_ROLE": {
+        "expected": [
+          "ADMIN_SAFE"
+        ],
+        "forbidden": [
+          "DEPLOYER"
+        ]
+      },
+      "RECORDER_ROLE": {
+        "expected": [
+          "CONTRACT:DeltaVerifier"
+        ],
+        "forbidden": [
+          "DEPLOYER"
+        ]
+      }
+    }
+  },
+  "wiring": {
+    "DeltaVerifier.modelRegistry": "CONTRACT:ModelRegistry",
+    "DeltaVerifier.tokenManager": "CONTRACT:TokenManager",
+    "DeltaVerifier.contributionRegistry": "CONTRACT:DataContributionRegistry",
+    "TokenManager.deltaVerifier": "CONTRACT:DeltaVerifier",
+    "ModelRegistry.stringModelTokenManager": "CONTRACT:TokenManager"
+  }
+}

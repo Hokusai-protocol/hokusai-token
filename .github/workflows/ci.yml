@@ -97,3 +97,23 @@ jobs:
       - name: Consumer parity (assertions A + B)
         run: npm test -- --ci --testPathPattern='golden-fixture-parity'
         working-directory: services/contract-deployer
+
+  launch-posture:
+    name: Launch posture (Gate 8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - run: npx hardhat compile
+
+      - run: npx hardhat test test/scripts/launchPosture.test.js
+
+      - run: npx hardhat test test/e2e/launch-posture-mainnet-fork.test.js

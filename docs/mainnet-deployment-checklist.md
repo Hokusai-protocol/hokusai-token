@@ -617,3 +617,6 @@ ___________________________________________________________________________
 ___________________________________________________________________________
 ___________________________________________________________________________
 See also: [docs/canonical-model-registration.md](./canonical-model-registration.md)
+## Executable launch-posture verification
+
+Use `npm run init:launch-posture:mainnet` and `npm run verify:launch-posture:mainnet` as the machine-checkable version of the manual DeltaVerifier launch steps. The scripts cover legacy mint disablement, attester setup, reward parameters, per-model mint budgets, lineage genesis roots, wiring, and the post-handoff role audit. The manual checklist below remains the operator-facing explainer.

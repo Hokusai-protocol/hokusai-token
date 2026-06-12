@@ -8,7 +8,8 @@ import {
 } from '../../../src/schemas/mint-request-schema';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { MINT_REQUEST_EIP712_TYPES, EIP712_DOMAIN } = require('../../../../../shared/mint-request-eip712');
+const sharedEip712 = require('../../../../../shared/mint-request-eip712');
+const { MINT_REQUEST_EIP712_TYPES, EIP712_DOMAIN } = sharedEip712;
 
 const VENDORED_FIXTURE_PATH = path.resolve(__dirname, '../../fixtures/mint_request.v1.json');
 const GOLDEN_FIXTURE_PATH = path.resolve(
@@ -94,9 +95,7 @@ function sha256File(filePath: string): string {
 }
 
 describe('MintRequest golden fixture parity', () => {
-  const fixture = JSON.parse(
-    fs.readFileSync(VENDORED_FIXTURE_PATH, 'utf8'),
-  ) as MintRequestMessage;
+  const fixture = JSON.parse(fs.readFileSync(VENDORED_FIXTURE_PATH, 'utf8')) as MintRequestMessage;
   const golden = JSON.parse(fs.readFileSync(GOLDEN_FIXTURE_PATH, 'utf8'));
   const knownAnswer: KnownAnswer = JSON.parse(fs.readFileSync(KNOWN_ANSWER_PATH, 'utf8'));
 
@@ -136,7 +135,7 @@ describe('MintRequest golden fixture parity', () => {
       if (!fs.existsSync(PIPELINE_SIBLING_PATH)) {
         console.log(
           `SKIP: sibling pipeline fixture not found at ${PIPELINE_SIBLING_PATH}. ` +
-          'This check runs in the scheduled cross-repo CI job.',
+            'This check runs in the scheduled cross-repo CI job.',
         );
         return;
       }
@@ -147,8 +146,8 @@ describe('MintRequest golden fixture parity', () => {
       } else if (vendoredHash !== siblingHash) {
         console.warn(
           'WARN: vendored fixture differs from sibling pipeline copy. ' +
-          'This is expected if the pipeline mirror PR has not landed yet. ' +
-          'Set STRICT_CROSS_REPO=1 to enforce strict byte parity.',
+            'This is expected if the pipeline mirror PR has not landed yet. ' +
+            'Set STRICT_CROSS_REPO=1 to enforce strict byte parity.',
         );
       }
     });

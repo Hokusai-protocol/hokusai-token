@@ -173,12 +173,10 @@ export class CostReconciliationService {
     }
 
     // Schedule periodic reconciliation
-    this.reconciliationInterval = setInterval(async () => {
-      try {
-        await this.runReconciliation();
-      } catch (error) {
+    this.reconciliationInterval = setInterval(() => {
+      void this.runReconciliation().catch((error) => {
         logger.error('Error during scheduled reconciliation:', error);
-      }
+      });
     }, this.config.reconciliationIntervalMs);
 
     this.isRunning = true;
@@ -188,9 +186,9 @@ export class CostReconciliationService {
   /**
    * Stop the reconciliation service
    */
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
     if (!this.isRunning) {
-      return;
+      return Promise.resolve();
     }
 
     logger.info('Stopping CostReconciliationService...');
@@ -202,6 +200,7 @@ export class CostReconciliationService {
 
     this.isRunning = false;
     logger.info('CostReconciliationService stopped');
+    return Promise.resolve();
   }
 
   /**
@@ -271,7 +270,7 @@ export class CostReconciliationService {
    * This method accepts manual cost data (CSV/API input) and stores it
    * for later reconciliation and on-chain recording.
    */
-  async ingestActualCosts(cost: ActualCost): Promise<void> {
+  ingestActualCosts(cost: ActualCost): Promise<void> {
     logger.info(`Ingesting actual costs for ${cost.modelId}`, {
       amount: cost.amount,
       period: cost.period,
@@ -291,6 +290,7 @@ export class CostReconciliationService {
     }
 
     logger.info(`Cost ingested successfully for ${cost.modelId}`);
+    return Promise.resolve();
   }
 
   /**
@@ -299,7 +299,7 @@ export class CostReconciliationService {
    * NOTE: This requires InfrastructureReserve.recordActualCosts() from Issue #4
    * Currently a placeholder that will be implemented when the contract method is available.
    */
-  async recordActualCostsOnChain(
+  recordActualCostsOnChain(
     modelId: string,
     amount: number,
     invoiceHash: string,
@@ -322,6 +322,7 @@ export class CostReconciliationService {
     // await tx.wait();
 
     logger.warn('recordActualCostsOnChain not yet implemented - requires Issue #4');
+    return Promise.resolve();
   }
 
   /**
@@ -330,25 +331,25 @@ export class CostReconciliationService {
    * NOTE: This uses placeholder logic. Will integrate with InfrastructureCostOracle
    * when Issue #1 is implemented.
    */
-  private async calculateVariance(modelId: string): Promise<CostVariance | null> {
+  private calculateVariance(modelId: string): Promise<CostVariance | null> {
     const recentCosts = this.getRecentCosts(modelId, 30); // Last 30 days
 
     if (recentCosts.length === 0) {
-      return null;
+      return Promise.resolve(null);
     }
 
     const actual: number = recentCosts.reduce((sum, c) => sum + c.amount, 0);
 
     // Handle zero-cost case
     if (actual === 0) {
-      return null;
+      return Promise.resolve(null);
     }
 
     // TODO: Get estimated cost from InfrastructureCostOracle when available
     // For now, use a placeholder estimation based on historical data
     const estimated: number = actual * 0.95; // Placeholder: assume 5% underestimate
     if (estimated === 0) {
-      return null;
+      return Promise.resolve(null);
     }
 
     const varianceAmount: number = actual - estimated;
@@ -357,7 +358,7 @@ export class CostReconciliationService {
     const firstCost = recentCosts[0];
     const lastCost = recentCosts[recentCosts.length - 1];
     if (!firstCost || !lastCost) {
-      return null;
+      return Promise.resolve(null);
     }
 
     const period = {
@@ -365,20 +366,20 @@ export class CostReconciliationService {
       end: lastCost.period.end,
     };
 
-    return {
+    return Promise.resolve({
       modelId,
       period,
       actual,
       estimated,
       variance: varianceAmount,
       variancePercent,
-    };
+    });
   }
 
   /**
    * Generate cost adjustment recommendation
    */
-  private async generateAdjustmentRecommendation(
+  private generateAdjustmentRecommendation(
     modelId: string,
     variance: CostVariance,
   ): Promise<CostAdjustmentRecommendation> {
@@ -394,7 +395,7 @@ export class CostReconciliationService {
         ? `Actual costs ${variance.variancePercent.toFixed(1)}% above estimate. Recommend increasing estimate from $${currentEstimate.toFixed(2)} to $${recommendedEstimate.toFixed(2)} per period.`
         : `Actual costs ${Math.abs(variance.variancePercent).toFixed(1)}% below estimate. Recommend decreasing estimate from $${currentEstimate.toFixed(2)} to $${recommendedEstimate.toFixed(2)} per period.`;
 
-    return {
+    return Promise.resolve({
       modelId,
       currentEstimate,
       recommendedEstimate,
@@ -402,7 +403,7 @@ export class CostReconciliationService {
       variance,
       rationale,
       timestamp: new Date(),
-    };
+    });
   }
 
   /**

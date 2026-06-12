@@ -102,29 +102,24 @@ export class AMMMonitor {
     this.poolDiscovery = new PoolDiscovery(this.provider, this.config.contracts.ammFactory);
 
     this.stateTracker = new StateTracker(this.provider, this.config.thresholds, {
-      onStateUpdate: async (state) => {
+      onStateUpdate: (state) => {
         this.metricsCollector.updatePoolState(state);
+        return Promise.resolve();
       },
-      onAlert: async (alert) => {
-        await this.handleAlert(alert);
-      },
+      onAlert: (alert) => this.handleAlert(alert),
     });
 
     this.eventListener = new EventListener(this.provider, this.config.thresholds, {
-      onTradeEvent: async (event) => {
+      onTradeEvent: (event) => {
         this.metricsCollector.recordTrade(event);
-        await this.logTradeEvent(event);
+        return this.logTradeEvent(event);
       },
-      onSecurityEvent: async (event) => {
-        await this.logSecurityEvent(event);
-      },
-      onFeeEvent: async (event) => {
+      onSecurityEvent: (event) => this.logSecurityEvent(event),
+      onFeeEvent: (event) => {
         this.metricsCollector.recordFeeDeposit(event);
-        await this.logFeeEvent(event);
+        return this.logFeeEvent(event);
       },
-      onAlert: async (alert) => {
-        await this.handleAlert(alert);
-      },
+      onAlert: (alert) => this.handleAlert(alert),
     });
 
     this.metricsCollector = new MetricsCollector();
@@ -204,17 +199,17 @@ export class AMMMonitor {
   /**
    * Stop monitoring
    */
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
     if (!this.isRunning) {
       logger.warn('AMM Monitor not running');
-      return;
+      return Promise.resolve();
     }
 
     logger.info('🛑 Stopping AMM Monitor...');
 
     try {
       // Stop all components
-      await this.poolDiscovery.stopListening();
+      this.poolDiscovery.stopListening();
       this.stateTracker.stopAllTracking();
       this.eventListener.stopAllListening();
 
@@ -224,9 +219,10 @@ export class AMMMonitor {
       logger.info(this.metricsCollector.getMetricsSummary());
 
       logger.info('✅ AMM Monitor stopped');
+      return Promise.resolve();
     } catch (error) {
       logger.error('Error stopping AMM Monitor:', error);
-      throw error;
+      return Promise.reject(error);
     }
   }
 
@@ -242,35 +238,9 @@ export class AMMMonitor {
     }
 
     // Set up callback for newly discovered pools
-    this.poolDiscovery.onPoolDiscovered(async (pool) => {
+    this.poolDiscovery.onPoolDiscovered((pool) => {
       logger.info(`🆕 New pool discovered: ${pool.modelId} at ${pool.ammAddress}`);
-
-      // Start monitoring the new pool
-      await this.startMonitoringPool(pool.ammAddress, pool);
-
-      // Send notification (if alerts enabled)
-      if (this.config.alertsEnabled) {
-        await this.handleAlert({
-          type: 'security_event',
-          priority: 'medium',
-          message: `🆕 New pool created: ${pool.modelId}`,
-          event: {
-            type: 'parameters_updated',
-            contractAddress: pool.ammAddress,
-            modelId: pool.modelId,
-            actor: 'Factory',
-            details: {
-              crr: pool.crr,
-              tradeFee: pool.tradeFee,
-              protocolFee: pool.protocolFee,
-              ibrDuration: pool.ibrDuration,
-            },
-            blockNumber: 0,
-            transactionHash: '',
-            timestamp: Math.floor(Date.now() / 1000),
-          },
-        });
-      }
+      return this.handlePoolDiscovered(pool);
     });
 
     logger.info('Pool discovery initialized');
@@ -293,7 +263,7 @@ export class AMMMonitor {
 
       // Start event listening (if enabled)
       if (this.config.eventListenersEnabled) {
-        await this.eventListener.startListeningToPool(poolConfig);
+        this.eventListener.startListeningToPool(poolConfig);
       }
 
       logger.info(`✅ Monitoring started for ${poolConfig.modelId}`);
@@ -415,7 +385,7 @@ export class AMMMonitor {
   /**
    * Log trade event
    */
-  private async logTradeEvent(event: TradeEvent): Promise<void> {
+  private logTradeEvent(event: TradeEvent): Promise<void> {
     // Store event for API access (keep last 200)
     this.events.push(event);
     if (this.events.length > 200) {
@@ -432,12 +402,14 @@ export class AMMMonitor {
         `Fee: $${event.feeAmountUSD.toFixed(2)} | ` +
         `Price: $${event.spotPriceUSD.toFixed(6)}`,
     );
+
+    return Promise.resolve();
   }
 
   /**
    * Log security event
    */
-  private async logSecurityEvent(event: SecurityEvent): Promise<void> {
+  private logSecurityEvent(event: SecurityEvent): Promise<void> {
     // Store event for API access (keep last 200)
     this.events.push(event);
     if (this.events.length > 200) {
@@ -449,12 +421,14 @@ export class AMMMonitor {
     logger.warn(`   Actor: ${event.actor}`);
     logger.warn(`   Details: ${JSON.stringify(event.details)}`);
     logger.warn(`   Tx: ${event.transactionHash}`);
+
+    return Promise.resolve();
   }
 
   /**
    * Log fee event
    */
-  private async logFeeEvent(event: FeeEvent): Promise<void> {
+  private logFeeEvent(event: FeeEvent): Promise<void> {
     // Store event for API access (keep last 200)
     this.events.push(event);
     if (this.events.length > 200) {
@@ -466,6 +440,42 @@ export class AMMMonitor {
         `$${event.amountUSD.toFixed(2)} | ` +
         `New Reserve: $${Number(ethers.formatUnits(event.newReserveBalance, 6)).toFixed(2)}`,
     );
+
+    return Promise.resolve();
+  }
+
+  private async handlePoolDiscovered(pool: {
+    ammAddress: string;
+    modelId: string;
+    crr: number;
+    tradeFee: number;
+    protocolFee: number;
+    ibrDuration: number;
+  }): Promise<void> {
+    await this.startMonitoringPool(pool.ammAddress, pool);
+
+    if (this.config.alertsEnabled) {
+      await this.handleAlert({
+        type: 'security_event',
+        priority: 'medium',
+        message: `🆕 New pool created: ${pool.modelId}`,
+        event: {
+          type: 'parameters_updated',
+          contractAddress: pool.ammAddress,
+          modelId: pool.modelId,
+          actor: 'Factory',
+          details: {
+            crr: pool.crr,
+            tradeFee: pool.tradeFee,
+            protocolFee: pool.protocolFee,
+            ibrDuration: pool.ibrDuration,
+          },
+          blockNumber: 0,
+          transactionHash: '',
+          timestamp: Math.floor(Date.now() / 1000),
+        },
+      });
+    }
   }
 
   /**

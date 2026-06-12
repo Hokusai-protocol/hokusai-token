@@ -10,6 +10,7 @@ import { createClient } from 'redis';
 import { ethers } from 'ethers';
 import { createBackendSigner } from './blockchain/signer-factory';
 import { setBackendSigner } from './blockchain/signer-singleton';
+import { asyncHandler } from './middleware/async-handler';
 
 // Load environment variables
 dotenv.config();
@@ -165,10 +166,13 @@ async function main(): Promise<void> {
     app.get('/health/live', (_req, res) => {
       res.json({ alive: true });
     });
-    app.get('/health/ready', async (_req, res) => {
-      const ready = await healthCheck.isReady();
-      res.status(ready ? 200 : 503).json({ ready });
-    });
+    app.get(
+      '/health/ready',
+      asyncHandler(async (_req, res) => {
+        const ready = await healthCheck.isReady();
+        res.status(ready ? 200 : 503).json({ ready });
+      }),
+    );
 
     const port = config.PORT;
     const server = app.listen(port, () => {
@@ -232,8 +236,18 @@ async function main(): Promise<void> {
     };
 
     // Handle shutdown signals
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => {
+      void gracefulShutdown('SIGTERM').catch((shutdownError) => {
+        logger.error('Graceful shutdown failed', shutdownError);
+        process.exit(1);
+      });
+    });
+    process.on('SIGINT', () => {
+      void gracefulShutdown('SIGINT').catch((shutdownError) => {
+        logger.error('Graceful shutdown failed', shutdownError);
+        process.exit(1);
+      });
+    });
   } catch (error) {
     logger.error('Failed to start service', error);
     process.exit(1);

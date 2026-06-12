@@ -223,7 +223,7 @@ describe('ModelRegistryService', () => {
   });
 
   describe('event listening', () => {
-    test('should listen for ModelRegistered events', async () => {
+    test('should listen for ModelRegistered events', () => {
       const eventHandler = jest.fn();
       const filter = { address: config.registryAddress };
 
@@ -244,7 +244,7 @@ describe('ModelRegistryService', () => {
         }
       });
 
-      await registryService.onModelRegistered(eventHandler);
+      registryService.onModelRegistered(eventHandler);
 
       expect(mockContract.getEvent).toHaveBeenCalledWith('ModelRegistered');
       expect(eventHandler).toHaveBeenCalledWith({
@@ -256,7 +256,7 @@ describe('ModelRegistryService', () => {
       });
     });
 
-    test('should handle event listener errors', async () => {
+    test('should handle event listener errors', () => {
       const eventHandler = jest.fn();
       const errorHandler = jest.fn();
 
@@ -267,7 +267,7 @@ describe('ModelRegistryService', () => {
         }
       });
 
-      await registryService.onModelRegistered(eventHandler, errorHandler);
+      registryService.onModelRegistered(eventHandler, errorHandler);
 
       expect(errorHandler).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Event subscription failed' }),

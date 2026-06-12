@@ -3,11 +3,13 @@ import { DeltaVerifierClient } from '../blockchain/delta-verifier-client';
 import { MintRequestMessage } from '../schemas/mint-request-schema';
 import { MintRequestProcessor } from '../services/mint-request-processor';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { MINT_REQUEST_EIP712_TYPES, EIP712_DOMAIN } = require('../../../../shared/mint-request-eip712') as {
-  MINT_REQUEST_EIP712_TYPES: Record<string, { name: string; type: string }[]>;
-  EIP712_DOMAIN: { name: string; version: string };
-};
+/* eslint-disable @typescript-eslint/no-var-requires */
+const { MINT_REQUEST_EIP712_TYPES, EIP712_DOMAIN } =
+  require('../../../../shared/mint-request-eip712') as {
+    MINT_REQUEST_EIP712_TYPES: Record<string, { name: string; type: string }[]>;
+    EIP712_DOMAIN: { name: string; version: string };
+  };
+/* eslint-enable @typescript-eslint/no-var-requires */
 
 export interface SignatureValidationResult {
   valid: boolean;

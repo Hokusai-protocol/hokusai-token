@@ -314,7 +314,9 @@ export class InfrastructureMonitor {
           newBalance: ethers.formatUnits(newBalance, 6),
           depositor,
         });
-        void this.pollInfrastructureState(modelId);
+        void this.pollInfrastructureState(modelId).catch((error) => {
+          logger.error(`Failed to poll infrastructure state after deposit for ${modelId}`, { error });
+        });
       },
     );
 
@@ -340,7 +342,9 @@ export class InfrastructureMonitor {
           oldProvider,
           newProvider,
         });
-        void this.pollInfrastructureState(modelId);
+        void this.pollInfrastructureState(modelId).catch((error) => {
+          logger.error(`Failed to poll infrastructure state after provider change for ${modelId}`, { error });
+        });
       },
     );
 

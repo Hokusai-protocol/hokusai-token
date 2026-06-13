@@ -213,6 +213,7 @@ async function runLaunchDeploy({
   datedDeploymentPath = getDatedDeploymentPath(),
   latestDeploymentPath = DEFAULT_DEPLOYMENT_PATH,
   pendingActionsPath = DEFAULT_PENDING_ACTIONS_PATH,
+  deployer: injectedDeployer,
 } = {}) {
   console.log("🏊 Creating Mainnet AMM Pools...\n");
   console.log("=".repeat(70));
@@ -222,7 +223,12 @@ async function runLaunchDeploy({
   console.log("=".repeat(70));
   console.log();
 
-  const [deployer] = await ethers.getSigners();
+  const deployer = injectedDeployer ?? (await ethers.getSigners())[0];
+  if (!deployer) {
+    throw new Error(
+      "No deploy signer available: pass { deployer } (e.g. getDeploySigner(hre)) or configure hardhat network accounts"
+    );
+  }
   const network = await ethers.provider.getNetwork();
 
   if (network.chainId !== expectedChainId) {
@@ -246,10 +252,10 @@ async function runLaunchDeploy({
   console.log(`   TokenManager:     ${managerAddress}`);
   console.log(`   AMMFactory:       ${factoryAddress}`);
 
-  const usdc = await ethers.getContractAt("IERC20", usdcAddress);
-  const modelRegistry = await ethers.getContractAt("ModelRegistry", registryAddress);
-  const tokenManager = await ethers.getContractAt("TokenManager", managerAddress);
-  const factory = await ethers.getContractAt("HokusaiAMMFactory", factoryAddress);
+  const usdc = await ethers.getContractAt("IERC20", usdcAddress, deployer);
+  const modelRegistry = await ethers.getContractAt("ModelRegistry", registryAddress, deployer);
+  const tokenManager = await ethers.getContractAt("TokenManager", managerAddress, deployer);
+  const factory = await ethers.getContractAt("HokusaiAMMFactory", factoryAddress, deployer);
   await ensureFactoryPoolRegistrar({
     modelRegistry,
     factoryAddress,
@@ -434,7 +440,7 @@ async function runLaunchDeploy({
       console.log("   ✅ AMM authorized with MINTER_ROLE");
 
       console.log(`   💰 Adding initial liquidity ($${ethers.formatUnits(config.initialReserveUsdc, 6)} USDC)...`);
-      const pool = await ethers.getContractAt("HokusaiAMM", poolAddress);
+      const pool = await ethers.getContractAt("HokusaiAMM", poolAddress, deployer);
       const onChainWhitelist = await pool.purchaserWhitelist();
       if (ethers.getAddress(onChainWhitelist) !== ethers.getAddress(poolWhitelistAddress)) {
         throw new Error(
@@ -492,7 +498,7 @@ async function runLaunchDeploy({
             throw new Error(`Vesting vault not configured for ${config.modelId}`);
           }
 
-          const vestingVault = await ethers.getContractAt("RewardVestingVault", vestingVaultAddress);
+          const vestingVault = await ethers.getContractAt("RewardVestingVault", vestingVaultAddress, deployer);
           const vaultBalance = await token.balanceOf(vestingVaultAddress);
           if (vaultBalance < vestedAmount) {
             throw new Error(`Supplier vesting vault balance verification failed for ${config.modelId}`);

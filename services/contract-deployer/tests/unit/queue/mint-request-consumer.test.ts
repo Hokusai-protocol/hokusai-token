@@ -32,6 +32,7 @@ describe('MintRequestConsumer', () => {
       '0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b',
     ],
     totalSamples: 140,
+    deadline: 4102444800,
     evaluation: {
       metric_name: 'sales:revenue_per_1000_messages',
       metric_family: 'zero_inflated_continuous',

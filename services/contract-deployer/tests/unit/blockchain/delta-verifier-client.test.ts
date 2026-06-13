@@ -25,6 +25,7 @@ describe('DeltaVerifierClient', () => {
     maxCostUsdMicro: 0,
     actualCostUsdMicro: 0,
     totalSamples: 1,
+    deadline: 4102444800,
     anchors: {
       benchmarkSpecHash: ethers.ZeroHash,
       datasetHash: ethers.ZeroHash,
@@ -278,6 +279,7 @@ describe('submitMintRequest calldata encoding', () => {
       maxCostUsdMicro: 0,
       actualCostUsdMicro: 0,
       totalSamples: 140,
+      deadline: 4102444800,
       anchors: {
         benchmarkSpecHash: ethers.ZeroHash,
         datasetHash: ethers.ZeroHash,

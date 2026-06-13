@@ -17,6 +17,7 @@ const MINT_REQUEST_EIP712_TYPES = {
     { name: "anchors", type: "BenchmarkAnchors" },
     { name: "baselineCommitment", type: "bytes32" },
     { name: "candidateCommitment", type: "bytes32" },
+    { name: "deadline", type: "uint256" },
   ],
   BenchmarkAnchors: [
     { name: "benchmarkSpecHash", type: "bytes32" },

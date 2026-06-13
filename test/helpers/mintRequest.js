@@ -5,6 +5,10 @@ const { MINT_REQUEST_EIP712_TYPES: _SHARED_TYPES, EIP712_DOMAIN } = require("../
 // the default payload's baselineCommitment matches it, so a model's first mint parents off genesis.
 const LINEAGE_GENESIS = ethers.id("lineage-genesis-001");
 
+// HOK-2170: fixed far-future deadline (2100-01-01 UTC) for deterministic test digests. Production signs
+// deadline = now + 5 days (launch policy); expiry tests override this with a past timestamp.
+const DEADLINE_FAR_FUTURE = 4102444800;
+
 // Monotonic candidate generator so chained mints advance to distinct commitments.
 let _candidateCounter = 0;
 function nextCandidateCommitment() {
@@ -32,6 +36,7 @@ function buildMintRequestPayload(overrides = {}) {
     // Lineage commitments (HOK-2133). Default baseline = genesis so a first mint parents off it.
     baselineCommitment: LINEAGE_GENESIS,
     candidateCommitment: ethers.id("lineage-candidate-001"),
+    deadline: DEADLINE_FAR_FUTURE,
     ...overrides,
     anchors: {
       ...defaultAnchors,
@@ -129,6 +134,7 @@ module.exports = {
   payloadForNextLink,
   nextCandidateCommitment,
   LINEAGE_GENESIS,
+  DEADLINE_FAR_FUTURE,
   MINT_REQUEST_EIP712_TYPES,
   EIP712_DOMAIN,
   eip712Domain,

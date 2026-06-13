@@ -43,6 +43,7 @@ export class MintRequestProcessor {
       idempotencyKey: message.idempotency_key,
       modelId: message.model_id,
       totalSamples: payload.totalSamples,
+      deadline: payload.deadline,
       baselineCommitment: payload.baselineCommitment,
       candidateCommitment: payload.candidateCommitment,
       attesterSignatureCount: message.attester_signatures.length,
@@ -71,6 +72,7 @@ export class MintRequestProcessor {
       },
       baselineCommitment: message.baseline_commitment,
       candidateCommitment: message.candidate_commitment,
+      deadline: message.deadline,
     };
   }
 

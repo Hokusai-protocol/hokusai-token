@@ -58,6 +58,7 @@ function buildEip712Value(golden) {
       },
       baselineCommitment: golden.baselineCommitment,
       candidateCommitment: golden.candidateCommitment,
+      deadline: golden.deadline,
     },
     contributors: golden.contributors.map(c => ({
       walletAddress: c.walletAddress,

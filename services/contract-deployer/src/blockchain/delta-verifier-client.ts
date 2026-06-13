@@ -31,6 +31,7 @@ export interface MintRequestPayloadInput {
   anchors: BenchmarkAnchorsInput;
   baselineCommitment: string;
   candidateCommitment: string;
+  deadline: number;
 }
 
 export interface DeltaVerifierClientConfig {

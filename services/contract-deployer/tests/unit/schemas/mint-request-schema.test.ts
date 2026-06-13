@@ -17,6 +17,7 @@ describe('MintRequest schema', () => {
     attestation_hash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     idempotency_key: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     totalSamples: 140,
+    deadline: 4102444800,
     benchmark_spec_id: 'bench-1',
     dataset_hash: '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
     evaluation: {
@@ -86,6 +87,7 @@ describe('MintRequest schema', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 1000,
+      deadline: 4102444800,
       timestamp: '2026-05-05T12:00:00.000000+00:00',
       evaluation: {
         ...validMessage.evaluation,
@@ -132,6 +134,7 @@ describe('MintRequest schema', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 1000,
+      deadline: 4102444800,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_baseline: 1000,
@@ -366,6 +369,7 @@ describe('MintRequest schema', () => {
     const missingResult = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 100,
+      deadline: 4102444800,
       evaluation: {
         metric_name: validMessage.evaluation.metric_name,
         metric_family: validMessage.evaluation.metric_family,
@@ -378,6 +382,7 @@ describe('MintRequest schema', () => {
     const nullResult = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 100,
+      deadline: 4102444800,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: null,
@@ -387,6 +392,7 @@ describe('MintRequest schema', () => {
     const zeroCandidateResult = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 100,
+      deadline: 4102444800,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: 0,
@@ -411,6 +417,7 @@ describe('MintRequest schema', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 1000,
+      deadline: 4102444800,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: 0,
@@ -425,6 +432,7 @@ describe('MintRequest schema', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 1,
+      deadline: 4102444800,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: undefined,
@@ -464,6 +472,7 @@ describe('MintRequest schema', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 999,
+      deadline: 4102444800,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: 140,
@@ -477,6 +486,7 @@ describe('MintRequest schema', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 500,
+      deadline: 4102444800,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: undefined,
@@ -490,6 +500,7 @@ describe('MintRequest schema', () => {
     const result = validateMintRequestMessage({
       ...validMessage,
       totalSamples: 140,
+      deadline: 4102444800,
       evaluation: {
         ...validMessage.evaluation,
         sample_size_candidate: 140,

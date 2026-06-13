@@ -34,6 +34,8 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     error AttestationThresholdNotConfigured();
     error InsufficientAttesterSignatures(uint256 provided, uint256 required);
     error SignerNotAttester(address signer);
+    // Attester-signature expiry (HOK-2170): submission attempted past payload.deadline.
+    error SignatureExpired(uint256 deadline, uint256 currentTimestamp);
     /// @notice Signatures must be ordered by strictly ascending recovered signer address; this both
     /// enforces uniqueness (no double-counting one attester toward the threshold) and makes the call
     /// deterministic for m-of-n.
@@ -136,6 +138,12 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         // mint candidateCommitment becomes the new head — a hash-linked chain from genesis to head.
         bytes32 baselineCommitment;
         bytes32 candidateCommitment;
+        // Attester-signature expiry (HOK-2170). Unix timestamp past which this signed authorization is no
+        // longer submittable (revert SignatureExpired). Bounds the shelf life of a genuine-but-unsubmitted
+        // message held in the queue / a compromised relayer. The window is set by the signer (launch policy:
+        // 5 days); the contract only enforces non-expiry, and `deadline` is NOT part of the idempotency key,
+        // so an expired-but-unsubmitted request can be re-signed with a fresh deadline over identical content.
+        uint256 deadline;
     }
 
     ModelRegistry public immutable modelRegistry;
@@ -192,11 +200,11 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
     bytes32 private constant CONTRIBUTOR_TYPEHASH = keccak256("Contributor(address walletAddress,uint256 weight)");
     bytes32 private constant MINT_REQUEST_PAYLOAD_TYPEHASH =
         keccak256(
-            "MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors,bytes32 baselineCommitment,bytes32 candidateCommitment)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)"
+            "MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors,bytes32 baselineCommitment,bytes32 candidateCommitment,uint256 deadline)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)"
         );
     bytes32 private constant MINT_REQUEST_TYPEHASH =
         keccak256(
-            "MintRequest(uint256 modelId,MintRequestPayload payload,Contributor[] contributors)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)Contributor(address walletAddress,uint256 weight)MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors,bytes32 baselineCommitment,bytes32 candidateCommitment)"
+            "MintRequest(uint256 modelId,MintRequestPayload payload,Contributor[] contributors)BenchmarkAnchors(bytes32 benchmarkSpecHash,bytes32 datasetHash,bytes32 attestationHash,bytes32 idempotencyKey,string metricName,string metricFamily)Contributor(address walletAddress,uint256 weight)MintRequestPayload(string pipelineRunId,uint256 baselineScoreBps,uint256 candidateScoreBps,uint256 maxCostUsdMicro,uint256 actualCostUsdMicro,uint256 totalSamples,BenchmarkAnchors anchors,bytes32 baselineCommitment,bytes32 candidateCommitment,uint256 deadline)"
         );
 
     event EvaluationSubmitted(
@@ -422,6 +430,9 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         require(bytes(payload.anchors.metricName).length > 0, "Metric name cannot be empty");
         require(payload.baselineScoreBps <= 10000, "Baseline score exceeds 10000 bps");
         require(payload.candidateScoreBps <= 10000, "Candidate score exceeds 10000 bps");
+        // HOK-2170: reject expired attester authorizations. deadline is part of the signed digest, so it
+        // cannot be altered without invalidating the signature; this only enforces the time bound at submit.
+        if (block.timestamp > payload.deadline) revert SignatureExpired(payload.deadline, block.timestamp);
 
         // Authorization gate (HOK-2132): the mint must be signed by registered attester(s) over this exact
         // payload. Fail-closed if no threshold is configured. Verified before any state change or mint.
@@ -1043,7 +1054,8 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
                     payload.totalSamples,
                     _hashAnchors(payload.anchors),
                     payload.baselineCommitment,
-                    payload.candidateCommitment
+                    payload.candidateCommitment,
+                    payload.deadline
                 )
             );
     }

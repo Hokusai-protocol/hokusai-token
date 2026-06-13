@@ -22,6 +22,7 @@ describe('MintRequestProcessor', () => {
       '0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b',
     ],
     totalSamples: 140,
+    deadline: 4102444800,
     evaluation: {
       metric_name: 'sales:revenue_per_1000_messages',
       metric_family: 'zero_inflated_continuous',
@@ -77,6 +78,7 @@ describe('MintRequestProcessor', () => {
     await processor.process({
       ...message,
       totalSamples: 120,
+      deadline: 4102444800,
       evaluation: {
         ...message.evaluation,
         sample_size_candidate: 0,
@@ -119,6 +121,7 @@ describe('MintRequestProcessor', () => {
         idempotencyKey: message.idempotency_key,
         modelId: message.model_id,
         totalSamples: 140,
+        deadline: 4102444800,
         baselineCommitment: message.baseline_commitment,
         candidateCommitment: message.candidate_commitment,
         attesterSignatureCount: 1,
@@ -141,6 +144,7 @@ describe('MintRequestProcessor', () => {
     await processor.process({
       ...message,
       totalSamples: 120,
+      deadline: 4102444800,
       evaluation: {
         ...message.evaluation,
         ci_low_bps: null,
@@ -159,6 +163,7 @@ describe('MintRequestProcessor', () => {
         idempotencyKey: message.idempotency_key,
         modelId: message.model_id,
         totalSamples: 120,
+        deadline: 4102444800,
         baselineCommitment: message.baseline_commitment,
         candidateCommitment: message.candidate_commitment,
         attesterSignatureCount: 1,

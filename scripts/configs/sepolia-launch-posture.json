@@ -13,7 +13,7 @@
     "paused": false,
     "attesterThreshold": 1,
     "expectedAttesters": [
-      "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da"
+      "0x07bf9b22f516d2D464511219488F019c5dFF5335"
     ],
     "baseRewardRate": "1000",
     "minImprovementBps": 100,
@@ -24,7 +24,7 @@
       "modelId": 30,
       "expectedMintBudgetRemaining": "1500000000000000000000000",
       "expectedWeightGenesis": "0x2d1813cb95d8ed3c6423e230860521b10d37e3c47b9cab577cb1fc29250fa323",
-      "expectedTokensPerDeltaOne": "500000000000000000000000"
+      "expectedTokensPerDeltaOne": "250000000000000000000000"
     }
   ],
   "wiring": {

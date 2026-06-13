@@ -12,7 +12,10 @@ function loadJson(filePath) {
 
 function saveJson(filePath, data) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`);
+  fs.writeFileSync(
+    filePath,
+    `${JSON.stringify(data, (_key, value) => (typeof value === "bigint" ? value.toString() : value), 2)}\n`
+  );
 }
 
 function normalizeAddress(value) {
@@ -458,6 +461,10 @@ function buildVerifyReportPaths(network, timestamp) {
   };
 }
 
+function buildInitPlanPath(deploymentPath, network) {
+  return path.join(path.dirname(path.resolve(deploymentPath)), `launch-posture-${network}-init-plan.json`);
+}
+
 function buildSafeTx(chainId, safeAddress, txs) {
   return {
     version: SAFE_TX_BUILDER_VERSION,
@@ -498,16 +505,6 @@ async function planLaunchPostureInit({ hre, config, deployment }) {
       data: contract.interface.encodeFunctionData(method, args),
     });
   }
-
-  await addPlanItem({
-    name: "disableLegacyMints",
-    contractName: "DeltaVerifier",
-    contract: contracts.deltaVerifier,
-    method: "disableLegacyMints",
-    args: [],
-    skip: await contracts.deltaVerifier.legacyMintsDisabled(),
-    reason: "Legacy SUBMITTER-only mint entrypoints must be disabled",
-  });
 
   const expectedAttesters = resolveExpectedSet(config.deltaVerifier.expectedAttesters || [], context);
   const actualAttesters = await enumerateAttesters({
@@ -599,6 +596,19 @@ async function planLaunchPostureInit({ hre, config, deployment }) {
     });
   }
 
+  // disableLegacyMints must be the final on-chain action: if any earlier step fails, the
+  // canonical signed path (attesters, threshold, budget, genesis) is not yet functional, so
+  // leaving legacy paths open keeps the system operational until the full plan succeeds.
+  await addPlanItem({
+    name: "disableLegacyMints",
+    contractName: "DeltaVerifier",
+    contract: contracts.deltaVerifier,
+    method: "disableLegacyMints",
+    args: [],
+    skip: await contracts.deltaVerifier.legacyMintsDisabled(),
+    reason: "Legacy SUBMITTER-only mint entrypoints must be disabled",
+  });
+
   return {
     network: hre.network.name,
     timestamp: new Date().toISOString(),
@@ -625,6 +635,7 @@ module.exports = {
   ZERO_HASH,
   addressesEqual,
   assertLaunchPosture,
+  buildInitPlanPath,
   buildSafeTx,
   buildVerifyReportPaths,
   executeLaunchPosturePlan,

@@ -1,6 +1,7 @@
 const path = require("path");
 
 const {
+  buildInitPlanPath,
   buildSafeTx,
   executeLaunchPosturePlan,
   loadLaunchPostureConfig,
@@ -43,10 +44,19 @@ async function runInitLaunchPosture(hre, argv = process.argv.slice(2)) {
     config: loaded.config,
     deployment: loaded.deployment,
   });
+  saveJson(buildInitPlanPath(loaded.deploymentPath, hre.network.name), {
+    mode,
+    generatedAt: new Date().toISOString(),
+    network: hre.network.name,
+    configPath: loaded.configPath,
+    deploymentPath: loaded.deploymentPath,
+    plan: plan.plan,
+  });
 
   printPlan(plan);
   if (mode === "execute" && plan.plan.length > 0) {
-    const [signer] = await hre.ethers.getSigners();
+    const { getDeploySigner } = require("./lib/get-deploy-signer");
+    const signer = await getDeploySigner(hre);
     await executeLaunchPosturePlan({ signer, hre, plan });
   } else if (mode === "safe-txs") {
     const providerNetwork = await hre.ethers.provider.getNetwork();

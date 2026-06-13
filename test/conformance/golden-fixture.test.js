@@ -44,6 +44,7 @@ function buildPayload(golden) {
     },
     baselineCommitment: golden.baselineCommitment,
     candidateCommitment: golden.candidateCommitment,
+    deadline: golden.deadline,
   };
 }
 

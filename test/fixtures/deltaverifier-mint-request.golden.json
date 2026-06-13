@@ -14,6 +14,7 @@
   "metricFamily": "proportion",
   "baselineCommitment": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "candidateCommitment": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "deadline": 4102444800,
   "contributors": [
     {
       "walletAddress": "0x742d35cc6634c0532925a3b844bc9e7595f62341",

@@ -52,6 +52,7 @@ function canonicalSubset(message: MintRequestMessage) {
     maxCostUsdMicro: message.evaluation.max_cost_usd_micro,
     actualCostUsdMicro: message.evaluation.actual_cost_usd_micro,
     totalSamples: message.totalSamples,
+    deadline: message.deadline,
     benchmarkSpecHash: ethers.keccak256(ethers.toUtf8Bytes(message.benchmark_spec_id)),
     datasetHash: message.dataset_hash,
     attestationHash: message.attestation_hash,

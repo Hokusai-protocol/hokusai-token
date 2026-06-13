@@ -59,6 +59,8 @@ export interface MintRequestMessage {
   candidate_commitment: string;
   attester_signatures: string[];
   totalSamples: number;
+  // HOK-2170: unix timestamp past which the attester signature is no longer submittable.
+  deadline: number;
   evaluation: MintRequestEvaluation;
   contributors: MintRequestContributor[];
   _retryCount?: number;
@@ -157,6 +159,7 @@ const mintRequestSchema = Joi.object<MintRequestMessage>({
     .max(8)
     .required(),
   totalSamples: Joi.number().integer().min(1).required(),
+  deadline: Joi.number().integer().min(1).required(),
   evaluation: evaluationSchema.required(),
   contributors: Joi.array()
     .items(contributorSchema)

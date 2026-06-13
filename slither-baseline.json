@@ -1,6 +1,6 @@
 {
   "_comment": "Accepted or triaged Slither findings. Each entry must include a justification and review metadata. See docs/slither-static-analysis.md.",
-  "_retriage": "HOK-2137: re-triaged 2026-06-10 against DeltaVerifier.sol and ModelRegistry.sol. Zero un-acknowledged High/Medium findings. All existing DeltaVerifier Medium unused-return entries (044352de, 3a7488a0) confirmed still valid — contribution IDs are intentionally not consumed; registry side effect is canonical. Slither 0.11.5, 146 results, 16 High/Medium.",
+  "_retriage": "HOK-2137: re-triaged 2026-06-10 against DeltaVerifier.sol and ModelRegistry.sol. Zero un-acknowledged High/Medium findings. All existing DeltaVerifier Medium unused-return entries (044352de, 3a7488a0) confirmed still valid \u2014 contribution IDs are intentionally not consumed; registry side effect is canonical. Slither 0.11.5, 146 results, 16 High/Medium.",
   "accepted": [
     {
       "id": "1d7ad28cad4e8097946a98348cad9ba5573af5b8c2c21093f73f9662a88325cf",
@@ -941,16 +941,16 @@
       "followUp": "HOK-1823"
     },
     {
-      "id": "044352de0d56f3845194d1f8821a011d1fdb867009f8cea8c9adebf15748063d",
+      "id": "1d380cd226e5c12a92f009f0f6de6b6d9f5a95aca36f579bd53b5230a700e7ad",
       "check": "unused-return",
-      "justification": "Residual DeltaVerifier registry-call finding; IDs re-synced after HOK-2133 lineage additions shifted the _recordSingleContribution line range. Contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "justification": "Residual DeltaVerifier registry-call finding; IDs re-synced after HOK-2170 deadline field shifted _recordSingleContribution line numbers (same unchecked registry call, no logic change).",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },
     {
-      "id": "3a7488a037575903323c8205ee30c6ab7e2fd035e51d19710c8b1d68ee945657",
+      "id": "e6e2bd5e3da09ddbb0c291777b12e3f81031b98f615c4008c27fb88e1c672ce4",
       "check": "unused-return",
-      "justification": "Residual DeltaVerifier batch registry-call finding; IDs re-synced after HOK-2133 lineage additions shifted the _recordContributions line range. Contribution IDs are intentionally not consumed because the registry side effect is the canonical record.",
+      "justification": "Residual DeltaVerifier batch registry-call finding; IDs re-synced after HOK-2170 deadline field shifted _recordContributions line numbers (same unchecked registry call, no logic change).",
       "reviewedBy": "codex",
       "followUp": "HOK-1823"
     },

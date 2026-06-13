@@ -1,0 +1,132 @@
+{
+  "timestamp": "2026-06-13T13:21:17.306Z",
+  "network": "sepolia",
+  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/scripts/configs/sepolia-launch-posture.json",
+  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/deployments/sepolia-latest.json",
+  "overall": "pass",
+  "assertions": [
+    {
+      "name": "deltaVerifier.legacyMintsDisabled",
+      "passed": true,
+      "expected": true,
+      "actual": true,
+      "message": "legacy mint entrypoints disabled"
+    },
+    {
+      "name": "deltaVerifier.paused",
+      "passed": true,
+      "expected": false,
+      "actual": false,
+      "message": "pause state matches"
+    },
+    {
+      "name": "deltaVerifier.attesterThreshold",
+      "passed": true,
+      "expected": "1",
+      "actual": "1",
+      "message": "threshold matches"
+    },
+    {
+      "name": "deltaVerifier.attesterCount",
+      "passed": true,
+      "expected": ">= 1",
+      "actual": "1",
+      "message": "attester count satisfies threshold"
+    },
+    {
+      "name": "deltaVerifier.attesterSet",
+      "passed": true,
+      "expected": {
+        "expected": [
+          "0x07bf9b22f516d2d464511219488f019c5dff5335"
+        ]
+      },
+      "actual": {
+        "actual": [
+          "0x07bf9b22f516d2d464511219488f019c5dff5335"
+        ],
+        "missing": [],
+        "unexpected": []
+      },
+      "message": "attester set matches"
+    },
+    {
+      "name": "deltaVerifier.baseRewardRate",
+      "passed": true,
+      "expected": "1000",
+      "actual": "1000",
+      "message": "baseRewardRate matches"
+    },
+    {
+      "name": "deltaVerifier.minImprovementBps",
+      "passed": true,
+      "expected": "100",
+      "actual": "100",
+      "message": "minImprovementBps matches"
+    },
+    {
+      "name": "deltaVerifier.maxReward",
+      "passed": true,
+      "expected": "2500000000000000000000000",
+      "actual": "2500000000000000000000000",
+      "message": "maxReward matches"
+    },
+    {
+      "name": "model.30.mintBudgetRemaining",
+      "passed": true,
+      "expected": "1500000000000000000000000",
+      "actual": "1500000000000000000000000",
+      "message": "mint budget matches"
+    },
+    {
+      "name": "model.30.weightGenesis",
+      "passed": true,
+      "expected": "0x2d1813cb95d8ed3c6423e230860521b10d37e3c47b9cab577cb1fc29250fa323",
+      "actual": "0x2d1813cb95d8ed3c6423e230860521b10d37e3c47b9cab577cb1fc29250fa323",
+      "message": "weight genesis matches"
+    },
+    {
+      "name": "model.30.tokensPerDeltaOne",
+      "passed": true,
+      "expected": "250000000000000000000000",
+      "actual": "250000000000000000000000",
+      "message": "tokensPerDeltaOne matches"
+    },
+    {
+      "name": "wiring.DeltaVerifier.modelRegistry",
+      "passed": true,
+      "expected": "0x54f6DB01de8A50Ea9dC78ee0Ba1Ce21655D4B63F",
+      "actual": "0x54f6DB01de8A50Ea9dC78ee0Ba1Ce21655D4B63F",
+      "message": "wiring matches"
+    },
+    {
+      "name": "wiring.DeltaVerifier.tokenManager",
+      "passed": true,
+      "expected": "0x2CC0A575001572468F630D66abaC4881384D679b",
+      "actual": "0x2CC0A575001572468F630D66abaC4881384D679b",
+      "message": "wiring matches"
+    },
+    {
+      "name": "wiring.DeltaVerifier.contributionRegistry",
+      "passed": true,
+      "expected": "0x64d6B28A56e29Aaf06a321e912a453A9d370F397",
+      "actual": "0x64d6B28A56e29Aaf06a321e912a453A9d370F397",
+      "message": "wiring matches"
+    },
+    {
+      "name": "wiring.TokenManager.deltaVerifier",
+      "passed": true,
+      "expected": "0xBDfE2D6C0a55cC5FA6726C79654cFcDD11dD03CD",
+      "actual": "0xBDfE2D6C0a55cC5FA6726C79654cFcDD11dD03CD",
+      "message": "wiring matches"
+    },
+    {
+      "name": "wiring.ModelRegistry.stringModelTokenManager",
+      "passed": true,
+      "expected": "0x2CC0A575001572468F630D66abaC4881384D679b",
+      "actual": "0x2CC0A575001572468F630D66abaC4881384D679b",
+      "message": "wiring matches"
+    }
+  ],
+  "failures": []
+}

@@ -1,4 +1,5 @@
 const { expect } = require("chai");
+const { KMSClient } = require("@aws-sdk/client-kms");
 const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
@@ -17,9 +18,14 @@ const DEPLOYMENT_FILE =
 const RUN_READ_ONLY =
   process.env.SEPOLIA_E2E === "1" || process.env.SEPOLIA_E2E_READONLY === "1";
 const RUN_WRITE = process.env.SEPOLIA_E2E_WRITE === "1";
-const WRITE_MODEL_ID =
-  process.env.E2E_MODEL_ID || MODEL_MAPPINGS[0]?.modelId || "27";
+const WRITE_MODEL_ID = process.env.E2E_MODEL_ID || "30";
 const FIXED_SECOND_CONTRIBUTOR = "0x742d35cc6634c0532925a3b844bc9e7595f62341";
+const WRITE_KMS_ENV_VARS = [
+  "KMS_DEPLOYER_KEY_ID",
+  "KMS_DEPLOYER_EXPECTED_ADDRESS",
+  "KMS_BACKEND_KEY_ID",
+  "KMS_BACKEND_EXPECTED_ADDRESS",
+];
 
 const ABIS = {
   modelRegistry: [
@@ -116,7 +122,12 @@ function describeSepolia(name, fn) {
 }
 
 function describeSepoliaWrite(name, fn) {
-  return RUN_WRITE ? describe(name, fn) : describe.skip(name, fn);
+  if (RUN_WRITE && !hasRequiredWriteKmsEnv()) {
+    console.warn(
+      `Skipping ${name}: missing required KMS env (${missingWriteKmsEnv().join(", ")})`
+    );
+  }
+  return RUN_WRITE && hasRequiredWriteKmsEnv() ? describe(name, fn) : describe.skip(name, fn);
 }
 
 function loadDeployment() {
@@ -127,6 +138,62 @@ function loadDeployment() {
 
 function hash(label) {
   return ethers.keccak256(ethers.toUtf8Bytes(label));
+}
+
+function loadKmsSignerClass() {
+  try {
+    return require("../../services/contract-deployer/dist/blockchain/kms-signer").KmsSigner;
+  } catch (error) {
+    throw new Error(
+      "KMS signer support requires services/contract-deployer to be built first: run npm --prefix services/contract-deployer run build"
+    );
+  }
+}
+
+function missingWriteKmsEnv() {
+  return WRITE_KMS_ENV_VARS.filter((name) => !process.env[name]);
+}
+
+function hasRequiredWriteKmsEnv() {
+  return missingWriteKmsEnv().length === 0;
+}
+
+async function loadKmsSigner({ keyIdEnv, expectedAddressEnv }) {
+  const keyId = process.env[keyIdEnv];
+  const expectedAddress = process.env[expectedAddressEnv];
+  if (!keyId || !expectedAddress) {
+    throw new Error(`Missing ${keyIdEnv} or ${expectedAddressEnv}`);
+  }
+
+  const KmsSigner = loadKmsSignerClass();
+  const signer = await KmsSigner.fromKeyId({
+    client: new KMSClient({ region: process.env.AWS_REGION || "us-east-1" }),
+    keyId,
+    provider: ethers.provider,
+  });
+  const derivedAddress = ethers.getAddress(await signer.getAddress());
+  const expected = ethers.getAddress(expectedAddress);
+  if (derivedAddress !== expected) {
+    throw new Error(
+      `KMS signer address pin mismatch for ${keyIdEnv}: derived=${derivedAddress}, expected=${expected}, alias=${keyId}`
+    );
+  }
+
+  return signer;
+}
+
+async function loadKmsAttesterSigner() {
+  return loadKmsSigner({
+    keyIdEnv: "KMS_DEPLOYER_KEY_ID",
+    expectedAddressEnv: "KMS_DEPLOYER_EXPECTED_ADDRESS",
+  });
+}
+
+async function loadKmsSubmitterSigner() {
+  return loadKmsSigner({
+    keyIdEnv: "KMS_BACKEND_KEY_ID",
+    expectedAddressEnv: "KMS_BACKEND_EXPECTED_ADDRESS",
+  });
 }
 
 function buildMintRequestFixture(modelId, signerAddress) {
@@ -232,6 +299,7 @@ describeSepolia("Sepolia end-to-end launch preconditions", function () {
   let deployment;
   let contracts;
   let signer;
+  let attesterSigner;
   let chainId;
   let modelRegistry;
   let tokenManager;
@@ -243,6 +311,9 @@ describeSepolia("Sepolia end-to-end launch preconditions", function () {
     contracts = deployment.contracts;
     [signer] = await ethers.getSigners();
     chainId = (await ethers.provider.getNetwork()).chainId;
+    attesterSigner = hasRequiredWriteKmsEnv()
+      ? await loadKmsAttesterSigner()
+      : signer;
 
     modelRegistry = new ethers.Contract(
       contracts.ModelRegistry,
@@ -305,7 +376,7 @@ describeSepolia("Sepolia end-to-end launch preconditions", function () {
       expect(processed).to.equal(false);
 
       const attesterSignatures = await signMintRequestAttestation({
-        attester: signer,
+        attester: attesterSigner,
         deltaVerifierAddress: contracts.DeltaVerifier,
         chainId,
         modelId: fixture.modelId,
@@ -357,7 +428,8 @@ describeSepoliaWrite("Sepolia live MintRequest write mode", function () {
 
   let deployment;
   let contracts;
-  let signer;
+  let attesterSigner;
+  let submitterSigner;
   let chainId;
   let tokenManager;
   let deltaVerifier;
@@ -369,22 +441,27 @@ describeSepoliaWrite("Sepolia live MintRequest write mode", function () {
   before(async function () {
     deployment = loadDeployment();
     contracts = deployment.contracts;
-    [signer] = await ethers.getSigners();
     chainId = (await ethers.provider.getNetwork()).chainId;
+    attesterSigner = await loadKmsAttesterSigner();
+    submitterSigner = await loadKmsSubmitterSigner();
+
+    expect(await attesterSigner.getAddress()).to.not.equal(
+      await submitterSigner.getAddress()
+    );
 
     tokenManager = new ethers.Contract(
       contracts.TokenManager,
       ABIS.tokenManager,
-      signer
+      submitterSigner
     );
     deltaVerifier = new ethers.Contract(
       contracts.DeltaVerifier,
       ABIS.deltaVerifier,
-      signer
+      submitterSigner
     );
 
     const tokenAddress = await tokenManager.getTokenAddress(WRITE_MODEL_ID);
-    token = new ethers.Contract(tokenAddress, ABIS.erc20, signer);
+    token = new ethers.Contract(tokenAddress, ABIS.erc20, submitterSigner);
   });
 
   it(`submits a live MintRequest for model ${WRITE_MODEL_ID} and burns on-chain idempotency`, async function () {
@@ -402,7 +479,7 @@ describeSepoliaWrite("Sepolia live MintRequest write mode", function () {
 
     fixture = buildWriteMintRequestFixture({
       modelId: WRITE_MODEL_ID,
-      signerAddress: signer.address,
+      signerAddress: await submitterSigner.getAddress(),
       blockNumber,
       runSeed,
       baselineCommitment,
@@ -418,7 +495,7 @@ describeSepoliaWrite("Sepolia live MintRequest write mode", function () {
     ).to.equal(false);
 
     attesterSignatures = await signMintRequestAttestation({
-      attester: signer,
+      attester: attesterSigner,
       deltaVerifierAddress: contracts.DeltaVerifier,
       chainId,
       modelId: fixture.modelId,

@@ -1,5 +1,5 @@
 {
-  "_comment": "This describes the intended Sepolia launch posture. It is expected to fail until Sepolia is initialized.",
+  "_comment": "HOK-2176 Sepolia rehearsal launch posture. Scoped to Model 30 only; role handoff remains a follow-up task.",
   "network": "sepolia",
   "chainId": 11155111,
   "deploymentArtifactPath": "deployments/sepolia-latest.json",
@@ -7,13 +7,13 @@
   "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
   "emergencySafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
   "deployerAddress": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
-  "submitterRelayer": "0x0000000000000000000000000000000000000001",
+  "submitterRelayer": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
   "deltaVerifier": {
     "legacyMintsDisabled": true,
     "paused": false,
     "attesterThreshold": 1,
     "expectedAttesters": [
-      "0x0000000000000000000000000000000000000002"
+      "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da"
     ],
     "baseRewardRate": "1000",
     "minImprovementBps": 100,
@@ -21,70 +21,12 @@
   },
   "models": [
     {
-      "modelId": 27,
-      "expectedMintBudgetRemaining": "1500000000000000000000000",
-      "expectedWeightGenesis": "0x1111111111111111111111111111111111111111111111111111111111111111",
-      "expectedTokensPerDeltaOne": "500000000000000000000000"
-    },
-    {
-      "modelId": 28,
-      "expectedMintBudgetRemaining": "1500000000000000000000000",
-      "expectedWeightGenesis": "0x2222222222222222222222222222222222222222222222222222222222222222",
-      "expectedTokensPerDeltaOne": "500000000000000000000000"
-    },
-    {
       "modelId": 30,
       "expectedMintBudgetRemaining": "1500000000000000000000000",
-      "expectedWeightGenesis": "0x3333333333333333333333333333333333333333333333333333333333333333",
+      "expectedWeightGenesis": "0x2d1813cb95d8ed3c6423e230860521b10d37e3c47b9cab577cb1fc29250fa323",
       "expectedTokensPerDeltaOne": "500000000000000000000000"
     }
   ],
-  "roleAudit": {
-    "DeltaVerifier": {
-      "DEFAULT_ADMIN_ROLE": {
-        "expected": [
-          "ADMIN_SAFE"
-        ],
-        "forbidden": [
-          "DEPLOYER"
-        ]
-      },
-      "PAUSER_ROLE": {
-        "expected": [
-          "EMERGENCY_SAFE"
-        ],
-        "forbidden": [
-          "DEPLOYER"
-        ]
-      },
-      "SUBMITTER_ROLE": {
-        "expected": [
-          "RELAYER"
-        ],
-        "forbidden": [
-          "DEPLOYER"
-        ]
-      }
-    },
-    "DataContributionRegistry": {
-      "DEFAULT_ADMIN_ROLE": {
-        "expected": [
-          "ADMIN_SAFE"
-        ],
-        "forbidden": [
-          "DEPLOYER"
-        ]
-      },
-      "RECORDER_ROLE": {
-        "expected": [
-          "CONTRACT:DeltaVerifier"
-        ],
-        "forbidden": [
-          "DEPLOYER"
-        ]
-      }
-    }
-  },
   "wiring": {
     "DeltaVerifier.modelRegistry": "CONTRACT:ModelRegistry",
     "DeltaVerifier.tokenManager": "CONTRACT:TokenManager",

@@ -1,0 +1,19 @@
+{
+  "version": "sha256-merkle-v1",
+  "modelId": 30,
+  "label": "sepolia-rehearsal-model-30",
+  "files": [
+    {
+      "path": "config.json",
+      "hex": "0x6f14f08f37befd8320131df52d6f16f9c65bd4d4b9f9cb9372edd47d4508f906"
+    },
+    {
+      "path": "weights/layer-0.bin",
+      "hex": "0x22dc92e6c6d7b600453f12eff3878018b7c536d4a6e82f26490d9f8ceca72af0"
+    },
+    {
+      "path": "weights/layer-1.bin",
+      "hex": "0x381cdca3d37d851a2d7ebcc63f2db469c0c5f386825612eea7c0cd6ab7af4df9"
+    }
+  ]
+}

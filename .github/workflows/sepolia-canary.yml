@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: sepolia-canary
@@ -17,9 +18,16 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
-      PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
-      SEPOLIA_PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      KMS_DEPLOYER_KEY_ID: ${{ secrets.KMS_DEPLOYER_KEY_ID }}
+      KMS_DEPLOYER_EXPECTED_ADDRESS: ${{ vars.KMS_DEPLOYER_EXPECTED_ADDRESS }}
+      KMS_BACKEND_KEY_ID: ${{ secrets.KMS_BACKEND_KEY_ID }}
+      KMS_BACKEND_EXPECTED_ADDRESS: ${{ vars.KMS_BACKEND_EXPECTED_ADDRESS }}
       E2E_DEPLOYMENT_FILE: ${{ vars.E2E_DEPLOYMENT_FILE || 'deployments/sepolia-latest.json' }}
+      E2E_MODEL_ID: "30"
+      SEPOLIA_E2E_WRITE: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -30,6 +38,12 @@ jobs:
 
       - run: npm ci
 
+      - run: npm ci
+        working-directory: services/contract-deployer
+
+      - run: npm run build
+        working-directory: services/contract-deployer
+
       - run: npx hardhat compile
 
-      - run: SEPOLIA_E2E_WRITE=1 npx hardhat test test/e2e/sepolia-end-to-end.test.js --network sepolia
+      - run: npx hardhat test test/e2e/sepolia-end-to-end.test.js --network sepolia

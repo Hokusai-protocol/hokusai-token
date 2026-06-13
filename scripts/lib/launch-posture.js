@@ -12,7 +12,10 @@ function loadJson(filePath) {
 
 function saveJson(filePath, data) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`);
+  fs.writeFileSync(
+    filePath,
+    `${JSON.stringify(data, (_key, value) => (typeof value === "bigint" ? value.toString() : value), 2)}\n`
+  );
 }
 
 function normalizeAddress(value) {
@@ -458,6 +461,10 @@ function buildVerifyReportPaths(network, timestamp) {
   };
 }
 
+function buildInitPlanPath(deploymentPath, network) {
+  return path.join(path.dirname(path.resolve(deploymentPath)), `launch-posture-${network}-init-plan.json`);
+}
+
 function buildSafeTx(chainId, safeAddress, txs) {
   return {
     version: SAFE_TX_BUILDER_VERSION,
@@ -625,6 +632,7 @@ module.exports = {
   ZERO_HASH,
   addressesEqual,
   assertLaunchPosture,
+  buildInitPlanPath,
   buildSafeTx,
   buildVerifyReportPaths,
   executeLaunchPosturePlan,

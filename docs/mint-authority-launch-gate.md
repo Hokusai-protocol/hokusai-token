@@ -182,3 +182,34 @@ The launch-gate delta from the earlier pre-hardening DeltaVerifier audit is the 
 
 - Status: pending manual execution before launch.
 - Evidence to record: over-budget revert tx hash, alert timestamp or incident ID, top-up tx hash, successful retry tx hash.
+
+## Runbook 5: Sepolia launch-posture rehearsal (HOK-2176)
+
+### Rehearsal posture
+
+- Attester address: `0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da` (`KMS_DEPLOYER_KEY_ID=alias/hokusai/development/ethereum/sepolia/deployer`)
+- Submitter address: `0xbe2640bB22ae79f0d611aC727036fEBcFB7acf0c` (`KMS_BACKEND_KEY_ID=alias/hokusai/development/ethereum/sepolia/submitter`)
+- Model scope: Model `30` only
+- Mint budget: `1500000000000000000000000` (1.5M tokens, 18 decimals)
+- Weight commitment version: `sha256-merkle-v1`
+- Weight genesis: `0x2d1813cb95d8ed3c6423e230860521b10d37e3c47b9cab577cb1fc29250fa323`
+
+The rehearsal genesis is reproducible from [test/fixtures/sepolia-rehearsal-model-30.json](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/sepolia-launch-posture-configuration-attesters-threshold-budgets-weight-genesis-disablelegacymints/test/fixtures/sepolia-rehearsal-model-30.json:1) with `node scripts/compute-weight-genesis.js --fixture test/fixtures/sepolia-rehearsal-model-30.json`.
+
+### Execution record
+
+- `disableLegacyMints()`: pending live execution
+- `addAttester(0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da)`: pending live execution
+- `setAttesterThreshold(1)`: pending live execution
+- `setMintBudget(30, 1500000000000000000000000)`: pending live execution
+- `setWeightGenesis(30, 0x2d1813cb95d8ed3c6423e230860521b10d37e3c47b9cab577cb1fc29250fa323)`: pending live execution
+- `setBaseRewardRate(1000)`: pending drift check on live state
+- `setMinImprovementBps(100)`: pending drift check on live state
+- `setMaxReward(2500000000000000000000000)`: pending drift check on live state
+- Verify snapshot: `deployments/launch-posture-sepolia-latest.json`
+- Canary run URL: pending live execution
+
+### Notes
+
+- `DEFAULT_ADMIN_ROLE`, `PAUSER_ROLE`, and `SUBMITTER_ROLE` handoff to the Safe remains out of scope for HOK-2176 and is intentionally not enforced by the Sepolia launch-posture config.
+- The weekly Sepolia canary now requires separate KMS attester and submitter credentials and fails closed if those identities collapse to the same address or if the attester configuration drifts.

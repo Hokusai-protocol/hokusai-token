@@ -506,16 +506,6 @@ async function planLaunchPostureInit({ hre, config, deployment }) {
     });
   }
 
-  await addPlanItem({
-    name: "disableLegacyMints",
-    contractName: "DeltaVerifier",
-    contract: contracts.deltaVerifier,
-    method: "disableLegacyMints",
-    args: [],
-    skip: await contracts.deltaVerifier.legacyMintsDisabled(),
-    reason: "Legacy SUBMITTER-only mint entrypoints must be disabled",
-  });
-
   const expectedAttesters = resolveExpectedSet(config.deltaVerifier.expectedAttesters || [], context);
   const actualAttesters = await enumerateAttesters({
     deltaVerifier: contracts.deltaVerifier,
@@ -605,6 +595,19 @@ async function planLaunchPostureInit({ hre, config, deployment }) {
       reason: `${field} mismatch`,
     });
   }
+
+  // disableLegacyMints must be the final on-chain action: if any earlier step fails, the
+  // canonical signed path (attesters, threshold, budget, genesis) is not yet functional, so
+  // leaving legacy paths open keeps the system operational until the full plan succeeds.
+  await addPlanItem({
+    name: "disableLegacyMints",
+    contractName: "DeltaVerifier",
+    contract: contracts.deltaVerifier,
+    method: "disableLegacyMints",
+    args: [],
+    skip: await contracts.deltaVerifier.legacyMintsDisabled(),
+    reason: "Legacy SUBMITTER-only mint entrypoints must be disabled",
+  });
 
   return {
     network: hre.network.name,

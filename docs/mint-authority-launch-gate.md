@@ -194,7 +194,7 @@ The launch-gate delta from the earlier pre-hardening DeltaVerifier audit is the 
 - Weight commitment version: `sha256-merkle-v1`
 - Weight genesis: `0x2d1813cb95d8ed3c6423e230860521b10d37e3c47b9cab577cb1fc29250fa323`
 
-The rehearsal genesis is reproducible from [test/fixtures/sepolia-rehearsal-model-30.json](/Users/timothyogilvie/Dropbox/Hokusai/worktrees/sepolia-launch-posture-configuration-attesters-threshold-budgets-weight-genesis-disablelegacymints/test/fixtures/sepolia-rehearsal-model-30.json:1) with `node scripts/compute-weight-genesis.js --fixture test/fixtures/sepolia-rehearsal-model-30.json`.
+The rehearsal genesis is reproducible from [test/fixtures/sepolia-rehearsal-model-30.json](../test/fixtures/sepolia-rehearsal-model-30.json) with `node scripts/compute-weight-genesis.js --fixture test/fixtures/sepolia-rehearsal-model-30.json`.
 
 ### Execution record
 

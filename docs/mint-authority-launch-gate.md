@@ -213,3 +213,47 @@ The rehearsal genesis is reproducible from [test/fixtures/sepolia-rehearsal-mode
 
 - `DEFAULT_ADMIN_ROLE`, `PAUSER_ROLE`, and `SUBMITTER_ROLE` handoff to the Safe remains out of scope for HOK-2176 and is intentionally not enforced by the Sepolia launch-posture config.
 - The weekly Sepolia canary now requires separate KMS attester and submitter credentials and fails closed if those identities collapse to the same address or if the attester configuration drifts.
+
+## Gate 7 — Adversarial Dress Rehearsal: Execution Record (HOK-2177)
+
+Executed 2026-06-14 against the deadline-aware Sepolia deployment. This is the HOK-2119
+proof-of-fix: the hand-forged MintRequest that minted 1,000,000 tokens on 2026-06-08
+(tx `0x2937083221e4c6e00ba71462996456e78d9b338b57591661ef37f267d55806de`) is re-run and
+must now be rejected.
+
+**Live stack:** DeltaVerifier `0x867E61c9D4ccF1419180B3257314fa8CEb2D27a6`,
+ModelRegistry `0x62f61e2505B96662cEF2168635244AFEE3C0F12E`, HROUT token (model 30)
+`0x36D3503C11ebb3c30adA3fa13fb60795062f667B`. Attester `0x07bf9b22f516d2D464511219488F019c5dFF5335`
+(hardware wallet, separated custody), threshold 1. Submitter: KMS backend
+`0xbe2640bB22ae79f0d611aC727036fEBcFB7acf0c`. Harnesses: `scripts/gate7-adversarial-sepolia.js`,
+`scripts/gate7-part1-sepolia.js`.
+
+### Part 1 — real signed mint (separated custody) — PASS
+
+- Operator signed the canonical Model-30 MintRequest digest
+  `0x383d7cbf7ed4647c6f033200695ddae527c9aa0b30b3c0a798ed010b9f95e30e` on the `0x07bf`
+  hardware wallet; signature recovered to the registered attester (verified pre-submit).
+- Mint tx `0x6d266ad2fb33771c0bb000ff63e4f8c8c3221f78fb96c17f71df5a64d1ef40c8`
+  (block 11058422, status 1): `DeltaOneAccepted` + `ModelLineageAdvanced` emitted.
+- Lineage head advanced genesis `0x2d18…fa323` → candidate `0xd3c0c7c3…155cfea`.
+- Reward 250,000 tokens drawn from budget (1,500,000 → 1,250,000): 50,000 (20%) to the
+  contributor, 200,000 (80%) to infrastructure accrual per HROUT `infrastructureAccrualBps=8000`.
+
+### Part 2 — adversarial battery — ALL REJECTED
+
+Every variant submitted via the legitimate SUBMITTER and reverted on-chain:
+
+| Attack | On-chain result |
+|---|---|
+| Forged MintRequest, no attester signature | `InsufficientAttesterSignatures` |
+| Forged, malformed signature | reverts at ECDSA decode |
+| **June-8 re-run: fake attestation/dataset hashes + attacker-chosen recipient, signed by a non-attester key** | **`SignerNotAttester`** |
+| Valid-shape request past its deadline | `SignatureExpired` (HOK-2170) |
+| Legacy `submitEvaluation` entrypoint | `LegacyMintEntrypointDisabled` |
+| Replay of the Part-1 signed message | reverted (idempotency key burned) |
+| Tamper-after-sign (mutate recipient, keep signature) | `SignerNotAttester` (digest binding) |
+
+**Outcome:** the exact forgery that succeeded on 2026-06-08 now reverts `SignerNotAttester`.
+HOK-2119 is fixed and verified on a live network. Exact revert reasons for the RPC cases are
+corroborated by the merged Hardhat suites (`DeltaVerifier.attesterSignature` / `.deadline` /
+`.disableLegacy` / `.lineage` / `.mintBudget`).

@@ -22,7 +22,7 @@ import { runDlqCli } from '../../scripts/dlq';
 import { createMockRedisClient, createMockRedisMulti } from '../mocks/redis-mock';
 
 const VENDORED_FIXTURE_PATH = path.resolve(__dirname, '../fixtures/mint_request.v1.json');
-const SUBMIT_MINT_REQUEST_SELECTOR = '0xc9b4e69b';
+const SUBMIT_MINT_REQUEST_SELECTOR = '0xaf829f8e';
 type MintRequestFixture = MintRequestMessage & {
   totalSamples: number;
   evaluation: MintRequestMessage['evaluation'] & {

@@ -419,6 +419,43 @@ can mint arbitrary rewards up to the per-model budget.
 - Mainnet must hold `DEFAULT_ADMIN_ROLE`/`PAUSER_ROLE` on the Safe so no single
   hot key can both mint-authorize and pause.
 
+## Runbook 7: DLQ Replay Drill (HOK-2178 / HOK-2173)
+
+Executed 2026-06-14 against a local Redis with two synthesized DLQ entries and the
+live Sepolia DeltaVerifier (`0x867E…`) for on-chain validation, using
+`services/contract-deployer/scripts/dlq.ts` (`npm run dlq`). The `list → inspect →
+replay` mechanics and the forged-entry security triage are fully exercised; the
+final on-chain *settlement* of the requeued message is deferred with the live mint
+drills (needs the consumer + hardware-wallet attester).
+
+Entries seeded:
+
+- **Legit** — `reason: "budget_exhausted (retries=3)"`, `failureClass: transient`,
+  `baseline_commitment` = current on-chain `modelWeightHead(30)`.
+- **Forged** — `reason: "...SignerNotAttester..."`, `failureClass: permanent`,
+  attacker recipient `0x…dead` (June-8 forgery pattern).
+
+Results:
+
+| Step | Outcome |
+|---|---|
+| `list` | `#0` tagged `budget_exhausted` (replayable); `#1` tagged `SECURITY signer_not_attester` |
+| `inspect #1` | `securitySensitive: true` — "triage via the security runbook" |
+| `replay <forged> --execute` | **REFUSED**: "Forgery candidates must be triaged via the security runbook, not replayed" |
+| `discard <forged> --reason … --execute` | archived to `…:dlq:audit` with operator + reason; **not** replayed |
+| `replay <legit> --execute` | on-chain checks pass (schema ✓, `processed=false`, `weightHead` matches `baseline_commitment`, budget 1.25M available) → removed from DLQ, requeued to `hokusai:mint_requests`, audit entry written |
+
+Final state: DLQ empty, main queue holds the requeued legit message
+(`baseline_commitment == on-chain head`), audit log holds both the `discard`
+(security) and `replay` actions. Confirms: budget-exhausted entries are safely
+replayable after on-chain re-validation; forged (`signer_not_attester`) entries are
+fail-closed against replay and routed to security triage.
+
+### Evidence to record at the live settlement step
+
+- DLQ entry id, replay tx hash from the consumer, single `DeltaOneAccepted`
+  settlement, and confirmation the idempotency key is then `processed` on-chain.
+
 ## Deferred live mint drills (next session — needs Ledger operator)
 
 The following require a *valid attester signature*, which on Sepolia means the

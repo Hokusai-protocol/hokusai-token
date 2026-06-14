@@ -16,9 +16,9 @@
       "licenseURI": "https://hokusai.ai/licenses/standard",
       "governor": "0xPLACEHOLDER_GOVERNOR_HMESS",
       "vestingConfig": {
-        "enabled": false,
-        "immediateUnlockBps": 10000,
-        "vestingDurationSeconds": 0,
+        "enabled": true,
+        "immediateUnlockBps": 1000,
+        "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
       "distributionTiming": "post-verification",
@@ -48,9 +48,9 @@
       "licenseURI": "https://hokusai.ai/licenses/standard",
       "governor": "0xPLACEHOLDER_GOVERNOR_HLEAD",
       "vestingConfig": {
-        "enabled": false,
-        "immediateUnlockBps": 10000,
-        "vestingDurationSeconds": 0,
+        "enabled": true,
+        "immediateUnlockBps": 1000,
+        "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
       "distributionTiming": "post-verification",
@@ -80,9 +80,9 @@
       "licenseURI": "https://hokusai.ai/licenses/standard",
       "governor": "0xPLACEHOLDER_GOVERNOR_HROUT",
       "vestingConfig": {
-        "enabled": false,
-        "immediateUnlockBps": 10000,
-        "vestingDurationSeconds": 0,
+        "enabled": true,
+        "immediateUnlockBps": 1000,
+        "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
       "distributionTiming": "post-verification",

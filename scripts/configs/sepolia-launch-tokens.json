@@ -17,8 +17,8 @@
       "governor": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
       "vestingConfig": {
         "enabled": true,
-        "immediateUnlockBps": 2000,
-        "vestingDurationSeconds": 2592000,
+        "immediateUnlockBps": 1000,
+        "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
       "distributionTiming": "pre-launch",
@@ -49,8 +49,8 @@
       "governor": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
       "vestingConfig": {
         "enabled": true,
-        "immediateUnlockBps": 2000,
-        "vestingDurationSeconds": 2592000,
+        "immediateUnlockBps": 1000,
+        "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
       "distributionTiming": "pre-launch",
@@ -81,8 +81,8 @@
       "governor": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
       "vestingConfig": {
         "enabled": true,
-        "immediateUnlockBps": 2000,
-        "vestingDurationSeconds": 2592000,
+        "immediateUnlockBps": 1000,
+        "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
       "distributionTiming": "pre-launch",

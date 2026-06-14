@@ -271,7 +271,7 @@ describe('DeltaVerifierClient', () => {
 describe('submitMintRequest calldata encoding', () => {
   const iface = new Interface(serviceArtifact.abi);
 
-  test('encodes a current-shape payload with selector 0xc9b4e69b', () => {
+  test('encodes a current-shape payload with selector 0xaf829f8e', () => {
     const payload = {
       pipelineRunId: 'eval-1',
       baselineScoreBps: 5000,
@@ -305,7 +305,7 @@ describe('submitMintRequest calldata encoding', () => {
       contributors,
       signatures,
     ]);
-    expect(calldata.startsWith('0xc9b4e69b')).toBe(true);
+    expect(calldata.startsWith('0xaf829f8e')).toBe(true);
   });
 
   test('encoding fails loudly when totalSamples is missing', () => {

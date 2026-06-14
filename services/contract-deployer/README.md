@@ -212,7 +212,7 @@ npm test -- --runTestsByPath tests/unit/blockchain/abi-sync.test.ts
 ```
 
 The unit suite includes a guard test that pins the `submitMintRequest`
-4-byte selector (`0xc9b4e69b`) and asserts the payload tuple still contains
+4-byte selector (`0xaf829f8e`) and asserts the payload tuple still contains
 `totalSamples`.
 
 ## Error Handling

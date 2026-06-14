@@ -63,6 +63,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Compile the root Hardhat contracts so the ABI-sync guard strictly compares the vendored
+      # consumer ABI against the freshly compiled artifact (no silent skip) — this is what catches
+      # a stale vendored ABI such as the missing-deadline regression (HOK-2170).
+      - name: Compile contracts (root) for ABI-sync strict comparison
+        working-directory: ${{ github.workspace }}
+        run: npm ci && npx hardhat compile
+
       # Unit + integration suites (mint-path conformance, consumer, schemas, etc.).
       - name: Test
         run: npm test -- --ci

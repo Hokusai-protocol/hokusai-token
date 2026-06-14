@@ -236,8 +236,14 @@ ModelRegistry `0x62f61e2505B96662cEF2168635244AFEE3C0F12E`, HROUT token (model 3
 - Mint tx `0x6d266ad2fb33771c0bb000ff63e4f8c8c3221f78fb96c17f71df5a64d1ef40c8`
   (block 11058422, status 1): `DeltaOneAccepted` + `ModelLineageAdvanced` emitted.
 - Lineage head advanced genesis `0x2d18…fa323` → candidate `0xd3c0c7c3…155cfea`.
-- Reward 250,000 tokens drawn from budget (1,500,000 → 1,250,000): 50,000 (20%) to the
-  contributor, 200,000 (80%) to infrastructure accrual per HROUT `infrastructureAccrualBps=8000`.
+- Reward 250,000 tokens drawn from budget (1,500,000 → 1,250,000), **all attributed to the
+  contributor** (`BatchRewardsDistributed` totalAmount 250,000). Per the HROUT token's reward
+  vesting it was delivered as 50,000 liquid to the contributor wallet + 200,000 into the
+  **RewardVestingVault** (`0xFE5407b6…87c`) earmarked for that same contributor — **no
+  infrastructure/fee route was involved** (InfrastructureReserve `0x5Be8…b891` received nothing).
+  This rehearsal token used pre-correction vesting params (20% immediate / 30 days); the launch
+  policy is **10% immediate / 90% linear over 1 year**, now set in the launch-token configs.
+  Reward vesting is by design (it applies to both the supplier allocation and contributor rewards).
 
 ### Part 2 — adversarial battery — ALL REJECTED
 

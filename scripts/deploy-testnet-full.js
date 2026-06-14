@@ -1,7 +1,81 @@
 const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const { validateNumericModelId } = require('./lib/launch-tokens');
+
+// Map deployment.contracts keys -> canonical SSM parameter names under
+// /hokusai/<environment>/contracts/. These are the addresses other systems
+// (relayer/ECS, DeltaOne anomaly detector + pause Lambdas) read at runtime.
+// Keeping them current on every redeploy is what prevents the stale/empty
+// DELTA_VERIFIER_ADDRESS drift that silently broke the anomaly detector.
+const SSM_CONTRACT_PARAM_MAP = {
+  DeltaVerifier: 'delta_verifier_address',
+  ModelRegistry: 'model_registry_address',
+  TokenManager: 'token_manager_address',
+  UsageFeeRouter: 'usage_fee_router_address',
+  InfrastructureReserve: 'infrastructure_reserve_address',
+  InfrastructureCostOracle: 'infrastructure_cost_oracle_address',
+  // MockUSDC is testnet-only; on mainnet usdc_address points at real USDC and
+  // must not be overwritten, so it is synced only for non-mainnet networks below.
+  MockUSDC: 'usdc_address',
+};
+
+// sepolia testnet maps to the "development" SSM namespace. Override with
+// DEPLOY_SSM_ENVIRONMENT when a network needs a different namespace.
+function ssmEnvironmentForNetwork(networkName) {
+  if (process.env.DEPLOY_SSM_ENVIRONMENT) return process.env.DEPLOY_SSM_ENVIRONMENT;
+  if (networkName === 'mainnet') return 'production';
+  return 'development';
+}
+
+function isAddress(value) {
+  return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value);
+}
+
+// Push the freshly deployed contract addresses to SSM so downstream consumers
+// track redeploys. Only runs for remote networks; opt out with SKIP_SSM_SYNC=true.
+function syncContractsToSsm(deployment, networkName) {
+  const remoteNetworks = new Set(['sepolia', 'mainnet']);
+  if (!remoteNetworks.has(networkName)) {
+    return; // local/hardhat deploys never touch shared SSM
+  }
+  if (String(process.env.SKIP_SSM_SYNC).toLowerCase() === 'true') {
+    console.log('\n⏭️  SKIP_SSM_SYNC=true — not syncing contract addresses to SSM.');
+    console.log('   ⚠️  Downstream consumers (relayer, DeltaOne detector) will keep the OLD addresses until SSM is updated.');
+    return;
+  }
+
+  const environment = ssmEnvironmentForNetwork(networkName);
+  console.log(`\n☁️  Syncing contract addresses to SSM (/hokusai/${environment}/contracts/)...`);
+
+  const results = [];
+  for (const [contractKey, paramSuffix] of Object.entries(SSM_CONTRACT_PARAM_MAP)) {
+    if (contractKey === 'MockUSDC' && networkName === 'mainnet') continue; // never clobber real USDC
+    const value = deployment.contracts && deployment.contracts[contractKey];
+    if (!isAddress(value)) continue; // skip contracts not in this deployment
+
+    const paramName = `/hokusai/${environment}/contracts/${paramSuffix}`;
+    try {
+      execSync(
+        `aws ssm put-parameter --name "${paramName}" --value "${value}" --type SecureString --overwrite --region "${process.env.AWS_REGION || 'us-east-1'}"`,
+        { stdio: 'pipe' }
+      );
+      console.log(`   ✅ ${paramSuffix} = ${value}`);
+      results.push({ paramName, ok: true });
+    } catch (error) {
+      console.error(`   ❌ Failed to update ${paramSuffix}: ${error.message.split('\n')[0]}`);
+      results.push({ paramName, ok: false });
+    }
+  }
+
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length > 0) {
+    console.log(`\n⚠️  ${failed.length} SSM parameter(s) failed to sync — update them manually before relying on monitoring/relayer.`);
+  } else if (results.length > 0) {
+    console.log('   ✅ SSM in sync with this deployment.');
+  }
+}
 
 /**
  * Comprehensive Testnet Deployment Script
@@ -442,6 +516,9 @@ async function main() {
     const latestPath = path.join(deploymentDir, `${network.name}-latest.json`);
     fs.writeFileSync(latestPath, JSON.stringify(deployment, null, 2));
     console.log(`💾 Also saved as: deployments/${network.name}-latest.json`);
+
+    // Keep canonical SSM contract pointers in sync with this deployment.
+    syncContractsToSsm(deployment, network.name);
 
     console.log("\n✅ All 9 contract types deployed successfully!");
     console.log("   - 7 core contracts");

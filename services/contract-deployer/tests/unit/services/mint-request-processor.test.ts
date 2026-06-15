@@ -212,4 +212,56 @@ describe('MintRequestProcessor', () => {
     expect(client.submitMintRequest).toHaveBeenCalledTimes(1);
     expect('submitEvaluation' in client).toBe(false);
   });
+
+  test('records payout intent BEFORE submitting, with the message recipients', async () => {
+    const calls: string[] = [];
+    const client = {
+      submitMintRequest: jest.fn().mockImplementation(() => {
+        calls.push('submit');
+        return Promise.resolve({
+          status: 'minted',
+          rewardAmount: '1',
+          txHash: '0x',
+          blockNumber: 1,
+          gasUsed: '1',
+        });
+      }),
+    } as any;
+    const payoutIntentStore = {
+      putIntent: jest.fn().mockImplementation(() => {
+        calls.push('putIntent');
+        return Promise.resolve();
+      }),
+    } as any;
+
+    const processor = new MintRequestProcessor(client, payoutIntentStore);
+    await processor.process(message);
+
+    // Intent must be written before the on-chain submission.
+    expect(calls).toEqual(['putIntent', 'submit']);
+    expect(payoutIntentStore.putIntent).toHaveBeenCalledWith({
+      idempotencyKey: message.idempotency_key,
+      recipients: [message.contributors[0].wallet_address],
+      modelId: message.model_id_uint,
+    });
+  });
+
+  test('a payout-intent write failure does not block the mint (fail-soft)', async () => {
+    const client = {
+      submitMintRequest: jest.fn().mockResolvedValue({
+        status: 'minted',
+        rewardAmount: '1',
+        txHash: '0x',
+        blockNumber: 1,
+        gasUsed: '1',
+      }),
+    } as any;
+    const payoutIntentStore = {
+      putIntent: jest.fn().mockRejectedValue(new Error('dynamodb unavailable')),
+    } as any;
+
+    const processor = new MintRequestProcessor(client, payoutIntentStore);
+    await expect(processor.process(message)).resolves.toBeDefined();
+    expect(client.submitMintRequest).toHaveBeenCalledTimes(1);
+  });
 });

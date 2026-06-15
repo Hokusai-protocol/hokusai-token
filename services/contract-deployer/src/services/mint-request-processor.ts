@@ -9,15 +9,29 @@ import {
   MintRequestSettlement,
   createMintRequestSettlement,
 } from '../schemas/mint-request-schema';
+import { PayoutIntentStore } from './payout-intent-store';
 import { logger } from '../utils/logger';
 
 export class MintRequestProcessor {
-  constructor(private readonly deltaVerifierClient: DeltaVerifierClient) {}
+  constructor(
+    private readonly deltaVerifierClient: DeltaVerifierClient,
+    // Optional: when configured, the authorized payout is recorded before submit so
+    // the DeltaOne detector can reconcile on-chain recipients against intent
+    // (HOK-2223). Undefined leaves behavior unchanged.
+    private readonly payoutIntentStore?: PayoutIntentStore,
+  ) {}
 
   async process(message: MintRequestMessage): Promise<MintRequestSettlement> {
     const modelId = BigInt(message.model_id_uint);
     const payload = this.buildPayload(message);
     const contributors = this.buildContributors(message);
+
+    // Record authorized intent BEFORE submitting, so a matching record exists by the
+    // time the detector sees the on-chain mint. Fail-soft: a write failure must not
+    // block minting (it surfaces later as a detector alert, not a stuck mint). Revisit
+    // to fail-closed once auto-pause is armed on the reconciliation rule.
+    await this.recordPayoutIntent(message);
+
     const result = await this.deltaVerifierClient.submitMintRequest(
       modelId,
       payload,
@@ -51,6 +65,24 @@ export class MintRequestProcessor {
     });
 
     return settlement;
+  }
+
+  private async recordPayoutIntent(message: MintRequestMessage): Promise<void> {
+    if (!this.payoutIntentStore) {
+      return;
+    }
+    try {
+      await this.payoutIntentStore.putIntent({
+        idempotencyKey: message.idempotency_key,
+        recipients: message.contributors.map((contributor) => contributor.wallet_address),
+        modelId: message.model_id_uint,
+      });
+    } catch (error) {
+      logger.warn('Failed to record payout intent; proceeding with mint (detector may flag it)', {
+        idempotencyKey: message.idempotency_key,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   // Public so the conformance tests pin the REAL fixture→calldata mapping, not a hand-copied twin.

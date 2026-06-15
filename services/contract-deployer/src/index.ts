@@ -120,6 +120,9 @@ async function main(): Promise<void> {
             recordKeyPrefix: config.MINT_RECORD_KEY_PREFIX,
             recordTtlSeconds: config.MINT_RECORD_TTL_SECONDS,
           },
+          payoutIntent: config.PAYOUT_INTENT_TABLE
+            ? { tableName: config.PAYOUT_INTENT_TABLE, awsRegion: config.AWS_REGION }
+            : undefined,
         });
 
         await mintListener.initialize();

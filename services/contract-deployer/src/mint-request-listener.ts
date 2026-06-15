@@ -1,9 +1,11 @@
 import { createClient, RedisClientType } from 'redis';
 import { ethers } from 'ethers';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { MintRequestConsumer } from './queue/mint-request-consumer';
 import { MintRecordStore } from './queue/mint-record-store';
 import { DeltaVerifierClient } from './blockchain/delta-verifier-client';
 import { MintRequestProcessor } from './services/mint-request-processor';
+import { PayoutIntentStore } from './services/payout-intent-store';
 import { logger } from './utils/logger';
 
 export interface MintRequestListenerConfig {
@@ -35,6 +37,12 @@ export interface MintRequestListenerConfig {
     backoffMultiplier: number;
     recordKeyPrefix: string;
     recordTtlSeconds: number;
+  };
+  // Optional: when set, authorized payout intent is written to this DynamoDB table
+  // before each mint for DeltaOne recipient reconciliation (HOK-2223). Omit to disable.
+  payoutIntent?: {
+    tableName: string;
+    awsRegion?: string;
   };
 }
 
@@ -80,7 +88,17 @@ export class MintRequestListener {
       backoffMultiplier: config.queues.backoffMultiplier,
       recordStore,
     });
-    this.processor = new MintRequestProcessor(client);
+    let payoutIntentStore: PayoutIntentStore | undefined;
+    if (config.payoutIntent?.tableName) {
+      payoutIntentStore = new PayoutIntentStore({
+        client: new DynamoDBClient({ region: config.payoutIntent.awsRegion }),
+        tableName: config.payoutIntent.tableName,
+      });
+      logger.info('Payout intent recording enabled', {
+        table: config.payoutIntent.tableName,
+      });
+    }
+    this.processor = new MintRequestProcessor(client, payoutIntentStore);
   }
 
   async initialize(): Promise<void> {

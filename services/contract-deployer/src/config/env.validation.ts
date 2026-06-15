@@ -418,7 +418,12 @@ export async function validateEnv(): Promise<Config> {
     console.log('[STARTUP] SSM configuration loaded:', ssmParams ? 'success' : 'no params');
 
     if (ssmParams) {
-      ssmDeployerKeySet = Boolean(ssmParams.deployer_key);
+      // The legacy SSM deployer_key is retained during the KMS migration but is NOT
+      // an active signer once a KMS backend is configured — mapSSMToEnvVars already
+      // refuses to map it when KMS_BACKEND_KEY_ID is set. Mirror that here so its mere
+      // presence doesn't trip enforceSignerConfiguration's mutual-exclusivity check
+      // (which otherwise blocks every KMS-mode boot). (HOK-2230)
+      ssmDeployerKeySet = Boolean(ssmParams.deployer_key) && !process.env.KMS_BACKEND_KEY_ID;
       // Map SSM parameters to environment variables
       const envOverrides = mapSSMToEnvVars(ssmParams);
 

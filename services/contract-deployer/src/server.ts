@@ -361,6 +361,9 @@ async function startServer(): Promise<void> {
             recordKeyPrefix: serverConfig.MINT_RECORD_KEY_PREFIX,
             recordTtlSeconds: serverConfig.MINT_RECORD_TTL_SECONDS,
           },
+          payoutIntent: serverConfig.PAYOUT_INTENT_TABLE
+            ? { tableName: serverConfig.PAYOUT_INTENT_TABLE, awsRegion: serverConfig.AWS_REGION }
+            : undefined,
         });
 
         await mintListener.initialize();

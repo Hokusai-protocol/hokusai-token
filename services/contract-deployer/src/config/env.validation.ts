@@ -110,6 +110,10 @@ const envSchema = Joi.object({
   AWS_REGION: Joi.string().default('us-east-1'),
   AWS_ACCESS_KEY_ID: Joi.string().optional(),
   AWS_SECRET_ACCESS_KEY: Joi.string().optional(),
+
+  // DeltaOne payout-intent table (HOK-2223). When set, the mint listener records
+  // authorized recipients per mint for the anomaly detector to reconcile. Empty = off.
+  PAYOUT_INTENT_TABLE: Joi.string().allow('').default(''),
   USE_SSM: Joi.alternatives()
     .try(Joi.boolean(), Joi.string().valid('true', 'false'))
     .default(false),
@@ -205,6 +209,7 @@ export interface Config {
   AWS_REGION: string;
   AWS_ACCESS_KEY_ID?: string;
   AWS_SECRET_ACCESS_KEY?: string;
+  PAYOUT_INTENT_TABLE: string;
   USE_SSM: boolean;
   DEPLOY_ENV?: string;
   SERVICE_NAME: string;

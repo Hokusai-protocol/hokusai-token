@@ -16,6 +16,12 @@ export interface ModelReadyToDeployMessage {
   mlflow_run_id: string;
   improvement_percentage: number;
   contributor_address?: string;
+  // The model supplier / launcher wallet (the person launching the token in
+  // hokusai-site) that receives the supplier allocation. Per-model — supplied by
+  // the producer rather than a global config value. Optional during rollout; the
+  // deployer falls back to the configured MODEL_SUPPLIER_RECIPIENT and validates a
+  // non-zero recipient at deploy time. (HOK-2230)
+  model_supplier_recipient?: string;
   experiment_name?: string;
   tags?: Record<string, string>;
   timestamp: string;
@@ -63,6 +69,7 @@ const modelReadySchema = Joi.object<ModelReadyToDeployMessage>({
   mlflow_run_id: Joi.string().required(),
   improvement_percentage: Joi.number().greater(0).required(),
   contributor_address: Joi.string().pattern(ETH_ADDRESS_REGEX).optional(),
+  model_supplier_recipient: Joi.string().pattern(ETH_ADDRESS_REGEX).optional(),
   experiment_name: Joi.string().optional(),
   tags: Joi.object().pattern(Joi.string(), Joi.string()).optional(),
   timestamp: Joi.string().isoDate().required(),

@@ -291,28 +291,30 @@ describe('Environment Validation', () => {
       expect(config.INFRASTRUCTURE_ACCRUAL_BPS).toBe(7500);
     });
 
-    it('should reject zero MODEL_SUPPLIER_RECIPIENT in production', async () => {
+    it('boots with zero MODEL_SUPPLIER_RECIPIENT (per-model; validated at deploy time)', async () => {
+      // MODEL_SUPPLIER_RECIPIENT is per-model (the launcher wallet on the deploy
+      // message), not a global startup requirement — startup warns, deploy validates.
       process.env.NODE_ENV = 'production';
       process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
       process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
       process.env.GOVERNOR_ADDRESS = NONZERO_GOVERNOR;
-      delete process.env.MODEL_SUPPLIER_RECIPIENT; // ensure Joi default (zero) is used
+      delete process.env.MODEL_SUPPLIER_RECIPIENT; // Joi default (zero)
       delete process.env.DEPLOYER_PRIVATE_KEY;
       mockLoadSSMConfiguration.mockResolvedValueOnce(null);
 
-      await expect(validateEnv()).rejects.toThrow('MODEL_SUPPLIER_RECIPIENT');
+      await expect(validateEnv()).resolves.toBeDefined();
     });
 
-    it('should reject zero GOVERNOR_ADDRESS in production', async () => {
+    it('boots with zero GOVERNOR_ADDRESS (validated at deploy time)', async () => {
       process.env.NODE_ENV = 'production';
       process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
       process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
       process.env.MODEL_SUPPLIER_RECIPIENT = NONZERO_SUPPLIER;
-      delete process.env.GOVERNOR_ADDRESS; // ensure Joi default (zero) is used
+      delete process.env.GOVERNOR_ADDRESS; // Joi default (zero)
       delete process.env.DEPLOYER_PRIVATE_KEY;
       mockLoadSSMConfiguration.mockResolvedValueOnce(null);
 
-      await expect(validateEnv()).rejects.toThrow('GOVERNOR_ADDRESS');
+      await expect(validateEnv()).resolves.toBeDefined();
     });
 
     it('requires KMS backend configuration in production', async () => {
@@ -351,7 +353,9 @@ describe('Environment Validation', () => {
       );
     });
 
-    it('rejects KMS plus SSM deployer key in production', async () => {
+    it('allows KMS with a legacy SSM deployer_key (KMS takes precedence)', async () => {
+      // The legacy SSM deployer_key is retained during the KMS migration but is not
+      // an active signer once KMS is configured — its presence must not block boot.
       process.env.NODE_ENV = 'production';
       process.env.MODEL_SUPPLIER_RECIPIENT = NONZERO_SUPPLIER;
       process.env.GOVERNOR_ADDRESS = NONZERO_GOVERNOR;
@@ -367,9 +371,10 @@ describe('Environment Validation', () => {
         governor_address: NONZERO_GOVERNOR,
       });
 
-      await expect(validateEnv()).rejects.toThrow(
-        'Signer configuration is mutually exclusive: KMS_BACKEND_KEY_ID, SSM deployer_key',
-      );
+      const config = await validateEnv();
+      // KMS backend wins; the legacy SSM deployer_key is not mapped as a signer.
+      expect(config.KMS_BACKEND_KEY_ID).toBe('alias/hokusai/backend');
+      expect(config.DEPLOYER_PRIVATE_KEY).toBeUndefined();
     });
 
     it('allows KMS-only configuration in production', async () => {

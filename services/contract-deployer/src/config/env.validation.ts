@@ -418,7 +418,12 @@ export async function validateEnv(): Promise<Config> {
     console.log('[STARTUP] SSM configuration loaded:', ssmParams ? 'success' : 'no params');
 
     if (ssmParams) {
-      ssmDeployerKeySet = Boolean(ssmParams.deployer_key);
+      // The legacy SSM deployer_key is retained during the KMS migration but is NOT
+      // an active signer once a KMS backend is configured — mapSSMToEnvVars already
+      // refuses to map it when KMS_BACKEND_KEY_ID is set. Mirror that here so its mere
+      // presence doesn't trip enforceSignerConfiguration's mutual-exclusivity check
+      // (which otherwise blocks every KMS-mode boot). (HOK-2230)
+      ssmDeployerKeySet = Boolean(ssmParams.deployer_key) && !process.env.KMS_BACKEND_KEY_ID;
       // Map SSM parameters to environment variables
       const envOverrides = mapSSMToEnvVars(ssmParams);
 
@@ -471,20 +476,24 @@ export async function validateEnv(): Promise<Config> {
     ssmPrivateKey: ssmDeployerKeySet,
   });
 
-  // In production, deployment addresses must be non-zero — DeployableTokenManager rejects
-  // zero supplier recipient and governor at the contract level.
+  // Deployment addresses (supplier recipient, governor) must be non-zero — the
+  // contract rejects zero. These are validated at DEPLOY time, not service startup:
+  // MODEL_SUPPLIER_RECIPIENT is per-model (the launcher wallet carried on the deploy
+  // message) and GOVERNOR_ADDRESS is the protocol Safe; neither gates the mint path.
+  // Warn (don't fail) at startup so the service can run (e.g. the mint listener)
+  // even before a token deploy is configured. (HOK-2230)
   if (config.NODE_ENV === 'production') {
     const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
     const zeroAddressFields: string[] = [];
     if (config.MODEL_SUPPLIER_RECIPIENT === ZERO_ADDRESS) {
-      zeroAddressFields.push('MODEL_SUPPLIER_RECIPIENT');
+      zeroAddressFields.push('MODEL_SUPPLIER_RECIPIENT (expected per-model on the deploy message)');
     }
     if (config.GOVERNOR_ADDRESS === ZERO_ADDRESS) {
-      zeroAddressFields.push('GOVERNOR_ADDRESS');
+      zeroAddressFields.push('GOVERNOR_ADDRESS (set to the protocol governance Safe)');
     }
     if (zeroAddressFields.length > 0) {
-      throw new Error(
-        `Deployment params must not be zero address in production: ${zeroAddressFields.join(', ')}`,
+      logger.warn(
+        `Deployment params unset at startup; token deploys will fail until provided: ${zeroAddressFields.join(', ')}`,
       );
     }
   }

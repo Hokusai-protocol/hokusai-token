@@ -79,11 +79,31 @@ export class ContractDeployer {
     const tokenName = `Hokusai ${message.model_id}`;
     const tokenSymbol = message.token_symbol;
     const params = this.config.deploymentParams;
+    const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+    // Per-model supplier: prefer the launcher wallet carried on the deploy message
+    // (originating in hokusai-site); fall back to the configured default during
+    // rollout. Validated here at deploy time rather than as a global startup
+    // requirement, because the supplier differs per model. (HOK-2230)
+    const supplierRecipient = message.model_supplier_recipient || params.modelSupplierRecipient;
+    if (!supplierRecipient || supplierRecipient === ZERO_ADDRESS) {
+      throw new Error(
+        `Cannot deploy model ${message.model_id}: model_supplier_recipient (the launcher wallet) is required — set it on the deploy message or configure MODEL_SUPPLIER_RECIPIENT`,
+      );
+    }
+    // Governor is a single protocol governance Safe for now (per-model self-governance later).
+    if (!params.governor || params.governor === ZERO_ADDRESS) {
+      throw new Error(
+        `Cannot deploy model ${message.model_id}: GOVERNOR_ADDRESS must be set to the protocol governance Safe`,
+      );
+    }
 
     logger.info('Deploying token via TokenManager.deployTokenWithAllocations', {
       modelId: message.model_id,
       tokenName,
       tokenSymbol,
+      supplierRecipient,
+      supplierSource: message.model_supplier_recipient ? 'message' : 'config-fallback',
     });
 
     let attempts = 0;
@@ -128,7 +148,7 @@ export class ContractDeployer {
           tokenName,
           tokenSymbol,
           params.modelSupplierAllocation,
-          params.modelSupplierRecipient,
+          supplierRecipient,
           params.investorAllocation,
           initialParams,
           { gasPrice },

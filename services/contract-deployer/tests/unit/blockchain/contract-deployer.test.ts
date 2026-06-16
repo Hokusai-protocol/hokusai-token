@@ -146,6 +146,46 @@ describe('ContractDeployer', () => {
       });
     });
 
+    test('prefers the per-model supplier from the message over the config default', async () => {
+      const launcher = '0x1111111111111111111111111111111111111111';
+      await deployer.deployToken({ ...validMessage, model_supplier_recipient: launcher });
+
+      // 5th positional arg to deployTokenWithAllocations is the supplier recipient.
+      expect(mockTokenManager.deployTokenWithAllocations.mock.calls[0][4]).toBe(launcher);
+      expect(mockTokenManager.deployTokenWithAllocations.mock.calls[0][4]).not.toBe(
+        defaultDeploymentParams.modelSupplierRecipient,
+      );
+    });
+
+    test('throws at deploy time when no non-zero supplier is available', async () => {
+      const zeroSupplierDeployer = new ContractDeployer({
+        ...config,
+        deploymentParams: {
+          ...defaultDeploymentParams,
+          modelSupplierRecipient: '0x0000000000000000000000000000000000000000',
+        },
+      });
+      // message has no supplier and config default is zero -> reject before submitting
+      await expect(zeroSupplierDeployer.deployToken(validMessage)).rejects.toThrow(
+        'model_supplier_recipient',
+      );
+      expect(mockTokenManager.deployTokenWithAllocations).not.toHaveBeenCalled();
+    });
+
+    test('throws at deploy time when governor is unset', async () => {
+      const noGovernorDeployer = new ContractDeployer({
+        ...config,
+        deploymentParams: {
+          ...defaultDeploymentParams,
+          governor: '0x0000000000000000000000000000000000000000',
+        },
+      });
+      await expect(noGovernorDeployer.deployToken(validMessage)).rejects.toThrow(
+        'GOVERNOR_ADDRESS',
+      );
+      expect(mockTokenManager.deployTokenWithAllocations).not.toHaveBeenCalled();
+    });
+
     test('should extract token address from TokenDeployed event', async () => {
       const customAddress = '0x1111111111111111111111111111111111111111';
       mockTokenManager.interface.parseLog.mockReturnValue({

@@ -25,13 +25,11 @@ jobs:
       KMS_BACKEND_KEY_ID: ${{ secrets.KMS_BACKEND_KEY_ID }}
       KMS_BACKEND_EXPECTED_ADDRESS: ${{ vars.KMS_BACKEND_EXPECTED_ADDRESS }}
       E2E_DEPLOYMENT_FILE: ${{ vars.E2E_DEPLOYMENT_FILE || 'deployments/sepolia-latest.json' }}
-      E2E_MODEL_ID: "30"
+      # HOK-2223: target the dedicated canary model (930), NOT production model 30 —
+      # so canary mints can never advance the live Model 30 reward lineage (the
+      # synthetic-drift root cause). Model 930 has its own token + genesis + budget.
+      E2E_MODEL_ID: "930"
       SEPOLIA_E2E_WRITE: "1"
-      # HOK-2223: the canary mint bypasses the contract-deployer consumer (the
-      # production payout-intent writer), so the test records its own authorized
-      # payout intent here before minting. Without this the DeltaOne anomaly
-      # detector flags the canary mint as unauthorized_mint every run.
-      PAYOUT_INTENT_TABLE: ${{ vars.PAYOUT_INTENT_TABLE || 'hokusai-deltaone-payout-intent-development' }}
     steps:
       - uses: actions/checkout@v4
 

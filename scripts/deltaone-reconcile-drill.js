@@ -34,8 +34,10 @@ const { ethers } = hre;
 const { KMSClient } = require("@aws-sdk/client-kms");
 const { DynamoDBClient, PutItemCommand } = require("@aws-sdk/client-dynamodb");
 
-const MODEL_ID = 30n;
-const RECIPIENT = "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da"; // controlled rehearsal payout target
+// Defaults to the dedicated CANARY model (930) so readiness drills never advance the
+// production Model 30 lineage (HOK-2223). Override with DRILL_MODEL_ID / DRILL_RECIPIENT.
+const MODEL_ID = BigInt(process.env.DRILL_MODEL_ID || "930");
+const RECIPIENT = process.env.DRILL_RECIPIENT || "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da"; // controlled rehearsal payout target
 const ATTESTER = "0x07bf9b22f516d2D464511219488F019c5dFF5335"; // registered Ledger attester
 const STATE = path.resolve(__dirname, "..", "deployments", "gate7-part1-pending.json");
 const DEFAULT_INTENT_TABLE = "hokusai-deltaone-payout-intent-development";
@@ -165,7 +167,7 @@ async function build() {
 
   console.log("=== HOK-2223 reconcile drill — sign this on the 0x07bf Ledger ===");
   console.log("DeltaVerifier :", DV, "(chainId", Number(net.chainId) + ")");
-  console.log("Model 30 head :", head, "(baselineCommitment)");
+  console.log(`Model ${MODEL_ID} head :`, head, "(baselineCommitment)");
   console.log("New candidate :", payload.candidateCommitment, "(becomes head on mint)");
   console.log("Idempotency   :", payload.anchors.idempotencyKey, "(fresh — not a replay)");
   console.log("Recipient     :", RECIPIENT, "weight 10000 (the reconciled payout recipient)");

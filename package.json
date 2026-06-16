@@ -50,6 +50,7 @@
     "hardhat": "^2.24.2"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.882.0",
     "@aws-sdk/client-kms": "^3.882.0",
     "redis": "^5.8.2"
   }

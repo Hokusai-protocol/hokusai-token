@@ -1,5 +1,9 @@
 const { expect } = require("chai");
 const { KMSClient } = require("@aws-sdk/client-kms");
+const {
+  DynamoDBClient,
+  PutItemCommand,
+} = require("@aws-sdk/client-dynamodb");
 const { ethers } = require("hardhat");
 const fs = require("fs");
 const path = require("path");
@@ -26,6 +30,48 @@ const WRITE_KMS_ENV_VARS = [
   "KMS_BACKEND_KEY_ID",
   "KMS_BACKEND_EXPECTED_ADDRESS",
 ];
+
+// HOK-2223: the canary submits a real DeltaOne mint directly, bypassing the
+// contract-deployer consumer that records payout intent in production. Without
+// an intent record the DeltaOne anomaly detector reconciles the canary's
+// on-chain recipients against nothing and flags `unauthorized_mint` every run
+// (which would auto-pause minting once AUTO_PAUSE is armed). Record the same
+// authorized-payout intent the consumer would, so the canary reconciles clean.
+// Mirrors services/contract-deployer/src/services/payout-intent-store.ts.
+const PAYOUT_INTENT_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days, matches the writer
+
+async function recordCanaryPayoutIntent(fixture) {
+  const tableName = process.env.PAYOUT_INTENT_TABLE;
+  if (!tableName) {
+    // Local/ad-hoc write runs without the table configured: skip rather than
+    // fail. The detector only flags if reconciliation is enabled against a
+    // table this mint never wrote to.
+    console.warn(
+      "PAYOUT_INTENT_TABLE not set; skipping canary payout-intent write " +
+        "(DeltaOne reconciliation would flag this mint as unauthorized_mint)."
+    );
+    return;
+  }
+  const recipients = [
+    ...new Set(fixture.contributors.map((c) => c.walletAddress.toLowerCase())),
+  ];
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const client = new DynamoDBClient({
+    region: process.env.AWS_REGION || "us-east-1",
+  });
+  await client.send(
+    new PutItemCommand({
+      TableName: tableName,
+      Item: {
+        idempotency_key: { S: fixture.idempotencyKey },
+        recipients: { SS: recipients },
+        model_id: { S: String(fixture.modelId) },
+        written_at: { N: String(nowSeconds) },
+        expires_at: { N: String(nowSeconds + PAYOUT_INTENT_TTL_SECONDS) },
+      },
+    })
+  );
+}
 
 const ABIS = {
   modelRegistry: [
@@ -510,6 +556,11 @@ describeSepoliaWrite("Sepolia live MintRequest write mode", function () {
       attesterSignatures
     );
     expect(staticReward).to.be.greaterThan(0n);
+
+    // HOK-2223: record authorized payout intent BEFORE submitting, exactly as the
+    // production contract-deployer consumer does, so the DeltaOne detector
+    // reconciles this real mint clean instead of flagging unauthorized_mint.
+    await recordCanaryPayoutIntent(fixture);
 
     // HOK-2132: requires the redeployed DeltaVerifier with an attester registered (addAttester + setAttesterThreshold). Until then write-mode mints fail-closed.
     const tx = await deltaVerifier.submitMintRequest(

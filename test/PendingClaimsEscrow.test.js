@@ -137,4 +137,47 @@ describe("PendingClaimsEscrow", function () {
       ).to.be.reverted;
     });
   });
+
+  describe("claimVested", function () {
+    let vault, VAULT;
+    const SCHED = 7n;
+    const VESTED = ethers.parseUnits("90", 6);
+
+    beforeEach(async function () {
+      const Vault = await ethers.getContractFactory("MockVestingVault");
+      vault = await Vault.deploy(TOKEN);
+      VAULT = await vault.getAddress();
+      await token.mint(VAULT, ethers.parseUnits("500", 6));
+      await vault.setClaimable(SCHED, VESTED);
+    });
+
+    it("pulls vested tokens from the vault into the escrow and emits VestedClaimed", async function () {
+      const before = await escrow.tokenBalance(TOKEN);
+      await expect(escrow.connect(releaser).claimVested(VAULT, SCHED))
+        .to.emit(escrow, "VestedClaimed")
+        .withArgs(VAULT, SCHED, VESTED);
+      expect(await escrow.tokenBalance(TOKEN)).to.equal(before + VESTED);
+    });
+
+    it("claimed tokens are then releasable to a verified wallet", async function () {
+      await escrow.connect(releaser).claimVested(VAULT, SCHED);
+      await escrow.connect(releaser).release(TOKEN, alice.address, VESTED, REF);
+      expect(await token.balanceOf(alice.address)).to.equal(VESTED);
+    });
+
+    it("reverts when caller lacks RELEASER_ROLE", async function () {
+      await expect(escrow.connect(other).claimVested(VAULT, SCHED)).to.be.reverted;
+    });
+
+    it("reverts on zero vault", async function () {
+      await expect(escrow.connect(releaser).claimVested(ethers.ZeroAddress, SCHED)).to.be.reverted;
+    });
+
+    it("claimVestedBatch claims multiple schedules", async function () {
+      await vault.setClaimable(8n, ethers.parseUnits("10", 6));
+      const before = await escrow.tokenBalance(TOKEN);
+      await escrow.connect(releaser).claimVestedBatch(VAULT, [SCHED, 8n]);
+      expect(await escrow.tokenBalance(TOKEN)).to.equal(before + ethers.parseUnits("100", 6));
+    });
+  });
 });

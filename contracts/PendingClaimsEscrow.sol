@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "./libraries/ValidationLib.sol";
+import "./interfaces/IRewardVestingVault.sol";
 
 /**
  * @title PendingClaimsEscrow
@@ -22,7 +23,10 @@ import "./libraries/ValidationLib.sol";
  * Per-account accounting (which account is owed how much, of which model token) lives
  * OFF-CHAIN in auth-service's reward_entitlements ledger. On-chain this contract is a
  * simple per-token holder: once an account verifies a wallet, the auth settlement
- * service (RELEASER_ROLE) calls {release} to deliver the tranche to that wallet.
+ * service (RELEASER_ROLE) calls {release} to deliver the tranche to that wallet. When the
+ * model vests rewards, the vested portion is minted to the RewardVestingVault with this
+ * escrow as the schedule beneficiary; {claimVested} pulls the unlocked tokens here so they
+ * can be released, preserving vesting parity with wallet-having contributors.
  *
  * Trust model: RELEASER_ROLE is the auth settler, which verifies the account<->wallet
  * binding (canonical wallet_verification, HOK-2243) BEFORE releasing. A compromised
@@ -48,6 +52,7 @@ contract PendingClaimsEscrow is AccessControl, ReentrancyGuard, Pausable {
 
     event Released(address indexed token, address indexed to, uint256 amount, bytes32 indexed referenceId);
     event Rescued(address indexed token, address indexed to, uint256 amount);
+    event VestedClaimed(address indexed vault, uint256 indexed scheduleId, uint256 amount);
 
     constructor(address admin) {
         ValidationLib.requireNonZeroAddress(admin, "admin");
@@ -85,6 +90,41 @@ contract PendingClaimsEscrow is AccessControl, ReentrancyGuard, Pausable {
         require(refs.length == recipients.length, "references length mismatch");
         for (uint256 i = 0; i < recipients.length; i++) {
             _release(token, recipients[i], amounts[i], refs[i]);
+        }
+    }
+
+    /**
+     * @notice Pull this escrow's vested reward tokens out of a RewardVestingVault.
+     * @dev When a wallet-less contributor's reward is minted, the vesting portion lands in
+     * the vault with THIS escrow as the schedule beneficiary, and only the beneficiary can
+     * claim. This moves the unlocked portion into the escrow so it can then be {release}d to
+     * the contributor's verified wallet. It only moves the escrow's own funds inward (no
+     * exfiltration), so it is allowed even while paused.
+     * @return claimedAmount Tokens transferred from the vault into this escrow.
+     */
+    function claimVested(address vault, uint256 scheduleId)
+        external
+        onlyRole(RELEASER_ROLE)
+        nonReentrant
+        returns (uint256 claimedAmount)
+    {
+        ValidationLib.requireNonZeroAddress(vault, "vault");
+        claimedAmount = IRewardVestingVault(vault).claim(scheduleId);
+        emit VestedClaimed(vault, scheduleId, claimedAmount);
+    }
+
+    /// @notice Claim multiple of this escrow's vesting schedules from one vault.
+    function claimVestedBatch(address vault, uint256[] calldata scheduleIds)
+        external
+        onlyRole(RELEASER_ROLE)
+        nonReentrant
+    {
+        ValidationLib.requireNonZeroAddress(vault, "vault");
+        ValidationLib.requireNonEmptyArray(scheduleIds.length);
+        ValidationLib.requireMaxArrayLength(scheduleIds.length, MAX_BATCH);
+        for (uint256 i = 0; i < scheduleIds.length; i++) {
+            uint256 claimedAmount = IRewardVestingVault(vault).claim(scheduleIds[i]);
+            emit VestedClaimed(vault, scheduleIds[i], claimedAmount);
         }
     }
 

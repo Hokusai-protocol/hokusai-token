@@ -1,0 +1,9 @@
+{
+  "contract": "PendingClaimsEscrow",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "address": "0x46779C8eA22A9554cD53346bE382558F0d7EdEC0",
+  "admin": "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+  "deployTx": "0x84494062476827d1ebb945f1a3626146c5807c455ec464f189a0c008e8a9f14e",
+  "note": "RELEASER_ROLE granted separately to the auth settler. Add address to deltaone_system_sinks (HOK-2223)."
+}

@@ -1,0 +1,31 @@
+{
+  "purpose": "Dedicated canary/rehearsal model so canary + readiness-drill mints never advance the production Model 30 reward lineage (HOK-2223 synthetic-drift root cause).",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "uintModelId": 930,
+  "stringModelId": "930",
+  "name": "Hokusai Router Canary",
+  "symbol": "HROUTC",
+  "performanceMetric": "router_quality_score",
+  "token": "0x1075620e50f9f52044a0a23f0578dCBCE010771b",
+  "weightGenesis": "0x57cd33409ac4d2f3374bb9e3449c9aab39de8d6b3c73596406f212aa4813c254",
+  "mintBudgetRemaining": "100000000000000000000000000",
+  "vesting": { "enabled": true, "immediateUnlockBps": 1000, "vestingDurationSeconds": 31536000, "cliffSeconds": 0 },
+  "ammPool": null,
+  "contracts": {
+    "DeltaVerifier": "0x867E61c9D4ccF1419180B3257314fa8CEb2D27a6",
+    "ModelRegistry": "0x62f61e2505B96662cEF2168635244AFEE3C0F12E",
+    "TokenManager": "0x3E33c16Df36891d6217cA91b318B28D075bF13a1"
+  },
+  "setupTxs": {
+    "deployTokenWithAllocations": "0x23da7b57b79986bc80d39ee9a62dcbfcc1d9b84ee7c4a386b4268dc2e048a4f6",
+    "registerModel": "0xbed629f0f4b83147da27869508e8ebb5286db76c73b2510d110f0d63dd358723",
+    "setWeightGenesis": "0x37450497bd0e4edbeea49d727d89533d316f956b163371b4d2ffa9af41cacb38",
+    "setMintBudget": "0x59e4994482c8b9e5bdfc06192c06f891cd31a1a0ca4291485f9854be7fc4f3f4"
+  },
+  "createdVia": "scripts/setup-canary-model.js",
+  "consumers": [
+    ".github/workflows/sepolia-canary.yml (E2E_MODEL_ID=930)",
+    "scripts/deltaone-reconcile-drill.js (DRILL_MODEL_ID default 930)"
+  ]
+}

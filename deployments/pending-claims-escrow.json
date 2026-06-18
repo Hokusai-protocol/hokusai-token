@@ -5,5 +5,7 @@
   "address": "0x46779C8eA22A9554cD53346bE382558F0d7EdEC0",
   "admin": "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
   "deployTx": "0x84494062476827d1ebb945f1a3626146c5807c455ec464f189a0c008e8a9f14e",
-  "note": "RELEASER_ROLE granted separately to the auth settler. Add address to deltaone_system_sinks (HOK-2223)."
+  "note": "RELEASER_ROLE granted to the auth settler. Add address to deltaone_system_sinks (HOK-2223).",
+  "releaser": "0xbe2640bB22ae79f0d611aC727036fEBcFB7acf0c",
+  "releaserGrantTx": "0xa2f334bdadf417fec2c2e4d7478ff97d97c81a6b4ab9dc85b4b41b5e00890e89"
 }

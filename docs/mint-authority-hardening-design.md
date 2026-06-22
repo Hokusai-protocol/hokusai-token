@@ -33,7 +33,7 @@ Still open (see §7): exact EIP-712 field list; commitment form per link (conten
 Minting **must not be enabled on mainnet** while Redis or the consumer can produce an asset-layer mint without an independent authorization check. Concretely:
 
 - [ ] **Every** mint entrypoint enforces attester authorization, or legacy paths are disabled (Decision 9).
-- [ ] A1 attester verification deployed + **re-audited** (Echidna/Slither/external); the attester key is in *separate* custody from the submitter (Decisions 1–2).
+- [ ] A1 attester verification deployed + covered by **Echidna/Slither + internal review** (external audit WAIVED for launch — recorded risk acceptance 2026-06-22, see `mint-authority-launch-gate.md` "Audit decision"); the attester key is in *separate* custody from the submitter (Decisions 1–2).
 - [ ] Admin (`DEFAULT_ADMIN_ROLE`) and the attester registry are Safe/timelock-controlled — A1 is only meaningful if an attacker can't swap in their own attester (§3 T6).
 - [ ] Launch-phase cumulative mint cap configured + a `maxReward` per-mint backstop; conservative vs. the `tokensPerDeltaOne = 500,000` economics (Decision 6).
 - [ ] Monitoring on `DeltaOneAccepted` with defined thresholds **and** a pause authority that can act faster than the mint drain rate; pause drill rehearsed (§7 Q5). Note: `pause()` is `PAUSER_ROLE`, `unpause()` is `DEFAULT_ADMIN_ROLE`.

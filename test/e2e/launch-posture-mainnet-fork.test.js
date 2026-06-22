@@ -5,11 +5,13 @@ const path = require("path");
 const hre = require("hardhat");
 
 const { deployFullStack } = require("../../scripts/lib/deploy-stack");
-const { runInitLaunchPosture } = require("../../scripts/init-launch-posture");
 const { runVerifyLaunchPosture } = require("../../scripts/verify-launch-posture");
 const { saveJson } = require("../../scripts/lib/launch-posture");
 
-async function handoffRoles(deployment, adminSafeAddress, relayerAddress, deployerAddress) {
+// HOK-1694 custody handoff: admin/unpause -> Safe; PAUSER -> a DEDICATED hot pauser key (decision
+// 2026-06-22: fast manual pause, separate from the Safe and the attester); submitter -> relayer;
+// deployer fully revoked.
+async function handoffRoles(deployment, adminSafeAddress, pauserAddress, relayerAddress, deployerAddress) {
   const deltaVerifier = await hre.ethers.getContractAt("DeltaVerifier", deployment.contracts.DeltaVerifier);
   const contributionRegistry = await hre.ethers.getContractAt("DataContributionRegistry", deployment.contracts.DataContributionRegistry);
 
@@ -17,7 +19,7 @@ async function handoffRoles(deployment, adminSafeAddress, relayerAddress, deploy
   const pauserRole = await deltaVerifier.PAUSER_ROLE();
   const submitterRole = await deltaVerifier.SUBMITTER_ROLE();
   await (await deltaVerifier.grantRole(defaultAdminRole, adminSafeAddress)).wait();
-  await (await deltaVerifier.grantRole(pauserRole, adminSafeAddress)).wait();
+  await (await deltaVerifier.grantRole(pauserRole, pauserAddress)).wait();
   await (await deltaVerifier.grantRole(submitterRole, relayerAddress)).wait();
   await (await deltaVerifier.revokeRole(pauserRole, deployerAddress)).wait();
   await (await deltaVerifier.revokeRole(submitterRole, deployerAddress)).wait();
@@ -35,7 +37,7 @@ function mkTmpDir() {
 }
 
 async function buildScenario() {
-  const [deployer, adminSafe, relayer, attester] = await hre.ethers.getSigners();
+  const [deployer, adminSafe, relayer, attester, pauserKey] = await hre.ethers.getSigners();
   const result = await deployFullStack({
     name: "sepolia",
     expectedChainId: 31337n,
@@ -92,7 +94,7 @@ async function buildScenario() {
     chainId: 31337,
     deploymentArtifactPath: deploymentPath,
     adminSafe: adminSafe.address,
-    emergencySafe: adminSafe.address,
+    emergencySafe: pauserKey.address,
     deployerAddress: deployer.address,
     submitterRelayer: relayer.address,
     deltaVerifier: {
@@ -132,16 +134,49 @@ async function buildScenario() {
     }
   });
 
-  return { configPath, deploymentPath, deployment, adminSafe, relayer, deployer };
+  return { configPath, deploymentPath, deployment, adminSafe, relayer, deployer, pauserKey, attester };
+}
+
+// Apply the launch posture directly as the deployer (still admin pre-handoff). The init script's
+// --execute path is Gate-8 tooling proven on live Sepolia (HOK-2176) and covered by HOK-2169; here
+// we only need a correctly-posture'd deployment to exercise the custody handoff against.
+async function applyLaunchPosture(deployment, attesterAddress) {
+  const dv = await hre.ethers.getContractAt("DeltaVerifier", deployment.contracts.DeltaVerifier);
+  const mr = await hre.ethers.getContractAt("ModelRegistry", deployment.contracts.ModelRegistry);
+  await (await dv.disableLegacyMints()).wait();
+  await (await dv.addAttester(attesterAddress)).wait();
+  await (await dv.setAttesterThreshold(1)).wait();
+  await (await dv.setMintBudget(30, hre.ethers.parseEther("1500000"))).wait();
+  await (await dv.setMaxReward(hre.ethers.parseEther("2500000"))).wait();
+  await (await mr.setWeightGenesis(30, "0x1111111111111111111111111111111111111111111111111111111111111111")).wait();
 }
 
 describe("launch posture integration", function () {
-  it("deploy + init + verify passes", async function () {
-    const { configPath, deployment, adminSafe, relayer, deployer } = await buildScenario();
-    await runInitLaunchPosture(hre, ["--config", configPath, "--execute"]);
-    await handoffRoles(deployment, adminSafe.address, relayer.address, deployer.address);
+  // Full-stack deploy + init + handoff + verify is heavy; the default 40s mocha cap isn't enough.
+  this.timeout(180000);
+
+  it("custody handoff dry-run: verify passes, deployer defanged, new holders live", async function () {
+    const { configPath, deployment, adminSafe, relayer, deployer, pauserKey, attester } = await buildScenario();
+    await applyLaunchPosture(deployment, attester.address);
+    await handoffRoles(deployment, adminSafe.address, pauserKey.address, relayer.address, deployer.address);
+
     const { report } = await runVerifyLaunchPosture(hre, ["--config", configPath]);
     expect(report.overall).to.equal("pass");
+
+    // Behavioral proof the handoff actually moved authority (not just role enumeration):
+    const dv = await hre.ethers.getContractAt("DeltaVerifier", deployment.contracts.DeltaVerifier);
+    // Deployer is fully defanged.
+    await expect(dv.connect(deployer).pause()).to.be.reverted;
+    await expect(dv.connect(deployer).addAttester(relayer.address)).to.be.reverted;
+    // The dedicated hot pauser key can hit the brakes; only the admin Safe can resume.
+    await (await dv.connect(pauserKey).pause()).wait();
+    expect(await dv.paused()).to.equal(true);
+    await expect(dv.connect(pauserKey).unpause()).to.be.reverted; // pauser is not admin
+    await (await dv.connect(adminSafe).unpause()).wait();
+    expect(await dv.paused()).to.equal(false);
+    // The admin Safe holds governance (e.g. the attester registry).
+    await (await dv.connect(adminSafe).addAttester(relayer.address)).wait();
+    expect(await dv.isAttester(relayer.address)).to.equal(true);
   });
 
   it("skipping legacy mint disablement fails on exactly that assertion", async function () {

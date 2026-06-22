@@ -1,5 +1,13 @@
 # Gate 9 — Operational drills runbook (HOK-2178)
 
+## Launch decisions (2026-06-22, owner-confirmed)
+- **Pause path:** a **hot KMS key holds `PAUSER_ROLE`** (fast manual pause when an alert fires) — not the Safe (too slow) and not the attester Ledger (human tap too slow). Recommended: a **dedicated pause-only KMS key** (smallest blast radius — if leaked it can only grief-pause, reversible by the admin `unpause`); reusing the backend ops key is an acceptable fallback. `unpause()` stays with `DEFAULT_ADMIN_ROLE` (Safe) — brakes are fast, resume is governed.
+- **AUTO_PAUSE:** **alert-only at launch** (no automated pause wired). Operator pauses manually via the hot pauser key on an alert.
+- **Attester redundancy:** **1-of-1 Ledger**, recovered from seed if lost. Accepted tradeoff: a lost device *defers* mints until restore (minutes–hours), not a loss — per-model budget caps bound exposure. No backup attester pre-registered. (Verify the seed backup is secured and a restore has been tested once.)
+- **Alerts:** **email (SES) only** at launch. Action: confirm every address in `ALERT_EMAIL_TO` is a real monitored inbox + the SES from-address is verified + send a test (HOK-1698).
+- **Safe signers:** repo/on-chain expose only the Safe **address + threshold** (owners are public on-chain anyway); the address→identity mapping + contacts + recovery live in a **private access-controlled vault, not this repo** (incident-response readiness without handing attackers a target list).
+
+
 Each drill below is **executed + timed on Sepolia**, and the results table filled in, before mainnet.
 The contract-level mechanism behind drills 1 and 3 is proven deterministically on every CI run by
 `test/drills/gate9-ops-drills.test.js` (pause halts/restores minting + exactly-once replay; attester
@@ -39,6 +47,6 @@ and operational fit, not contract behavior.
 | 5 key-compromise | | | tabletop walked | | decision tree + owners recorded |
 
 ## Cross-issue dependencies
-- **HOK-1698** — deploy monitoring + build/tune the Drill-2 anomaly alerts; decide alert channels (today: email/SES only).
-- **HOK-1694** — attester-redundancy decision (backup attester?) feeds Drill 3's lost-device answer; pause-path (hot key vs Safe) feeds Drill 1.
-- **AUTO_PAUSE** — not yet wired; Drill 2's automated-pause leg depends on the rollout decision (recommend phased: alert-only → auto).
+- **HOK-1698** — deploy monitoring + build/tune the Drill-2 anomaly alerts; **email/SES only at launch** (decided) — verify all `ALERT_EMAIL_TO` recipients are real + test delivery.
+- **HOK-1694** — decisions made (see above): grant `PAUSER_ROLE` to the hot pauser KMS key; attester stays 1-of-1 Ledger (seed restore); keep signer identities in a private vault, repo holds only Safe address+threshold.
+- **AUTO_PAUSE** — **deferred post-launch** (alert-only at launch, decided 2026-06-22). When revisited, roll out phased (alert-only → auto) and decide the automated pauser identity (the hot pauser key already holds `PAUSER_ROLE`).

@@ -4,7 +4,33 @@
 **Security program:** HOK-2119  
 **Current repo commit:** `cd2cbc972fad08dd3cb22ee5681dde9ba3bb2b27`
 
-## Re-audit Package
+## Audit decision (2026-06-22)
+
+**External third-party audit is WAIVED for the initial mainnet launch.** No external auditor is
+engaged, and launch will not block on one. Decision owner: Tim Ogilvie. This is a deliberate,
+recorded risk acceptance — not an oversight, and not a claim that the code was externally reviewed.
+
+The package below is therefore an **internal** assurance package (not an external "re-audit").
+Compensating controls relied on in lieu of an external audit:
+
+- This internal audit package: the hardened mint path and its precise diff from the prior audited
+  `DeltaVerifier` (see "Diff from prior audit scope").
+- **Echidna** property-based fuzzing (8 harnesses; short on every PR, long campaign weekly) and
+  **Slither** static analysis, both as blocking CI gates.
+- ~2,272 Hardhat test cases, including dedicated lineage / budget / signature / deadline /
+  reentrancy / phase edge-case suites.
+- **Adversarial Sepolia dress rehearsal** (Gate 7 / HOK-2177): the HOK-2119 forged-message attack
+  is re-run live and proven to fail; the signed happy-path mint succeeds.
+- Immutable (non-upgradeable) contracts; timelocked + multisig governance; pausable kill-switch;
+  conservative per-model mint budgets bounding blast radius.
+
+**Accepted residual risk:** no independent third-party review of the contract code. Bug classes
+that internal fuzzing / static analysis / tests did not surface could exist on a financial mint
+path. This is accepted for launch and **should be revisited post-launch** — engage an external
+audit once a firm is available; until then, conservative budgets + active monitoring + the pause
+kill-switch are the mitigations. The internal go/no-go sign-off is tracked in HOK-2179.
+
+## Internal assurance package
 
 ### Scope statement
 

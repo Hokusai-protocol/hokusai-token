@@ -34,7 +34,7 @@ Comprehensive checklist for deploying Hokusai AMM contracts to Ethereum mainnet.
 - [ ] Latest contracts compiled: `npx hardhat compile`
 - [ ] All tests passing: `npm test`
 - [ ] Gas benchmarks reviewed
-- [ ] Security audit completed (if applicable)
+- [x] External security audit — **WAIVED for initial launch** (recorded risk acceptance 2026-06-22; see `mint-authority-launch-gate.md` "Audit decision"). Internal assurance (Echidna/Slither/tests/adversarial Sepolia rehearsal) stands in; revisit post-launch.
 - [ ] Testnet deployment successful (Sepolia)
 - [ ] Testnet functionality verified (buy/sell transactions)
 - [ ] [Canonical model registration doc](canonical-model-registration.md) reviewed

@@ -33,7 +33,7 @@ Ordered, dependency-annotated work breakdown across three Linear projects: **Hok
 
 ## Layer 5
 
-13. **[SC] Re-audit + Echidna/Slither coverage + cross-repo conformance** *(P1, launch gate)* ← (7),(8),(9),(12). Fuzz/static coverage for budget + signature + lineage; external re-audit; update the golden-fixture conformance for the new payload; rehearsals (attester custody, signature rendering, pause drill, monitoring drill). Deps: (7),(8),(9),(12).
+13. **[SC] Internal assurance + Echidna/Slither coverage + cross-repo conformance** *(P1, launch gate)* ← (7),(8),(9),(12). Fuzz/static coverage for budget + signature + lineage; update the golden-fixture conformance for the new payload; rehearsals (attester custody, signature rendering, pause drill, monitoring drill). **External re-audit is WAIVED for launch (recorded risk acceptance, 2026-06-22 — see `mint-authority-launch-gate.md` "Audit decision"); the launch gate is the internal go/no-go sign-off (HOK-2179), not an external audit result.** Deps: (7),(8),(9),(12).
 
 ## Parallelism summary
 - Start immediately, in parallel: (1),(2),(3),(4),(5),(6).

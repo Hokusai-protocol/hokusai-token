@@ -1,0 +1,12 @@
+{
+  "_comment": "HOK-2199 / HOK-2207 — SINGLE SOURCE OF TRUTH for design-locked launch economics. Owner-confirmed: tokensPerDeltaOne 250k (NOT 500k — 2026-06-09), maxReward 2.5M, per-model starting mint budget 1.5M, vesting 10% immediate / 90% linear over 1 year, no cliff (2026-06-14). Every *-launch-tokens.json and *-launch-posture.json must agree with these values or test/scripts/launchEconomicsConsistency.test.js fails CI. Values are in WHOLE tokens; the guard multiplies by 1e18 to compare against the wei-denominated launch-posture expectations.",
+  "tokensPerDeltaOne": "250000",
+  "maxReward": "2500000",
+  "startingMintBudget": "1500000",
+  "vestingConfig": {
+    "enabled": true,
+    "immediateUnlockBps": 1000,
+    "vestingDurationSeconds": 31536000,
+    "cliffSeconds": 0
+  }
+}

@@ -117,18 +117,26 @@ export class AMMMonitor {
       onAlert: (alert) => this.handleAlert(alert),
     });
 
-    this.eventListener = new EventListener(this.provider, this.config.thresholds, {
-      onTradeEvent: (event) => {
-        this.metricsCollector.recordTrade(event);
-        return this.logTradeEvent(event);
+    this.eventListener = new EventListener(
+      this.provider,
+      this.config.thresholds,
+      {
+        onTradeEvent: (event) => {
+          this.metricsCollector.recordTrade(event);
+          return this.logTradeEvent(event);
+        },
+        onSecurityEvent: (event) => this.logSecurityEvent(event),
+        onFeeEvent: (event) => {
+          this.metricsCollector.recordFeeDeposit(event);
+          return this.logFeeEvent(event);
+        },
+        onAlert: (alert) => this.handleAlert(alert),
       },
-      onSecurityEvent: (event) => this.logSecurityEvent(event),
-      onFeeEvent: (event) => {
-        this.metricsCollector.recordFeeDeposit(event);
-        return this.logFeeEvent(event);
+      {
+        // HOK-1698 fee-routing: the UsageFeeRouter is the only legitimate AMM.depositFees caller.
+        expectedFeeDepositor: this.config.contracts.usageFeeRouter,
       },
-      onAlert: (alert) => this.handleAlert(alert),
-    });
+    );
 
     this.metricsCollector = new MetricsCollector();
 

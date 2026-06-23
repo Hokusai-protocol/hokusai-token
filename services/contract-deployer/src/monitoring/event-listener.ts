@@ -78,10 +78,48 @@ export interface EventListenerCallbacks {
   onAlert?: (alert: EventAlert) => Promise<void>;
 }
 
+/**
+ * HOK-1698 fee-routing check (pure, testable). `AMM.depositFees` is permissionless, so a deposit
+ * from anyone other than the UsageFeeRouter is both a fee-routing anomaly (fees bypassing the
+ * router) and a reserve/price-manipulation vector (injected reserve inflates spot price). Returns a
+ * `fee_mismatch` alert on an unexpected depositor, or null (match, or no expected depositor set).
+ */
+export function buildFeeMismatchAlert(
+  feeEvent: FeeEvent,
+  expectedFeeDepositor: string | undefined,
+): EventAlert | null {
+  if (!expectedFeeDepositor) {
+    return null;
+  }
+  if (feeEvent.depositor.toLowerCase() === expectedFeeDepositor.toLowerCase()) {
+    return null;
+  }
+  return {
+    type: 'fee_mismatch',
+    priority: 'high',
+    message: `⚠️ Unexpected fee depositor on ${feeEvent.modelId}: ${feeEvent.depositor} deposited $${feeEvent.amountUSD.toFixed(2)} (expected the UsageFeeRouter)`,
+    event: feeEvent,
+    metadata: {
+      depositor: feeEvent.depositor,
+      expectedDepositor: expectedFeeDepositor.toLowerCase(),
+      amountUSD: feeEvent.amountUSD,
+      newReserveBalance: feeEvent.newReserveBalance.toString(),
+    },
+  };
+}
+
+export interface EventListenerOptions {
+  // HOK-1698 fee-routing: the only legitimate caller of AMM.depositFees (the UsageFeeRouter).
+  // depositFees is permissionless, so a deposit from any other address is a fee-routing anomaly
+  // AND a reserve/price-manipulation vector. Lowercased for comparison; unset disables the check.
+  expectedFeeDepositor?: string;
+}
+
 export class EventListener {
   private provider: ethers.Provider;
   private thresholds: AlertThresholds;
   private callbacks: EventListenerCallbacks;
+  private expectedFeeDepositor?: string;
 
   private poolContracts: Map<string, ethers.Contract> = new Map();
   private isListening: boolean = false;
@@ -110,10 +148,12 @@ export class EventListener {
     provider: ethers.Provider,
     thresholds: AlertThresholds,
     callbacks: EventListenerCallbacks = {},
+    options: EventListenerOptions = {},
   ) {
     this.provider = provider;
     this.thresholds = thresholds;
     this.callbacks = callbacks;
+    this.expectedFeeDepositor = options.expectedFeeDepositor?.toLowerCase();
   }
 
   /**
@@ -399,6 +439,12 @@ export class EventListener {
     logger.debug(
       `   Depositor: ${depositor}, New Reserve: $${Number(ethers.formatUnits(newReserveBalance, 6)).toFixed(2)}`,
     );
+
+    // HOK-1698 fee-routing: flag deposits not from the UsageFeeRouter (see buildFeeMismatchAlert).
+    const feeAlert = buildFeeMismatchAlert(feeEvent, this.expectedFeeDepositor);
+    if (feeAlert && this.callbacks.onAlert) {
+      await this.callbacks.onAlert(feeAlert);
+    }
 
     // Notify callback
     if (this.callbacks.onFeeEvent) {

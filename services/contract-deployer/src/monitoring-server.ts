@@ -15,6 +15,7 @@ import { AMMMonitor } from './monitoring/amm-monitor';
 import { monitoringRouter } from './routes/monitoring';
 import { reconciliationRouter } from './routes/reconciliation';
 import { logger } from './utils/logger';
+import { installGlobalErrorHandlers } from './utils/process-handlers';
 import { CostReconciliationService } from './monitoring/cost-reconciliation-service';
 import { validateEnv } from './config/env.validation';
 import { createBackendSigner } from './blockchain/signer-factory';
@@ -24,6 +25,10 @@ import { asyncHandler } from './middleware/async-handler';
 
 // Load environment variables
 dotenv.config();
+
+// Capture the cause of any unhandled rejection / uncaught exception before exiting (HOK B2). The
+// dedicated monitor previously had no global handlers, so a dropped WebSocket crashed it silently.
+installGlobalErrorHandlers(logger);
 
 async function initializeBackendSigner(
   config: Config,

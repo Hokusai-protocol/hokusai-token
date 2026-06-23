@@ -10,6 +10,7 @@ import { StateTracker, StateAlert } from './state-tracker';
 import { EventListener, TradeEvent, SecurityEvent, FeeEvent, EventAlert } from './event-listener';
 import { MetricsCollector } from './metrics-collector';
 import { AlertManager, AlertManagerConfig } from './alert-manager';
+import { attachSocketErrorHandler, SocketLike } from './ws-error-handler';
 import {
   assessIngestionHealth,
   IngestionHealthState,
@@ -82,14 +83,14 @@ export class AMMMonitor {
 
     // Create provider - use WebSocket if URL starts with ws:// or wss://
     if (this.config.rpcUrl.startsWith('ws://') || this.config.rpcUrl.startsWith('wss://')) {
-      this.provider = new ethers.WebSocketProvider(this.config.rpcUrl);
+      this.provider = this.createWebSocketProvider(this.config.rpcUrl);
       logger.info('Using WebSocket provider for event listening (reduces RPC calls)');
     } else {
       // Convert https:// to wss:// for Alchemy URLs
       const wsUrl = this.config.rpcUrl.replace('https://', 'wss://').replace('http://', 'ws://');
       if (wsUrl.startsWith('wss://') || wsUrl.startsWith('ws://')) {
         try {
-          this.provider = new ethers.WebSocketProvider(wsUrl);
+          this.provider = this.createWebSocketProvider(wsUrl);
           logger.info(`Converted to WebSocket provider: ${wsUrl.split('.com')[0]}.com/...`);
         } catch (error) {
           logger.warn('Failed to create WebSocket provider, falling back to HTTP', { error });
@@ -294,6 +295,30 @@ export class AMMMonitor {
       logger.error(`Failed to start monitoring for ${poolConfig.modelId}:`, error);
       this.errors.push(`Failed to monitor ${poolConfig.modelId}: ${error}`);
     }
+  }
+
+  /**
+   * Create a WebSocketProvider with an error handler attached to its underlying socket.
+   *
+   * Without this, a dropped Alchemy WebSocket throws an uncaught error that kills the whole process
+   * (this is what crash-looped the in-process mint relayer — HOK B2). The handler logs and survives;
+   * the ingestion heartbeat (startIngestionHeartbeat) detects the resulting rpc_error on its next
+   * tick and fails over to the backup provider.
+   */
+  private createWebSocketProvider(wsUrl: string): ethers.WebSocketProvider {
+    const provider = new ethers.WebSocketProvider(wsUrl);
+    const attached = attachSocketErrorHandler(
+      provider.websocket as unknown as SocketLike,
+      (err: unknown) => {
+        logger.error('WebSocket provider socket error (handled — monitor stays alive)', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      },
+    );
+    if (!attached) {
+      logger.warn('Could not attach WebSocket error handler; socket unavailable at construction');
+    }
+    return provider;
   }
 
   /**

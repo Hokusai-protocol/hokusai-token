@@ -26,6 +26,7 @@ import { createMonitoringConfig } from './config/monitoring-config';
 import { MintRequestListener } from './mint-request-listener';
 import { createBackendSigner } from './blockchain/signer-factory';
 import { setBackendSigner } from './blockchain/signer-singleton';
+import { installGlobalErrorHandlers } from './utils/process-handlers';
 
 // Load environment variables
 dotenv.config();
@@ -445,17 +446,9 @@ async function startServer(): Promise<void> {
   }
 }
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection', { promise, reason });
-  process.exit(1);
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception', { error });
-  process.exit(1);
-});
+// Global crash handlers that capture the cause synchronously before exiting (HOK B2: the previous
+// handlers logged via winston then exited immediately, so the cause never flushed to CloudWatch).
+installGlobalErrorHandlers(logger);
 
 // Start the server
 if (require.main === module) {

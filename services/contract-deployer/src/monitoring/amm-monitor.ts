@@ -145,7 +145,10 @@ export class AMMMonitor {
       // HOK-1698: emit a CloudWatch metric per alert so the health report + mttr can see them.
       cloudWatchEnabled: process.env.MONITORING_CLOUDWATCH_ENABLED !== 'false',
       metricsNamespace: process.env.MONITORING_METRICS_NAMESPACE || 'Hokusai/ContractMonitoring',
-      environment: this.config.network,
+      // Deploy environment (development/production) — must match the health-report query's Environment
+      // dimension (cloudwatch_service_health_report.py uses HOKUSAI_ENVIRONMENT, default development),
+      // NOT the chain network. Otherwise the report would query the wrong metric series.
+      environment: process.env.HOKUSAI_ENVIRONMENT || process.env.ENVIRONMENT || 'development',
     };
 
     this.alertManager = new AlertManager(alertManagerConfig);

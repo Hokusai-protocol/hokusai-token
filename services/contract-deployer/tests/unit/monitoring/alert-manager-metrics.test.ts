@@ -43,7 +43,7 @@ describe('AlertManager CloudWatch metrics (HOK-1698)', () => {
     putMetricCtor.mockClear();
   });
 
-  it('emits a metric per alert with the alert type as the metric name + Environment/Priority dims', async () => {
+  it('emits a metric per alert with the alert type as the metric name + an Environment dimension', async () => {
     const am = new AlertManager(baseConfig);
     await am.sendAlert(ingestionAlert);
     await tick();
@@ -60,12 +60,8 @@ describe('AlertManager CloudWatch metrics (HOK-1698)', () => {
     expect(input.Namespace).toBe('Hokusai/ContractMonitoring');
     expect(input.MetricData[0].MetricName).toBe('stale_ingestion');
     expect(input.MetricData[0].Value).toBe(1);
-    expect(input.MetricData[0].Dimensions).toEqual(
-      expect.arrayContaining([
-        { Name: 'Environment', Value: 'sepolia' },
-        { Name: 'Priority', Value: 'critical' },
-      ]),
-    );
+    // Single [Environment] dimension so it matches the health-report query (no Priority dimension).
+    expect(input.MetricData[0].Dimensions).toEqual([{ Name: 'Environment', Value: 'sepolia' }]);
   });
 
   it('recordHeartbeat emits a Heartbeat liveness metric', async () => {

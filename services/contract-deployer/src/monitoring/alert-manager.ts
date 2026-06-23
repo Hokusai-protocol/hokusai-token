@@ -96,14 +96,14 @@ export class AlertManager {
    * occurrence, independent of email dedup/rate-limiting, so the health report + mttr see the true
    * signal. Best-effort — a metric failure never blocks the alert path.
    */
-  private async emitMetric(metricName: string, priority?: string): Promise<void> {
+  private async emitMetric(metricName: string): Promise<void> {
     if (!this.cwClient) {
       return;
     }
+    // Single [Environment] dimension — must match the health-report query
+    // (collect_anomaly_metrics queries Dimensions=[{Environment}] only), so a [Environment,Priority]
+    // set would be invisible to it. Severity is already encoded by the metric name (alert type).
     const dimensions = [{ Name: 'Environment', Value: this.config.environment }];
-    if (priority) {
-      dimensions.push({ Name: 'Priority', Value: priority });
-    }
     try {
       await this.cwClient.send(
         new PutMetricDataCommand({
@@ -142,7 +142,7 @@ export class AlertManager {
 
     // Emit a CloudWatch metric for every occurrence (ground truth) before the email dedup/rate-limit
     // gates, so the health report + mttr see the true signal even when email is throttled.
-    void this.emitMetric(alert.type, alert.priority);
+    void this.emitMetric(alert.type);
 
     // Check if this is a duplicate (deduplication)
     const alertKey = this.getAlertKey(alert);

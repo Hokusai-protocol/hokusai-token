@@ -76,6 +76,13 @@ async function createServer(context?: ServerContext): Promise<express.Applicatio
           },
         },
   );
+  // Prevent an unhandled 'error' on a Redis socket drop from crashing the process (B2). node-redis
+  // auto-reconnects; we just need a listener so the EventEmitter does not rethrow.
+  redisClient.on('error', (err: unknown) => {
+    logger.error('Redis client error (api server)', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
 
   console.log('[STARTUP] Connecting to Redis...');
   try {

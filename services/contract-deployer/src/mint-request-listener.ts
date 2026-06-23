@@ -54,6 +54,15 @@ export class MintRequestListener {
 
   constructor(private readonly config: MintRequestListenerConfig) {
     this.redis = createClient({ url: config.redis.url });
+    // node-redis emits 'error' on socket drops (e.g. ElastiCache idle/network blips). Without a
+    // listener, the EventEmitter rethrows it as an uncaught exception ("Socket closed unexpectedly")
+    // that crash-loops the relayer (the real root cause of B2). node-redis auto-reconnects, so we
+    // log and let it recover rather than letting the money-path process die.
+    this.redis.on('error', (err: unknown) => {
+      logger.error('Redis client error (mint listener)', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
 
     const provider = new ethers.JsonRpcProvider(config.blockchain.rpcUrls[0]);
     const signer = config.blockchain.signer.connect(provider);

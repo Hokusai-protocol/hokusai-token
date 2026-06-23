@@ -143,6 +143,12 @@ async function main(): Promise<void> {
     try {
       const redisUrl = config.REDIS_URL || `redis://${config.REDIS_HOST}:${config.REDIS_PORT}`;
       redis = createClient({ url: redisUrl });
+      // Avoid an unhandled 'error' on a Redis socket drop crashing the process (B2); node-redis reconnects.
+      redis.on('error', (err: unknown) => {
+        logger.error('Redis client error', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
       const connectPromise = redis.connect();
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Redis connection timeout')), 5000),

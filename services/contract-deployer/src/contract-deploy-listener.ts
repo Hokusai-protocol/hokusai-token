@@ -33,6 +33,12 @@ export class ContractDeployListener {
 
   constructor(config: ContractDeployListenerConfig) {
     this.redis = createClient({ url: config.redis.url });
+    // Avoid an unhandled 'error' on a Redis socket drop crashing the process (B2); node-redis reconnects.
+    this.redis.on('error', (err: unknown) => {
+      logger.error('Redis client error (deploy listener)', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
 
     // Initialize blockchain components
     this.provider = new ethers.JsonRpcProvider(config.blockchain.rpcUrls[0]);

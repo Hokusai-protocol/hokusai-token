@@ -56,12 +56,15 @@ export interface StateAlert {
     | 'true_supply_mismatch'
     | 'paused'
     | 'low_reserve'
-    | 'high_fees';
+    | 'high_fees'
+    // HOK-1698: monitor-level ingestion health (not pool-specific; carries no currentState).
+    | 'stale_ingestion'
+    | 'ingestion_recovered';
   priority: 'critical' | 'high' | 'medium';
   poolAddress: string;
   modelId: string;
   message: string;
-  currentState: PoolState;
+  currentState?: PoolState;
   previousState?: PoolState;
   metadata?: Record<string, any>;
 }

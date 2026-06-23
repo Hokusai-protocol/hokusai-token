@@ -256,6 +256,13 @@ export class AlertManager {
   private buildStateAlertDetails(alert: StateAlert): string {
     const { currentState, previousState } = alert;
 
+    // HOK-1698: monitor-level alerts (ingestion health) carry no pool state — render metadata only.
+    if (!currentState) {
+      return alert.metadata
+        ? `<div class="details"><pre>${JSON.stringify(alert.metadata, null, 2)}</pre></div>`
+        : '';
+    }
+
     // Add phase information
     const phaseName =
       currentState.pricingPhase === 0 ? 'Flat Price (Bootstrap)' : 'Bonding Curve (Active)';

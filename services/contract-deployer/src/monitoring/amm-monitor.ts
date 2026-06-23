@@ -10,6 +10,12 @@ import { StateTracker, StateAlert } from './state-tracker';
 import { EventListener, TradeEvent, SecurityEvent, FeeEvent, EventAlert } from './event-listener';
 import { MetricsCollector } from './metrics-collector';
 import { AlertManager, AlertManagerConfig } from './alert-manager';
+import {
+  assessIngestionHealth,
+  IngestionHealthState,
+  IngestionSample,
+  INITIAL_INGESTION_HEALTH,
+} from './ingestion-health';
 
 /**
  * AMM Monitor
@@ -64,6 +70,8 @@ export class AMMMonitor {
   private isRunning: boolean = false;
   private startTime: number = 0;
   private errors: string[] = [];
+  private ingestionHealth: IngestionHealthState = INITIAL_INGESTION_HEALTH;
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
   private alertCallbacks: Array<(alert: StateAlert | EventAlert) => Promise<void>> = [];
   private alerts: Array<StateAlert | EventAlert> = [];
   private events: Array<TradeEvent | SecurityEvent | FeeEvent> = [];
@@ -185,6 +193,10 @@ export class AMMMonitor {
         await this.startMonitoringPool(pool.ammAddress, pool);
       }
 
+      // 5. Start the ingestion-health heartbeat (HOK-1698): detect a blind monitor (RPC down /
+      //    stale or stuck head) so the other alerts can be trusted to actually fire.
+      this.startIngestionHeartbeat();
+
       // Log summary
       this.logStartupSummary();
 
@@ -209,6 +221,10 @@ export class AMMMonitor {
 
     try {
       // Stop all components
+      if (this.heartbeatTimer) {
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = undefined;
+      }
       this.poolDiscovery.stopListening();
       this.stateTracker.stopAllTracking();
       this.eventListener.stopAllListening();
@@ -373,6 +389,90 @@ export class AMMMonitor {
     } catch (error) {
       logger.error('Failed to send alert via AlertManager:', error);
     }
+  }
+
+  /**
+   * HOK-1698 — ingestion-health heartbeat. Periodically samples the chain head; if the RPC errors,
+   * the head is stale, or the head stops advancing, the monitor is blind and every other alert
+   * silently stops firing. Emits a critical alert on the unhealthy transition (once, not per tick)
+   * and a recovery alert when it clears. On an RPC error it also attempts the backup provider.
+   */
+  private startIngestionHeartbeat(): void {
+    const thresholds = {
+      staleBlockMs: this.config.thresholds.ingestionStaleBlockMs,
+      stuckMs: this.config.thresholds.ingestionStuckMs,
+    };
+
+    const tick = async (): Promise<void> => {
+      let sample: IngestionSample;
+      try {
+        const block = await this.provider.getBlock('latest');
+        sample = block
+          ? { ok: true, blockNumber: block.number, blockTimestampMs: block.timestamp * 1000 }
+          : { ok: false };
+      } catch {
+        sample = { ok: false };
+      }
+
+      const assessment = assessIngestionHealth(
+        this.ingestionHealth,
+        sample,
+        Date.now(),
+        thresholds,
+      );
+      this.ingestionHealth = assessment.state;
+      if (!assessment.transitioned) {
+        return;
+      }
+
+      if (!assessment.healthy) {
+        // RPC failure: try to fail over to the backup provider before paging.
+        if (assessment.reason === 'rpc_error' && this.backupProvider && !this.usingBackupProvider) {
+          try {
+            await this.switchToBackupProvider();
+          } catch (error) {
+            logger.error('Backup provider failover failed during ingestion outage:', error);
+          }
+        }
+        await this.handleAlert(
+          this.buildIngestionAlert(
+            'critical',
+            `Monitor ingestion unhealthy (${assessment.reason}) — alerts may be blind`,
+            assessment.reason,
+          ),
+        );
+      } else {
+        await this.handleAlert(
+          this.buildIngestionAlert('medium', 'Monitor ingestion recovered', 'recovered'),
+        );
+      }
+    };
+
+    this.heartbeatTimer = setInterval(() => {
+      void tick();
+    }, this.config.thresholds.ingestionHeartbeatIntervalMs);
+    // Don't keep the process alive solely for the heartbeat.
+    this.heartbeatTimer.unref?.();
+  }
+
+  /** Build a monitor-level ingestion alert (not pool-specific; carries no pool currentState). */
+  private buildIngestionAlert(
+    priority: 'critical' | 'medium',
+    message: string,
+    reason: string | null,
+  ): StateAlert {
+    return {
+      type: priority === 'critical' ? 'stale_ingestion' : 'ingestion_recovered',
+      priority,
+      poolAddress: 'monitor',
+      modelId: 'monitor',
+      message,
+      metadata: {
+        reason,
+        usingBackupProvider: this.usingBackupProvider,
+        lastBlockNumber: this.ingestionHealth.lastBlockNumber,
+      },
+    };
   }
 
   /**

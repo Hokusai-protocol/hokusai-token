@@ -65,6 +65,11 @@ export interface AlertThresholds {
 
   // Pause monitoring
   pausedDurationHours: number; // Alert if paused >X hours
+
+  // Ingestion health (HOK-1698): detect a blind monitor (RPC down / stale or stuck head).
+  ingestionHeartbeatIntervalMs: number; // How often the heartbeat samples the chain head
+  ingestionStaleBlockMs: number; // Head timestamp older than now - this => stale chain/RPC
+  ingestionStuckMs: number; // Head block number not advancing for this long => stuck
 }
 
 export interface MonitoringConfig {
@@ -124,6 +129,12 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
   ibrEndingInHours: 24,
 
   pausedDurationHours: 1,
+
+  // HOK-1698: sample the head each minute; a head older than 5 min or not advancing for 5 min is
+  // unhealthy (Sepolia/mainnet ~12s blocks, so 5 min is ~25 missed blocks — clearly degraded).
+  ingestionHeartbeatIntervalMs: 60 * 1000,
+  ingestionStaleBlockMs: 5 * 60 * 1000,
+  ingestionStuckMs: 5 * 60 * 1000,
 };
 
 /**
@@ -277,6 +288,21 @@ export function createMonitoringConfig(): MonitoringConfig {
 
       pausedDurationHours: parseFloat(
         process.env.ALERT_PAUSED_DURATION_HOURS || String(DEFAULT_THRESHOLDS.pausedDurationHours),
+      ),
+
+      ingestionHeartbeatIntervalMs: parseInt(
+        process.env.ALERT_INGESTION_HEARTBEAT_MS ||
+          String(DEFAULT_THRESHOLDS.ingestionHeartbeatIntervalMs),
+        10,
+      ),
+      ingestionStaleBlockMs: parseInt(
+        process.env.ALERT_INGESTION_STALE_BLOCK_MS ||
+          String(DEFAULT_THRESHOLDS.ingestionStaleBlockMs),
+        10,
+      ),
+      ingestionStuckMs: parseInt(
+        process.env.ALERT_INGESTION_STUCK_MS || String(DEFAULT_THRESHOLDS.ingestionStuckMs),
+        10,
       ),
     },
 

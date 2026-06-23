@@ -199,6 +199,26 @@ describe('MintRequestConsumer', () => {
     );
   });
 
+  test('emits a dead-letter event carrying the failure reason (HOK-1698 metric hook)', async () => {
+    const messageStr = JSON.stringify(validMessage);
+    mockRedis.brPopLPush.mockResolvedValueOnce(messageStr);
+    mockRedis.sIsMember.mockResolvedValueOnce(false);
+    handler.mockRejectedValueOnce(
+      Object.assign(new Error('Model not registered'), { code: 'CALL_EXCEPTION' }),
+    );
+    mockRedis.lPush.mockResolvedValueOnce(1);
+    mockRedis.lRem.mockResolvedValueOnce(1);
+    mockRedis.set.mockResolvedValueOnce('OK');
+
+    const events: Array<{ reason: string }> = [];
+    consumer.on('dead-letter', (e: { reason: string }) => events.push(e));
+
+    await expect(consumer.processMessage(handler)).rejects.toThrow('Model not registered');
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.reason).toContain('Model not registered');
+  });
+
   test('moves exhausted transient failures to the DLQ', async () => {
     const exhaustedMessage = { ...validMessage, _retryCount: 3 };
     const messageStr = JSON.stringify(exhaustedMessage);

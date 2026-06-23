@@ -6,6 +6,7 @@ import { MintRecordStore } from './queue/mint-record-store';
 import { DeltaVerifierClient } from './blockchain/delta-verifier-client';
 import { MintRequestProcessor } from './services/mint-request-processor';
 import { PayoutIntentStore } from './services/payout-intent-store';
+import { DlqMetricsEmitter } from './monitoring/dlq-metrics';
 import { logger } from './utils/logger';
 
 export interface MintRequestListenerConfig {
@@ -88,6 +89,20 @@ export class MintRequestListener {
       backoffMultiplier: config.queues.backoffMultiplier,
       recordStore,
     });
+
+    // HOK-1698: publish a CloudWatch metric on every dead-letter so a spike in permanently-failed
+    // mint requests surfaces in the daily health report + mttr. Reuses the AMM monitor's env flags
+    // and namespace so ops configure one toggle. Best-effort — never blocks the relayer.
+    const dlqMetrics = new DlqMetricsEmitter({
+      enabled: process.env.MONITORING_CLOUDWATCH_ENABLED !== 'false',
+      namespace: process.env.MONITORING_METRICS_NAMESPACE || 'Hokusai/ContractMonitoring',
+      environment: process.env.HOKUSAI_ENVIRONMENT || process.env.ENVIRONMENT || 'development',
+      region: process.env.AWS_REGION,
+    });
+    this.consumer.on('dead-letter', (event: { reason: string }) => {
+      void dlqMetrics.recordDeadLetter(event.reason);
+    });
+
     let payoutIntentStore: PayoutIntentStore | undefined;
     if (config.payoutIntent?.tableName) {
       payoutIntentStore = new PayoutIntentStore({

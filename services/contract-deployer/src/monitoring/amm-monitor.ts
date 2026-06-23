@@ -142,6 +142,10 @@ export class AMMMonitor {
       maxAlertsPerHour: parseInt(process.env.MAX_ALERTS_PER_HOUR || '10', 10),
       maxAlertsPerDay: parseInt(process.env.MAX_ALERTS_PER_DAY || '50', 10),
       deduplicationWindowMs: parseInt(process.env.ALERT_DEDUP_WINDOW_MS || '300000', 10), // 5 minutes default
+      // HOK-1698: emit a CloudWatch metric per alert so the health report + mttr can see them.
+      cloudWatchEnabled: process.env.MONITORING_CLOUDWATCH_ENABLED !== 'false',
+      metricsNamespace: process.env.MONITORING_METRICS_NAMESPACE || 'Hokusai/ContractMonitoring',
+      environment: this.config.network,
     };
 
     this.alertManager = new AlertManager(alertManagerConfig);
@@ -413,6 +417,10 @@ export class AMMMonitor {
       } catch {
         sample = { ok: false };
       }
+
+      // Liveness (HOK-1698): a Heartbeat metric each tick so the health report can tell "no alerts"
+      // apart from "monitor is dead" (absence of Heartbeat => the monitor itself is down).
+      void this.alertManager.recordHeartbeat();
 
       const assessment = assessIngestionHealth(
         this.ingestionHealth,

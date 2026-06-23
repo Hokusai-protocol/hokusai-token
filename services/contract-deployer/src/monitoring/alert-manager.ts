@@ -1,4 +1,5 @@
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { logger } from '../utils/logger';
 import { StateAlert } from './state-tracker';
 import { EventAlert } from './event-listener';
@@ -8,6 +9,7 @@ import { EventAlert } from './event-listener';
  *
  * Handles alert notifications via:
  * - Email (AWS SES)
+ * - CloudWatch metrics (HOK-1698: makes alerts visible to alarms + the health report + mttr)
  * - Rate limiting to prevent alert storms
  * - Alert aggregation and deduplication
  */
@@ -18,6 +20,13 @@ export interface AlertManagerConfig {
   emailRecipients: string[];
   emailFrom: string;
   awsSesRegion: string;
+
+  // CloudWatch metric emission (HOK-1698): one metric per alert occurrence so the health report
+  // and mttr can see contract/AMM incidents, not just email recipients.
+  cloudWatchEnabled: boolean;
+  metricsNamespace: string; // e.g. "Hokusai/ContractMonitoring"
+  environment: string; // dimension value, e.g. "sepolia" | "mainnet"
+  metricsRegion?: string; // defaults to AWS_REGION / awsSesRegion
 
   // Rate limiting (per alert type)
   maxAlertsPerHour: number;
@@ -37,6 +46,8 @@ interface AlertRecord {
 export class AlertManager {
   private config: AlertManagerConfig;
   private sesClient: SESClient;
+  private cwClient?: CloudWatchClient;
+  private cleanupTimer: ReturnType<typeof setInterval>;
 
   // Alert tracking for rate limiting
   private alertHistory: Map<string, AlertRecord[]> = new Map();
@@ -59,15 +70,66 @@ export class AlertManager {
       region: config.awsSesRegion,
     });
 
-    // Start cleanup interval (every 5 minutes)
-    setInterval(() => this.cleanupOldAlerts(), 5 * 60 * 1000);
+    // Initialize CloudWatch client for metric emission (HOK-1698).
+    if (config.cloudWatchEnabled) {
+      this.cwClient = new CloudWatchClient({
+        region: config.metricsRegion || process.env.AWS_REGION || config.awsSesRegion,
+      });
+    }
+
+    // Start cleanup interval (every 5 minutes). unref so it never keeps the process alive.
+    this.cleanupTimer = setInterval(() => this.cleanupOldAlerts(), 5 * 60 * 1000);
+    this.cleanupTimer.unref?.();
 
     logger.info('AlertManager initialized', {
       emailEnabled: config.emailEnabled,
+      cloudWatchEnabled: config.cloudWatchEnabled,
+      metricsNamespace: config.cloudWatchEnabled ? config.metricsNamespace : undefined,
       recipients: config.emailRecipients,
       maxAlertsPerHour: config.maxAlertsPerHour,
       deduplicationWindowMs: config.deduplicationWindowMs,
     });
+  }
+
+  /**
+   * Emit a CloudWatch metric for an alert occurrence (HOK-1698). Ground truth: emitted on every
+   * occurrence, independent of email dedup/rate-limiting, so the health report + mttr see the true
+   * signal. Best-effort — a metric failure never blocks the alert path.
+   */
+  private async emitMetric(metricName: string, priority?: string): Promise<void> {
+    if (!this.cwClient) {
+      return;
+    }
+    const dimensions = [{ Name: 'Environment', Value: this.config.environment }];
+    if (priority) {
+      dimensions.push({ Name: 'Priority', Value: priority });
+    }
+    try {
+      await this.cwClient.send(
+        new PutMetricDataCommand({
+          Namespace: this.config.metricsNamespace,
+          MetricData: [
+            {
+              MetricName: metricName,
+              Value: 1,
+              Unit: 'Count',
+              Timestamp: new Date(),
+              Dimensions: dimensions,
+            },
+          ],
+        }),
+      );
+    } catch (error) {
+      logger.error('Failed to emit CloudWatch metric', { error, metricName });
+    }
+  }
+
+  /**
+   * Liveness signal (HOK-1698): the monitor's heartbeat calls this each tick so the health report
+   * can distinguish "no alerts" from "monitor is dead" (absence of Heartbeat => detector down).
+   */
+  async recordHeartbeat(): Promise<void> {
+    await this.emitMetric('Heartbeat');
   }
 
   /**
@@ -77,6 +139,10 @@ export class AlertManager {
     if (!this.config.enabled) {
       return false;
     }
+
+    // Emit a CloudWatch metric for every occurrence (ground truth) before the email dedup/rate-limit
+    // gates, so the health report + mttr see the true signal even when email is throttled.
+    void this.emitMetric(alert.type, alert.priority);
 
     // Check if this is a duplicate (deduplication)
     const alertKey = this.getAlertKey(alert);

@@ -239,6 +239,11 @@ export class MintRequestConsumer extends EventEmitter {
     await this.redis.lPush(this.config.deadLetterQueue, JSON.stringify(dlqEntry));
     await this.redis.lRem(this.config.processingQueue, 1, messageStr);
 
+    // Observability hook (HOK-1698): a permanently abandoned mint request is the "failed-tx spike"
+    // signal. Emit a named event so the listener can publish a CloudWatch metric without coupling
+    // this queue module to AWS. `reason` carries the same string dlq-inspector.classifyFailure parses.
+    this.emit('dead-letter', { reason, failureClass, modelId: message?.model_id });
+
     if (typeof message?.idempotency_key === 'string') {
       await this.config.recordStore.recordError(message.idempotency_key, message.model_id, reason, {
         failureClass,

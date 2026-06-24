@@ -11,6 +11,7 @@ import { ApiErrorFactory } from '../../src/types/errors';
 // Mock external dependencies
 jest.mock('redis', () => ({
   createClient: jest.fn(() => ({
+    on: jest.fn(), // node-redis EventEmitter; production code attaches an 'error' handler (B2)
     connect: jest.fn().mockResolvedValue(undefined),
     disconnect: jest.fn().mockResolvedValue(undefined),
     quit: jest.fn().mockResolvedValue(undefined),

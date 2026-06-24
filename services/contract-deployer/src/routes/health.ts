@@ -102,6 +102,9 @@ async function checkReadiness() {
 
   if (process.env.REDIS_URL) {
     const redis = createClient({ url: process.env.REDIS_URL });
+    // Swallow async socket 'error' events so a Redis blip during a health probe can't crash the
+    // process (B2); operational failures are still surfaced by the try/catch below.
+    redis.on('error', () => undefined);
     try {
       await withTimeout(redis.connect(), 5000, 'Redis connection timeout');
       const queueNames = [

@@ -75,6 +75,12 @@ async function main(): Promise<void> {
       try {
         logger.info('[MONITORING-SERVER] Connecting to Redis for readiness checks...');
         redis = createClient({ url: process.env.REDIS_URL });
+        // Avoid an unhandled 'error' on a Redis socket drop crashing the monitor (B2); node-redis reconnects.
+        redis.on('error', (err: unknown) => {
+          logger.error('[MONITORING-SERVER] Redis client error', {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
         await Promise.race([
           redis.connect(),
           new Promise((_, reject) =>

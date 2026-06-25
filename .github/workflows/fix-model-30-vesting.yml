@@ -1,0 +1,47 @@
+name: Fix model-30 vesting (one-shot)
+
+# Manual one-shot to correct the model-30 HokusaiParams vesting config to the
+# design-locked economics (10% immediate / 1-year linear / no cliff).
+#
+# The only authorized signer is the launch wallet 0x3018Cf81... (GOV_ROLE holder).
+# This workflow uses the SEPOLIA_PRIVATE_KEY secret so the key stays inside CI and
+# is never printed. Run mode=verify first (address-only check, no broadcast), then
+# mode=apply once verify confirms the key maps to the governor.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "verify (check signer only, dry-run) or apply (broadcast tx)"
+        required: true
+        default: verify
+        type: choice
+        options:
+          - verify
+          - apply
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+
+      # verify: fix script asserts signer == governor and GOV_ROLE held, then dry-runs.
+      # Fails loudly if SEPOLIA_PRIVATE_KEY is not the 0x3018 governor wallet.
+      - name: Verify signer (dry-run)
+        env:
+          RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          GOVERNOR_PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+        run: node scripts/fix-model-30-vesting.js
+
+      - name: Apply vesting fix (broadcast)
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          GOVERNOR_PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+          APPLY: "true"
+        run: node scripts/fix-model-30-vesting.js

@@ -1,0 +1,50 @@
+name: Fix vesting config (reusable)
+
+# Manual workflow to set a model's HokusaiParams vesting config to the design-locked
+# economics (10% immediate / 1-year linear / no cliff). Reusable across models.
+#
+# Signs with the SEPOLIA_PRIVATE_KEY secret (must hold GOV_ROLE on the target params
+# contract). Key stays inside CI and is never printed. Run mode=verify first
+# (dry-run, no broadcast), then mode=apply.
+
+on:
+  workflow_dispatch:
+    inputs:
+      params_address:
+        description: "Target HokusaiParams contract address"
+        required: true
+        type: string
+      mode:
+        description: "verify (dry-run) or apply (broadcast tx)"
+        required: true
+        default: verify
+        type: choice
+        options:
+          - verify
+          - apply
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+
+      - name: Verify signer (dry-run)
+        env:
+          RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          GOVERNOR_PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+          PARAMS_ADDRESS: ${{ inputs.params_address }}
+        run: node scripts/fix-vesting-config.js
+
+      - name: Apply vesting fix (broadcast)
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          GOVERNOR_PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+          PARAMS_ADDRESS: ${{ inputs.params_address }}
+          APPLY: "true"
+        run: node scripts/fix-vesting-config.js

@@ -7,14 +7,18 @@ const path = require('path');
  * Reads from deployments/sepolia-latest.json
  */
 
-async function verifyContract(address, constructorArguments = [], contractName = "") {
+async function verifyContract(address, constructorArguments = [], contractName = "", contractPath = null) {
   console.log(`\n🔍 Verifying ${contractName} at ${address}...`);
 
   try {
-    await hre.run("verify:verify", {
+    const verifyArgs = {
       address: address,
       constructorArguments: constructorArguments,
-    });
+    };
+    if (contractPath) {
+      verifyArgs.contract = contractPath;
+    }
+    await hre.run("verify:verify", verifyArgs);
     console.log(`   ✅ ${contractName} verified successfully`);
     return true;
   } catch (error) {
@@ -63,12 +67,18 @@ async function main() {
     else results.failed.push("ModelRegistry");
   }
 
-  // 2. TokenManager (constructor: ModelRegistry address)
-  if (deployment.contracts.TokenManager && deployment.contracts.ModelRegistry) {
+  // 2. TokenManager (DeployableTokenManager constructor: registryAddress, tokenDeploymentFactoryAddress)
+  if (deployment.contracts.TokenManager &&
+      deployment.contracts.ModelRegistry &&
+      deployment.contracts.TokenDeploymentFactory) {
     const success = await verifyContract(
       deployment.contracts.TokenManager,
-      [deployment.contracts.ModelRegistry],
-      "TokenManager"
+      [
+        deployment.contracts.ModelRegistry,
+        deployment.contracts.TokenDeploymentFactory
+      ],
+      "TokenManager",
+      "contracts/DeployableTokenManager.sol:DeployableTokenManager"
     );
     if (success) results.success.push("TokenManager");
     else results.failed.push("TokenManager");
@@ -116,18 +126,20 @@ async function main() {
     else results.failed.push("HokusaiAMMFactory");
   }
 
-  // 6. UsageFeeRouter (constructor: factory, USDC, treasury, protocolFeeBps)
+  // 6. UsageFeeRouter (constructor: _factory, _reserveToken, _infraReserve, _costOracle)
   if (deployment.contracts.UsageFeeRouter &&
       deployment.contracts.HokusaiAMMFactory &&
-      deployment.contracts.MockUSDC) {
-    const treasury = deployment.treasury || deployment.deployer;
+      deployment.contracts.MockUSDC &&
+      deployment.contracts.InfrastructureReserve &&
+      deployment.contracts.InfrastructureCostOracle) {
+    const reserveToken = (deployment.config && deployment.config.reserveToken) || deployment.contracts.MockUSDC;
     const success = await verifyContract(
       deployment.contracts.UsageFeeRouter,
       [
         deployment.contracts.HokusaiAMMFactory,
-        deployment.contracts.MockUSDC,
-        treasury,
-        500  // 5% protocol fee on API usage fees
+        reserveToken,
+        deployment.contracts.InfrastructureReserve,
+        deployment.contracts.InfrastructureCostOracle
       ],
       "UsageFeeRouter"
     );
@@ -162,14 +174,24 @@ async function main() {
   }
 
   // 8. Verify all tokens (HokusaiToken instances)
+  // Deployed via TokenManager.deployTokenWithAllocations -> TokenDeploymentFactory.deployTokenAndParams
+  // -> new HokusaiToken(name, symbol, controller, params, initialSupply, maxSupply,
+  //    modelSupplierAllocation, investorAllocation, modelSupplierRecipient).
+  // controller = TokenManager (address(this) in DeployableTokenManager); initialSupply = 0 (cap-based).
   for (const token of deployment.tokens || []) {
-    if (token.address && deployment.contracts.TokenManager) {
+    if (token.address && deployment.contracts.TokenManager && token.paramsAddress) {
       const success = await verifyContract(
         token.address,
         [
-          token.name,
-          token.symbol,
-          deployment.contracts.TokenManager
+          token.name,                          // _name
+          token.symbol,                        // _symbol
+          deployment.contracts.TokenManager,   // _controller
+          token.paramsAddress,                 // _params
+          "0",                                 // _initialSupply (cap-based deploy passes 0)
+          token.maxSupply,                     // _maxSupply
+          token.supplierAllocation,            // _modelSupplierAllocation
+          token.investorAllocation,            // _investorAllocation
+          token.supplierRecipient              // _modelSupplierRecipient
         ],
         `${token.symbol} Token`
       );
@@ -183,21 +205,29 @@ async function main() {
   for (const pool of deployment.pools || []) {
     if (pool.ammAddress && deployment.contracts.MockUSDC && deployment.contracts.TokenManager) {
       const treasury = deployment.treasury || deployment.deployer;
+      const reserveToken = (deployment.config && deployment.config.reserveToken) || deployment.contracts.MockUSDC;
 
-      // HokusaiAMM constructor parameters (after protocolFee removal):
-      // 1. reserveToken, 2. hokusaiToken, 3. tokenManager, 4. modelId, 5. treasury
-      // 6. crr, 7. tradeFee, 8. ibrDuration, 9. flatCurveThreshold, 10. flatCurvePrice
+      // The pool contract is HokusaiAMM, created via
+      // factory.createPoolWithParamsAndWhitelist -> HokusaiAMMPoolDeployer.deployPool
+      // -> new HokusaiAMM(reserveToken, hokusaiToken, tokenManager, modelId, treasury,
+      //    crr, tradeFee, ibrDuration, flatCurveThreshold, flatCurvePrice).
+      // The artifact stores flatCurveThreshold/flatCurvePrice as human-readable strings
+      // (ethers.formatUnits(value, 6)); the constructor received the 6-decimal integers,
+      // so we reverse via parseUnits(value, 6). e.g. "25000.0" -> 25000000000, "0.01" -> 10000.
+      const flatCurveThreshold = hre.ethers.parseUnits(String(pool.flatCurveThreshold), 6);
+      const flatCurvePrice = hre.ethers.parseUnits(String(pool.flatCurvePrice), 6);
+
       const constructorArgs = [
-        deployment.contracts.MockUSDC,           // _reserveToken
+        reserveToken,                            // _reserveToken
         pool.tokenAddress,                       // _hokusaiToken
-        deployment.contracts.TokenManager,       // _tokenManager
+        deployment.contracts.TokenManager,       // _tokenManager (payable)
         pool.modelId,                           // _modelId
         treasury,                               // _treasury
         pool.crr,                               // _crr
-        pool.tradeFee,                          // _tradeFee (NOT protocolFee!)
+        pool.tradeFee,                          // _tradeFee
         pool.ibrDuration,                       // _ibrDuration
-        pool.flatCurveThreshold,                // _flatCurveThreshold
-        pool.flatCurvePrice                     // _flatCurvePrice
+        flatCurveThreshold,                     // _flatCurveThreshold (6-decimal integer)
+        flatCurvePrice                          // _flatCurvePrice (6-decimal integer)
       ];
 
       const success = await verifyContract(

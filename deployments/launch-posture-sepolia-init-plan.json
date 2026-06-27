@@ -1,48 +1,14 @@
 {
   "mode": "execute",
-  "generatedAt": "2026-06-13T23:13:40.819Z",
+  "generatedAt": "2026-06-26T22:39:35.165Z",
   "network": "sepolia",
   "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/scripts/configs/sepolia-launch-posture.json",
   "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/deployments/sepolia-latest.json",
   "plan": [
     {
-      "name": "addAttester:0x07bf9b22f516d2d464511219488f019c5dff5335",
-      "contractName": "DeltaVerifier",
-      "to": "0x867E61c9D4ccF1419180B3257314fa8CEb2D27a6",
-      "method": "addAttester",
-      "args": [
-        "0x07bf9b22f516d2d464511219488f019c5dff5335"
-      ],
-      "reason": "Expected attester missing",
-      "data": "0x02bef84700000000000000000000000007bf9b22f516d2d464511219488f019c5dff5335"
-    },
-    {
-      "name": "setAttesterThreshold",
-      "contractName": "DeltaVerifier",
-      "to": "0x867E61c9D4ccF1419180B3257314fa8CEb2D27a6",
-      "method": "setAttesterThreshold",
-      "args": [
-        "1"
-      ],
-      "reason": "Attester threshold mismatch",
-      "data": "0xae18ba2f0000000000000000000000000000000000000000000000000000000000000001"
-    },
-    {
-      "name": "setMintBudget:30",
-      "contractName": "DeltaVerifier",
-      "to": "0x867E61c9D4ccF1419180B3257314fa8CEb2D27a6",
-      "method": "setMintBudget",
-      "args": [
-        "30",
-        "1500000000000000000000000"
-      ],
-      "reason": "Mint budget mismatch",
-      "data": "0x4970679a000000000000000000000000000000000000000000000000000000000000001e000000000000000000000000000000000000000000013da329b6336471800000"
-    },
-    {
       "name": "setWeightGenesis:30",
       "contractName": "ModelRegistry",
-      "to": "0x62f61e2505B96662cEF2168635244AFEE3C0F12E",
+      "to": "0x13Bb14975d5026dC86cf8c779AB558D34e09B0AC",
       "method": "setWeightGenesis",
       "args": [
         "30",
@@ -54,7 +20,7 @@
     {
       "name": "setMaxReward",
       "contractName": "DeltaVerifier",
-      "to": "0x867E61c9D4ccF1419180B3257314fa8CEb2D27a6",
+      "to": "0xB83A850E8D2CB7592692F73f1691f7D7A4bD2C8b",
       "method": "setMaxReward",
       "args": [
         "2500000000000000000000000"
@@ -65,7 +31,7 @@
     {
       "name": "disableLegacyMints",
       "contractName": "DeltaVerifier",
-      "to": "0x867E61c9D4ccF1419180B3257314fa8CEb2D27a6",
+      "to": "0xB83A850E8D2CB7592692F73f1691f7D7A4bD2C8b",
       "method": "disableLegacyMints",
       "args": [],
       "reason": "Legacy SUBMITTER-only mint entrypoints must be disabled",

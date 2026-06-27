@@ -22,7 +22,9 @@ async function verifyContract(address, constructorArguments = [], contractName =
     console.log(`   ✅ ${contractName} verified successfully`);
     return true;
   } catch (error) {
-    if (error.message.includes("Already Verified")) {
+    // Etherscan returns several wordings for an already-verified contract, e.g.
+    // "Already Verified" and "has already been verified on the block explorer".
+    if (/already.*verified/i.test(error.message)) {
       console.log(`   ℹ️  ${contractName} already verified`);
       return true;
     } else {

@@ -2,6 +2,7 @@ const hre = require("hardhat");
 const { ethers } = hre;
 const { deployFullStack, stringifyError } = require("./lib/deploy-stack");
 const { getDeploySigner } = require("./lib/get-deploy-signer");
+const lockedEconomics = require("./configs/locked-economics.json");
 
 function getSepoliaConfig(deployerAddress) {
   return {
@@ -18,7 +19,8 @@ function getSepoliaConfig(deployerAddress) {
     deltaVerifierParams: {
       baseRewardRate: 1000,
       minImprovementBps: 100,
-      maxReward: ethers.parseEther("1000000"),
+      // Single source of truth (HOK-2199): locked launch economics.
+      maxReward: ethers.parseEther(lockedEconomics.maxReward),
     },
     infrastructureCostOracleParams: {
       initialGrossMarginBps: Number(process.env.INFRASTRUCTURE_GROSS_MARGIN_BPS || "1500"),

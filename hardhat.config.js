@@ -1,12 +1,19 @@
 require("@nomicfoundation/hardhat-toolbox");
 
-// Load .env.sepolia first if it exists, otherwise fall back to .env
+// Network-aware env loading: when targeting mainnet (--network mainnet or
+// HARDHAT_NETWORK=mainnet) load .env.mainnet so MAINNET_RPC_URL / ETHERSCAN_API_KEY /
+// mainnet KMS aliases resolve. Otherwise default to .env.sepolia, then .env.
 const fs = require('fs');
-if (fs.existsSync('.env.sepolia')) {
-  require("dotenv").config({ path: '.env.sepolia' });
-} else {
-  require("dotenv").config();
+const targetNetwork =
+  process.env.HARDHAT_NETWORK ||
+  (process.argv.join(' ').match(/--network\s+([^\s]+)/) || [])[1];
+let envPath;
+if (targetNetwork === 'mainnet' && fs.existsSync('.env.mainnet')) {
+  envPath = '.env.mainnet';
+} else if (fs.existsSync('.env.sepolia')) {
+  envPath = '.env.sepolia';
 }
+require("dotenv").config(envPath ? { path: envPath } : {});
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {

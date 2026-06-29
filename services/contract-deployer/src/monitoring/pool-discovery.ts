@@ -309,7 +309,13 @@ export class PoolDiscovery {
   }
 
   /**
-   * Get pool configuration by querying the pool contract
+   * Get pool configuration by querying the pool contract.
+   *
+   * Note: `protocolFeeBps` is a `PoolCreated` event parameter, NOT a pool view
+   * method — calling it on the pool reverts. It is recovered from the event here
+   * (consistent with the event-driven discovery path). The remaining view calls
+   * are made independently so one missing getter on an older pool version cannot
+   * fail the whole config (a single `Promise.all` rejection would drop the pool).
    */
   private async getPoolConfig(poolAddress: string): Promise<PoolConfig | null> {
     try {
@@ -318,7 +324,6 @@ export class PoolDiscovery {
         'function hokusaiToken() view returns (address)',
         'function crr() view returns (uint256)',
         'function tradeFee() view returns (uint256)',
-        'function protocolFeeBps() view returns (uint16)',
         'function buyOnlyUntil() view returns (uint256)',
         'function FLAT_CURVE_THRESHOLD() view returns (uint256)',
         'function FLAT_CURVE_PRICE() view returns (uint256)',
@@ -326,44 +331,56 @@ export class PoolDiscovery {
 
       const pool = new ethers.Contract(poolAddress, poolAbi, this.provider);
 
-      // Safely call contract methods with null checks
-      const modelIdFn = pool.modelId;
-      const tokenFn = pool.hokusaiToken;
-      const crrFn = pool.crr;
-      const tradeFeeFn = pool.tradeFee;
-      const protocolFeeFn = pool.protocolFeeBps;
-      const ibrFn = pool.buyOnlyUntil;
+      const callView = async (name: string): Promise<unknown> => {
+        const fn = pool[name] as ((...args: unknown[]) => Promise<unknown>) | undefined;
+        if (!fn) {
+          throw new Error(`method ${name}() not present on pool`);
+        }
+        return fn();
+      };
 
-      if (!modelIdFn || !tokenFn || !crrFn || !tradeFeeFn || !protocolFeeFn || !ibrFn) {
-        throw new Error('Pool contract methods not found');
+      const [modelIdR, tokenR, crrR, tradeFeeR, buyOnlyUntilR, thresholdR, priceR] =
+        await Promise.allSettled([
+          callView('modelId'),
+          callView('hokusaiToken'),
+          callView('crr'),
+          callView('tradeFee'),
+          callView('buyOnlyUntil'),
+          callView('FLAT_CURVE_THRESHOLD'),
+          callView('FLAT_CURVE_PRICE'),
+        ]);
+
+      // Identity fields are required; everything else degrades to a logged default
+      // so a single missing/renamed getter doesn't drop the pool from monitoring.
+      if (modelIdR.status !== 'fulfilled' || tokenR.status !== 'fulfilled') {
+        logger.error(
+          `Failed to get pool config for ${poolAddress}: missing required modelId()/hokusaiToken() getters`,
+        );
+        return null;
       }
 
-      const thresholdFn = pool.FLAT_CURVE_THRESHOLD;
-      const priceFn = pool.FLAT_CURVE_PRICE;
+      const orDefault = <T>(
+        result: PromiseSettledResult<unknown>,
+        name: string,
+        fallback: T,
+      ): T => {
+        if (result.status === 'fulfilled') {
+          return result.value as T;
+        }
+        logger.warn(
+          `Pool ${poolAddress}: ${name}() unavailable, defaulting (${String(result.reason)})`,
+        );
+        return fallback;
+      };
 
-      if (!thresholdFn || !priceFn) {
-        throw new Error('Phase parameter methods not found');
-      }
+      const crr = orDefault<bigint>(crrR, 'crr', 0n);
+      const tradeFee = orDefault<bigint>(tradeFeeR, 'tradeFee', 0n);
+      const buyOnlyUntil = orDefault<bigint>(buyOnlyUntilR, 'buyOnlyUntil', 0n);
+      const flatCurveThreshold = orDefault<bigint>(thresholdR, 'FLAT_CURVE_THRESHOLD', 0n);
+      const flatCurvePrice = orDefault<bigint>(priceR, 'FLAT_CURVE_PRICE', 0n);
 
-      const [
-        modelId,
-        tokenAddress,
-        crr,
-        tradeFee,
-        protocolFeeBps,
-        buyOnlyUntil,
-        flatCurveThreshold,
-        flatCurvePrice,
-      ] = await Promise.all([
-        modelIdFn(),
-        tokenFn(),
-        crrFn(),
-        tradeFeeFn(),
-        protocolFeeFn(),
-        ibrFn(),
-        thresholdFn(),
-        priceFn(),
-      ]);
+      // protocolFeeBps comes from the PoolCreated event, not the pool.
+      const protocolFeeBps = await this.getProtocolFeeBpsFromEvent(poolAddress);
 
       const currentTime = Math.floor(Date.now() / 1000);
       const ibrDuration =
@@ -371,12 +388,12 @@ export class PoolDiscovery {
       const ibrEndsAt = new Date(Number(buyOnlyUntil) * 1000).toISOString();
 
       return {
-        modelId,
-        tokenAddress,
+        modelId: modelIdR.value as string,
+        tokenAddress: tokenR.value as string,
         ammAddress: poolAddress,
         crr: Number(crr),
         tradeFee: Number(tradeFee),
-        protocolFee: Number(protocolFeeBps),
+        protocolFee: protocolFeeBps,
         ibrDuration,
         ibrEndsAt,
         flatCurveThreshold: flatCurveThreshold.toString(),
@@ -385,6 +402,30 @@ export class PoolDiscovery {
     } catch (error) {
       logger.error(`Failed to get pool config for ${poolAddress}:`, error);
       return null;
+    }
+  }
+
+  /**
+   * Recover a pool's `protocolFeeBps` from its `PoolCreated` event (it is an event
+   * parameter, not a pool view method). Returns 0 if the event can't be found.
+   */
+  private async getProtocolFeeBpsFromEvent(poolAddress: string): Promise<number> {
+    try {
+      const filters = this.factoryContract.filters;
+      if (!filters?.PoolCreated) {
+        return 0;
+      }
+      // PoolCreated(modelId indexed, poolAddress indexed, tokenAddress indexed, ...)
+      const filter = filters.PoolCreated(null, poolAddress);
+      const events = await this.factoryContract.queryFilter(filter);
+      const event = events.find((e): e is ethers.EventLog => e instanceof ethers.EventLog);
+      return event ? Number(event.args.protocolFeeBps) : 0;
+    } catch (error) {
+      logger.warn(
+        `Could not read protocolFeeBps from PoolCreated event for ${poolAddress}, defaulting to 0:`,
+        error,
+      );
+      return 0;
     }
   }
 

@@ -88,7 +88,8 @@ jobs:
             "contracts/echidna/EchidnaAMMPhase.sol EchidnaAMMPhase" \
             "contracts/echidna/EchidnaAMMEconomic.sol EchidnaAMMEconomic" \
             "contracts/echidna/EchidnaInfrastructureReserve.sol EchidnaInfrastructureReserve" \
-            "contracts/echidna/EchidnaDeltaVerifier.sol EchidnaDeltaVerifier"
+            "contracts/echidna/EchidnaDeltaVerifier.sol EchidnaDeltaVerifier" \
+            "contracts/echidna/EchidnaDeltaVerifierMultiAttester.sol EchidnaDeltaVerifierMultiAttester"
           do
             set -- $target
             rm -rf echidna-corpus

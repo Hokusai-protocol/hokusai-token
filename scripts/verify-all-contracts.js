@@ -38,8 +38,13 @@ async function main() {
   console.log("🚀 Starting Contract Verification...\n");
   console.log("=".repeat(70));
 
-  // Load deployment data
-  const deploymentPath = path.join(__dirname, '..', 'deployments', 'sepolia-latest.json');
+  // Load deployment data for the target network (sepolia-latest.json / mainnet-latest.json).
+  // Override with DEPLOYMENT_FILE=<path> if needed.
+  const deploymentFile =
+    process.env.DEPLOYMENT_FILE || `deployments/${hre.network.name}-latest.json`;
+  const deploymentPath = path.isAbsolute(deploymentFile)
+    ? deploymentFile
+    : path.join(__dirname, '..', deploymentFile);
 
   if (!fs.existsSync(deploymentPath)) {
     console.error("❌ Deployment file not found:", deploymentPath);
@@ -57,6 +62,12 @@ async function main() {
     success: [],
     failed: []
   };
+
+  // Reserve token used as a constructor arg by the factory, fee router, and pools.
+  // Sepolia deploys a MockUSDC fallback; mainnet uses real USDC, recorded in
+  // config.reserveToken. Prefer config (correct on every network), fall back to MockUSDC.
+  const reserveToken =
+    (deployment.config && deployment.config.reserveToken) || deployment.contracts.MockUSDC;
 
   // 1. ModelRegistry (no constructor args)
   if (deployment.contracts.ModelRegistry) {
@@ -108,18 +119,18 @@ async function main() {
     else results.failed.push("MockUSDC");
   }
 
-  // 5. HokusaiAMMFactory (constructor: ModelRegistry, TokenManager, USDC, treasury)
+  // 5. HokusaiAMMFactory (constructor: ModelRegistry, TokenManager, reserveToken, treasury)
   if (deployment.contracts.HokusaiAMMFactory &&
       deployment.contracts.ModelRegistry &&
       deployment.contracts.TokenManager &&
-      deployment.contracts.MockUSDC) {
+      reserveToken) {
     const treasury = deployment.treasury || deployment.deployer;
     const success = await verifyContract(
       deployment.contracts.HokusaiAMMFactory,
       [
         deployment.contracts.ModelRegistry,
         deployment.contracts.TokenManager,
-        deployment.contracts.MockUSDC,
+        reserveToken,
         treasury
       ],
       "HokusaiAMMFactory"
@@ -131,10 +142,9 @@ async function main() {
   // 6. UsageFeeRouter (constructor: _factory, _reserveToken, _infraReserve, _costOracle)
   if (deployment.contracts.UsageFeeRouter &&
       deployment.contracts.HokusaiAMMFactory &&
-      deployment.contracts.MockUSDC &&
+      reserveToken &&
       deployment.contracts.InfrastructureReserve &&
       deployment.contracts.InfrastructureCostOracle) {
-    const reserveToken = (deployment.config && deployment.config.reserveToken) || deployment.contracts.MockUSDC;
     const success = await verifyContract(
       deployment.contracts.UsageFeeRouter,
       [
@@ -154,10 +164,14 @@ async function main() {
       deployment.contracts.ModelRegistry &&
       deployment.contracts.TokenManager &&
       deployment.contracts.DataContributionRegistry) {
-    // Default parameters from deployment scripts
-    const baseRewardRate = 1000;  // 1000 tokens per 1% improvement
-    const minImprovementBps = 100;  // 1% minimum improvement
-    const maxReward = hre.ethers.parseEther("1000000");  // 1M tokens max
+    // Source the deployed reward params from the artifact (the deploy now reads
+    // maxReward from locked-economics.json, e.g. 2.5M — NOT the legacy 1M). Fall
+    // back to legacy defaults only for older artifacts that didn't record them.
+    const dvp = (deployment.config && deployment.config.deltaVerifierParams) || {};
+    const baseRewardRate = dvp.baseRewardRate != null ? dvp.baseRewardRate : 1000;
+    const minImprovementBps = dvp.minImprovementBps != null ? dvp.minImprovementBps : 100;
+    const maxReward =
+      dvp.maxReward != null ? dvp.maxReward : hre.ethers.parseEther("1000000").toString();
 
     const success = await verifyContract(
       deployment.contracts.DeltaVerifier,
@@ -205,9 +219,8 @@ async function main() {
   // 9. Verify all AMM pools
   console.log("\n🏊 Verifying AMM Pools...");
   for (const pool of deployment.pools || []) {
-    if (pool.ammAddress && deployment.contracts.MockUSDC && deployment.contracts.TokenManager) {
+    if (pool.ammAddress && reserveToken && deployment.contracts.TokenManager) {
       const treasury = deployment.treasury || deployment.deployer;
-      const reserveToken = (deployment.config && deployment.config.reserveToken) || deployment.contracts.MockUSDC;
 
       // The pool contract is HokusaiAMM, created via
       // factory.createPoolWithParamsAndWhitelist -> HokusaiAMMPoolDeployer.deployPool

@@ -290,3 +290,59 @@ describe("launch posture assertions", function () {
     });
   }
 });
+
+// H-3: the launch-posture gate is now a single composite that also asserts ownership +
+// deployer-revocation (Ownable owners, global AccessControl admins, per-token owner/params admin)
+// so a green report cannot coexist with the deployer still owning a critical contract.
+describe("launch posture — ownership audit (H-3)", function () {
+  async function withTimelock(fixture) {
+    const timelock = (await hre.ethers.getSigners())[5];
+    fixture.deployment.governance = { timelock: timelock.address };
+    return timelock;
+  }
+
+  it("ownable: passes when the owner is the timelock (resolved from deployment.governance.timelock)", async function () {
+    const fixture = await setupFixture();
+    const timelock = await withTimelock(fixture);
+    await (await fixture.modelRegistry.transferOwnership(timelock.address)).wait();
+    fixture.config.ownershipAudit = { ModelRegistry: { type: "ownable", owner: "TIMELOCK" } };
+    const report = await assertLaunchPosture({ hre, config: fixture.config, deployment: fixture.deployment });
+    expect(report.failures.map((e) => e.name)).to.not.include("ownershipAudit.ModelRegistry.owner");
+    expect(report.overall).to.equal("pass");
+  });
+
+  it("ownable: fails when the deployer still owns the contract (the H-3 blind spot)", async function () {
+    const fixture = await setupFixture();
+    await withTimelock(fixture); // ownership NOT transferred -> still the deployer
+    fixture.config.ownershipAudit = { ModelRegistry: { type: "ownable", owner: "TIMELOCK" } };
+    const report = await assertLaunchPosture({ hre, config: fixture.config, deployment: fixture.deployment });
+    expect(report.overall).to.equal("fail");
+    expect(report.failures.map((e) => e.name)).to.include("ownershipAudit.ModelRegistry.owner");
+  });
+
+  it("accesscontrol: passes when admin is the admin Safe and the deployer is revoked", async function () {
+    const fixture = await setupFixture();
+    await withTimelock(fixture);
+    fixture.config.ownershipAudit = { DeltaVerifier: { type: "accesscontrol", admin: "ADMIN_SAFE" } };
+    const report = await assertLaunchPosture({ hre, config: fixture.config, deployment: fixture.deployment });
+    expect(report.failures.map((e) => e.name)).to.not.include("ownershipAudit.DeltaVerifier.admin");
+    expect(report.overall).to.equal("pass");
+  });
+
+  it("expectedTokenOwner=TIMELOCK: fails until the token is handed to the timelock, then passes", async function () {
+    const fixture = await setupFixture();
+    const timelock = await withTimelock(fixture);
+    fixture.config.expectedTokenOwner = "TIMELOCK";
+
+    // Before transfer the token owner is the governor (admin Safe) -> mismatch.
+    let report = await assertLaunchPosture({ hre, config: fixture.config, deployment: fixture.deployment });
+    expect(report.failures.map((e) => e.name)).to.include(`model.${MODEL_ID}.tokenOwner`);
+
+    // Hand token ownership to the timelock -> passes.
+    const tokenAddr = await fixture.tokenManager.getTokenAddress(MODEL_ID_STRING);
+    const token = await hre.ethers.getContractAt("HokusaiToken", tokenAddr);
+    await (await token.connect(fixture.signers.adminSafe).transferOwnership(timelock.address)).wait();
+    report = await assertLaunchPosture({ hre, config: fixture.config, deployment: fixture.deployment });
+    expect(report.failures.map((e) => e.name)).to.not.include(`model.${MODEL_ID}.tokenOwner`);
+  });
+});

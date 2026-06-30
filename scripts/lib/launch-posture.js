@@ -111,6 +111,10 @@ function resolveExpectedValue(spec, context) {
     return context.config.deployerAddress || context.deployment.deployer;
   }
 
+  if (spec === "TIMELOCK") {
+    return context.deployment.governance?.timelock || context.config.timelock || null;
+  }
+
   if (spec === "RELAYER") {
     return context.config.submitterRelayer;
   }
@@ -370,6 +374,46 @@ async function assertLaunchPosture({ hre, config, deployment }) {
           : "tokensPerDeltaOne mismatch"
       )
     );
+
+    // H-1 / H-3: the factory sets the token's Ownable owner to the per-model governor, and
+    // owner can call setController to bypass DeltaVerifier mint controls. The expected owner
+    // depends on the launch phase: pre-handoff it is the admin Safe (the locked governor),
+    // post-handoff it is the timelock. `expectedTokenOwner` selects which (default ADMIN_SAFE).
+    // Either way the owner must NOT be the deployer EOA.
+    const tokenOwnerActual = await token.owner();
+    const tokenOwnerExpected = resolveExpectedValue(config.expectedTokenOwner || "ADMIN_SAFE", context);
+    const deployerAddr = resolveExpectedValue("DEPLOYER", context);
+    const tokenOwnerOk = addressesEqual(tokenOwnerActual, tokenOwnerExpected) && !addressesEqual(tokenOwnerActual, deployerAddr);
+    assertions.push(
+      makeAssertion(
+        `model.${model.modelId}.tokenOwner`,
+        tokenOwnerExpected,
+        tokenOwnerActual,
+        tokenOwnerOk,
+        tokenOwnerOk
+          ? "token owner is the expected authority (governor cannot hijack controller)"
+          : "token owner is NOT the expected authority / is the deployer — controller could be hijacked (H-1/H-3)"
+      )
+    );
+
+    // H-3: per-token HokusaiParams admin must be the expected authority (and not the deployer),
+    // so GOV/admin economic-param control is held by governance after handoff. Opt-in.
+    if (config.expectedParamsAdmin) {
+      const paramsAdminExpected = resolveExpectedValue(config.expectedParamsAdmin, context);
+      const paramsAdminHeld = await params.hasRole(ZERO_HASH, paramsAdminExpected);
+      const paramsDeployerHeld = await params.hasRole(ZERO_HASH, deployerAddr);
+      assertions.push(
+        makeAssertion(
+          `model.${model.modelId}.paramsAdmin`,
+          paramsAdminExpected,
+          { expectedHeld: paramsAdminHeld, deployerHeld: paramsDeployerHeld },
+          paramsAdminHeld && !paramsDeployerHeld,
+          paramsAdminHeld && !paramsDeployerHeld
+            ? "params admin held by expected authority, deployer revoked"
+            : "params admin not held by expected authority or deployer still admin (H-3)"
+        )
+      );
+    }
   }
 
   for (const [getterPath, expectedSpec] of Object.entries(config.wiring || {})) {
@@ -425,6 +469,48 @@ async function assertLaunchPosture({ hre, config, deployment }) {
           forbiddenPresent.length === 0 ? "no forbidden holders present" : "forbidden holders still present"
         )
       );
+    }
+  }
+
+  // H-3: ownership + deployer-revocation audit for the contracts the role/mint posture above does
+  // not cover (Ownable owners and the global AccessControl admins). This makes the launch-posture
+  // gate a single composite that verifies the full handoff end-state — so a green report can no
+  // longer coexist with the deployer EOA still owning/admin'ing a critical contract. Opt-in via the
+  // `ownershipAudit` config block (absent in test/sepolia configs, so they are unaffected).
+  const ownershipDeployer = resolveExpectedValue("DEPLOYER", context);
+  for (const [contractName, spec] of Object.entries(config.ownershipAudit || {})) {
+    const abiName = spec.abiFrom ? deployment.contracts[spec.abiFrom] || contractName : contractName;
+    const address = deployment.contracts[contractName];
+    const contract = await hre.ethers.getContractAt(abiName, address);
+
+    if (spec.type === "ownable") {
+      const expectedOwner = resolveExpectedValue(spec.owner, context);
+      const actualOwner = await contract.owner();
+      const ok = addressesEqual(actualOwner, expectedOwner) && !addressesEqual(actualOwner, ownershipDeployer);
+      assertions.push(
+        makeAssertion(
+          `ownershipAudit.${contractName}.owner`,
+          expectedOwner,
+          actualOwner,
+          ok,
+          ok ? "owner is the expected authority, deployer not owner" : "owner is not the expected authority or is the deployer (H-3)"
+        )
+      );
+    } else if (spec.type === "accesscontrol") {
+      const expectedAdmin = resolveExpectedValue(spec.admin, context);
+      const adminHeld = await contract.hasRole(ZERO_HASH, expectedAdmin);
+      const deployerHeld = await contract.hasRole(ZERO_HASH, ownershipDeployer);
+      assertions.push(
+        makeAssertion(
+          `ownershipAudit.${contractName}.admin`,
+          expectedAdmin,
+          { expectedHeld: adminHeld, deployerHeld },
+          adminHeld && !deployerHeld,
+          adminHeld && !deployerHeld ? "admin held by expected authority, deployer revoked" : "admin not held by expected authority or deployer still admin (H-3)"
+        )
+      );
+    } else {
+      throw new Error(`ownershipAudit.${contractName}: unknown type "${spec.type}" (expected "ownable" or "accesscontrol")`);
     }
   }
 

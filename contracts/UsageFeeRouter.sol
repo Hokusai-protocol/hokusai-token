@@ -44,6 +44,20 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
     uint256 public totalFeesDeposited;
     mapping(string => uint256) public modelFees; // modelId => total fees deposited
 
+    // --- Oracle cost-plus hardening (security review H-4) ---
+    /// @dev Maximum age (seconds) of an oracle cost before the router treats it as STALE and
+    /// falls back to percentage splitting. 0 disables the check (default). Set this when
+    /// activating oracle pricing so a frozen/abandoned feed cannot keep driving the split.
+    uint256 public maxCostAgeSeconds;
+
+    /// @dev Hard ceiling (basis points) on the infrastructure share in ORACLE mode, so a high,
+    /// stale, or manipulated cost (or an inflated caller-supplied callCount) can never route
+    /// more than this fraction to infrastructure and starve token holders of their residual.
+    /// Defaults to 10000 (no floor; pure cost-plus — unchanged behavior). Governance should
+    /// lower it (e.g. to the model's infrastructureAccrualBps) when enabling oracle pricing.
+    /// Does NOT apply to the percentage fallback, which is already bounded by infrastructureAccrualBps.
+    uint16 public maxInfraShareBps;
+
     // Cost basis enum for event tracking
     enum CostBasis { ORACLE, PERCENTAGE_FALLBACK }
 
@@ -77,6 +91,9 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         CostBasis costBasis
     );
 
+    event MaxCostAgeSet(uint256 oldValue, uint256 newValue);
+    event MaxInfraShareBpsSet(uint16 oldValue, uint16 newValue);
+
     // ============================================================
     // CONSTRUCTOR
     // ============================================================
@@ -104,7 +121,36 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         infraReserve = InfrastructureReserve(_infraReserve);
         costOracle = IInfrastructureCostOracle(_costOracle);
 
+        // H-4: default to "no infra-share floor" so behavior is unchanged until governance
+        // opts in (maxCostAgeSeconds also defaults to 0 = staleness check disabled).
+        maxInfraShareBps = 10000;
+
         _grantRole(FEE_DEPOSITOR_ROLE, msg.sender);
+    }
+
+    // ============================================================
+    // ORACLE HARDENING CONFIG (security review H-4)
+    // ============================================================
+
+    /**
+     * @dev Set the max oracle cost age before the router falls back to percentage splitting.
+     * @param newMaxAge Age in seconds; 0 disables the staleness check.
+     */
+    function setMaxCostAge(uint256 newMaxAge) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 oldValue = maxCostAgeSeconds;
+        maxCostAgeSeconds = newMaxAge;
+        emit MaxCostAgeSet(oldValue, newMaxAge);
+    }
+
+    /**
+     * @dev Set the hard ceiling on the infrastructure share in oracle mode.
+     * @param newMaxInfraShareBps Basis points (<= 10000). 10000 disables the ceiling.
+     */
+    function setMaxInfraShareBps(uint16 newMaxInfraShareBps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newMaxInfraShareBps <= 10000, "Share exceeds 100%");
+        uint16 oldValue = maxInfraShareBps;
+        maxInfraShareBps = newMaxInfraShareBps;
+        emit MaxInfraShareBpsSet(oldValue, newMaxInfraShareBps);
     }
 
     // ============================================================
@@ -306,30 +352,59 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         // Try to get oracle cost
         uint256 costPer1000Calls = costOracle.getEstimatedCost(modelId);
 
-        if (costPer1000Calls > 0) {
-            // Oracle has cost configured - use cost-plus splitting
+        if (costPer1000Calls > 0 && _oracleCostFresh(modelId)) {
+            // Oracle has a fresh cost configured - use cost-plus splitting
             // estimatedCost = (costPer1000Calls * callCount) / 1000
             uint256 estimatedCost = (costPer1000Calls * callCount) / 1000;
 
             // Infrastructure gets estimated cost, capped at total fee
             infrastructureAmount = estimatedCost > amount ? amount : estimatedCost;
+
+            // H-4: cap the infra share so a high/stale/manipulated cost (or an inflated
+            // caller-supplied callCount) cannot starve holders below their guaranteed residual.
+            uint256 infraCeiling = (amount * maxInfraShareBps) / 10000;
+            if (infrastructureAmount > infraCeiling) {
+                infrastructureAmount = infraCeiling;
+            }
+
             profitAmount = amount - infrastructureAmount;
             costBasis = CostBasis.ORACLE;
         } else {
-            // No oracle cost - fallback to percentage-based splitting
-            address poolAddress = factory.getPool(modelId);
-            HokusaiAMM pool = HokusaiAMM(poolAddress);
-            TokenManager tokenManager = pool.tokenManager();
-            address paramsAddress = tokenManager.getParamsAddress(modelId);
-            require(paramsAddress != address(0), "Params not found");
-
-            IHokusaiParams params = IHokusaiParams(paramsAddress);
-            uint16 infraBps = params.infrastructureAccrualBps();
-
+            // No oracle cost, or a stale one - fallback to percentage-based splitting
+            uint16 infraBps = _infraBps(modelId);
             infrastructureAmount = (amount * infraBps) / 10000;
             profitAmount = amount - infrastructureAmount;
             costBasis = CostBasis.PERCENTAGE_FALLBACK;
         }
+    }
+
+    /**
+     * @dev Whether the oracle cost for a model is fresh enough to trust. When
+     * maxCostAgeSeconds == 0 the staleness check is disabled (always fresh). A cost that has
+     * never been applied (lastUpdated == 0) is treated as not fresh so the router falls back.
+     */
+    function _oracleCostFresh(string memory modelId) internal view returns (bool) {
+        uint256 maxAge = maxCostAgeSeconds;
+        if (maxAge == 0) {
+            return true;
+        }
+        uint256 lastUpdated = costOracle.getLastUpdated(modelId);
+        if (lastUpdated == 0) {
+            return false;
+        }
+        return block.timestamp - lastUpdated <= maxAge;
+    }
+
+    /**
+     * @dev Resolve the model's governance-set infrastructure accrual share (basis points).
+     */
+    function _infraBps(string memory modelId) internal view returns (uint16) {
+        address poolAddress = factory.getPool(modelId);
+        HokusaiAMM pool = HokusaiAMM(poolAddress);
+        TokenManager tokenManager = pool.tokenManager();
+        address paramsAddress = tokenManager.getParamsAddress(modelId);
+        require(paramsAddress != address(0), "Params not found");
+        return IHokusaiParams(paramsAddress).infrastructureAccrualBps();
     }
 
     // ============================================================

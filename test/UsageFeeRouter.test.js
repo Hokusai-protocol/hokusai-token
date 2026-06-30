@@ -935,4 +935,64 @@ describe("UsageFeeRouter", function () {
       expect(await feeRouter.getModelFees(MODEL_ID_2)).to.equal(parseUnits("2500", 6));
     });
   });
+
+  // H-4: oracle cost-plus hardening — cost cap, staleness fallback, infra-share ceiling.
+  describe("Oracle hardening (H-4)", function () {
+    it("ships with safe defaults that preserve behavior (no floor, staleness off)", async function () {
+      expect(await feeRouter.maxInfraShareBps()).to.equal(10000);
+      expect(await feeRouter.maxCostAgeSeconds()).to.equal(0);
+    });
+
+    it("oracle rejects a cost above MAX_COST_PER_THOUSAND_CALLS, accepts the boundary", async function () {
+      const max = await costOracle.MAX_COST_PER_THOUSAND_CALLS();
+      await expect(costOracle.setEstimatedCost(MODEL_ID_1, max + 1n, 0)).to.be.revertedWith("Cost exceeds maximum");
+      await costOracle.setEstimatedCost(MODEL_ID_1, max, 0); // boundary value is allowed
+    });
+
+    it("caps the infra share in oracle mode so holders keep a residual", async function () {
+      // Oracle cost $900/1000 calls would route 90% to infra by default.
+      await setOracleCost(MODEL_ID_1, parseUnits("900", 6));
+      await feeRouter.setMaxInfraShareBps(3000); // ceiling: infra <= 30%
+      const feeAmount = parseUnits("1000", 6);
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000);
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("300", 6));
+      expect(await pool1.reserveBalance()).to.equal(parseUnits("700", 6)); // holders not starved
+    });
+
+    it("does not inflate the infra share when actual cost is below the ceiling", async function () {
+      await setOracleCost(MODEL_ID_1, parseUnits("200", 6)); // 20%
+      await feeRouter.setMaxInfraShareBps(3000); // 30% ceiling, above the 20% cost
+      await feeRouter.connect(depositor).depositFee(MODEL_ID_1, parseUnits("1000", 6), 1000);
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(parseUnits("200", 6)); // unchanged
+    });
+
+    it("falls back to percentage split when the oracle cost is stale", async function () {
+      await setOracleCost(MODEL_ID_1, parseUnits("500", 6)); // 50% via oracle if fresh
+      await feeRouter.setMaxCostAge(3600); // 1h freshness window
+      await ethers.provider.send("evm_increaseTime", [7200]); // age it 2h
+      await ethers.provider.send("evm_mine", []);
+      const feeAmount = parseUnits("1000", 6);
+      await expect(feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000))
+        .to.emit(feeRouter, "FeeSplitCalculated")
+        // PERCENTAGE_FALLBACK (1), infra back to the governance-set 80%
+        .withArgs(MODEL_ID_1, feeAmount, parseUnits("800", 6), parseUnits("200", 6), 1000, 1);
+    });
+
+    it("still uses ORACLE basis when the cost is fresh within the window", async function () {
+      await setOracleCost(MODEL_ID_1, parseUnits("500", 6));
+      await feeRouter.setMaxCostAge(7 * 24 * 3600); // generous window
+      const feeAmount = parseUnits("1000", 6);
+      await expect(feeRouter.connect(depositor).depositFee(MODEL_ID_1, feeAmount, 1000))
+        .to.emit(feeRouter, "FeeSplitCalculated")
+        .withArgs(MODEL_ID_1, feeAmount, parseUnits("500", 6), parseUnits("500", 6), 1000, 0); // ORACLE
+    });
+
+    it("enforces setter bounds, events, and admin-only access", async function () {
+      await expect(feeRouter.setMaxInfraShareBps(10001)).to.be.revertedWith("Share exceeds 100%");
+      await expect(feeRouter.setMaxInfraShareBps(2500)).to.emit(feeRouter, "MaxInfraShareBpsSet").withArgs(10000, 2500);
+      await expect(feeRouter.setMaxCostAge(3600)).to.emit(feeRouter, "MaxCostAgeSet").withArgs(0, 3600);
+      await expect(feeRouter.connect(user1).setMaxInfraShareBps(5000)).to.be.reverted;
+      await expect(feeRouter.connect(user1).setMaxCostAge(5000)).to.be.reverted;
+    });
+  });
 });

@@ -44,6 +44,14 @@ contract InfrastructureCostOracle is AccessControlBase, IInfrastructureCostOracl
     /// @dev Maximum gross margin percentage (100% = 10000 basis points)
     uint16 public constant MAX_GROSS_MARGIN_BPS = 10000;
 
+    /// @dev Hard sanity bound on per-1000-call cost (USDC, 6 decimals) = 1,000,000 USDC.
+    /// Security review H-4: `setEstimatedCost` previously accepted any value, so a fat-finger
+    /// or compromised GOV update could push the oracle cost arbitrarily high and (via the
+    /// UsageFeeRouter cost-plus split) divert ~100% of usage fees to infrastructure. This caps
+    /// the input far above any realistic infra cost while preventing pathological values. The
+    /// router additionally bounds the OUTPUT share (see UsageFeeRouter.maxInfraShareBps).
+    uint256 public constant MAX_COST_PER_THOUSAND_CALLS = 1_000_000e6;
+
     /// @dev Current active cost per 1000 calls for each model (USDC, 6 decimals)
     mapping(string => uint256) private _costPerThousandCalls;
 
@@ -92,6 +100,10 @@ contract InfrastructureCostOracle is AccessControlBase, IInfrastructureCostOracl
         uint256 effectiveEpoch
     ) external override onlyRole(GOV_ROLE) {
         ValidationLib.requireNonEmptyString(modelId, "model ID");
+        require(
+            costPerThousandCalls <= MAX_COST_PER_THOUSAND_CALLS,
+            "Cost exceeds maximum"
+        );
 
         uint256 currentCost = _costPerThousandCalls[modelId];
         uint256 lastUpdate = _lastUpdated[modelId];

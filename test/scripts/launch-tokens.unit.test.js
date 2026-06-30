@@ -85,6 +85,37 @@ describe("launch-tokens helper", function () {
     expect(() => loadLaunchTokensConfig(filepath)).to.throw(LaunchConfigError, "Launch config must define exactly 3 tokens");
   });
 
+  it("H-1: rejects a token whose governor != requiredGovernor", function () {
+    const SAFE = "0x158B985CC667b4E022AD05B99E89007790da66E2";
+    const filepath = writeConfig({
+      version: 1,
+      requiredGovernor: SAFE,
+      tokens: [
+        buildToken(1, { supplierRecipient: SAFE, governor: SAFE }),
+        // token-2 governor deliberately differs from requiredGovernor
+        buildToken(2, { configKey: "token-2", modelId: "2", supplierRecipient: SAFE, governor: "0x00000000000000000000000000000000000000B2" }),
+        buildToken(3, { configKey: "token-3", modelId: "3", supplierRecipient: SAFE, governor: SAFE }),
+      ],
+    });
+    expect(() => loadLaunchTokensConfig(filepath)).to.throw(LaunchConfigError, "must equal requiredGovernor");
+  });
+
+  it("H-1: accepts when every governor equals requiredGovernor", function () {
+    const SAFE = "0x158B985CC667b4E022AD05B99E89007790da66E2";
+    const filepath = writeConfig({
+      version: 1,
+      requiredGovernor: SAFE,
+      tokens: [
+        buildToken(1, { supplierRecipient: SAFE, governor: SAFE }),
+        buildToken(2, { configKey: "token-2", modelId: "2", supplierRecipient: SAFE, governor: SAFE }),
+        buildToken(3, { configKey: "token-3", modelId: "3", supplierRecipient: SAFE, governor: SAFE }),
+      ],
+    });
+    const loaded = loadLaunchTokensConfig(filepath);
+    expect(loaded.tokens).to.have.lengthOf(3);
+    expect(loaded.tokens.every((t) => t.governor === SAFE)).to.equal(true);
+  });
+
   it("rejects zero addresses", function () {
     const filepath = writeConfig({
       version: 1,

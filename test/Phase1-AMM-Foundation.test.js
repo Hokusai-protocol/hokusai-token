@@ -16,6 +16,8 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
     modelRegistry = await ModelRegistry.deploy();
     await modelRegistry.waitForDeployment();
+    // H-2: token re-pointing is gated off by default; enable it to exercise update paths.
+    await modelRegistry.setModelUpdatesEnabled(true);
 
     // Deploy TokenManager
     const TokenManager = await ethers.getContractFactory("TokenManager");

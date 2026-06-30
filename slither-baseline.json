@@ -1163,6 +1163,55 @@
       "justification": "Paginated unpauseAllPools is owner-only and touches only factory-tracked pools; the detector is identifying possible event ordering, not an exploitable reentrancy condition.",
       "reviewedBy": "codex",
       "followUp": "HOK-1846"
+    },
+    {
+      "id": "ba6465ecddffeb2114f614941418008b5a7cab8c01a240dd3340fbc900f4ba1e",
+      "check": "reentrancy-no-eth",
+      "justification": "Accepted (relocated by H-4 line shift, security review): pre-existing finding on the nonReentrant-guarded fee-deposit path (depositFee/batchDepositFees). External calls are to the immutable trusted USDC reserveToken, InfrastructureReserve, and the model's AMM. Identical finding was baselined at the pre-H-4 line numbers; re-hashed only because the added oracle-hardening state/setters shifted the function down. No functional change to the deposit path.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing baselined finding from H-4 oracle hardening)"
+    },
+    {
+      "id": "5834196e24a4f9b1608977b88fc0c319b6566af062aa00ae1d399597e40104ac",
+      "check": "unused-return",
+      "justification": "Accepted (relocated by H-4 line shift, security review): unchecked return on reserveToken.approve() to the immutable trusted USDC token within the nonReentrant deposit path; real USDC reverts rather than returning false. Previously baselined at the pre-H-4 line numbers; re-hashed only due to the line shift from added oracle-hardening code.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing baselined finding from H-4 oracle hardening)"
+    },
+    {
+      "id": "7d140adb0a53482b70d7c8b53a5506f46c0ae93a5a042cc4d010f44130f86abd",
+      "check": "unused-return",
+      "justification": "Accepted (relocated by H-4 line shift, security review): unchecked return on reserveToken.approve() to the immutable trusted USDC token within the nonReentrant deposit path; real USDC reverts rather than returning false. Previously baselined at the pre-H-4 line numbers; re-hashed only due to the line shift from added oracle-hardening code.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing baselined finding from H-4 oracle hardening)"
+    },
+    {
+      "id": "d43a787cadb61c0c5580fbf74cb78bed3d0e3819bb7bb06c4a89f097f6ba625a",
+      "check": "unused-return",
+      "justification": "Accepted (relocated by H-4 line shift, security review): unchecked return on reserveToken.approve() to the immutable trusted USDC token within the nonReentrant deposit path; real USDC reverts rather than returning false. Previously baselined at the pre-H-4 line numbers; re-hashed only due to the line shift from added oracle-hardening code.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing baselined finding from H-4 oracle hardening)"
+    },
+    {
+      "id": "e7f34671bb4dcdf6214b6d5a6b004ff7582bb153b3787875c6a63d082f949a1e",
+      "check": "unused-return",
+      "justification": "Accepted (relocated by H-4 line shift, security review): unchecked return on reserveToken.approve() to the immutable trusted USDC token within the nonReentrant deposit path; real USDC reverts rather than returning false. Previously baselined at the pre-H-4 line numbers; re-hashed only due to the line shift from added oracle-hardening code.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing baselined finding from H-4 oracle hardening)"
+    },
+    {
+      "id": "0ed2d869b59cc231068dc38c53ecac0e9c92ca0e7779f6295c43bd6928f7f430",
+      "check": "reentrancy-benign",
+      "justification": "Accepted (relocated by H-4 line shift, security review): pre-existing finding on the nonReentrant-guarded fee-deposit path (depositFee/batchDepositFees). External calls are to the immutable trusted USDC reserveToken, InfrastructureReserve, and the model's AMM. Identical finding was baselined at the pre-H-4 line numbers; re-hashed only because the added oracle-hardening state/setters shifted the function down. No functional change to the deposit path.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing baselined finding from H-4 oracle hardening)"
+    },
+    {
+      "id": "58f4146dc01294955d619d4af5a9444ccd081f3b9d059836f770688f830c69a1",
+      "check": "reentrancy-benign",
+      "justification": "Accepted (relocated by H-4 line shift, security review): pre-existing finding on the nonReentrant-guarded fee-deposit path (depositFee/batchDepositFees). External calls are to the immutable trusted USDC reserveToken, InfrastructureReserve, and the model's AMM. Identical finding was baselined at the pre-H-4 line numbers; re-hashed only because the added oracle-hardening state/setters shifted the function down. No functional change to the deposit path.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing baselined finding from H-4 oracle hardening)"
     }
   ]
 }

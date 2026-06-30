@@ -13,6 +13,30 @@ describe("Governance transfer and timelock controls", function () {
   const TOKEN_SYMBOL = "GOV701";
   const MIN_DELAY = 2;
 
+  // Hermeticity: hardhat loads .env(.sepolia), which may define ops governance addresses
+  // (e.g. ADMIN_SAFE_ADDRESS = the real mainnet Safe). getGovernanceContext prefers those env
+  // vars over deployment.governance, which would make the lib check a Safe this test's timelock
+  // never granted (pre-flight fails with "adminSafe proposer/executor/canceller"). Clear them so
+  // the lib resolves adminSafe/timelock from this test's self-contained deployment artifact.
+  const GOV_ENV_KEYS = ["ADMIN_SAFE_ADDRESS", "EMERGENCY_SAFE_ADDRESS", "TIMELOCK_ADDRESS", "TIMELOCK_MIN_DELAY"];
+  let savedGovEnv;
+  before(function () {
+    savedGovEnv = {};
+    for (const key of GOV_ENV_KEYS) {
+      savedGovEnv[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+  after(function () {
+    for (const key of GOV_ENV_KEYS) {
+      if (savedGovEnv[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = savedGovEnv[key];
+      }
+    }
+  });
+
   async function scheduleAndExecute(timelock, safe, target, data, delay = MIN_DELAY) {
     const salt = id(`salt:${target}:${data}`);
     await timelock.connect(safe).schedule(target, 0, data, ZeroHash, salt, delay);
@@ -237,20 +261,26 @@ describe("Governance transfer and timelock controls", function () {
     const metricInfo = await modelRegistry.modelsByString(MODEL_ID);
     expect(metricInfo.performanceMetric).to.equal("precision");
 
-    const rewardUpdateData = deltaVerifier.interface.encodeFunctionData("setBaseRewardRate", [4321]);
-    await scheduleAndExecute(timelock, safe, await deltaVerifier.getAddress(), rewardUpdateData);
+    // DeltaVerifier DEFAULT_ADMIN intentionally stays at the 2-of-3 admin Safe (not the timelock)
+    // so mint-config changes are immediate, not 48h-delayed (security review H-3). The Safe calls
+    // admin functions directly; the timelock has no admin power over DeltaVerifier.
+    await expect(
+      scheduleAndExecute(
+        timelock,
+        safe,
+        await deltaVerifier.getAddress(),
+        deltaVerifier.interface.encodeFunctionData("setBaseRewardRate", [4321])
+      )
+    ).to.be.reverted;
+    await (await deltaVerifier.connect(safe).setBaseRewardRate(4321)).wait();
     expect(await deltaVerifier.baseRewardRate()).to.equal(4321);
 
     await deltaVerifier.connect(emergencySafe).pause();
     expect(await deltaVerifier.paused()).to.equal(true);
-    await expect(deltaVerifier.connect(emergencySafe).unpause()).to.be.reverted;
+    await expect(deltaVerifier.connect(emergencySafe).unpause()).to.be.reverted; // PAUSER cannot unpause
     await expect(deltaVerifier.connect(deployer).pause()).to.be.reverted;
-    await scheduleAndExecute(
-      timelock,
-      safe,
-      await deltaVerifier.getAddress(),
-      deltaVerifier.interface.encodeFunctionData("unpause", [])
-    );
+    // Unpause is DEFAULT_ADMIN -> the admin Safe (immediate), not the timelock.
+    await (await deltaVerifier.connect(safe).unpause()).wait();
     expect(await deltaVerifier.paused()).to.equal(false);
 
     await infraReserve.connect(emergencySafe).pause();

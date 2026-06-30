@@ -15,6 +15,8 @@ describe("ModelRegistry - Model ID 0 Fix", function () {
         const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
         modelRegistry = await ModelRegistry.deploy();
         await modelRegistry.waitForDeployment();
+        // H-2: token re-pointing is gated off by default; enable it to exercise update paths.
+        await modelRegistry.setModelUpdatesEnabled(true);
 
         // Deploy HokusaiParams for tokens
         const HokusaiParams = await ethers.getContractFactory("HokusaiParams");

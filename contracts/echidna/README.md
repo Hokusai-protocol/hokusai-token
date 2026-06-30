@@ -23,3 +23,11 @@
 - `echidna_minted_never_exceeds_budget`: tracked successful DeltaVerifier reward mints never exceed each model's seeded budget.
 - `echidna_no_mint_without_valid_signature`: random or malformed attester signatures never authorize a positive-reward mint.
 - `echidna_lineage_monotonic`: successful paying mints only advance the canonical lineage head, and stale parents never succeed.
+
+### Fund-holding & governance coverage (security review H-6)
+
+- `EchidnaRewardVestingVault` (`npm run echidna:vesting`): the deepest time-state vault. `balance == Σcreated − Σclaimed`, per-schedule `claimed ≤ total` and `vested ≤ total`, `claimable + claimed == vested`, no reward credited before the cliff, and create/claim are role-gated. Echidna varies `block.timestamp` to cross pre-cliff / mid-vest / fully-vested.
+- `EchidnaPendingClaimsEscrow` (`npm run echidna:escrow`): escrow token conservation `balance + Σreleased + Σrescued == float`, on-chain `totalReleased` matches accounting, pause blocks releases, and release/rescue/unpause are role-gated.
+- `EchidnaFundingVault` (`npm run echidna:funding`): pre-graduation USDC conservation `balance == totalCommitted == Σcommitments`, plus the H-5 escape hatch — announce → model-deactivated (graduate bricked) → cancel → withdraw always recovers a committed user's funds.
+- `EchidnaUsageFeeRouter` (`npm run echidna:router`): fee split is value-conserving and bounded — `infra + profit == amount`, `infra ≤ amount`, oracle-path `infra ≤ amount * maxInfraShareBps / 10000` (H-4 ceiling), and a stale oracle cost falls back to percentage splitting.
+- `EchidnaTimelockController` (`npm run echidna:timelock`): no execution before an operation's ready time, no execution of an unscheduled operation, `minDelay` enforced, and schedule/execute are role-gated.

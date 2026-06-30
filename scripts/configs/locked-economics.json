@@ -8,5 +8,11 @@
     "immediateUnlockBps": 1000,
     "vestingDurationSeconds": 31536000,
     "cliffSeconds": 0
+  },
+  "_mainnetAllocationsComment": "M-6 (security review) — per-model mainnet launch allocations, owner-confirmed 2026-06-30 (@timogilvie). supplierAllocation = model-supplier tokens; investorAllocation = tokens available for investor purchase via the AMM; on-chain maxSupply (launch cap) = supplier + investor. The drift guard asserts mainnet-launch-tokens.json matches this exactly so allocation drift can no longer pass CI silently. Keep in sync with docs/mainnet-launch-token-parameter-lock.md (re-sign on any change).",
+  "mainnetAllocations": {
+    "28": { "symbol": "HMESS", "supplierAllocation": "2500000", "investorAllocation": "10000000" },
+    "27": { "symbol": "HLEAD", "supplierAllocation": "1250000", "investorAllocation": "10000000" },
+    "30": { "symbol": "HROUT", "supplierAllocation": "2500000", "investorAllocation": "10000000" }
   }
 }

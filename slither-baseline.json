@@ -1212,6 +1212,48 @@
       "justification": "Accepted (relocated by H-4 line shift, security review): pre-existing finding on the nonReentrant-guarded fee-deposit path (depositFee/batchDepositFees). External calls are to the immutable trusted USDC reserveToken, InfrastructureReserve, and the model's AMM. Identical finding was baselined at the pre-H-4 line numbers; re-hashed only because the added oracle-hardening state/setters shifted the function down. No functional change to the deposit path.",
       "reviewedBy": "claude (pre-mainnet security review sweep)",
       "followUp": "n/a (line-shift re-hash of pre-existing baselined finding from H-4 oracle hardening)"
+    },
+    {
+      "id": "016f4bfb0fabfc8ea321af18cef55fce8a235ce7293a6d9970efe9f29e8ed904",
+      "check": "incorrect-equality",
+      "justification": "Accepted (relocated by H-5 line shift, security review): pre-existing FundingVault equality pattern (claimedAccounts == claimableAccounts gate / proportional dust accounting on deterministic per-proposal state, not a manipulable balance). Re-hashed only because the added cancelGraduation() function + GraduationCancelled event shifted FundingVault line numbers down. No functional change.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing FundingVault finding from H-5 cancelGraduation)"
+    },
+    {
+      "id": "b6ddd0ebfae146117f57434b715455f21c535fe6e712f24ad2c0280340ebd6dc",
+      "check": "reentrancy-no-eth",
+      "justification": "Accepted (relocated by H-5 line shift, security review): pre-existing finding on the nonReentrant-guarded deposit() path; external call is the expected USDC transferFrom and post-transfer state is commitment accounting. Previously baselined at the pre-H-5 line numbers; re-hashed only because cancelGraduation()/GraduationCancelled shifted the function down. No functional change.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing FundingVault finding from H-5 cancelGraduation)"
+    },
+    {
+      "id": "dcb092f4912a83b34f79a362e1ea440bb1c5f4ae2bbe7c8b87a590db04dc10d3",
+      "check": "reentrancy-no-eth",
+      "justification": "Accepted (relocated by H-5 line shift, security review): pre-existing finding on the nonReentrant-guarded graduate() path. Previously baselined at the pre-H-5 line numbers; re-hashed only because cancelGraduation()/GraduationCancelled shifted the function down. No functional change to graduation.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing FundingVault finding from H-5 cancelGraduation)"
+    },
+    {
+      "id": "91227761bdc7672cd4f819c99350019d573ef345a1a2d4ad0f4fcd9c1c3d4bdc",
+      "check": "unused-return",
+      "justification": "Accepted (relocated by H-5 line shift, security review): pre-existing FundingVault graduation-path unused-return (AMM/factory/tokenManager calls whose returns are intentionally not consumed; pool registration and balances are re-read explicitly). Previously baselined at the pre-H-5 line numbers; re-hashed only because cancelGraduation()/GraduationCancelled shifted the function down. No functional change.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing FundingVault finding from H-5 cancelGraduation)"
+    },
+    {
+      "id": "9ddbfb4b5624684ea0cd1e62c607bfbb1d8b1c53e71d7fe0d4e288980d77d60a",
+      "check": "reentrancy-benign",
+      "justification": "Accepted (relocated by H-5 line shift, security review): pre-existing benign reentrancy on the nonReentrant deposit() path (event emission ordering). Re-hashed only because cancelGraduation()/GraduationCancelled shifted FundingVault line numbers. No functional change.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing FundingVault finding from H-5 cancelGraduation)"
+    },
+    {
+      "id": "b5434dddf17c30fa17e8ad097711fcc9b83d94688f5acd408fafc9f77c4edd56",
+      "check": "timestamp",
+      "justification": "Accepted (relocated by H-5 line shift, security review): pre-existing block.timestamp comparison on deposit() (deadline check; minute-scale granularity is immaterial to a proposal funding window). Re-hashed only because cancelGraduation()/GraduationCancelled shifted FundingVault line numbers. No functional change.",
+      "reviewedBy": "claude (pre-mainnet security review sweep)",
+      "followUp": "n/a (line-shift re-hash of pre-existing FundingVault finding from H-5 cancelGraduation)"
     }
   ]
 }

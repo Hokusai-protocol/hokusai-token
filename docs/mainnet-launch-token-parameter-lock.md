@@ -31,6 +31,28 @@ The current Sepolia token for model `30` still reports symbol `HTASK`. Treat tha
 | `28` | Hokusai Messaging | `HMESS` | `HMESS` | `0x200468201d9b7A5F84CaE3026737D03F3C87c3CA` | `0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B` | 1,000,000 | 10,000,000 | 250,000 | 8000 | 0.00 USD | `0x2828282828282828282828282828282828282828282828282828282828282828` | `https://hokus.ai/licenses/sepolia-test` | Enabled; 10% immediate, 1 year (365d) vesting, no cliff |
 | `30` | Hokusai Task Routing | `HROUT` | `HTASK` superseded | `0x527ec54236188F4ad9eaffA608e459981520DEA9` | `0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B` | 1,000,000 | 10,000,000 | 250,000 | 8000 | 0.00 USD | `0x3030303030303030303030303030303030303030303030303030303030303030` | `https://hokus.ai/licenses/sepolia-test` | Enabled; 10% immediate, 1 year (365d) vesting, no cliff |
 
+> The table above is the **Sepolia rehearsal** record (preserved for traceability). The **mainnet** allocations and supplier recipient differ — see the mainnet block below.
+
+### Mainnet Launch Allocations (M-6 — owner-confirmed 2026-06-30, ⚠️ PENDING RE-SIGN)
+
+These are the canonical mainnet values, enforced by `scripts/configs/locked-economics.json` →
+`mainnetAllocations` and the `test/scripts/launchEconomicsConsistency.test.js` drift guard
+(blocking CI). `supplierAllocation` = model-supplier tokens; `investorAllocation` = tokens
+available for investor purchase via the AMM; on-chain `maxSupply` (launch cap) = supplier +
+investor (reward minting can add supply beyond it later, bounded by the reward cap).
+
+| Model ID | Symbol | Supplier recipient | Supplier allocation | Investor allocation | Derived maxSupply (launch cap) |
+| --- | --- | --- | ---: | ---: | ---: |
+| `28` | `HMESS` | `0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136` | 2,500,000 | 10,000,000 | 12,500,000 |
+| `27` | `HLEAD` | `0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136` | 1,250,000 | 10,000,000 | 11,250,000 |
+| `30` | `HROUT` | `0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136` | 2,500,000 | 10,000,000 | 12,500,000 |
+
+`tokensPerDeltaOne` (250,000), `infrastructureAccrualBps` (8000), and the vesting policy
+(10% immediate / 365d linear / no cliff) are unchanged from the lock above.
+
+**Re-sign required:** this block supersedes the rehearsal allocations (was uniform
+1,000,000 / 10,000,000). Counter-signature: ____________________ (date: __________).
+
 Notes:
 
 - `infrastructureAccrualBps = 8000` means 80% infrastructure accrual and 20% AMM/profit share under the current parameter interpretation.

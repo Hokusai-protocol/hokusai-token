@@ -73,6 +73,32 @@ describe("Launch economics consistency (HOK-2199/HOK-2207 drift guard)", functio
     });
   }
 
+  describe("mainnet-launch-tokens.json allocations match the signed lock (M-6)", function () {
+    const cfg = load("mainnet-launch-tokens.json");
+    const expected = locked.mainnetAllocations;
+
+    it("the lock holds an allocation entry for every mainnet launch token", function () {
+      for (const token of cfg.tokens) {
+        expect(expected, `no locked allocation for model ${token.modelId} (${token.symbol})`).to.have.property(
+          String(token.modelId),
+        );
+      }
+    });
+
+    for (const token of cfg.tokens) {
+      it(`${token.symbol} (model ${token.modelId}): supplier/investor allocations + derived maxSupply match the lock`, function () {
+        const lock = expected[String(token.modelId)];
+        expect(lock, `locked allocation for model ${token.modelId}`).to.not.equal(undefined);
+        expect(token.supplierAllocation, `${token.symbol} supplierAllocation`).to.equal(lock.supplierAllocation);
+        expect(token.investorAllocation, `${token.symbol} investorAllocation`).to.equal(lock.investorAllocation);
+        // On-chain HokusaiToken enforces maxSupply == supplier + investor; assert the configured
+        // pair is internally consistent so the derived launch cap can't drift either.
+        const derivedMaxSupply = BigInt(lock.supplierAllocation) + BigInt(lock.investorAllocation);
+        expect(BigInt(token.supplierAllocation) + BigInt(token.investorAllocation)).to.equal(derivedMaxSupply);
+      });
+    }
+  });
+
   it("token configs and posture configs agree per shared modelId", function () {
     const tokenById = {};
     for (const file of TOKEN_CONFIGS) {

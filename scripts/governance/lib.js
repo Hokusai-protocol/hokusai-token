@@ -240,10 +240,25 @@ async function ensureSetter({ contract, field, method, expected, dryRun, logger,
   }
 }
 
-async function ensureOwner({ contract, targetOwner, dryRun, logger, actions }) {
+async function ensureOwner({ contract, targetOwner, signerAddress, dryRun, logger, actions }) {
   const currentOwner = await contract.owner();
   if (addressesEqual(currentOwner, targetOwner)) {
     actions.push({ type: "transferOwnership", targetOwner, status: "already-set" });
+    return;
+  }
+
+  // The deployer can only transfer ownership of contracts it currently owns. Per-model
+  // HokusaiTokens are owned by the governor (the admin Safe on mainnet, set by the factory at
+  // creation), NOT the deployer — so the deployer handoff must not attempt to move them
+  // (transferOwnership would revert "Ownable: caller is not the owner"). Flag it instead; if a
+  // transfer is actually intended it must be done by the current owner (the Safe), and the
+  // post-handoff verify-governance / posture gates confirm the final ownership regardless.
+  if (signerAddress && !addressesEqual(currentOwner, signerAddress)) {
+    actions.push({ type: "transferOwnership", targetOwner, currentOwner, status: "skipped-not-owner" });
+    logger.log(
+      `SKIP transferOwnership: contract owned by ${currentOwner} (not the deployer ${signerAddress}); ` +
+        `expected ${targetOwner}. Must be transferred by the current owner if intended.`
+    );
     return;
   }
 
@@ -363,6 +378,7 @@ async function runGovernanceTransfer({ hre, deployment, policy, dryRun = false, 
       await ensureOwner({
         contract,
         targetOwner: spec.owner,
+        signerAddress: governance.deployer,
         dryRun,
         logger,
         actions,

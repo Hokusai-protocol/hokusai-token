@@ -8,8 +8,8 @@
   "emergencySafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
   "deployerAddress": "0x3937A9B521298D4c6D9d438cEFF396eD18DD7Bb6",
   "submitterRelayer": "0x0000000000000000000000000000000000000001",
-  "_ownershipNote": "H-3: this gate runs POST governance handoff (runbook step 6). Ownable contracts + the global AccessControl admins must be the timelock (resolved from deployment.governance.timelock) with the deployer revoked; per-token HokusaiToken owner and HokusaiParams admin must also be the timelock. DeltaVerifier + DataContributionRegistry admin intentionally remain the admin Safe (see roleAudit). The timelock address must be present at deployment.governance.timelock before running this gate.",
-  "expectedTokenOwner": "TIMELOCK",
+  "_ownershipNote": "H-3: this gate runs POST governance handoff (runbook step 6). Ownable contracts + the global AccessControl admins must be the timelock (resolved from deployment.governance.timelock) with the deployer revoked. Per-token HokusaiToken owner stays at the admin Safe (the governor, per H-1; setController kept under the 2-of-3 Safe, not 48h-timelocked — launch decision 2026-06-30), so expectedTokenOwner = ADMIN_SAFE. HokusaiParams admin -> timelock. DeltaVerifier + DataContributionRegistry admin intentionally remain the admin Safe (see roleAudit). The timelock address must be present at deployment.governance.timelock before running this gate.",
+  "expectedTokenOwner": "ADMIN_SAFE",
   "expectedParamsAdmin": "TIMELOCK",
   "ownershipAudit": {
     "ModelRegistry": { "type": "ownable", "owner": "TIMELOCK" },

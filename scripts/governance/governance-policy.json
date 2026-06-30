@@ -127,7 +127,8 @@
       "abi": "HokusaiToken",
       "collection": "tokens",
       "addressFrom": "address",
-      "owner": "TIMELOCK",
+      "_ownerNote": "Per-model token Ownable owner stays at the admin Safe (the governor set by the factory at creation, per H-1), NOT the timelock. The token's only owner-power is setController; keeping it with the 2-of-3 Safe (not 48h-timelocked) is the launch decision (2026-06-30). The deployer never owns the tokens, so the handoff does not move them — ensureOwner flags non-deployer-owned contracts instead of reverting; ownership is verified via launch-posture expectedTokenOwner.",
+      "owner": "ADMIN_SAFE",
       "revokedFromDeployer": ["owner"]
     },
     {

@@ -219,7 +219,11 @@ describe("Governance transfer and timelock controls", function () {
     });
 
     expect(await modelRegistry.owner()).to.equal(await timelock.getAddress());
-    expect(await token.owner()).to.equal(await timelock.getAddress());
+    // Per-model token ownership stays at the admin Safe (the governor), NOT the timelock
+    // (H-1 / launch decision 2026-06-30): the token's only owner-power is setController, kept
+    // under the 2-of-3 Safe rather than 48h-timelocked. The deployer never owns the token, so
+    // the handoff does not move it.
+    expect(await token.owner()).to.equal(safe.address);
     expect(await factory.owner()).to.equal(await timelock.getAddress());
 
     await expect(

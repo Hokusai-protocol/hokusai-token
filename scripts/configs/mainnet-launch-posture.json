@@ -1,5 +1,5 @@
 {
-  "_comment": "Fill attester, relayer, and weight genesis values before using on live mainnet.",
+  "_comment": "Relayer (SUBMITTER_ROLE) and attester filled 2026-06-30. STILL TO FILL before live mainnet: per-model expectedWeightGenesis (currently 0x1111…/0x2222…/0x3333… placeholders) — real sha256-merkle-v1 roots from each model's genesis weight files via scripts/compute-weight-genesis.js; write-once on-chain.",
   "network": "mainnet",
   "chainId": 1,
   "deploymentArtifactPath": "deployments/mainnet-latest.json",
@@ -7,7 +7,7 @@
   "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
   "emergencySafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
   "deployerAddress": "0x3937A9B521298D4c6D9d438cEFF396eD18DD7Bb6",
-  "submitterRelayer": "0x0000000000000000000000000000000000000001",
+  "submitterRelayer": "0xc18D0B6eE049B2B113eE4671cB9C8109192e29E2",
   "_ownershipNote": "H-3: this gate runs POST governance handoff (runbook step 6). Ownable contracts + the global AccessControl admins must be the timelock (resolved from deployment.governance.timelock) with the deployer revoked. Per-token HokusaiToken owner stays at the admin Safe (the governor, per H-1; setController kept under the 2-of-3 Safe, not 48h-timelocked — launch decision 2026-06-30), so expectedTokenOwner = ADMIN_SAFE. HokusaiParams roles are NOT verified here: DEFAULT_ADMIN is the TokenManager (inert) and GOV_ROLE is permanently the admin Safe by contract design (see governance-policy.json HokusaiParams _rolesNote); economic-param control therefore stays at the Safe. DeltaVerifier + DataContributionRegistry admin intentionally remain the admin Safe (see roleAudit). The timelock address must be present at deployment.governance.timelock before running this gate.",
   "expectedTokenOwner": "ADMIN_SAFE",
   "ownershipAudit": {
@@ -23,7 +23,7 @@
     "paused": false,
     "attesterThreshold": 1,
     "expectedAttesters": [
-      "0x0000000000000000000000000000000000000002"
+      "0x07bf9b22f516d2D464511219488F019c5dFF5335"
     ],
     "baseRewardRate": "1000",
     "minImprovementBps": 100,

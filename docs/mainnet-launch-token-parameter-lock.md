@@ -33,7 +33,7 @@ The current Sepolia token for model `30` still reports symbol `HTASK`. Treat tha
 
 > The table above is the **Sepolia rehearsal** record (preserved for traceability). The **mainnet** allocations and supplier recipient differ — see the mainnet block below.
 
-### Mainnet Launch Allocations (M-6 — owner-confirmed 2026-06-30, ⚠️ PENDING RE-SIGN)
+### Mainnet Launch Allocations (M-6 — APPROVED 2026-06-30)
 
 These are the canonical mainnet values, enforced by `scripts/configs/locked-economics.json` →
 `mainnetAllocations` and the `test/scripts/launchEconomicsConsistency.test.js` drift guard
@@ -50,8 +50,9 @@ investor (reward minting can add supply beyond it later, bounded by the reward c
 `tokensPerDeltaOne` (250,000), `infrastructureAccrualBps` (8000), and the vesting policy
 (10% immediate / 365d linear / no cliff) are unchanged from the lock above.
 
-**Re-sign required:** this block supersedes the rehearsal allocations (was uniform
-1,000,000 / 10,000,000). Counter-signature: ____________________ (date: __________).
+**Approved:** these mainnet allocations supersede the rehearsal allocations (was uniform
+1,000,000 / 10,000,000) and are the canonical values, enforced by the
+`launchEconomicsConsistency` drift guard. Approved by **@timogilvie, 2026-06-30**.
 
 Notes:
 

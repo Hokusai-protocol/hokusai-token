@@ -376,25 +376,28 @@ async function assertLaunchPosture({ hre, config, deployment }) {
     );
 
     // H-1 / H-3: the factory sets the token's Ownable owner to the per-model governor, and
-    // owner can call setController to bypass DeltaVerifier mint controls. The expected owner
-    // depends on the launch phase: pre-handoff it is the admin Safe (the locked governor),
-    // post-handoff it is the timelock. `expectedTokenOwner` selects which (default ADMIN_SAFE).
-    // Either way the owner must NOT be the deployer EOA.
-    const tokenOwnerActual = await token.owner();
-    const tokenOwnerExpected = resolveExpectedValue(config.expectedTokenOwner || "ADMIN_SAFE", context);
-    const deployerAddr = resolveExpectedValue("DEPLOYER", context);
-    const tokenOwnerOk = addressesEqual(tokenOwnerActual, tokenOwnerExpected) && !addressesEqual(tokenOwnerActual, deployerAddr);
-    assertions.push(
-      makeAssertion(
-        `model.${model.modelId}.tokenOwner`,
-        tokenOwnerExpected,
-        tokenOwnerActual,
-        tokenOwnerOk,
-        tokenOwnerOk
-          ? "token owner is the expected authority (governor cannot hijack controller)"
-          : "token owner is NOT the expected authority / is the deployer — controller could be hijacked (H-1/H-3)"
-      )
-    );
+    // owner can call setController to bypass DeltaVerifier mint controls, so the owner must be
+    // the expected governance authority (admin Safe pre-handoff, timelock post-handoff) and
+    // never the deployer EOA. OPT-IN, like `expectedParamsAdmin` / `roleAudit` / `ownershipAudit`:
+    // it runs only when `expectedTokenOwner` is set, so test/sepolia configs (where the governor
+    // is a test wallet, not the Safe) are unaffected. mainnet-launch-posture.json sets it.
+    if (config.expectedTokenOwner) {
+      const tokenOwnerActual = await token.owner();
+      const tokenOwnerExpected = resolveExpectedValue(config.expectedTokenOwner, context);
+      const deployerAddr = resolveExpectedValue("DEPLOYER", context);
+      const tokenOwnerOk = addressesEqual(tokenOwnerActual, tokenOwnerExpected) && !addressesEqual(tokenOwnerActual, deployerAddr);
+      assertions.push(
+        makeAssertion(
+          `model.${model.modelId}.tokenOwner`,
+          tokenOwnerExpected,
+          tokenOwnerActual,
+          tokenOwnerOk,
+          tokenOwnerOk
+            ? "token owner is the expected authority (governor cannot hijack controller)"
+            : "token owner is NOT the expected authority / is the deployer — controller could be hijacked (H-1/H-3)"
+        )
+      );
+    }
 
     // H-3: per-token HokusaiParams admin must be the expected authority (and not the deployer),
     // so GOV/admin economic-param control is held by governance after handoff. Opt-in.

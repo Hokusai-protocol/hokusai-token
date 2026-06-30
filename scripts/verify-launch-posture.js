@@ -17,6 +17,17 @@ async function runVerifyLaunchPosture(hre, argv = process.argv.slice(2)) {
   loaded.config.__resolvedConfigPath = loaded.configPath;
   loaded.config.__resolvedDeploymentPath = loaded.deploymentPath;
 
+  // --skip-ownership: pre-handoff gate. Ownership/admin authority hasn't moved to governance
+  // yet, so verify mint posture only and defer the ownership audit to the post-handoff run.
+  // These four blocks are exactly the (opt-in) ownership audit; dropping them leaves the mint
+  // posture assertions (legacyMintsDisabled, attesters, budgets, weight-genesis) intact.
+  if (args["skip-ownership"]) {
+    for (const key of ["expectedTokenOwner", "expectedParamsAdmin", "roleAudit", "ownershipAudit"]) {
+      delete loaded.config[key];
+    }
+    console.log("(--skip-ownership: verifying mint posture only; ownership audit deferred to post-handoff)");
+  }
+
   const report = await assertLaunchPosture({
     hre,
     config: loaded.config,

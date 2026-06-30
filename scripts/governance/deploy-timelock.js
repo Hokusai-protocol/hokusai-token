@@ -7,6 +7,7 @@ const {
   writeDeployment,
   saveJson,
 } = require("./lib");
+const { getDeploySigner } = require("../lib/get-deploy-signer");
 
 async function main() {
   const hre = require("hardhat");
@@ -15,7 +16,9 @@ async function main() {
   const dryRun = process.env.DRY_RUN === "true";
   const deployment = loadDeployment(deploymentPath);
   const policy = loadPolicy();
-  const [deployer] = await ethers.getSigners();
+  // Use the KMS-aware deploy signer (mainnet + sepolia sign via KMS_DEPLOYER_KEY_ID, so the
+  // hardhat `accounts` array is empty and ethers.getSigners() returns nothing).
+  const deployer = await getDeploySigner(hre);
   const governance = getGovernanceContext({
     deployment,
     policy,
@@ -27,7 +30,7 @@ async function main() {
     return;
   }
 
-  const Timelock = await ethers.getContractFactory("HokusaiTimelockController");
+  const Timelock = await ethers.getContractFactory("HokusaiTimelockController", deployer);
   const proposerExecutors = [governance.adminSafe];
 
   if (dryRun) {

@@ -12,6 +12,18 @@ function loadKmsSigner() {
 
 async function getDeploySigner(hre) {
   const { ethers } = hre;
+
+  // The in-process hardhat network (unit tests) must always use the in-memory signer, even if
+  // KMS_DEPLOYER_KEY_ID is present in a loaded .env — a KMS signer targets a real RPC, not the
+  // ephemeral test chain, so using it here would send calls to the wrong network.
+  if (hre.network.name === "hardhat") {
+    const [signer] = await ethers.getSigners();
+    if (!signer) {
+      throw new Error("No local deploy signer available");
+    }
+    return signer;
+  }
+
   const keyId = process.env.KMS_DEPLOYER_KEY_ID;
   if (!keyId) {
     const [signer] = await ethers.getSigners();

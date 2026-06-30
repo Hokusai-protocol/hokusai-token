@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { getDeploySigner } = require("../lib/get-deploy-signer");
 
 const DEFAULT_POLICY_PATH = path.resolve(__dirname, "governance-policy.json");
 const DEFAULT_ADMIN_SAFE = "0x158B985CC667b4E022AD05B99E89007790da66E2";
@@ -301,7 +302,10 @@ async function verifyTimelockRoles(timelock, governance) {
 }
 
 async function runGovernanceTransfer({ hre, deployment, policy, dryRun = false, logger = console }) {
-  const [signer] = await hre.ethers.getSigners();
+  // KMS-aware signer: mainnet + sepolia sign via KMS_DEPLOYER_KEY_ID, so the hardhat
+  // `accounts` array is empty and ethers.getSigners() returns nothing. getDeploySigner falls
+  // back to getSigners()[0] when no KMS key is configured (local/CI with DEPLOYER_PRIVATE_KEY).
+  const signer = await getDeploySigner(hre);
   const governance = getGovernanceContext({
     deployment,
     policy,
@@ -317,14 +321,16 @@ async function runGovernanceTransfer({ hre, deployment, policy, dryRun = false, 
     throw new Error(`No contract deployed at timelock address ${governance.timelock}`);
   }
 
-  const timelock = await hre.ethers.getContractAt("HokusaiTimelockController", governance.timelock);
+  const timelock = await hre.ethers.getContractAt("HokusaiTimelockController", governance.timelock, signer);
   await verifyTimelockRoles(timelock, governance);
 
   const specs = expandContractSpecs(policy, deployment, governance);
   const actions = [];
 
   for (const spec of specs) {
-    const contract = await hre.ethers.getContractAt(spec.abiName, spec.address);
+    // Connect each target to the KMS deploy signer so the (irreversible) role/owner transfer
+    // transactions are sent by the current admin/owner (the deployer), not a missing default signer.
+    const contract = await hre.ethers.getContractAt(spec.abiName, spec.address, signer);
 
     for (const [roleName, holders] of Object.entries(spec.roles)) {
       const roleId = await getRoleId(contract, roleName);

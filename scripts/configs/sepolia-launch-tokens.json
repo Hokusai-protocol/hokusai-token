@@ -1,5 +1,7 @@
 {
   "version": 1,
+  "_governorNote": "H-1 mitigation (mirrors mainnet-launch-tokens.json): every token governor MUST equal requiredGovernor (the admin Safe). Because the factory transfers token Ownable ownership to the governor, token.owner() == requiredGovernor, which the governance handoff + verify-governance + launch-posture all expect. Keeping this in sync with the sepolia adminSafe is what makes the rehearsal faithfully mirror mainnet.",
+  "requiredGovernor": "0x158B985CC667b4E022AD05B99E89007790da66E2",
   "tokens": [
     {
       "configKey": "hmess",
@@ -14,7 +16,7 @@
       "initialOraclePricePerThousandUsd": "0",
       "licenseHash": "0x2828282828282828282828282828282828282828282828282828282828282828",
       "licenseURI": "https://hokus.ai/licenses/sepolia-test",
-      "governor": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "governor": "0x158B985CC667b4E022AD05B99E89007790da66E2",
       "vestingConfig": {
         "enabled": true,
         "immediateUnlockBps": 1000,
@@ -46,7 +48,7 @@
       "initialOraclePricePerThousandUsd": "0",
       "licenseHash": "0x2727272727272727272727272727272727272727272727272727272727272727",
       "licenseURI": "https://hokus.ai/licenses/sepolia-test",
-      "governor": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "governor": "0x158B985CC667b4E022AD05B99E89007790da66E2",
       "vestingConfig": {
         "enabled": true,
         "immediateUnlockBps": 1000,
@@ -78,7 +80,7 @@
       "initialOraclePricePerThousandUsd": "0",
       "licenseHash": "0x3030303030303030303030303030303030303030303030303030303030303030",
       "licenseURI": "https://hokus.ai/licenses/sepolia-test",
-      "governor": "0x3018Cf81729c932Bc3E733A264e5F4a0A08deD5B",
+      "governor": "0x158B985CC667b4E022AD05B99E89007790da66E2",
       "vestingConfig": {
         "enabled": true,
         "immediateUnlockBps": 1000,

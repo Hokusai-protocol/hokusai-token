@@ -101,8 +101,8 @@ const PHASES = [
   {
     name: "verify-posture-pre",
     kind: "gate",
-    desc: "GATE: mint posture green (legacyMintsDisabled, attesters, budgets, genesis) before handoff.",
-    cmd: `npx hardhat run scripts/verify-launch-posture.js --network ${NET}`,
+    desc: "GATE: mint posture green (legacyMintsDisabled, attesters, budgets, genesis) before handoff. Ownership audit is deferred to verify-posture-post (ownership hasn't been handed off yet).",
+    cmd: `HARDHAT_NETWORK=${NET} node scripts/verify-launch-posture.js --skip-ownership`,
   },
   {
     name: "confirm-handoff",

@@ -210,11 +210,29 @@ async function getRoleId(contract, roleName) {
   return contract[roleName]();
 }
 
-async function ensureHasRole({ contract, roleId, roleName, holder, dryRun, logger, actions }) {
+async function ensureHasRole({ contract, roleId, roleName, holder, signerAddress, dryRun, logger, actions }) {
   const hasRole = await contract.hasRole(roleId, holder);
   if (hasRole) {
     actions.push({ type: "grantRole", role: roleName, holder, status: "already-set" });
     return;
+  }
+
+  // The deployer can only grant a role it administers. Some contracts' role admin is held by
+  // another authority the deployer doesn't control — e.g. HokusaiParams grants DEFAULT_ADMIN_ROLE
+  // to the TokenManager (its deployer) and GOV_ROLE to the governor, and TokenManager exposes no
+  // params role-management method, so those roles are not the deployer's to grant. Flag instead of
+  // reverting ("AccessControl: account ... is missing role"); the post-handoff verify gates confirm
+  // the final role assignment.
+  if (signerAddress) {
+    const adminRole = await contract.getRoleAdmin(roleId);
+    const canGrant = await contract.hasRole(adminRole, signerAddress);
+    if (!canGrant) {
+      actions.push({ type: "grantRole", role: roleName, holder, status: "skipped-not-admin" });
+      logger.log(
+        `SKIP grantRole ${roleName} -> ${holder}: deployer ${signerAddress} does not administer this role on this contract.`
+      );
+      return;
+    }
   }
 
   actions.push({ type: "grantRole", role: roleName, holder, status: dryRun ? "planned" : "sent" });
@@ -240,10 +258,25 @@ async function ensureSetter({ contract, field, method, expected, dryRun, logger,
   }
 }
 
-async function ensureOwner({ contract, targetOwner, dryRun, logger, actions }) {
+async function ensureOwner({ contract, targetOwner, signerAddress, dryRun, logger, actions }) {
   const currentOwner = await contract.owner();
   if (addressesEqual(currentOwner, targetOwner)) {
     actions.push({ type: "transferOwnership", targetOwner, status: "already-set" });
+    return;
+  }
+
+  // The deployer can only transfer ownership of contracts it currently owns. Per-model
+  // HokusaiTokens are owned by the governor (the admin Safe on mainnet, set by the factory at
+  // creation), NOT the deployer — so the deployer handoff must not attempt to move them
+  // (transferOwnership would revert "Ownable: caller is not the owner"). Flag it instead; if a
+  // transfer is actually intended it must be done by the current owner (the Safe), and the
+  // post-handoff verify-governance / posture gates confirm the final ownership regardless.
+  if (signerAddress && !addressesEqual(currentOwner, signerAddress)) {
+    actions.push({ type: "transferOwnership", targetOwner, currentOwner, status: "skipped-not-owner" });
+    logger.log(
+      `SKIP transferOwnership: contract owned by ${currentOwner} (not the deployer ${signerAddress}); ` +
+        `expected ${targetOwner}. Must be transferred by the current owner if intended.`
+    );
     return;
   }
 
@@ -340,6 +373,7 @@ async function runGovernanceTransfer({ hre, deployment, policy, dryRun = false, 
           roleId,
           roleName,
           holder,
+          signerAddress: governance.deployer,
           dryRun,
           logger,
           actions,
@@ -363,6 +397,7 @@ async function runGovernanceTransfer({ hre, deployment, policy, dryRun = false, 
       await ensureOwner({
         contract,
         targetOwner: spec.owner,
+        signerAddress: governance.deployer,
         dryRun,
         logger,
         actions,

@@ -30,6 +30,18 @@ contract ModelRegistry is Ownable {
     address public stringModelTokenManager;
     mapping(address => bool) public poolRegistrars;
 
+    // --- Model token re-pointing gate (HOK-2... / security review H-2) ---
+    // `updateModel`/`updateStringModel` repoint a model's token via `_updateModel` WITHOUT
+    // migrating the dependent state (`modelPools`/`poolToStringModel`, `weightGenesis`, and the
+    // external TokenManager/FundingVault token mappings). That silently desyncs the registry: the
+    // AMM pool keeps trading the old token while reward minting moves to the new one. Until an
+    // atomic-migration replacement exists, both update paths are gated by this flag, which defaults
+    // to FALSE so mainnet is protected without relying on a post-deploy step. Re-enabling is a
+    // deliberate governance action (owner == timelock post-handoff). The rework path: either flip
+    // this on alongside a migration that clears pool/genesis mappings, or replace the gate with a
+    // "no pool registered yet" precondition in `_updateModel`.
+    bool public modelUpdatesEnabled;
+
     // --- Model-weight lineage genesis (HOK-2133) ---
     // The genesis weight commitment per model: the root of the model's hash-linked weight lineage that
     // DeltaVerifier reads to initialize its per-model head. Set by the same authority that registers the
@@ -52,6 +64,7 @@ contract ModelRegistry is Ownable {
     event StringModelTokenManagerUpdated(address indexed tokenManager);
     event PoolRegistrarUpdated(address indexed registrar, bool authorized);
     event WeightGenesisSet(uint256 indexed modelId, bytes32 genesis);
+    event ModelUpdatesEnabledSet(bool enabled);
 
     constructor() Ownable() {}
 
@@ -61,6 +74,23 @@ contract ModelRegistry is Ownable {
             "Caller is not authorized to register pools"
         );
         _;
+    }
+
+    /// @dev Gates the model token re-pointing paths. See `modelUpdatesEnabled`.
+    modifier whenModelUpdatesEnabled() {
+        require(modelUpdatesEnabled, "Model updates disabled");
+        _;
+    }
+
+    /**
+     * @dev Enable or disable the `updateModel`/`updateStringModel` token re-pointing paths.
+     * Disabled by default (mainnet-safe). Only re-enable once a migration that also updates
+     * pool/weight-genesis/external mappings exists, or after replacing the desync-prone logic.
+     * @param enabled New state for the gate.
+     */
+    function setModelUpdatesEnabled(bool enabled) external onlyOwner {
+        modelUpdatesEnabled = enabled;
+        emit ModelUpdatesEnabledSet(enabled);
     }
 
     /**
@@ -120,7 +150,7 @@ contract ModelRegistry is Ownable {
      * @param modelId The model identifier to update
      * @param newToken The new token address
      */
-    function updateModel(uint256 modelId, address newToken) external onlyOwner {
+    function updateModel(uint256 modelId, address newToken) external onlyOwner whenModelUpdatesEnabled {
         _updateModel(modelId, newToken);
         emit ModelUpdated(modelId, newToken);
     }
@@ -288,7 +318,7 @@ contract ModelRegistry is Ownable {
      * @param modelId The model identifier to update
      * @param newToken The new token address
      */
-    function updateStringModel(string memory modelId, address newToken) external onlyOwner {
+    function updateStringModel(string memory modelId, address newToken) external onlyOwner whenModelUpdatesEnabled {
         uint256 numericModelId = _parseModelId(modelId);
         _updateModel(numericModelId, newToken);
         emit ModelUpdated(numericModelId, newToken);

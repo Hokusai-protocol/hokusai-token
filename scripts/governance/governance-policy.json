@@ -59,9 +59,10 @@
       "name": "DeltaVerifier",
       "abi": "DeltaVerifier",
       "addressFrom": "contracts.DeltaVerifier",
+      "_adminNote": "DeltaVerifier DEFAULT_ADMIN intentionally stays at the 2-of-3 admin Safe (not the timelock) so mint-config posture changes (attesters, budget, genesis) are not 48h-delayed. Deployer is still revoked. Must match mainnet-launch-posture.json roleAudit.",
       "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "PAUSER_ROLE"],
       "roles": {
-        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "DEFAULT_ADMIN_ROLE": ["ADMIN_SAFE"],
         "SUBMITTER_ROLE": ["DEPLOYMENT_ROLE:DeltaVerifier:SUBMITTER_ROLE"],
         "PAUSER_ROLE": ["EMERGENCY_SAFE"]
       }
@@ -102,9 +103,10 @@
       "name": "DataContributionRegistry",
       "abi": "DataContributionRegistry",
       "addressFrom": "contracts.DataContributionRegistry",
+      "_adminNote": "DataContributionRegistry DEFAULT_ADMIN intentionally stays at the admin Safe (not the timelock), consistent with DeltaVerifier and mainnet-launch-posture.json roleAudit. Deployer is still revoked.",
       "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE"],
       "roles": {
-        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
+        "DEFAULT_ADMIN_ROLE": ["ADMIN_SAFE"],
         "RECORDER_ROLE": ["DEPLOYMENT_ROLE:DataContributionRegistry:RECORDER_ROLE"],
         "VERIFIER_ROLE": ["DEPLOYMENT_ROLE:DataContributionRegistry:VERIFIER_ROLE"]
       }

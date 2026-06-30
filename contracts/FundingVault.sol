@@ -113,6 +113,11 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         uint256 totalReserve
     );
 
+    event GraduationCancelled(
+        string indexed modelId,
+        uint256 totalCommitted
+    );
+
     event Claimed(
         string indexed modelId,
         address indexed user,
@@ -334,6 +339,54 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         claimableAccounts[modelId] = claimableCount;
 
         emit GraduationAnnounced(modelId, proposal.snapshotTotalCommitted, depositorCount);
+    }
+
+    /**
+     * @dev Cancel a previously announced graduation that has not yet completed.
+     * @param modelId String model identifier
+     *
+     * Security review H-5: `announceGraduation()` sets `graduationAnnounced = true`, which
+     * permanently blocks both `deposit()` and `withdraw()`. `claim()` only opens once
+     * `graduate()` has set `graduated = true`. If `graduate()` can never succeed (model
+     * deactivated, `createPool` reverts, the seeding AMM buy reverts on slippage/whitelist,
+     * etc.), depositor USDC is trapped with no exit. This is the escape hatch: it clears the
+     * announcement while `graduated == false`, re-opening withdrawals so depositors can recover
+     * their committed USDC. Deliberately does NOT require the model to be active, so recovery
+     * works even after a model has been deactivated.
+     *
+     * This function:
+     * 1. Clears the `graduationAnnounced` flag (re-enabling deposit/withdraw)
+     * 2. Resets the commitment snapshot taken at announcement
+     *
+     * Per-depositor `snapshottedCommitments` are intentionally left in place: they are only ever
+     * read after `graduated == true` (which cannot be reached without a fresh announcement), and
+     * a subsequent `announceGraduation()` overwrites every depositor's snapshot from the live
+     * `commitments`. Live `commitments` / `totalCommitted` are untouched, so withdrawals remain
+     * exact.
+     *
+     * Requirements:
+     * - Caller must have GRADUATOR_ROLE
+     * - Proposal must be registered
+     * - Graduation must be announced but not yet finalized
+     */
+    function cancelGraduation(string memory modelId)
+        external
+        onlyRole(GRADUATOR_ROLE)
+    {
+        ValidationLib.requireNonEmptyString(modelId, "model ID");
+
+        Proposal storage proposal = proposals[modelId];
+        require(proposal.tokenAddress != address(0), "Proposal not registered");
+        require(proposal.graduationAnnounced, "Graduation not announced");
+        require(!proposal.graduated, "Already graduated");
+
+        uint256 reopenedCommitted = proposal.totalCommitted;
+
+        proposal.graduationAnnounced = false;
+        proposal.snapshotTotalCommitted = 0;
+        claimableAccounts[modelId] = 0;
+
+        emit GraduationCancelled(modelId, reopenedCommitted);
     }
 
     /**

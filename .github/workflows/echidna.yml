@@ -27,7 +27,10 @@ jobs:
   fuzz-short:
     name: Fuzz Short
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # 17 harnesses now (added vesting/escrow/funding/router/timelock for security review H-6).
+    # The old 35-min budget fit the original 12 and timed out on the larger suite; 75 leaves
+    # margin while staying well under fuzz-long's 120.
+    timeout-minutes: 75
 
     steps:
       - name: Check out repository

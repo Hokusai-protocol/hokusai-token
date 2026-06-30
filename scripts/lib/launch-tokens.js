@@ -205,11 +205,27 @@ function loadLaunchTokensConfig(configPath) {
     throw new LaunchConfigError("Launch config must define exactly 3 tokens");
   }
 
+  // H-1 mitigation: when requiredGovernor is set (the admin Safe), every token's
+  // governor MUST equal it. The factory transfers token Ownable ownership to the
+  // governor, and owner can call setController, so a non-Safe governor could repoint
+  // the controller and bypass DeltaVerifier mint controls. Fail closed here.
+  let requiredGovernor = null;
+  if (config.requiredGovernor !== undefined) {
+    requiredGovernor = assertChecksumAddress(config.requiredGovernor, "requiredGovernor");
+  }
+
   const modelIds = new Set();
   const configKeys = new Set();
 
   for (const entry of config.tokens) {
     validateTokenEntry(entry);
+
+    if (requiredGovernor && entry.governor !== requiredGovernor) {
+      throw new LaunchConfigError(
+        `token ${entry.configKey} governor (${entry.governor}) must equal requiredGovernor ${requiredGovernor} ` +
+          `(admin Safe) to prevent controller hijack (H-1)`
+      );
+    }
 
     if (modelIds.has(entry.modelId)) {
       throw new LaunchConfigError("Duplicate modelId in launch config");

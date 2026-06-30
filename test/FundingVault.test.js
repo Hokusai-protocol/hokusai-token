@@ -440,6 +440,105 @@ describe("FundingVault", function () {
     });
   });
 
+  describe("cancelGraduation (H-5 escape hatch)", function () {
+    let tokenAddress;
+    let deadline;
+
+    beforeEach(async function () {
+      await deployTestToken(tokenManager, MODEL_ID_1, "Test Token", "TEST", parseEther("1000000"), owner.address);
+      tokenAddress = await tokenManager.getTokenAddress(MODEL_ID_1);
+      await modelRegistry.registerStringModel(MODEL_ID_1, tokenAddress, "Test metric");
+      deadline = await getDeadline();
+
+      await fundingVault.registerProposal(MODEL_ID_1, tokenAddress, deadline);
+      await fundingVault.connect(user1).deposit(MODEL_ID_1, usd(10000));
+      await fundingVault.connect(user2).deposit(MODEL_ID_1, usd(15000));
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
+    });
+
+    it("Should clear the announcement and emit GraduationCancelled", async function () {
+      await expect(fundingVault.connect(graduator).cancelGraduation(MODEL_ID_1))
+        .to.emit(fundingVault, "GraduationCancelled")
+        .withArgs(MODEL_ID_1, usd(25000));
+
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.graduationAnnounced).to.be.false;
+      expect(proposal.graduated).to.be.false;
+      expect(proposal.snapshotTotalCommitted).to.equal(0);
+      expect(await fundingVault.claimableAccounts(MODEL_ID_1)).to.equal(0);
+    });
+
+    it("Should re-open withdrawals so trapped depositors recover exact USDC", async function () {
+      await fundingVault.connect(graduator).cancelGraduation(MODEL_ID_1);
+
+      const balBefore = await usdc.balanceOf(user1.address);
+      await fundingVault.connect(user1).withdraw(MODEL_ID_1);
+      const balAfter = await usdc.balanceOf(user1.address);
+      expect(balAfter - balBefore).to.equal(usd(10000));
+
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.totalCommitted).to.equal(usd(15000));
+    });
+
+    it("Should re-open deposits after cancellation", async function () {
+      await fundingVault.connect(graduator).cancelGraduation(MODEL_ID_1);
+      await fundingVault.connect(user3).deposit(MODEL_ID_1, usd(5000));
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.totalCommitted).to.equal(usd(30000));
+    });
+
+    it("Should allow a fresh announcement with re-snapshotted commitments after cancel", async function () {
+      await fundingVault.connect(graduator).cancelGraduation(MODEL_ID_1);
+      await fundingVault.connect(user1).withdraw(MODEL_ID_1); // user1 exits
+
+      await fundingVault.connect(graduator).announceGraduation(MODEL_ID_1);
+      const proposal = await fundingVault.getProposal(MODEL_ID_1);
+      expect(proposal.snapshotTotalCommitted).to.equal(usd(15000));
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user1.address)).to.equal(0);
+      expect(await fundingVault.getSnapshottedCommitment(MODEL_ID_1, user2.address)).to.equal(usd(15000));
+      expect(await fundingVault.claimableAccounts(MODEL_ID_1)).to.equal(1);
+    });
+
+    it("Should recover funds even after the model is deactivated", async function () {
+      // The core H-5 trap: graduate() reverts forever once the model is deactivated.
+      await modelRegistry.deactivateStringModel(MODEL_ID_1);
+      await expect(fundingVault.connect(graduator).graduate(MODEL_ID_1, 1))
+        .to.be.revertedWith("Model is deactivated");
+
+      // Cancel does not gate on model-active, so recovery still works.
+      await fundingVault.connect(graduator).cancelGraduation(MODEL_ID_1);
+      await fundingVault.connect(user2).withdraw(MODEL_ID_1);
+      expect(await fundingVault.getCommitment(MODEL_ID_1, user2.address)).to.equal(0);
+    });
+
+    it("Should reject cancellation from a non-graduator", async function () {
+      await expect(fundingVault.connect(user1).cancelGraduation(MODEL_ID_1))
+        .to.be.reverted;
+    });
+
+    it("Should reject cancellation when graduation was never announced", async function () {
+      await deployTestToken(tokenManager, MODEL_ID_2, "Test Token 2", "TEST2", parseEther("1000000"), owner.address);
+      const tokenAddress2 = await tokenManager.getTokenAddress(MODEL_ID_2);
+      await modelRegistry.registerStringModel(MODEL_ID_2, tokenAddress2, "Test metric 2");
+      await fundingVault.registerProposal(MODEL_ID_2, tokenAddress2, deadline);
+      await fundingVault.connect(user1).deposit(MODEL_ID_2, usd(1000));
+
+      await expect(fundingVault.connect(graduator).cancelGraduation(MODEL_ID_2))
+        .to.be.revertedWith("Graduation not announced");
+    });
+
+    it("Should reject cancellation of an unregistered proposal", async function () {
+      await expect(fundingVault.connect(graduator).cancelGraduation("unregistered"))
+        .to.be.revertedWith("Proposal not registered");
+    });
+
+    it("Should reject cancellation once graduated", async function () {
+      await fundingVault.connect(graduator).graduate(MODEL_ID_1, 1);
+      await expect(fundingVault.connect(graduator).cancelGraduation(MODEL_ID_1))
+        .to.be.revertedWith("Already graduated");
+    });
+  });
+
   describe("graduate", function () {
     let tokenAddress;
     let deadline;

@@ -43,8 +43,37 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const NET = args.network;
+const IS_MAINNET = NET === "mainnet";
 const SAFE_BUNDLE = `deployments/${NET}-launch-posture-safe.json`;
 const TOKEN_KEYS = "hmess,hlead,hrout";
+
+// Network-specific scripts. The deploy + pool-creation steps are NOT --network-portable:
+// deploy-mainnet.js hard-guards chainId 1 (mainnet USDC) and create-mainnet-pools.js guards
+// chainId 1, so Sepolia uses its own deploy-sepolia.js / create-sepolia-test-tokens.js (which
+// reads the sepolia-launch-tokens config). Mint posture also differs by KIND: on mainnet
+// init-launch-posture emits a Safe bundle (--execute is rejected on mainnet); on Sepolia it
+// executes directly with the deployer key. Per the launch-posture runbook, init-launch-posture
+// must be invoked as `HARDHAT_NETWORK=<net> node ...` (not `hardhat run`) for flags to pass.
+const DEPLOY_CMD = IS_MAINNET
+  ? `npx hardhat run scripts/deploy-mainnet.js --network ${NET}`
+  : `npx hardhat run scripts/deploy-sepolia.js --network ${NET}`;
+const POOLS_CMD = IS_MAINNET
+  ? `LAUNCH_TOKEN_KEYS=${TOKEN_KEYS} npx hardhat run scripts/create-mainnet-pools.js --network ${NET}`
+  : `npx hardhat run scripts/create-sepolia-test-tokens.js --network ${NET}`;
+const POSTURE_PHASE = IS_MAINNET
+  ? {
+      name: "posture-safe-bundle",
+      kind: "safe-bundle",
+      desc: "Generate the Safe bundle for mint posture: disableLegacyMints (G-2) + attester registry + per-model mint budget + weight-genesis. Submit via the admin Safe.",
+      cmd: `HARDHAT_NETWORK=${NET} node scripts/init-launch-posture.js --safe-txs ${SAFE_BUNDLE}`,
+      stop: `Submit ${SAFE_BUNDLE} via the admin Safe (Transaction Builder), wait for execution, THEN resume:\n      node scripts/launch-mainnet.js --network ${NET} --from verify-posture-pre`,
+    }
+  : {
+      name: "posture-execute",
+      kind: "deployer",
+      desc: "Apply mint posture directly with the deployer key (Sepolia): disableLegacyMints (G-2) + attester registry + per-model mint budget + weight-genesis.",
+      cmd: `HARDHAT_NETWORK=${NET} node scripts/init-launch-posture.js --execute`,
+    };
 
 // kind: deployer = run with the deployer KMS key | gate = read-only verifier (must pass)
 //       safe-bundle = generate a Safe-tx JSON then STOP for Safe submission
@@ -54,7 +83,7 @@ const PHASES = [
     name: "deploy-contracts",
     kind: "deployer",
     desc: "Deploy core contracts (registry, token manager, factory, reserve, oracle, router, DeltaVerifier).",
-    cmd: `npx hardhat run scripts/deploy-mainnet.js --network ${NET}`,
+    cmd: DEPLOY_CMD,
   },
   {
     name: "deploy-timelock",
@@ -66,15 +95,9 @@ const PHASES = [
     name: "create-pools",
     kind: "deployer",
     desc: "Deploy the launch tokens + AMM pools and distribute supplier/investor allocations.",
-    cmd: `LAUNCH_TOKEN_KEYS=${TOKEN_KEYS} npx hardhat run scripts/create-mainnet-pools.js --network ${NET}`,
+    cmd: POOLS_CMD,
   },
-  {
-    name: "posture-safe-bundle",
-    kind: "safe-bundle",
-    desc: "Generate the Safe bundle for mint posture: disableLegacyMints (G-2) + attester registry + per-model mint budget + weight-genesis. Submit via the admin Safe.",
-    cmd: `node scripts/init-launch-posture.js --network ${NET} --safe-txs ${SAFE_BUNDLE}`,
-    stop: `Submit ${SAFE_BUNDLE} via the admin Safe (Transaction Builder), wait for execution, THEN resume:\n      node scripts/launch-mainnet.js --network ${NET} --from verify-posture-pre`,
-  },
+  POSTURE_PHASE,
   {
     name: "verify-posture-pre",
     kind: "gate",

@@ -136,11 +136,8 @@
       "abi": "HokusaiParams",
       "collection": "tokens",
       "addressFrom": "paramsAddress",
-      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "GOV_ROLE"],
-      "roles": {
-        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
-        "GOV_ROLE": ["TIMELOCK"]
-      }
+      "_rolesNote": "HokusaiParams grants DEFAULT_ADMIN_ROLE to its deployer (the TokenManager) and GOV_ROLE to the governor (admin Safe) at construction, and TokenManager exposes no params role-management method — so neither role is the deployer's to move, and GOV_ROLE (the economic-param control: tokensPerDeltaOne etc.) is permanently held by the admin Safe by contract design (consistent with the H-1 token-owner decision: economic/control powers stay under the 2-of-3 Safe, not the timelock). The handoff therefore does not transfer params roles. Moving economic-param control to the timelock would require a TokenManager/params contract change (tracked follow-up).",
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "GOV_ROLE"]
     }
   ]
 }

@@ -68,7 +68,9 @@ Common: `tokensPerDeltaOne` 250,000 · `infrastructureAccrualBps` 8000 · per-mo
 $0.01 to $25,000 threshold. Initial reserves are intentionally thin ($10/pool, all flat-phase);
 real opening liquidity funded post-launch. Weight-genesis roots are `sha256-merkle-v1`
 (provenance in `scripts/configs/mainnet-weight-genesis-sources.json`), write-once on-chain, and
-match the off-chain DeltaOne lineage.
+match the off-chain DeltaOne lineage. License (all models): URI `https://hokus.ai/terms`,
+`licenseHash` = `keccak256(URI)` = `0x52a5f2bb…888269` (updatable post-launch via
+`HokusaiParams.setLicenseRef`, GOV_ROLE = admin Safe).
 
 ## 5. Governance & custody model
 

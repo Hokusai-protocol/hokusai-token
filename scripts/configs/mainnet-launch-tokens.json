@@ -14,8 +14,8 @@
       "tokensPerDeltaOne": "250000",
       "infrastructureAccrualBps": 8000,
       "initialOraclePricePerThousandUsd": "0",
-      "licenseHash": "0x1111111111111111111111111111111111111111111111111111111111111111",
-      "licenseURI": "https://hokusai.ai/licenses/standard",
+      "licenseHash": "0x52a5f2bbab515e11b37964f0ed5e96a493dc6ca54837027ad2c4fae249888269",
+      "licenseURI": "https://hokus.ai/terms",
       "governor": "0x158B985CC667b4E022AD05B99E89007790da66E2",
       "vestingConfig": {
         "enabled": true,
@@ -46,8 +46,8 @@
       "tokensPerDeltaOne": "250000",
       "infrastructureAccrualBps": 8000,
       "initialOraclePricePerThousandUsd": "0",
-      "licenseHash": "0x2222222222222222222222222222222222222222222222222222222222222222",
-      "licenseURI": "https://hokusai.ai/licenses/standard",
+      "licenseHash": "0x52a5f2bbab515e11b37964f0ed5e96a493dc6ca54837027ad2c4fae249888269",
+      "licenseURI": "https://hokus.ai/terms",
       "governor": "0x158B985CC667b4E022AD05B99E89007790da66E2",
       "vestingConfig": {
         "enabled": true,
@@ -78,8 +78,8 @@
       "tokensPerDeltaOne": "250000",
       "infrastructureAccrualBps": 8000,
       "initialOraclePricePerThousandUsd": "0",
-      "licenseHash": "0x3333333333333333333333333333333333333333333333333333333333333333",
-      "licenseURI": "https://hokusai.ai/licenses/standard",
+      "licenseHash": "0x52a5f2bbab515e11b37964f0ed5e96a493dc6ca54837027ad2c4fae249888269",
+      "licenseURI": "https://hokus.ai/terms",
       "governor": "0x158B985CC667b4E022AD05B99E89007790da66E2",
       "vestingConfig": {
         "enabled": true,

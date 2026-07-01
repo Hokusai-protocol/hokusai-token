@@ -27,7 +27,7 @@
       "pool": {
         "name": "HMESS Pool",
         "performanceMetric": "accuracy",
-        "initialReserveUsdc": "10000",
+        "initialReserveUsdc": "10",
         "crr": 300000,
         "tradeFee": 30,
         "ibrSeconds": 604800,
@@ -59,7 +59,7 @@
       "pool": {
         "name": "HLEAD Pool",
         "performanceMetric": "accuracy",
-        "initialReserveUsdc": "50000",
+        "initialReserveUsdc": "10",
         "crr": 100000,
         "tradeFee": 30,
         "ibrSeconds": 604800,
@@ -91,7 +91,7 @@
       "pool": {
         "name": "HROUT Pool",
         "performanceMetric": "accuracy",
-        "initialReserveUsdc": "25000",
+        "initialReserveUsdc": "10",
         "crr": 200000,
         "tradeFee": 30,
         "ibrSeconds": 604800,

@@ -52,10 +52,30 @@ jobs:
         run: npm run echidna:all
 
   fuzz-long:
-    name: Fuzz Long
+    name: Fuzz Long (${{ matrix.harness }})
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      # One harness per job so the 5M testLimit (~90-120 min each) runs in parallel instead of
+      # serially blowing the job timeout. 14 harnesses = 14 parallel jobs.
+      matrix:
+        harness:
+          - EchidnaSanity
+          - EchidnaHokusaiToken
+          - EchidnaTokenManager
+          - EchidnaAMMReserve
+          - EchidnaAMMPhase
+          - EchidnaAMMEconomic
+          - EchidnaInfrastructureReserve
+          - EchidnaDeltaVerifier
+          - EchidnaDeltaVerifierMultiAttester
+          - EchidnaRewardVestingVault
+          - EchidnaPendingClaimsEscrow
+          - EchidnaFundingVault
+          - EchidnaUsageFeeRouter
+          - EchidnaTimelockController
 
     steps:
       - name: Check out repository
@@ -78,35 +98,22 @@ jobs:
           cp echidna.config.yaml echidna.long.config.yaml
           perl -0pi -e 's/testLimit: 50000/testLimit: 5000000/' echidna.long.config.yaml
 
-      - name: Run long fuzz suite
+      - name: Compile
+        # crytic-compile inside the echidna image has no npx/node, so pre-build hardhat artifacts
+        # here (otherwise it fails "Cannot execute npx").
+        run: npx hardhat compile
+
+      - name: Run 5M fuzz — ${{ matrix.harness }}
         run: |
-          rm -rf echidna-artifacts
-          mkdir -p echidna-artifacts
-          overall_exit=0
-          for target in \
-            "contracts/echidna/EchidnaSanity.sol EchidnaSanity" \
-            "contracts/echidna/EchidnaHokusaiToken.sol EchidnaHokusaiToken" \
-            "contracts/echidna/EchidnaTokenManager.sol EchidnaTokenManager" \
-            "contracts/echidna/EchidnaAMMReserve.sol EchidnaAMMReserve" \
-            "contracts/echidna/EchidnaAMMPhase.sol EchidnaAMMPhase" \
-            "contracts/echidna/EchidnaAMMEconomic.sol EchidnaAMMEconomic" \
-            "contracts/echidna/EchidnaInfrastructureReserve.sol EchidnaInfrastructureReserve" \
-            "contracts/echidna/EchidnaDeltaVerifier.sol EchidnaDeltaVerifier" \
-            "contracts/echidna/EchidnaDeltaVerifierMultiAttester.sol EchidnaDeltaVerifierMultiAttester"
-          do
-            set -- $target
-            rm -rf echidna-corpus
-            docker run --rm --platform linux/amd64 -v "$PWD:/code" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 \
-              echidna . --contract "$2" --config echidna.long.config.yaml || overall_exit=1
-            [ -d echidna-corpus ] && mv echidna-corpus "echidna-artifacts/$2" || true
-          done
-          exit $overall_exit
+          rm -rf echidna-corpus
+          docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/code" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 \
+            echidna . --contract "${{ matrix.harness }}" --config echidna.long.config.yaml
 
       - name: Upload corpus
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: echidna-corpus
+          name: echidna-corpus-${{ matrix.harness }}
           path: |
-            echidna-artifacts
+            echidna-corpus
             echidna.long.config.yaml

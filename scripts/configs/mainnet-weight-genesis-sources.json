@@ -1,0 +1,117 @@
+{
+  "version": "sha256-merkle-v1",
+  "generatedAt": "2026-07-01",
+  "note": "Mainnet weight-genesis source manifest. File hashes are SHA-256 over artifact bytes; roots are computed with scripts/compute-weight-genesis.js from generated fixtures under /private/tmp/hokusai-mainnet-roots.",
+  "models": [
+    {
+      "modelId": 27,
+      "token": "HLEAD",
+      "label": "Sales Lead Scoring",
+      "artifactDir": "/Users/timothyogilvie/Downloads/hokusai-model-artifacts/sales_lead_scoring_v3/model",
+      "fixtureSha256": "26bff636481d41533226329c49a0f022013e4b026a62acd53e73c8b176e2ee2e",
+      "expectedWeightGenesis": "0xc4e28d427a5d8df44fe41f8d935b0e9fbf0967ffcddbc655792b7fa836381883",
+      "includedFiles": [
+        {
+          "path": "artifacts/final_model.pkl",
+          "sha256": "0403766c4ed86e1ec05ec587988f71cfc4fae70d642c594f618a98a48fd8439e",
+          "byteLength": 1202290
+        },
+        {
+          "path": "conda.yaml",
+          "sha256": "d1082f86637507df14568c9b1255895758b78e31a7cb5a0096805afe1e28ad9f",
+          "byteLength": 134
+        },
+        {
+          "path": "python_env.yaml",
+          "sha256": "3d1d027d901bc7a3a0bcdc39396f12c273bd90dadd9b3f625628bab830df9e35",
+          "byteLength": 122
+        },
+        {
+          "path": "python_model.pkl",
+          "sha256": "28b90074ba716b60c84d96a1832cb6b763e922e3231a0ee0b7868b5a3307bfc7",
+          "byteLength": 2361
+        },
+        {
+          "path": "requirements.txt",
+          "sha256": "bf873eee7934ffbee577388debf9f0c55e40648f9d7ac81b8047dc7788847637",
+          "byteLength": 33
+        }
+      ],
+      "excludedFiles": [
+        "MLmodel"
+      ]
+    },
+    {
+      "modelId": 28,
+      "token": "HMESS",
+      "label": "Sales Outreach Messaging",
+      "artifactDir": "/Users/timothyogilvie/Downloads/hokusai-model-artifacts/sales_outreach_messaging_v2/model",
+      "fixtureSha256": "8e68178bb9aa54c58485b974ab3f0098e97fe175674a4bd955edcdf5a1e61d7e",
+      "expectedWeightGenesis": "0xebdae89e4af29e80ffb0c02e3fdfbc4614658c3b3ff9ff5922e1c746bf0476c4",
+      "includedFiles": [
+        {
+          "path": "conda.yaml",
+          "sha256": "2d0be1caa4c11ea64a3c036021e2b0d2eb36a677e1271bedebf68e56b3614af3",
+          "byteLength": 232
+        },
+        {
+          "path": "model.pkl",
+          "sha256": "82b1a11521398af714aca43257df80943e5a07bfaf86afae048ca60bda4b151a",
+          "byteLength": 1326
+        },
+        {
+          "path": "python_env.yaml",
+          "sha256": "3d1d027d901bc7a3a0bcdc39396f12c273bd90dadd9b3f625628bab830df9e35",
+          "byteLength": 122
+        },
+        {
+          "path": "requirements.txt",
+          "sha256": "2763e17ab176001432d8310de9aac419a0e7c31da1661e981957cc9802d2558c",
+          "byteLength": 111
+        }
+      ],
+      "excludedFiles": [
+        "MLmodel"
+      ]
+    },
+    {
+      "modelId": 30,
+      "token": "HROUT",
+      "label": "Technical Task Router",
+      "artifactDir": "/Users/timothyogilvie/Downloads/hokusai-model-artifacts/technical_task_router",
+      "fixtureSha256": "227af35f9c72eff8de3b2c2a3bd3e6e0cfa1fa333b32b69c5d38b71309adb786",
+      "expectedWeightGenesis": "0xce7fc97f349f86a534d929e49738ba61e0043bed9afbc4dc7ad03754f106554c",
+      "includedFiles": [
+        {
+          "path": "artifacts/hokusai-router-dataset.cross-repo.repaired-canonical-train.csv",
+          "sha256": "d4852ee5f988ddc18b260061c498b3bd92bf43e4013c0df53ed478369f421ec7",
+          "byteLength": 639997
+        },
+        {
+          "path": "conda.yaml",
+          "sha256": "ae8faae29c173d7eda3037d033667b0bfa2cf9a474cbecf74063f9471e0b6635",
+          "byteLength": 121
+        },
+        {
+          "path": "python_env.yaml",
+          "sha256": "3d1d027d901bc7a3a0bcdc39396f12c273bd90dadd9b3f625628bab830df9e35",
+          "byteLength": 122
+        },
+        {
+          "path": "python_model.pkl",
+          "sha256": "2bed52ce3f25625b32cb9b46abb7aed7c038eb4fef3debca01a99d4dbb7f6e31",
+          "byteLength": 143
+        },
+        {
+          "path": "requirements.txt",
+          "sha256": "9ef9eccd271c608064cb25c4ae9057fcff015495746cd9f9ad67914c2127f38a",
+          "byteLength": 20
+        }
+      ],
+      "excludedFiles": [
+        "MLmodel",
+        "registered_model_meta"
+      ]
+    }
+  ]
+}

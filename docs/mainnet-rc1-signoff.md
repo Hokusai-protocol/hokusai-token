@@ -30,7 +30,7 @@ Reference docs: `docs/mainnet-security-review-findings.md`, `docs/sepolia-rehear
 | `npx hardhat compile` | ✅ | clean |
 | `npx hardhat test` | ✅ | full suite green on `main` |
 | `npm run slither` | ✅ | gate green vs refreshed baseline |
-| `npm run echidna:all` (17 harnesses, 50k) | ☐ **run on frozen commit** | includes the 5 H-6 fund-holding/timelock harnesses |
+| `npm run echidna:all` (17 harnesses, 50k) | ✅ | passed locally 2026-07-01 — all 17 harnesses green, 0 falsified (incl. the 5 H-6: vesting/escrow/funding/router/timelock). Note: benign "unconfigured RPC (…0001EmptyBase)" log line in the DeltaVerifier harnesses; properties still 10/10. **Re-run on the frozen commit if it differs from this run.** |
 | 5M `fuzz-long` (workflow_dispatch) | ☐ **dispatch on frozen commit** | record per-harness result |
 | Sepolia delta from frozen commit | ☐ **run on frozen commit** | `npm run launch:rehearse:sepolia` (full) or `verify:launch-posture:sepolia`; a full rehearsal already passed 55/55 on the candidate code |
 | Numerical AMM round-trip conservation | ✅ | 0.0000% extraction, CRR 5/10/20/50% incl. ln-scaling region |

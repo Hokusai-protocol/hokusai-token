@@ -80,25 +80,32 @@ jobs:
 
       - name: Run long fuzz suite
         run: |
+          # Compile on the runner first (crytic-compile inside the echidna image has no npx/node,
+          # so without pre-built hardhat artifacts it fails "Cannot execute npx").
+          npx hardhat compile
           rm -rf echidna-artifacts
           mkdir -p echidna-artifacts
           overall_exit=0
           for target in \
-            "contracts/echidna/EchidnaSanity.sol EchidnaSanity" \
-            "contracts/echidna/EchidnaHokusaiToken.sol EchidnaHokusaiToken" \
-            "contracts/echidna/EchidnaTokenManager.sol EchidnaTokenManager" \
-            "contracts/echidna/EchidnaAMMReserve.sol EchidnaAMMReserve" \
-            "contracts/echidna/EchidnaAMMPhase.sol EchidnaAMMPhase" \
-            "contracts/echidna/EchidnaAMMEconomic.sol EchidnaAMMEconomic" \
-            "contracts/echidna/EchidnaInfrastructureReserve.sol EchidnaInfrastructureReserve" \
-            "contracts/echidna/EchidnaDeltaVerifier.sol EchidnaDeltaVerifier" \
-            "contracts/echidna/EchidnaDeltaVerifierMultiAttester.sol EchidnaDeltaVerifierMultiAttester"
+            "EchidnaSanity" \
+            "EchidnaHokusaiToken" \
+            "EchidnaTokenManager" \
+            "EchidnaAMMReserve" \
+            "EchidnaAMMPhase" \
+            "EchidnaAMMEconomic" \
+            "EchidnaInfrastructureReserve" \
+            "EchidnaDeltaVerifier" \
+            "EchidnaDeltaVerifierMultiAttester" \
+            "EchidnaRewardVestingVault" \
+            "EchidnaPendingClaimsEscrow" \
+            "EchidnaFundingVault" \
+            "EchidnaUsageFeeRouter" \
+            "EchidnaTimelockController"
           do
-            set -- $target
             rm -rf echidna-corpus
-            docker run --rm --platform linux/amd64 -v "$PWD:/code" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 \
-              echidna . --contract "$2" --config echidna.long.config.yaml || overall_exit=1
-            [ -d echidna-corpus ] && mv echidna-corpus "echidna-artifacts/$2" || true
+            docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/code" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 \
+              echidna . --contract "$target" --config echidna.long.config.yaml || overall_exit=1
+            [ -d echidna-corpus ] && mv echidna-corpus "echidna-artifacts/$target" || true
           done
           exit $overall_exit
 

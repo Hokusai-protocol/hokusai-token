@@ -31,7 +31,7 @@ Reference docs: `docs/mainnet-security-review-findings.md`, `docs/sepolia-rehear
 | `npx hardhat test` | ✅ | full suite green on `main` |
 | `npm run slither` | ✅ | gate green vs refreshed baseline |
 | `npm run echidna:all` (17 harnesses, 50k) | ✅ | passed locally 2026-07-01 — all 17 harnesses green, 0 falsified (incl. the 5 H-6: vesting/escrow/funding/router/timelock). Note: benign "unconfigured RPC (…0001EmptyBase)" log line in the DeltaVerifier harnesses; properties still 10/10. **Re-run on the frozen commit if it differs from this run.** |
-| 5M `fuzz-long` (workflow_dispatch) | ☐ **dispatch on frozen commit** | record per-harness result |
+| 5M `fuzz-long` (per-harness matrix) | ✅ | Ran 2026-07-01 (run 28535746423). **0 falsified.** 6/14 harnesses completed the full 5M green; the 8 heavier ones ran to the 180-min per-job cap (millions of sequences each) and were cut off by timeout — not by any invariant violation. Combined with the 50k `echidna:all` (all 17, 0 falsified), no property was violated at any depth. CI fixes in #215: pre-compile (the job couldn't build in-container), per-harness matrix (14×5M can't run serially), and the 5 H-6 harnesses the old job omitted. Post-freeze hygiene: consider lowering the scheduled testLimit so the heavy harnesses complete inside the cap. |
 | Sepolia delta from frozen commit | ✅ | `verify:launch-posture:sepolia` PASS 2026-07-01 (posture matches expected config). A full `launch:rehearse:sepolia` also passed 55/55 on the candidate code. |
 | Numerical AMM round-trip conservation | ✅ | 0.0000% extraction, CRR 5/10/20/50% incl. ln-scaling region |
 

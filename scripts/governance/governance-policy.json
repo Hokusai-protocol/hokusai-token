@@ -60,10 +60,11 @@
       "abi": "DeltaVerifier",
       "addressFrom": "contracts.DeltaVerifier",
       "_adminNote": "DeltaVerifier DEFAULT_ADMIN intentionally stays at the 2-of-3 admin Safe (not the timelock) so mint-config posture changes (attesters, budget, genesis) are not 48h-delayed. Deployer is still revoked. Must match mainnet-launch-posture.json roleAudit.",
-      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "PAUSER_ROLE"],
+      "_submitterNote": "SUBMITTER_ROLE goes to the backend relayer (RELAYER = governance.submitterRelayer / MAINNET_BACKEND_ADDRESS), NOT DEPLOYMENT_ROLE which resolves to the bootstrap deployer. Pairing this with SUBMITTER_ROLE in revokedFromDeployer makes the handoff grant the relayer and revoke the deployer in one pass — otherwise the handoff re-grants the deployer's bootstrap SUBMITTER (mainnet 2026-07-01 incident, required a post-handoff Safe cleanup).",
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "PAUSER_ROLE", "SUBMITTER_ROLE"],
       "roles": {
         "DEFAULT_ADMIN_ROLE": ["ADMIN_SAFE"],
-        "SUBMITTER_ROLE": ["DEPLOYMENT_ROLE:DeltaVerifier:SUBMITTER_ROLE"],
+        "SUBMITTER_ROLE": ["RELAYER"],
         "PAUSER_ROLE": ["EMERGENCY_SAFE"]
       }
     },
@@ -104,10 +105,11 @@
       "abi": "DataContributionRegistry",
       "addressFrom": "contracts.DataContributionRegistry",
       "_adminNote": "DataContributionRegistry DEFAULT_ADMIN intentionally stays at the admin Safe (not the timelock), consistent with DeltaVerifier and mainnet-launch-posture.json roleAudit. Deployer is still revoked.",
-      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE"],
+      "_recorderNote": "RECORDER_ROLE is DeltaVerifier only (CONTRACT:DeltaVerifier), NOT DEPLOYMENT_ROLE which resolves to [deployer, DeltaVerifier]. With RECORDER_ROLE in revokedFromDeployer the handoff drops the deployer's bootstrap RECORDER while keeping DeltaVerifier's. Same class of bug as DeltaVerifier SUBMITTER (mainnet 2026-07-01). VERIFIER_ROLE stays DEPLOYMENT_ROLE (un-audited deployer-key leftover) — separate follow-up cleanup.",
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "RECORDER_ROLE"],
       "roles": {
         "DEFAULT_ADMIN_ROLE": ["ADMIN_SAFE"],
-        "RECORDER_ROLE": ["DEPLOYMENT_ROLE:DataContributionRegistry:RECORDER_ROLE"],
+        "RECORDER_ROLE": ["CONTRACT:DeltaVerifier"],
         "VERIFIER_ROLE": ["DEPLOYMENT_ROLE:DataContributionRegistry:VERIFIER_ROLE"]
       }
     },

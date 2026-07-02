@@ -18,7 +18,14 @@ describe("Governance transfer and timelock controls", function () {
   // vars over deployment.governance, which would make the lib check a Safe this test's timelock
   // never granted (pre-flight fails with "adminSafe proposer/executor/canceller"). Clear them so
   // the lib resolves adminSafe/timelock from this test's self-contained deployment artifact.
-  const GOV_ENV_KEYS = ["ADMIN_SAFE_ADDRESS", "EMERGENCY_SAFE_ADDRESS", "TIMELOCK_ADDRESS", "TIMELOCK_MIN_DELAY"];
+  const GOV_ENV_KEYS = [
+    "ADMIN_SAFE_ADDRESS",
+    "EMERGENCY_SAFE_ADDRESS",
+    "TIMELOCK_ADDRESS",
+    "TIMELOCK_MIN_DELAY",
+    "SUBMITTER_RELAYER_ADDRESS",
+    "MAINNET_BACKEND_ADDRESS",
+  ];
   let savedGovEnv;
   before(function () {
     savedGovEnv = {};
@@ -317,5 +324,40 @@ describe("Governance transfer and timelock controls", function () {
       console.log(report.checks.filter((check) => check.status === "fail"));
     }
     expect(report.overall).to.equal("pass");
+  });
+
+  it("routes SUBMITTER to the relayer and strips the deployer's bootstrap SUBMITTER/RECORDER without re-granting", async function () {
+    // Regression for the mainnet 2026-07-01 incident: the handoff policy resolved
+    // DeltaVerifier.SUBMITTER_ROLE / DataContributionRegistry.RECORDER_ROLE via DEPLOYMENT_ROLE,
+    // which points at the bootstrap deployer, and neither was in revokedFromDeployer — so the
+    // handoff re-granted the deployer both roles right after a pre-handoff cleanup, forcing a
+    // post-handoff Safe round. The policy now grants SUBMITTER to the RELAYER and revokes the
+    // deployer's SUBMITTER + RECORDER, producing the correct end-state in one pass.
+    const fixture = await deployFixture();
+    const { artifact, policy, deployer, backendService, deltaVerifier } = fixture;
+    const dataRegistry = await ethers.getContractAt(
+      "DataContributionRegistry",
+      artifact.contracts.DataContributionRegistry
+    );
+    const SUBMITTER = await deltaVerifier.SUBMITTER_ROLE();
+    const RECORDER = await dataRegistry.RECORDER_ROLE();
+    const deltaVerifierAddress = await deltaVerifier.getAddress();
+
+    // Bootstrap state from deploy: deployer holds both roles, relayer holds neither.
+    expect(await deltaVerifier.hasRole(SUBMITTER, deployer.address)).to.equal(true);
+    expect(await deltaVerifier.hasRole(SUBMITTER, backendService.address)).to.equal(false);
+    expect(await dataRegistry.hasRole(RECORDER, deployer.address)).to.equal(true);
+    expect(await dataRegistry.hasRole(RECORDER, deltaVerifierAddress)).to.equal(true);
+
+    // The relayer is the canonical SUBMITTER holder for the handoff (resolves the "RELAYER" symbol).
+    artifact.governance.submitterRelayer = backendService.address;
+
+    await runGovernanceTransfer({ hre, deployment: artifact, policy, dryRun: false, logger: { log() {} } });
+
+    // Relayer can submit; deployer is stripped of both and NOT re-granted; DeltaVerifier keeps RECORDER.
+    expect(await deltaVerifier.hasRole(SUBMITTER, backendService.address)).to.equal(true);
+    expect(await deltaVerifier.hasRole(SUBMITTER, deployer.address)).to.equal(false);
+    expect(await dataRegistry.hasRole(RECORDER, deltaVerifierAddress)).to.equal(true);
+    expect(await dataRegistry.hasRole(RECORDER, deployer.address)).to.equal(false);
   });
 });

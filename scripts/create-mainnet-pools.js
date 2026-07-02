@@ -7,6 +7,7 @@ const {
   validateNumericModelId,
 } = require("./lib/launch-tokens");
 const { ensureFactoryPoolRegistrar } = require("./lib/pool-registrar");
+const { getDeploySigner } = require("./lib/get-deploy-signer");
 
 const { ethers } = hre;
 
@@ -637,9 +638,13 @@ async function runLaunchDeploy({
 async function main() {
   const deployment = await loadDeployment();
   const launchConfig = loadLaunchTokensConfig(DEFAULT_CONFIG_PATH);
+  // Use the KMS-aware deploy signer (mainnet signs via KMS_DEPLOYER_KEY_ID; ethers.getSigners()
+  // is empty). Mirrors create-sepolia-test-tokens.js.
+  const deployer = await getDeploySigner(hre);
   await runLaunchDeploy({
     deployment,
     launchConfig,
+    deployer,
   });
 }
 

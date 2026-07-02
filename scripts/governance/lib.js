@@ -82,12 +82,23 @@ function getGovernanceContext({ deployment, policy, deployer }) {
     process.env.TIMELOCK_MIN_DELAY !== undefined
       ? Number(process.env.TIMELOCK_MIN_DELAY)
       : deployment.governance?.minDelay ?? getMinDelay(policy, deployment.network);
+  // The DeltaVerifier SUBMITTER_ROLE holder (backend delta submitter). Canonical source is the
+  // deployment artifact (governance.submitterRelayer); env/backendService are convenience fallbacks
+  // for mainnet ops. Resolves the policy "RELAYER" symbol so the handoff grants SUBMITTER to the
+  // relayer and revokes the deployer's bootstrap SUBMITTER in one pass (not re-granting the deployer).
+  const submitterRelayer =
+    process.env.SUBMITTER_RELAYER_ADDRESS ||
+    deployment.governance?.submitterRelayer ||
+    process.env.MAINNET_BACKEND_ADDRESS ||
+    deployment.backendService ||
+    null;
 
   return {
     adminSafe,
     emergencySafe,
     timelock,
     minDelay,
+    submitterRelayer,
     deployer: deployer || deployment.deployer || null,
   };
 }
@@ -115,6 +126,10 @@ function resolveExpectedValue(symbol, context) {
 
   if (symbol === "DEPLOYER") {
     return context.deployer;
+  }
+
+  if (symbol === "RELAYER") {
+    return context.submitterRelayer;
   }
 
   if (symbol === "TREASURY") {

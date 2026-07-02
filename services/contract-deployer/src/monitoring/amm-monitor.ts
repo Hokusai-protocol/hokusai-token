@@ -434,21 +434,15 @@ export class AMMMonitor {
       staleBlockMs: this.config.thresholds.ingestionStaleBlockMs,
       stuckMs: this.config.thresholds.ingestionStuckMs,
     };
+    const rpcTimeoutMs = this.config.thresholds.ingestionRpcTimeoutMs;
 
     const tick = async (): Promise<void> => {
-      let sample: IngestionSample;
-      try {
-        const block = await this.provider.getBlock('latest');
-        sample = block
-          ? { ok: true, blockNumber: block.number, blockTimestampMs: block.timestamp * 1000 }
-          : { ok: false };
-      } catch {
-        sample = { ok: false };
-      }
-
       // Liveness (HOK-1698): a Heartbeat metric each tick so the health report can tell "no alerts"
       // apart from "monitor is dead" (absence of Heartbeat => the monitor itself is down).
+      // Emit before sampling RPC so a hung provider cannot suppress the detector liveness signal.
       void this.alertManager.recordHeartbeat();
+
+      const sample = await this.sampleLatestBlock(rpcTimeoutMs);
 
       const assessment = assessIngestionHealth(
         this.ingestionHealth,
@@ -489,6 +483,29 @@ export class AMMMonitor {
     }, this.config.thresholds.ingestionHeartbeatIntervalMs);
     // Don't keep the process alive solely for the heartbeat.
     this.heartbeatTimer.unref?.();
+  }
+
+  private async sampleLatestBlock(timeoutMs: number): Promise<IngestionSample> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const block = await Promise.race([
+        this.provider.getBlock('latest'),
+        new Promise<null>((resolve) => {
+          timeout = setTimeout(() => resolve(null), timeoutMs);
+          timeout.unref?.();
+        }),
+      ]);
+      if (!block) {
+        return { ok: false };
+      }
+      return { ok: true, blockNumber: block.number, blockTimestampMs: block.timestamp * 1000 };
+    } catch {
+      return { ok: false };
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
   }
 
   /** Build a monitor-level ingestion alert (not pool-specific; carries no pool currentState). */

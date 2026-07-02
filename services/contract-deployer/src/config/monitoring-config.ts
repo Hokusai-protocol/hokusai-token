@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ethers } from 'ethers';
+import { logger } from '../utils/logger';
 
 /**
  * Monitoring Configuration
@@ -68,6 +69,7 @@ export interface AlertThresholds {
 
   // Ingestion health (HOK-1698): detect a blind monitor (RPC down / stale or stuck head).
   ingestionHeartbeatIntervalMs: number; // How often the heartbeat samples the chain head
+  ingestionRpcTimeoutMs: number; // Max time to wait for a chain-head sample before treating it as RPC failure
   ingestionStaleBlockMs: number; // Head timestamp older than now - this => stale chain/RPC
   ingestionStuckMs: number; // Head block number not advancing for this long => stuck
 }
@@ -133,6 +135,7 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
   // HOK-1698: sample the head each minute; a head older than 5 min or not advancing for 5 min is
   // unhealthy (Sepolia/mainnet ~12s blocks, so 5 min is ~25 missed blocks — clearly degraded).
   ingestionHeartbeatIntervalMs: 60 * 1000,
+  ingestionRpcTimeoutMs: 10 * 1000,
   ingestionStaleBlockMs: 5 * 60 * 1000,
   ingestionStuckMs: 5 * 60 * 1000,
 };
@@ -213,9 +216,6 @@ export function loadDeploymentConfig(network: string): {
 export function createMonitoringConfig(): MonitoringConfig {
   const network = process.env.NETWORK || 'mainnet';
   const chainId = network === 'mainnet' ? 1 : 11155111; // Sepolia
-
-  // Load contract addresses and pools from deployment artifact
-  const { contracts, pools } = loadDeploymentConfig(network);
   const hasContractEnvOverrides = Boolean(
     process.env.MODEL_REGISTRY_ADDRESS ||
       process.env.TOKEN_MANAGER_ADDRESS ||
@@ -224,6 +224,31 @@ export function createMonitoringConfig(): MonitoringConfig {
       process.env.USAGE_FEE_ROUTER_ADDRESS ||
       process.env.USDC_ADDRESS,
   );
+
+  let contracts: ContractAddresses;
+  let pools: PoolConfig[];
+  try {
+    ({ contracts, pools } = loadDeploymentConfig(network));
+  } catch (error) {
+    if (!hasContractEnvOverrides) {
+      throw error;
+    }
+    contracts = {
+      modelRegistry: process.env.MODEL_REGISTRY_ADDRESS || '',
+      tokenManager: process.env.TOKEN_MANAGER_ADDRESS || '',
+      hokusaiParams: process.env.HOKUSAI_PARAMS_ADDRESS,
+      ammFactory: process.env.FACTORY_ADDRESS || process.env.AMM_FACTORY_ADDRESS || '',
+      usageFeeRouter: process.env.USAGE_FEE_ROUTER_ADDRESS || '',
+      deltaVerifier: process.env.DELTA_VERIFIER_ADDRESS,
+      usdc: process.env.USDC_ADDRESS || '',
+    };
+    pools = [];
+    logger.warn('Deployment artifact unavailable; using monitoring contract env overrides', {
+      network,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   const configuredContracts: ContractAddresses = {
     modelRegistry: process.env.MODEL_REGISTRY_ADDRESS || contracts.modelRegistry,
     tokenManager: process.env.TOKEN_MANAGER_ADDRESS || contracts.tokenManager,
@@ -293,6 +318,11 @@ export function createMonitoringConfig(): MonitoringConfig {
       ingestionHeartbeatIntervalMs: parseInt(
         process.env.ALERT_INGESTION_HEARTBEAT_MS ||
           String(DEFAULT_THRESHOLDS.ingestionHeartbeatIntervalMs),
+        10,
+      ),
+      ingestionRpcTimeoutMs: parseInt(
+        process.env.ALERT_INGESTION_RPC_TIMEOUT_MS ||
+          String(DEFAULT_THRESHOLDS.ingestionRpcTimeoutMs),
         10,
       ),
       ingestionStaleBlockMs: parseInt(

@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "createdAt": 1782999854655,
+  "meta": {
+    "name": "Deployer role cleanup B — VERIFIER -> relayer (Safe, immediate)",
+    "description": "",
+    "txBuilderVersion": "1.17.1",
+    "createdFromSafeAddress": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+    "createdFromOwnerAddress": ""
+  },
+  "transactions": [
+    {
+      "to": "0x7eeC766aF367a4F7B8C38FD2a4bAFDA81df123d3",
+      "value": "0",
+      "data": "0x2f2ff15d0ce23c3e399818cfee81a7ab0880f714e53d7672b08df0fa62f2843416e1ea09000000000000000000000000c18d0b6ee049b2b113ee4671cb9c8109192e29e2",
+      "contractMethod": null,
+      "contractInputsValues": null
+    },
+    {
+      "to": "0x7eeC766aF367a4F7B8C38FD2a4bAFDA81df123d3",
+      "value": "0",
+      "data": "0xd547741f0ce23c3e399818cfee81a7ab0880f714e53d7672b08df0fa62f2843416e1ea0900000000000000000000000056ca22006d67e14aa1b7820ce02c6b6205df0c9e",
+      "contractMethod": null,
+      "contractInputsValues": null
+    }
+  ]
+}

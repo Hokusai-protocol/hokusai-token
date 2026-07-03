@@ -1,0 +1,9 @@
+{
+  "network": "mainnet",
+  "timestamp": "2026-07-01T21:17:16.884Z",
+  "timelock": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+  "minDelay": 172800,
+  "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+  "emergencySafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+  "deployer": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+}

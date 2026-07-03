@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "createdFromSafeAddress": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+  "meta": {
+    "name": "Deployer residual role cleanup (SUBMITTER/RECORDER)"
+  },
+  "transactions": [
+    {
+      "to": "0xE9D40B96703391464bc6b0ea0b4F0404399AaCE7",
+      "value": "0",
+      "data": "0xd547741fe1a65d1a914580ff6931bc952f0fb26573e9282358a4458bceb9ccc6d923d04100000000000000000000000056ca22006d67e14aa1b7820ce02c6b6205df0c9e"
+    },
+    {
+      "to": "0x7eeC766aF367a4F7B8C38FD2a4bAFDA81df123d3",
+      "value": "0",
+      "data": "0xd547741ff996da754c790e95d5c7ca3330cfcad529487fe9d1d8edb7afc65076fdf9adb400000000000000000000000056ca22006d67e14aa1b7820ce02c6b6205df0c9e"
+    }
+  ]
+}

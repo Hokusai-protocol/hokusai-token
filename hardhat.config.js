@@ -15,6 +15,25 @@ if (targetNetwork === 'mainnet' && fs.existsSync('.env.mainnet')) {
 }
 require("dotenv").config(envPath ? { path: envPath } : {});
 
+// Opt-in mainnet fork for the in-process `hardhat` network (FORK_MAINNET=1).
+// Forking must be configured at init — EDR cannot hardhat_reset onto a fork at
+// runtime (it can't overlay the local genesis accounts). Pull the fork RPC from
+// .env.mainnet even though we run on the `hardhat` network, not `mainnet`.
+let mainnetForking;
+if (process.env.FORK_MAINNET === '1') {
+  if (fs.existsSync('.env.mainnet')) {
+    require("dotenv").config({ path: '.env.mainnet' });
+  }
+  const forkUrl = process.env.MAINNET_RPC_URL;
+  if (!forkUrl) {
+    throw new Error("FORK_MAINNET=1 but MAINNET_RPC_URL is not set (expected in .env.mainnet).");
+  }
+  mainnetForking = {
+    url: forkUrl,
+    ...(process.env.FORK_BLOCK ? { blockNumber: Number(process.env.FORK_BLOCK) } : {}),
+  };
+}
+
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: {
@@ -29,8 +48,11 @@ module.exports = {
   },
   networks: {
     hardhat: {
-      chainId: 31337,
-      allowUnlimitedContractSize: true
+      // When forking mainnet, present as chainId 1 so deployed contracts behave
+      // as on mainnet; otherwise the normal local chain id.
+      chainId: mainnetForking ? 1 : 31337,
+      allowUnlimitedContractSize: true,
+      ...(mainnetForking ? { forking: mainnetForking } : {})
     },
     localhost: {
       url: "http://127.0.0.1:8545",

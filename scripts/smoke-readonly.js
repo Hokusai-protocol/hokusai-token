@@ -2,9 +2,42 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 
+/**
+ * Network-agnostic READ-ONLY smoke checks. Sends zero transactions.
+ *
+ * Runs on any network whose deployment artifact follows the standard shape
+ * (Sepolia or mainnet). It auto-detects the target network from the artifact
+ * (deployment.chainId) and asserts the Hardhat provider matches it.
+ *
+ * What is a HARD assertion (PASS/FAIL) — network-invariant facts:
+ *   - every contract address has deployed bytecode
+ *   - structural wiring between contracts (registry <-> manager <-> factory <->
+ *     router <-> infra <-> oracle <-> deltaVerifier <-> vault <-> contribution)
+ *   - reserve token wiring matches the artifact's resolved reserve token
+ *     (config.reserveToken on mainnet; MockUSDC on Sepolia)
+ *   - per-model registration/activation, token identity, pool existence and
+ *     shared-whitelist wiring
+ *   - factory default parameters match the artifact config
+ *   - DeltaVerifier is not paused
+ *   - functional role grants that are WIRING, not custody: RECORDER_ROLE ->
+ *     DeltaVerifier, DEPOSITOR_ROLE -> UsageFeeRouter (must hold post-handoff too)
+ *
+ * What is REPORTED but never fails the smoke — custody that legitimately differs
+ * by network / handoff state:
+ *   - who holds DEFAULT_ADMIN / GOV / WHITELIST_ADMIN / SUBMITTER / PAYER / owner
+ *   Pre-handoff (no `governance` block) the deployer holds these; post-handoff
+ *   they move to the timelock / admin Safe. Custody correctness is audited by
+ *   `verify:governance:<net>` and `verify:launch-posture:<net>`, not here — this
+ *   smoke only surfaces the holders so a human/CI can eyeball them.
+ *
+ * Health-endpoint checks run only when a health URL is available (explicitly via
+ * --health-url / SMOKE_HEALTH_URL, or the built-in default on the Sepolia testnet
+ * where the monitoring service lives). They are skipped cleanly otherwise.
+ */
+
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-const DEFAULT_HEALTH_BASE_URL = "https://contracts.hokus.ai";
-const DEFAULT_DEPLOYMENT_FILE = "deployments/sepolia-latest.json";
+const SEPOLIA_CHAIN_ID = "11155111";
+const SEPOLIA_HEALTH_BASE_URL = "https://contracts.hokus.ai";
 const DEFAULT_MIN_SIGNER_ETH = "0.01";
 const DEFAULT_TOKEN_MODELS = "HMESS:28,HLEAD:27,HROUT:30";
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -37,10 +70,6 @@ const ABIS = {
     "function tokenManager() view returns (address)",
     "function contributionRegistry() view returns (address)",
     "function paused() view returns (bool)",
-  ],
-  accessControl: [
-    "function hasRole(bytes32 role, address account) view returns (bool)",
-    "function DEFAULT_ADMIN_ROLE() view returns (bytes32)",
   ],
   contributionRegistry: [
     "function RECORDER_ROLE() view returns (bytes32)",
@@ -89,8 +118,9 @@ const ABIS = {
 
 function parseArgs(argv) {
   const options = {
-    deploymentFile: process.env.SMOKE_DEPLOYMENT_FILE || DEFAULT_DEPLOYMENT_FILE,
-    healthBaseUrl: process.env.SMOKE_HEALTH_URL || DEFAULT_HEALTH_BASE_URL,
+    deploymentFile: process.env.SMOKE_DEPLOYMENT_FILE || null,
+    healthBaseUrl: process.env.SMOKE_HEALTH_URL || null,
+    skipHealth: process.env.SMOKE_SKIP_HEALTH === "1",
     minSignerEth: process.env.SMOKE_MIN_SIGNER_ETH || DEFAULT_MIN_SIGNER_ETH,
     tokenModels: parseTokenModels(process.env.SMOKE_TOKEN_MODELS || DEFAULT_TOKEN_MODELS),
     requireEmptyQueues: process.env.SMOKE_REQUIRE_EMPTY_QUEUES === "1",
@@ -104,6 +134,8 @@ function parseArgs(argv) {
       options.deploymentFile = argv[++i];
     } else if (arg === "--health-url") {
       options.healthBaseUrl = argv[++i];
+    } else if (arg === "--skip-health") {
+      options.skipHealth = true;
     } else if (arg === "--min-signer-eth") {
       options.minSignerEth = argv[++i];
     } else if (arg === "--token-models") {
@@ -120,20 +152,27 @@ function parseArgs(argv) {
     }
   }
 
-  options.healthBaseUrl = options.healthBaseUrl.replace(/\/+$/, "");
+  if (options.healthBaseUrl) {
+    options.healthBaseUrl = options.healthBaseUrl.replace(/\/+$/, "");
+  }
   return options;
 }
 
 function printUsage() {
-  console.log(`Read-only Sepolia smoke checks
+  console.log(`Network-agnostic read-only smoke checks (Sepolia + mainnet)
 
 Usage:
   npm run smoke:sepolia
-  npx hardhat run scripts/smoke-sepolia-readonly.js --network sepolia
+  npm run smoke:mainnet
+  npx hardhat run scripts/smoke-readonly.js --network <sepolia|mainnet>
+
+The target network is taken from the deployment artifact and asserted against
+the Hardhat provider. By default the artifact is deployments/<network>-latest.json.
 
 CI/environment options:
-  SMOKE_DEPLOYMENT_FILE=deployments/sepolia-latest.json
-  SMOKE_HEALTH_URL=https://contracts.hokus.ai
+  SMOKE_DEPLOYMENT_FILE=deployments/mainnet-latest.json
+  SMOKE_HEALTH_URL=https://contracts.hokus.ai   (health checks; omit to skip)
+  SMOKE_SKIP_HEALTH=1
   SMOKE_MIN_SIGNER_ETH=0.01
   SMOKE_TOKEN_MODELS=HMESS:28,HLEAD:27,HROUT:30
   SMOKE_REQUIRE_EMPTY_QUEUES=1
@@ -143,6 +182,7 @@ CI/environment options:
 Options:
   --deployment-file <path>     Same as SMOKE_DEPLOYMENT_FILE.
   --health-url <url>           Same as SMOKE_HEALTH_URL.
+  --skip-health                Skip all health-endpoint checks.
   --min-signer-eth <eth>       Same as SMOKE_MIN_SIGNER_ETH.
   --token-models <mapping>     Same as SMOKE_TOKEN_MODELS.
   --require-empty-queues       Same as SMOKE_REQUIRE_EMPTY_QUEUES=1.
@@ -178,6 +218,25 @@ function asAddress(value) {
 
 function sameAddress(actual, expected) {
   return asAddress(actual) === asAddress(expected);
+}
+
+// Resolve the reserve token the deployment actually uses: real USDC on mainnet
+// (config.reserveToken), MockUSDC on Sepolia. Mirrors verify-all-contracts.js.
+function resolveReserveToken(deployment) {
+  return (deployment.config && deployment.config.reserveToken) ||
+    (deployment.contracts && deployment.contracts.MockUSDC);
+}
+
+// Structural admin custody differs by handoff state. Post-handoff (a `governance`
+// block is present) admin lives with the timelock / admin Safe; pre-handoff the
+// deployer holds it. Returns the principals we EXPECT to hold structural roles,
+// for reporting only (never a hard failure — see the module header).
+function expectedAdminPrincipals(deployment) {
+  const gov = deployment.governance;
+  if (gov && (gov.timelock || gov.adminSafe || gov.emergencySafe)) {
+    return [...new Set([gov.timelock, gov.adminSafe, gov.emergencySafe].filter(Boolean))];
+  }
+  return [deployment.deployer].filter(Boolean);
 }
 
 function formatValue(value) {
@@ -218,6 +277,9 @@ function createRecorder() {
     },
     fail(name, details) {
       checks.push({ status: "fail", name, details: toPrintable(details) });
+    },
+    info(name, details) {
+      checks.push({ status: "info", name, details: toPrintable(details) });
     },
     assert(name, condition, details) {
       if (condition) {
@@ -271,6 +333,8 @@ async function checkEndpoint(recorder, baseUrl, pathName) {
   }
 }
 
+// Core contracts that exist on every network. MockUSDC is Sepolia-only and is
+// validated separately via the resolved reserve token, so it is not required here.
 function deploymentContracts(deployment) {
   const contracts = deployment.contracts || {};
   const required = [
@@ -279,7 +343,6 @@ function deploymentContracts(deployment) {
     "TokenManager",
     "RewardVestingVault",
     "DataContributionRegistry",
-    "MockUSDC",
     "HokusaiAMMFactory",
     "PurchaserWhitelist",
     "InfrastructureReserve",
@@ -294,10 +357,15 @@ function deploymentContracts(deployment) {
     }
   }
 
-  return contracts;
+  const reserveToken = resolveReserveToken(deployment);
+  if (!reserveToken || !hre.ethers.isAddress(reserveToken)) {
+    throw new Error("Deployment artifact is missing a valid reserve token (config.reserveToken or contracts.MockUSDC)");
+  }
+
+  return { contracts, reserveToken };
 }
 
-function compareReadyAddresses(recorder, readyBody, contracts) {
+function compareReadyAddresses(recorder, readyBody, contracts, reserveToken) {
   const readyAddresses = readyBody?.checks?.contracts?.addresses || readyBody?.checks?.contracts;
   if (!readyAddresses) {
     recorder.fail("/health/ready exposes fresh contract addresses", { available: false });
@@ -306,17 +374,26 @@ function compareReadyAddresses(recorder, readyBody, contracts) {
 
   recorder.pass("/health/ready exposes fresh contract addresses");
 
+  const expectedByName = {
+    ModelRegistry: contracts.ModelRegistry,
+    TokenManager: contracts.TokenManager,
+    HokusaiAMMFactory: contracts.HokusaiAMMFactory,
+    UsageFeeRouter: contracts.UsageFeeRouter,
+    DeltaVerifier: contracts.DeltaVerifier,
+  };
   const readyAddressKeys = {
     ModelRegistry: ["ModelRegistry", "modelRegistry"],
     TokenManager: ["TokenManager", "tokenManager"],
     HokusaiAMMFactory: ["HokusaiAMMFactory", "factory"],
-    MockUSDC: ["MockUSDC", "usdc"],
     UsageFeeRouter: ["UsageFeeRouter", "usageFeeRouter"],
     DeltaVerifier: ["DeltaVerifier", "deltaVerifier"],
+    // reserve token is MockUSDC on Sepolia, real USDC on mainnet
+    reserveToken: ["reserveToken", "MockUSDC", "usdc", "USDC"],
   };
+  expectedByName.reserveToken = reserveToken;
 
   for (const [name, keys] of Object.entries(readyAddressKeys)) {
-    const expected = contracts[name];
+    const expected = expectedByName[name];
     const readyKey = keys.find((key) => readyAddresses[key] !== undefined);
     if (!readyKey) {
       recorder.warn(`/health/ready omits ${name}`, { expected });
@@ -352,67 +429,118 @@ function checkQueueDepths(recorder, readyBody, requireEmptyQueues) {
   }
 }
 
+// Report (never fail on) who holds a custody role among the expected principals.
+async function reportCustodyRole(recorder, contract, roleLabel, role, principals) {
+  const holders = [];
+  for (const principal of principals) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await contract.hasRole(role, principal)) {
+      holders.push(principal);
+    }
+  }
+  if (holders.length > 0) {
+    recorder.info(`${roleLabel} held by expected principal`, { holders });
+  } else {
+    recorder.warn(`${roleLabel} not held by any expected principal (audit via verify:governance)`, {
+      expectedPrincipals: principals,
+    });
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const recorder = createRecorder();
-  const { fullPath, deployment } = loadDeployment(options.deploymentFile);
-  const contracts = deploymentContracts(deployment);
+
   const provider = hre.ethers.provider;
-
   const network = await provider.getNetwork();
-  recorder.assert("Hardhat network is Sepolia", network.chainId === 11155111n, {
-    name: network.name,
-    chainId: network.chainId,
-  });
-  recorder.assert("Deployment artifact is Sepolia", String(deployment.chainId) === "11155111", {
-    file: path.relative(process.cwd(), fullPath),
-    chainId: deployment.chainId,
+  const chainId = network.chainId.toString();
+
+  // Default the artifact to deployments/<hardhat-network>-latest.json.
+  const deploymentFile =
+    options.deploymentFile || `deployments/${hre.network.name}-latest.json`;
+  const { fullPath, deployment } = loadDeployment(deploymentFile);
+  const { contracts, reserveToken } = deploymentContracts(deployment);
+
+  const artifactChainId = String(deployment.chainId);
+  recorder.assert("Hardhat provider chainId matches artifact", chainId === artifactChainId, {
+    providerChainId: chainId,
+    artifactChainId,
+    hardhatNetwork: hre.network.name,
+    artifactNetwork: deployment.network,
   });
 
-  const healthBody = await checkEndpoint(recorder, options.healthBaseUrl, "/health");
-  recorder.assert("/health reports healthy", healthBody?.status === "healthy", healthBody);
+  const handedOff = Boolean(
+    deployment.governance &&
+    (deployment.governance.timelock || deployment.governance.adminSafe),
+  );
 
-  const readyBody = await checkEndpoint(recorder, options.healthBaseUrl, "/health/ready");
-  recorder.assert("/health/ready reports ready", readyBody?.status === "ready", {
-    status: readyBody?.status,
-  });
-  recorder.assert("/health/ready RPC check is healthy", readyBody?.checks?.rpc?.ok === true, {
-    chainId: readyBody?.checks?.rpc?.chainId,
-    blockNumber: readyBody?.checks?.rpc?.blockNumber,
-  });
-  recorder.assert("/health/ready signer is funded", readyBody?.checks?.signer?.ok === true, {
-    address: readyBody?.checks?.signer?.address,
-    balanceEth: readyBody?.checks?.signer?.balanceEth,
-  });
-  recorder.assert("/health/ready DeltaVerifier role check passes", readyBody?.checks?.deltaVerifier?.ok === true, {
-    signerHasSubmitterRole: readyBody?.checks?.deltaVerifier?.signerHasSubmitterRole,
-  });
-  recorder.assert("/health/ready Redis check passes", readyBody?.checks?.redis?.ok === true);
-  compareReadyAddresses(recorder, readyBody, contracts);
-  checkQueueDepths(recorder, readyBody, options.requireEmptyQueues);
+  // ---- Health-endpoint checks (only when a health URL is available) ----
+  let healthBaseUrl = options.healthBaseUrl;
+  if (!healthBaseUrl && !options.skipHealth && artifactChainId === SEPOLIA_CHAIN_ID) {
+    healthBaseUrl = SEPOLIA_HEALTH_BASE_URL; // monitoring service lives on testnet
+  }
 
-  const monitoringHealth = await checkEndpoint(recorder, options.healthBaseUrl, "/api/monitoring/health");
-  recorder.assert("/api/monitoring/health reports success", monitoringHealth?.success === true, monitoringHealth);
+  if (options.skipHealth || !healthBaseUrl) {
+    recorder.info("Health-endpoint checks skipped", {
+      reason: options.skipHealth ? "--skip-health" : "no health URL for this network",
+    });
+  } else {
+    const healthBody = await checkEndpoint(recorder, healthBaseUrl, "/health");
+    recorder.assert("/health reports healthy", healthBody?.status === "healthy", healthBody);
 
-  const poolsBody = await checkEndpoint(recorder, options.healthBaseUrl, "/api/monitoring/pools");
-  recorder.assert("/api/monitoring/pools reports success", poolsBody?.success === true, {
-    count: poolsBody?.count,
-  });
+    const readyBody = await checkEndpoint(recorder, healthBaseUrl, "/health/ready");
+    recorder.assert("/health/ready reports ready", readyBody?.status === "ready", {
+      status: readyBody?.status,
+    });
+    recorder.assert("/health/ready RPC check is healthy", readyBody?.checks?.rpc?.ok === true, {
+      chainId: readyBody?.checks?.rpc?.chainId,
+      blockNumber: readyBody?.checks?.rpc?.blockNumber,
+    });
+    recorder.assert("/health/ready signer is funded", readyBody?.checks?.signer?.ok === true, {
+      address: readyBody?.checks?.signer?.address,
+      balanceEth: readyBody?.checks?.signer?.balanceEth,
+    });
+    recorder.assert("/health/ready DeltaVerifier role check passes", readyBody?.checks?.deltaVerifier?.ok === true, {
+      signerHasSubmitterRole: readyBody?.checks?.deltaVerifier?.signerHasSubmitterRole,
+    });
+    recorder.assert("/health/ready Redis check passes", readyBody?.checks?.redis?.ok === true);
+    compareReadyAddresses(recorder, readyBody, contracts, reserveToken);
+    checkQueueDepths(recorder, readyBody, options.requireEmptyQueues);
 
+    const monitoringHealth = await checkEndpoint(recorder, healthBaseUrl, "/api/monitoring/health");
+    recorder.assert("/api/monitoring/health reports success", monitoringHealth?.success === true, monitoringHealth);
+
+    const poolsBody = await checkEndpoint(recorder, healthBaseUrl, "/api/monitoring/pools");
+    recorder.assert("/api/monitoring/pools reports success", poolsBody?.success === true, {
+      count: poolsBody?.count,
+    });
+  }
+
+  // ---- On-chain bytecode presence ----
   for (const [name, address] of Object.entries(contracts)) {
-    if (!name.startsWith("_")) {
+    if (!name.startsWith("_") && hre.ethers.isAddress(address)) {
       await getCodeCheck(recorder, provider, name, address);
     }
   }
+  await getCodeCheck(recorder, provider, "ReserveToken", reserveToken);
 
+  // Deployer ETH is informational (a warning): post-handoff the deployer no
+  // longer operates the system, so a low balance is not a health failure.
   const deployer = asAddress(deployment.deployer);
   const balance = await provider.getBalance(deployer);
   const minBalance = hre.ethers.parseEther(options.minSignerEth);
-  recorder.assert("Deployment signer has minimum Sepolia ETH", balance >= minBalance, {
-    signer: deployer,
-    balanceEth: hre.ethers.formatEther(balance),
-    minimumEth: options.minSignerEth,
-  });
+  if (balance >= minBalance) {
+    recorder.pass("Deployment signer meets minimum ETH", {
+      signer: deployer,
+      balanceEth: hre.ethers.formatEther(balance),
+    });
+  } else {
+    recorder.warn("Deployment signer below minimum ETH (informational)", {
+      signer: deployer,
+      balanceEth: hre.ethers.formatEther(balance),
+      minimumEth: options.minSignerEth,
+    });
+  }
 
   const modelRegistry = new hre.ethers.Contract(contracts.ModelRegistry, ABIS.modelRegistry, provider);
   const tokenManager = new hre.ethers.Contract(contracts.TokenManager, ABIS.tokenManager, provider);
@@ -440,6 +568,7 @@ async function main() {
     provider,
   );
 
+  // ---- Structural wiring (hard assertions, network-invariant) ----
   const stringModelTokenManager = await modelRegistry.stringModelTokenManager();
   recorder.assert("ModelRegistry.stringModelTokenManager matches TokenManager", sameAddress(stringModelTokenManager, contracts.TokenManager), {
     actual: stringModelTokenManager,
@@ -501,13 +630,9 @@ async function main() {
     { actual: deltaContributionRegistry, expected: contracts.DataContributionRegistry },
   );
   recorder.assert("DeltaVerifier is not paused", paused === false, { paused });
-  recorder.assert("Deployment signer has DeltaVerifier SUBMITTER_ROLE", await deltaVerifier.hasRole(submitterRole, deployer), {
-    signer: deployer,
-  });
-  recorder.assert("Deployment signer has DeltaVerifier DEFAULT_ADMIN_ROLE", await deltaVerifier.hasRole(defaultAdminRole, deployer), {
-    signer: deployer,
-  });
 
+  // RECORDER_ROLE -> DeltaVerifier is functional wiring (mint/reward path), not
+  // custody: it must hold on every network, pre- and post-handoff.
   const recorderRole = await contributionRegistry.RECORDER_ROLE();
   recorder.assert(
     "DataContributionRegistry grants RECORDER_ROLE to DeltaVerifier",
@@ -547,9 +672,9 @@ async function main() {
     actual: factoryTokenManager,
     expected: contracts.TokenManager,
   });
-  recorder.assert("HokusaiAMMFactory.reserveToken matches MockUSDC", sameAddress(factoryReserveToken, contracts.MockUSDC), {
+  recorder.assert("HokusaiAMMFactory.reserveToken matches artifact reserve token", sameAddress(factoryReserveToken, reserveToken), {
     actual: factoryReserveToken,
-    expected: contracts.MockUSDC,
+    expected: reserveToken,
   });
   recorder.pass("HokusaiAMMFactory pool count", { poolCount });
   recorder.assert("HokusaiAMMFactory treasury is nonzero", !sameAddress(factoryTreasury, ZERO_ADDRESS), {
@@ -569,6 +694,7 @@ async function main() {
     flatCurvePrice: defaultFlatCurvePrice,
   });
 
+  // ---- Per-model registration + pool wiring ----
   for (const { symbol, modelId } of options.tokenModels) {
     const [
       numericRegistered,
@@ -623,6 +749,7 @@ async function main() {
     }
   }
 
+  // ---- UsageFeeRouter wiring (hard) + FEE_DEPOSITOR custody (reported) ----
   const [
     routerFactory,
     routerReserveToken,
@@ -641,9 +768,9 @@ async function main() {
     actual: routerFactory,
     expected: contracts.HokusaiAMMFactory,
   });
-  recorder.assert("UsageFeeRouter.reserveToken matches MockUSDC", sameAddress(routerReserveToken, contracts.MockUSDC), {
+  recorder.assert("UsageFeeRouter.reserveToken matches artifact reserve token", sameAddress(routerReserveToken, reserveToken), {
     actual: routerReserveToken,
-    expected: contracts.MockUSDC,
+    expected: reserveToken,
   });
   recorder.assert("UsageFeeRouter.infraReserve matches InfrastructureReserve", sameAddress(routerInfraReserve, contracts.InfrastructureReserve), {
     actual: routerInfraReserve,
@@ -653,10 +780,8 @@ async function main() {
     actual: routerCostOracle,
     expected: contracts.InfrastructureCostOracle,
   });
-  recorder.assert("Deployment signer has UsageFeeRouter FEE_DEPOSITOR_ROLE", await usageFeeRouter.hasRole(feeDepositorRole, deployer), {
-    signer: deployer,
-  });
 
+  // DEPOSITOR_ROLE -> UsageFeeRouter is functional wiring (fee path), not custody.
   const [depositorRole, payerRole] = await Promise.all([
     infrastructureReserve.DEPOSITOR_ROLE(),
     infrastructureReserve.PAYER_ROLE(),
@@ -666,40 +791,56 @@ async function main() {
     await infrastructureReserve.hasRole(depositorRole, contracts.UsageFeeRouter),
     { usageFeeRouter: contracts.UsageFeeRouter },
   );
-  const expectedPayers = deployment.roles?.InfrastructureReserve?.PAYER_ROLE || [];
-  const payerChecks = await Promise.all(
-    expectedPayers.map(async (payer) => ({
-      payer,
-      hasRole: await infrastructureReserve.hasRole(payerRole, payer),
-    })),
-  );
-  recorder.assert(
-    "InfrastructureReserve grants PAYER_ROLE to artifact payers",
-    payerChecks.length > 0 && payerChecks.every((check) => check.hasRole),
-    { payerChecks },
-  );
+
+  // ---- Custody roles: reported, never fatal (audit via verify:governance) ----
+  const principals = expectedAdminPrincipals(deployment);
+  recorder.info("Custody audit context", {
+    handedOff,
+    expectedPrincipals: principals,
+    note: "custody correctness is enforced by verify:governance / verify:launch-posture, not this smoke",
+  });
 
   const govRole = await costOracle.GOV_ROLE();
-  recorder.assert("Deployment signer has InfrastructureCostOracle GOV_ROLE", await costOracle.hasRole(govRole, deployer), {
-    signer: deployer,
-  });
   const whitelistAdminRole = await purchaserWhitelist.WHITELIST_ADMIN_ROLE();
-  recorder.assert(
-    "Deployment signer has PurchaserWhitelist WHITELIST_ADMIN_ROLE",
-    await purchaserWhitelist.hasRole(whitelistAdminRole, deployer),
-    { signer: deployer },
-  );
+  await reportCustodyRole(recorder, deltaVerifier, "DeltaVerifier DEFAULT_ADMIN_ROLE", defaultAdminRole, principals);
+  await reportCustodyRole(recorder, deltaVerifier, "DeltaVerifier SUBMITTER_ROLE", submitterRole, principals);
+  await reportCustodyRole(recorder, usageFeeRouter, "UsageFeeRouter FEE_DEPOSITOR_ROLE", feeDepositorRole, principals);
+  await reportCustodyRole(recorder, costOracle, "InfrastructureCostOracle GOV_ROLE", govRole, principals);
+  await reportCustodyRole(recorder, purchaserWhitelist, "PurchaserWhitelist WHITELIST_ADMIN_ROLE", whitelistAdminRole, principals);
+
+  // PAYER_ROLE holders are recorded per-deployment in the artifact; assert those
+  // recorded holders still hold it (functional invariant for infra payouts).
+  const expectedPayers = deployment.roles?.InfrastructureReserve?.PAYER_ROLE || [];
+  if (expectedPayers.length > 0) {
+    const payerChecks = await Promise.all(
+      expectedPayers.map(async (payer) => ({
+        payer,
+        hasRole: await infrastructureReserve.hasRole(payerRole, payer),
+      })),
+    );
+    recorder.assert(
+      "InfrastructureReserve PAYER_ROLE holders match artifact",
+      payerChecks.every((check) => check.hasRole),
+      { payerChecks },
+    );
+  } else {
+    recorder.info("InfrastructureReserve PAYER_ROLE holders not recorded in artifact");
+  }
 
   const failures = recorder.checks.filter((check) => check.status === "fail");
   const warnings = recorder.checks.filter((check) => check.status === "warn");
   const result = {
     ok: failures.length === 0,
-    network: "sepolia",
+    network: deployment.network || hre.network.name,
+    chainId: artifactChainId,
+    handedOff,
     deploymentFile: path.relative(process.cwd(), fullPath),
-    healthBaseUrl: options.healthBaseUrl,
+    reserveToken,
+    healthBaseUrl: healthBaseUrl || null,
     checks: recorder.checks,
     summary: {
       passed: recorder.checks.filter((check) => check.status === "pass").length,
+      info: recorder.checks.filter((check) => check.status === "info").length,
       warnings: warnings.length,
       failed: failures.length,
     },
@@ -708,19 +849,25 @@ async function main() {
   if (options.json) {
     console.log(JSON.stringify(result, null, 2));
   } else {
-    console.log(`\nRead-only Sepolia smoke check`);
+    console.log(`\nRead-only smoke check (${result.network}, chainId ${result.chainId}${result.handedOff ? ", governance handed off" : ""})`);
     console.log(`Deployment: ${result.deploymentFile}`);
-    console.log(`Health URL: ${options.healthBaseUrl}`);
+    console.log(`Reserve token: ${result.reserveToken}`);
+    console.log(`Health URL: ${result.healthBaseUrl || "(skipped)"}`);
     console.log("");
     for (const check of recorder.checks) {
-      const marker = check.status === "pass" ? "PASS" : check.status === "warn" ? "WARN" : "FAIL";
+      const marker = {
+        pass: "PASS",
+        warn: "WARN",
+        fail: "FAIL",
+        info: "INFO",
+      }[check.status];
       console.log(`${marker} ${check.name}`);
       if (check.details !== undefined && check.status !== "pass") {
         console.log(`     ${JSON.stringify(check.details)}`);
       }
     }
     console.log("");
-    console.log(`Summary: ${result.summary.passed} passed, ${result.summary.warnings} warnings, ${result.summary.failed} failed`);
+    console.log(`Summary: ${result.summary.passed} passed, ${result.summary.info} info, ${result.summary.warnings} warnings, ${result.summary.failed} failed`);
   }
 
   if (!result.ok) {

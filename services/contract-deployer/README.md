@@ -62,6 +62,9 @@ Key configuration parameters:
 - `MINT_BACKOFF_MULTIPLIER`: Defaults to `2`
 - `MINT_RECORD_KEY_PREFIX`: Defaults to `hokusai:mint_record:`
 - `MINT_RECORD_TTL_SECONDS`: Defaults to `2592000` (30 days)
+- `HOKUSAI_AUTH_SERVICE_URL` / `AUTH_SERVICE_URL`: Auth service base URL for direct-mint settlement callbacks. Sepolia/development must use dev auth; mainnet/production must use `https://auth.hokus.ai`.
+- `HOKUSAI_AUTH_INTERNAL_TOKEN` / `INTERNAL_SERVICE_TOKEN`: Bearer token for the auth internal settlement endpoint. Configure through SSM/ECS secrets only.
+- `HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS`: Auth settlement callback timeout, default `10000`.
 - `VALID_API_KEYS`: Comma-separated list of valid API keys
 
 #### 2. AWS SSM Parameter Store (Production)
@@ -94,6 +97,10 @@ USE_SSM=true
 - `/hokusai/{environment}/contracts/jwt_secret` - JWT signing secret
 - `/hokusai/{environment}/contracts/webhook_url` - Webhook notification URL
 - `/hokusai/{environment}/contracts/webhook_secret` - Webhook signing secret
+- `/hokusai/{environment}/contracts/auth_service_url` - Optional auth service URL override
+- `/hokusai/{environment}/contracts/internal_service_token` - Internal auth settlement bearer token
+
+At startup and in readiness output, the service reports whether direct-mint auth settlement callbacks are enabled and the target host. Token values are never logged or returned by health endpoints.
 
 The service includes automatic retry logic and error handling for SSM parameter retrieval.
 

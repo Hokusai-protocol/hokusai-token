@@ -26,6 +26,9 @@ export interface SSMParameters {
   jwt_secret?: string;
   webhook_url?: string;
   webhook_secret?: string;
+  auth_service_url?: string;
+  hokusai_auth_internal_token?: string;
+  internal_service_token?: string;
   usage_fee_router_address?: string;
 
   // Deployment allocation params for deployTokenWithAllocations
@@ -210,6 +213,9 @@ export class SSMParameterStore {
       'jwt_secret',
       'webhook_url',
       'webhook_secret',
+      'auth_service_url',
+      'hokusai_auth_internal_token',
+      'internal_service_token',
       'usage_fee_router_address',
       'model_supplier_allocation',
       'model_supplier_recipient',
@@ -256,6 +262,9 @@ export class SSMParameterStore {
         jwt_secret: results.jwt_secret,
         webhook_url: results.webhook_url,
         webhook_secret: results.webhook_secret,
+        auth_service_url: results.auth_service_url,
+        hokusai_auth_internal_token: results.hokusai_auth_internal_token,
+        internal_service_token: results.internal_service_token,
         usage_fee_router_address: results.usage_fee_router_address,
         model_supplier_allocation: results.model_supplier_allocation,
         model_supplier_recipient: results.model_supplier_recipient,

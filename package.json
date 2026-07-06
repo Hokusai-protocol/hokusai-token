@@ -37,6 +37,7 @@
     "verify:launch-posture:sepolia": "npx hardhat run scripts/verify-launch-posture.js --network sepolia",
     "verify:contracts:mainnet": "npx hardhat run scripts/verify-all-contracts.js --network mainnet",
     "verify:contracts:sepolia": "npx hardhat run scripts/verify-all-contracts.js --network sepolia",
+    "verify:fee-deposit:mainnet-fork": "FORK_MAINNET=1 npx hardhat run scripts/fork-verify-fee-deposit.js",
     "init:launch-posture:mainnet": "npx hardhat run scripts/init-launch-posture.js --network mainnet",
     "init:launch-posture:sepolia": "npx hardhat run scripts/init-launch-posture.js --network sepolia",
     "launch:sepolia:test-tokens": "npx hardhat run scripts/create-sepolia-test-tokens.js --network sepolia",

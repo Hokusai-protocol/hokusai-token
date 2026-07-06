@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { createClient } from 'redis';
 import { getBackendSigner } from '../blockchain/signer-singleton';
 import { asyncHandler } from '../middleware/async-handler';
+import { buildAuthSettlementCallbackConfig } from '../config/auth-callback';
 
 const DELTA_VERIFIER_ABI = [
   'function SUBMITTER_ROLE() view returns (bytes32)',
@@ -138,6 +139,24 @@ async function checkReadiness() {
     usdc: process.env.USDC_ADDRESS || null,
     usageFeeRouter: process.env.USAGE_FEE_ROUTER_ADDRESS || null,
     deltaVerifier: process.env.DELTA_VERIFIER_ADDRESS || null,
+  };
+  const authSettlementCallback = buildAuthSettlementCallbackConfig({
+    HOKUSAI_AUTH_SERVICE_URL:
+      process.env.HOKUSAI_AUTH_SERVICE_URL || process.env.AUTH_SERVICE_URL || '',
+    HOKUSAI_AUTH_INTERNAL_TOKEN:
+      process.env.HOKUSAI_AUTH_INTERNAL_TOKEN || process.env.INTERNAL_SERVICE_TOKEN || '',
+    HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS: Number(
+      process.env.HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS || 10000,
+    ),
+    NETWORK_NAME: process.env.NETWORK_NAME || 'sepolia',
+    CHAIN_ID: Number(process.env.CHAIN_ID || 11155111),
+    NODE_ENV: (process.env.NODE_ENV as 'development' | 'test' | 'production') || 'development',
+    DEPLOY_ENV: process.env.DEPLOY_ENV,
+  });
+  checks.authSettlementCallback = {
+    enabled: authSettlementCallback.enabled,
+    targetHost: authSettlementCallback.targetHost,
+    reason: authSettlementCallback.reason,
   };
 
   return { ready, checks };

@@ -80,6 +80,43 @@ describe('Environment Validation', () => {
       expect(config.METRICS_ENABLED).toBe(false);
     });
 
+    it('should normalize auth callback URL and token aliases', () => {
+      process.env.AUTH_SERVICE_URL = 'https://dev-auth.hokus.ai';
+      process.env.INTERNAL_SERVICE_TOKEN = 'internal-token';
+
+      const config = validateEnvSync();
+
+      expect(config.HOKUSAI_AUTH_SERVICE_URL).toBe('https://dev-auth.hokus.ai');
+      expect(config.HOKUSAI_AUTH_INTERNAL_TOKEN).toBe('internal-token');
+    });
+
+    it('should reject Sepolia auth callbacks pointed at production auth', () => {
+      process.env.NETWORK_NAME = 'sepolia';
+      process.env.CHAIN_ID = '11155111';
+      process.env.HOKUSAI_AUTH_SERVICE_URL = 'https://auth.hokus.ai';
+      process.env.HOKUSAI_AUTH_INTERNAL_TOKEN = 'internal-token';
+
+      expect(() => validateEnvSync()).toThrow(
+        'Auth settlement callback for non-mainnet environments must not target auth.hokus.ai',
+      );
+    });
+
+    it('should reject mainnet auth callbacks pointed away from production auth', () => {
+      process.env.NODE_ENV = 'production';
+      process.env.DEPLOY_ENV = 'production';
+      process.env.NETWORK_NAME = 'mainnet';
+      process.env.CHAIN_ID = '1';
+      process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
+      process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
+      delete process.env.DEPLOYER_PRIVATE_KEY;
+      process.env.HOKUSAI_AUTH_SERVICE_URL = 'https://dev-auth.hokus.ai';
+      process.env.HOKUSAI_AUTH_INTERNAL_TOKEN = 'internal-token';
+
+      expect(() => validateEnvSync()).toThrow(
+        'Auth settlement callback for mainnet/prod must target auth.hokus.ai',
+      );
+    });
+
     it('should warn when SSM is required but sync validation is used', () => {
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
       process.env.NODE_ENV = 'production';
@@ -107,6 +144,9 @@ describe('Environment Validation', () => {
 
     it('should load SSM configuration in production', async () => {
       process.env.NODE_ENV = 'production';
+      process.env.DEPLOY_ENV = 'production';
+      process.env.NETWORK_NAME = 'mainnet';
+      process.env.CHAIN_ID = '1';
       process.env.KMS_BACKEND_KEY_ID = 'alias/hokusai/backend';
       process.env.KMS_BACKEND_EXPECTED_ADDRESS = VALID_ADDRESS_1;
       delete process.env.DEPLOYER_PRIVATE_KEY;
@@ -120,6 +160,8 @@ describe('Environment Validation', () => {
         jwt_secret: 'prod-jwt-secret',
         webhook_url: 'https://prod.example.com/webhook',
         webhook_secret: 'prod-webhook-secret',
+        auth_service_url: 'https://auth.hokus.ai',
+        internal_service_token: 'prod-internal-token',
         model_supplier_recipient: NONZERO_SUPPLIER,
         governor_address: NONZERO_GOVERNOR,
       };
@@ -135,6 +177,8 @@ describe('Environment Validation', () => {
       expect(config.JWT_SECRET).toBe(mockSSMParams.jwt_secret);
       expect(config.WEBHOOK_URL).toBe(mockSSMParams.webhook_url);
       expect(config.WEBHOOK_SECRET).toBe(mockSSMParams.webhook_secret);
+      expect(config.HOKUSAI_AUTH_SERVICE_URL).toBe(mockSSMParams.auth_service_url);
+      expect(config.HOKUSAI_AUTH_INTERNAL_TOKEN).toBe(mockSSMParams.internal_service_token);
 
       expect(mockLoadSSMConfiguration).toHaveBeenCalledTimes(1);
     });

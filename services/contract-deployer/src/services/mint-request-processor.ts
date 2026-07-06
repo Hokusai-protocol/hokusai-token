@@ -10,6 +10,7 @@ import {
   createMintRequestSettlement,
 } from '../schemas/mint-request-schema';
 import { PayoutIntentStore } from './payout-intent-store';
+import { DirectMintSettlementClient } from './direct-mint-settlement-client';
 import { logger } from '../utils/logger';
 
 export class MintRequestProcessor {
@@ -19,6 +20,7 @@ export class MintRequestProcessor {
     // the DeltaOne detector can reconcile on-chain recipients against intent
     // (HOK-2223). Undefined leaves behavior unchanged.
     private readonly payoutIntentStore?: PayoutIntentStore,
+    private readonly directMintSettlementClient?: DirectMintSettlementClient,
   ) {}
 
   async process(message: MintRequestMessage): Promise<MintRequestSettlement> {
@@ -37,6 +39,7 @@ export class MintRequestProcessor {
       payload,
       contributors,
       message.attester_signatures,
+      { modelName: message.model_id },
     );
     const settlement = createMintRequestSettlement({
       idempotency_key: message.idempotency_key,
@@ -50,6 +53,18 @@ export class MintRequestProcessor {
       reward_amount: result.rewardAmount,
       gas_used: result.gasUsed,
     });
+
+    if (result.status === 'minted' && result.decodedReceipt && this.directMintSettlementClient) {
+      await this.directMintSettlementClient.postSettlements(message, result.decodedReceipt);
+    } else if (result.status === 'minted' && this.directMintSettlementClient) {
+      logger.warn(
+        'Minted request did not include decoded receipt metadata; auth settlement skipped',
+        {
+          idempotencyKey: message.idempotency_key,
+          txHash: result.txHash,
+        },
+      );
+    }
 
     // Statistical metadata is validated and audit-logged for observability, but not sent
     // on-chain and not persisted in the settlement envelope.

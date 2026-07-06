@@ -7,6 +7,7 @@ const EOA_SIGNATURE_REGEX = /^0x[0-9a-fA-F]{130}$/;
 export interface MintRequestContributor {
   wallet_address: string;
   weight_bps: number;
+  recipientKind?: 'wallet' | 'escrow' | null;
   // Optional provenance fields emitted by the pipeline's MintRequestContributor
   // (serialized via model_dump_json(by_alias=True) with no exclude_none, so they arrive
   // camelCased and are ALWAYS present — null when unset). The contract only consumes
@@ -21,6 +22,7 @@ export interface MintRequestContributor {
 export const ACCEPTED_CONTRIBUTOR_KEYS = [
   'wallet_address',
   'weight_bps',
+  'recipientKind',
   'submissionId',
   'contributionBatchId',
   'contributorId',
@@ -87,6 +89,7 @@ export interface MintRequestSettlement {
 const contributorSchema = Joi.object<MintRequestContributor>({
   wallet_address: Joi.string().pattern(ADDRESS_REGEX).required(),
   weight_bps: Joi.number().integer().min(1).max(10000).required(),
+  recipientKind: Joi.string().valid('wallet', 'escrow').allow(null).optional(),
   // Accept-and-ignore the pipeline's per-contributor provenance fields so a real published
   // MintRequest is not rejected at the consumer boundary (HOK-2099). They may be a non-empty
   // string or null (the publisher does not exclude None values).

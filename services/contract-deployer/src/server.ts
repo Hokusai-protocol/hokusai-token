@@ -348,9 +348,12 @@ async function startServer(): Promise<void> {
             signer,
             deltaVerifierAddress: serverConfig.DELTA_VERIFIER_ADDRESS,
             modelRegistryAddress: serverConfig.MODEL_REGISTRY_ADDRESS,
+            tokenManagerAddress: serverConfig.TOKEN_MANAGER_ADDRESS,
             confirmations: serverConfig.CONFIRMATION_BLOCKS,
             gasMultiplier: serverConfig.GAS_PRICE_MULTIPLIER,
             maxGasPrice: (serverConfig.MAX_GAS_PRICE_GWEI * 1e9).toString(),
+            networkName: serverConfig.NETWORK_NAME,
+            chainId: serverConfig.CHAIN_ID,
           },
           queues: {
             inbound: serverConfig.MINT_REQUEST_QUEUE,
@@ -372,6 +375,14 @@ async function startServer(): Promise<void> {
           payoutIntent: serverConfig.PAYOUT_INTENT_TABLE
             ? { tableName: serverConfig.PAYOUT_INTENT_TABLE, awsRegion: serverConfig.AWS_REGION }
             : undefined,
+          directMintSettlement:
+            serverConfig.HOKUSAI_AUTH_SERVICE_URL && serverConfig.HOKUSAI_AUTH_INTERNAL_TOKEN
+              ? {
+                  authServiceUrl: serverConfig.HOKUSAI_AUTH_SERVICE_URL,
+                  internalToken: serverConfig.HOKUSAI_AUTH_INTERNAL_TOKEN,
+                  timeoutMs: serverConfig.HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS,
+                }
+              : undefined,
         });
 
         await mintListener.initialize();

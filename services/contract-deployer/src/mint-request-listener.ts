@@ -6,6 +6,7 @@ import { MintRecordStore } from './queue/mint-record-store';
 import { DeltaVerifierClient } from './blockchain/delta-verifier-client';
 import { MintRequestProcessor } from './services/mint-request-processor';
 import { PayoutIntentStore } from './services/payout-intent-store';
+import { DirectMintSettlementClient } from './services/direct-mint-settlement-client';
 import { DlqMetricsEmitter } from './monitoring/dlq-metrics';
 import { logger } from './utils/logger';
 
@@ -18,9 +19,12 @@ export interface MintRequestListenerConfig {
     signer: ethers.Signer;
     deltaVerifierAddress: string;
     modelRegistryAddress: string;
+    tokenManagerAddress?: string;
     confirmations: number;
     gasMultiplier: number;
     maxGasPrice: string;
+    networkName?: string;
+    chainId?: number;
   };
   queues: {
     inbound: string;
@@ -44,6 +48,11 @@ export interface MintRequestListenerConfig {
   payoutIntent?: {
     tableName: string;
     awsRegion?: string;
+  };
+  directMintSettlement?: {
+    authServiceUrl: string;
+    internalToken: string;
+    timeoutMs?: number;
   };
 }
 
@@ -71,6 +80,7 @@ export class MintRequestListener {
       signer,
       deltaVerifierAddress: config.blockchain.deltaVerifierAddress,
       modelRegistryAddress: config.blockchain.modelRegistryAddress,
+      tokenManagerAddress: config.blockchain.tokenManagerAddress,
       confirmations: config.blockchain.confirmations,
       gasMultiplier: config.blockchain.gasMultiplier,
       maxGasPrice: config.blockchain.maxGasPrice,
@@ -122,7 +132,26 @@ export class MintRequestListener {
         table: config.payoutIntent.tableName,
       });
     }
-    this.processor = new MintRequestProcessor(client, payoutIntentStore);
+
+    const directMintSettlementClient = config.directMintSettlement
+      ? new DirectMintSettlementClient({
+          ...config.directMintSettlement,
+          networkName: config.blockchain.networkName,
+          chainId: config.blockchain.chainId,
+          deltaVerifierAddress: config.blockchain.deltaVerifierAddress,
+          modelRegistryAddress: config.blockchain.modelRegistryAddress,
+          tokenManagerAddress: config.blockchain.tokenManagerAddress,
+        })
+      : undefined;
+    if (directMintSettlementClient) {
+      logger.info('Direct mint auth settlement enabled');
+    }
+
+    this.processor = new MintRequestProcessor(
+      client,
+      payoutIntentStore,
+      directMintSettlementClient,
+    );
   }
 
   async initialize(): Promise<void> {

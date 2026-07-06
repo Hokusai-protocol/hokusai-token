@@ -132,6 +132,11 @@ describe('DeltaVerifierClient', () => {
       blockNumber: 7,
       rewardAmount: '55',
       gasUsed: '321',
+      decodedReceipt: {
+        txHash: receipt.hash,
+        blockNumber: 7,
+        totalReward: '55',
+      },
     });
     expect(deltaVerifierContract.submitMintRequest).toHaveBeenCalledWith(
       21n,

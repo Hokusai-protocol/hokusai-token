@@ -1,9 +1,7 @@
 {
   "family": "hokusai-contracts-task",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": [
-    "FARGATE"
-  ],
+  "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
   "taskRoleArn": "arn:aws:iam::932100697590:role/hokusai-contracts-task-role",
@@ -96,6 +94,10 @@
           "value": "https://app.hokus.ai,https://hokus.ai,https://admin.hokus.ai"
         },
         {
+          "name": "HOKUSAI_AUTH_SERVICE_URL",
+          "value": "https://dev-auth.hokus.ai"
+        },
+        {
           "name": "QUEUE_PREFIX",
           "value": "hokusai"
         },
@@ -160,6 +162,10 @@
         {
           "name": "WEBHOOK_SECRET",
           "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/webhook_secret"
+        },
+        {
+          "name": "HOKUSAI_AUTH_INTERNAL_TOKEN",
+          "valueFrom": "arn:aws:ssm:us-east-1:932100697590:parameter/hokusai/development/contracts/internal_service_token"
         }
       ],
       "logConfiguration": {

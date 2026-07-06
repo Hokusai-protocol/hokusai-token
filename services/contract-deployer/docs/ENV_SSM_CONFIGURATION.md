@@ -18,49 +18,55 @@ Where `<environment>` is set by the `DEPLOY_ENV` env var (defaults to `NODE_ENV`
 
 The service loads these parameters from SSM when `NODE_ENV=production` or `USE_SSM=true`.
 
-| SSM Parameter | Env Var | Required | Description |
-|---|---|---|---|
-| `deployer_key` | `DEPLOYER_PRIVATE_KEY` | Yes | Deployer wallet private key |
-| `token_manager_address` | `TOKEN_MANAGER_ADDRESS` | Yes | DeployableTokenManager contract |
-| `model_registry_address` | `MODEL_REGISTRY_ADDRESS` | Yes | ModelRegistry contract |
-| `rpc_endpoint` | `RPC_URL` | Yes | Blockchain RPC endpoint |
-| `redis_url` | `REDIS_URL` | Yes | Redis connection string |
-| `api_keys` | `API_KEYS` | Yes | Comma-separated API keys |
-| `jwt_secret` | `JWT_SECRET` | No | JWT signing secret |
-| `webhook_url` | `WEBHOOK_URL` | No | Deployment webhook URL |
-| `webhook_secret` | `WEBHOOK_SECRET` | No | Webhook HMAC secret |
-| `usage_fee_router_address` | `USAGE_FEE_ROUTER_ADDRESS` | No | UsageFeeRouter contract |
+| SSM Parameter              | Env Var                       | Required | Description                                                |
+| -------------------------- | ----------------------------- | -------- | ---------------------------------------------------------- |
+| `deployer_key`             | `DEPLOYER_PRIVATE_KEY`        | Yes      | Deployer wallet private key                                |
+| `token_manager_address`    | `TOKEN_MANAGER_ADDRESS`       | Yes      | DeployableTokenManager contract                            |
+| `model_registry_address`   | `MODEL_REGISTRY_ADDRESS`      | Yes      | ModelRegistry contract                                     |
+| `rpc_endpoint`             | `RPC_URL`                     | Yes      | Blockchain RPC endpoint                                    |
+| `redis_url`                | `REDIS_URL`                   | Yes      | Redis connection string                                    |
+| `api_keys`                 | `API_KEYS`                    | Yes      | Comma-separated API keys                                   |
+| `jwt_secret`               | `JWT_SECRET`                  | No       | JWT signing secret                                         |
+| `webhook_url`              | `WEBHOOK_URL`                 | No       | Deployment webhook URL                                     |
+| `webhook_secret`           | `WEBHOOK_SECRET`              | No       | Webhook HMAC secret                                        |
+| `auth_service_url`         | `HOKUSAI_AUTH_SERVICE_URL`    | No       | Auth service base URL for direct-mint settlement callbacks |
+| `internal_service_token`   | `HOKUSAI_AUTH_INTERNAL_TOKEN` | No       | Secret bearer token for auth internal settlement callbacks |
+| `usage_fee_router_address` | `USAGE_FEE_ROUTER_ADDRESS`    | No       | UsageFeeRouter contract                                    |
 
 ### Parameters Set via Environment Only
 
 These are set directly in the ECS task definition or `.env` and are **not** loaded from SSM:
 
-| Env Var | Default | Description |
-|---|---|---|
-| `CHAIN_ID` | `11155111` | Target chain (Sepolia) |
-| `NETWORK_NAME` | `sepolia` | Network name |
-| `MODEL_SUPPLIER_ALLOCATION` | `2500000000000000000000000` | Supplier allocation (wei) |
-| `MODEL_SUPPLIER_RECIPIENT` | `0x000...` | Recipient of supplier tokens |
-| `INVESTOR_ALLOCATION` | `10000000000000000000000000` | Investor allocation cap (wei) |
-| `TOKENS_PER_DELTA_ONE` | `5000000000000000000000` | Tokens per delta-one improvement |
-| `INFRASTRUCTURE_ACCRUAL_BPS` | `8000` | Infra accrual in bps (80%) |
-| `INITIAL_ORACLE_PRICE_PER_THOUSAND_USD` | `0` | Oracle price per 1000 calls |
-| `LICENSE_HASH` | `0x00...` | License hash (bytes32) |
-| `LICENSE_URI` | (empty) | License URI |
-| `GOVERNOR_ADDRESS` | `0x000...` | Governor for GOV_ROLE |
-| `GAS_PRICE_MULTIPLIER` | `1.2` | Gas price safety multiplier |
-| `MAX_GAS_PRICE_GWEI` | `500` | Max gas price cap |
-| `CONFIRMATION_BLOCKS` | `2` | Blocks to wait for confirmation |
+| Env Var                                         | Default                      | Description                                                                                                               |
+| ----------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `CHAIN_ID`                                      | `11155111`                   | Target chain (Sepolia)                                                                                                    |
+| `NETWORK_NAME`                                  | `sepolia`                    | Network name                                                                                                              |
+| `MODEL_SUPPLIER_ALLOCATION`                     | `2500000000000000000000000`  | Supplier allocation (wei)                                                                                                 |
+| `MODEL_SUPPLIER_RECIPIENT`                      | `0x000...`                   | Recipient of supplier tokens                                                                                              |
+| `INVESTOR_ALLOCATION`                           | `10000000000000000000000000` | Investor allocation cap (wei)                                                                                             |
+| `TOKENS_PER_DELTA_ONE`                          | `5000000000000000000000`     | Tokens per delta-one improvement                                                                                          |
+| `INFRASTRUCTURE_ACCRUAL_BPS`                    | `8000`                       | Infra accrual in bps (80%)                                                                                                |
+| `INITIAL_ORACLE_PRICE_PER_THOUSAND_USD`         | `0`                          | Oracle price per 1000 calls                                                                                               |
+| `LICENSE_HASH`                                  | `0x00...`                    | License hash (bytes32)                                                                                                    |
+| `LICENSE_URI`                                   | (empty)                      | License URI                                                                                                               |
+| `GOVERNOR_ADDRESS`                              | `0x000...`                   | Governor for GOV_ROLE                                                                                                     |
+| `GAS_PRICE_MULTIPLIER`                          | `1.2`                        | Gas price safety multiplier                                                                                               |
+| `MAX_GAS_PRICE_GWEI`                            | `500`                        | Max gas price cap                                                                                                         |
+| `CONFIRMATION_BLOCKS`                           | `2`                          | Blocks to wait for confirmation                                                                                           |
+| `HOKUSAI_AUTH_SERVICE_URL` / `AUTH_SERVICE_URL` | (empty)                      | Auth settlement callback URL. Sepolia/development must use dev auth; mainnet/production must use `https://auth.hokus.ai`. |
+| `HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS`            | `10000`                      | Auth settlement callback timeout in milliseconds                                                                          |
+
+`HOKUSAI_AUTH_INTERNAL_TOKEN` may be provided directly for local development, but ECS should source it from SSM as `internal_service_token`. Startup logs and health output include only callback enabled/disabled status and target host, never token values.
 
 ## Contract Address Variables
 
 Current Sepolia addresses are recorded in `deployments/sepolia-v2-latest.json`. The env vars correspond to:
 
-| Env Var | Deployment JSON Key |
-|---|---|
-| `MODEL_REGISTRY_ADDRESS` | `contracts.ModelRegistry` |
-| `TOKEN_MANAGER_ADDRESS` | `contracts.TokenManager` |
-| `DELTA_VERIFIER_ADDRESS` | `contracts.DeltaVerifier` |
+| Env Var                    | Deployment JSON Key        |
+| -------------------------- | -------------------------- |
+| `MODEL_REGISTRY_ADDRESS`   | `contracts.ModelRegistry`  |
+| `TOKEN_MANAGER_ADDRESS`    | `contracts.TokenManager`   |
+| `DELTA_VERIFIER_ADDRESS`   | `contracts.DeltaVerifier`  |
 | `USAGE_FEE_ROUTER_ADDRESS` | `contracts.UsageFeeRouter` |
 
 ## ECS Service

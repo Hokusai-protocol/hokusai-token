@@ -27,6 +27,7 @@ import { MintRequestListener } from './mint-request-listener';
 import { createBackendSigner } from './blockchain/signer-factory';
 import { setBackendSigner } from './blockchain/signer-singleton';
 import { installGlobalErrorHandlers } from './utils/process-handlers';
+import { buildAuthSettlementCallbackConfig } from './config/auth-callback';
 
 // Load environment variables
 dotenv.config();
@@ -58,6 +59,12 @@ async function createServer(context?: ServerContext): Promise<express.Applicatio
     signer = await createBackendSigner(config, provider);
     setBackendSigner(signer);
   }
+  const authSettlementCallback = buildAuthSettlementCallbackConfig(config);
+  logger.info('Auth settlement callback configuration', {
+    enabled: authSettlementCallback.enabled,
+    targetHost: authSettlementCallback.targetHost,
+    reason: authSettlementCallback.reason,
+  });
 
   // Initialize services
   console.log('[STARTUP] Creating Redis client...');
@@ -311,6 +318,7 @@ async function startServer(): Promise<void> {
   try {
     console.log('[STARTUP] Getting config...');
     const serverConfig: Config = await validateEnv();
+    const authSettlementCallback = buildAuthSettlementCallbackConfig(serverConfig);
     const provider = new ethers.JsonRpcProvider(serverConfig.RPC_URL.split(',')[0]);
     const signer = await createBackendSigner(serverConfig, provider);
     setBackendSigner(signer);
@@ -375,14 +383,13 @@ async function startServer(): Promise<void> {
           payoutIntent: serverConfig.PAYOUT_INTENT_TABLE
             ? { tableName: serverConfig.PAYOUT_INTENT_TABLE, awsRegion: serverConfig.AWS_REGION }
             : undefined,
-          directMintSettlement:
-            serverConfig.HOKUSAI_AUTH_SERVICE_URL && serverConfig.HOKUSAI_AUTH_INTERNAL_TOKEN
-              ? {
-                  authServiceUrl: serverConfig.HOKUSAI_AUTH_SERVICE_URL,
-                  internalToken: serverConfig.HOKUSAI_AUTH_INTERNAL_TOKEN,
-                  timeoutMs: serverConfig.HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS,
-                }
-              : undefined,
+          directMintSettlement: authSettlementCallback.enabled
+            ? {
+                authServiceUrl: authSettlementCallback.authServiceUrl!,
+                internalToken: authSettlementCallback.internalToken!,
+                timeoutMs: authSettlementCallback.timeoutMs,
+              }
+            : undefined,
         });
 
         await mintListener.initialize();

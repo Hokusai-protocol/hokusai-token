@@ -2,6 +2,7 @@ import Joi from 'joi';
 import { createLogger } from '../utils/logger';
 import { loadSSMConfiguration } from './aws-ssm';
 import type { SSMParameters } from './aws-ssm';
+import { assertAuthSettlementTargetMatchesEnvironment } from './auth-callback';
 
 const logger = createLogger('config');
 
@@ -114,7 +115,9 @@ const envSchema = Joi.object({
   // DeltaOne payout-intent table (HOK-2223). When set, the mint listener records
   // authorized recipients per mint for the anomaly detector to reconcile. Empty = off.
   PAYOUT_INTENT_TABLE: Joi.string().allow('').default(''),
+  AUTH_SERVICE_URL: Joi.string().uri().allow('').optional(),
   HOKUSAI_AUTH_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  INTERNAL_SERVICE_TOKEN: Joi.string().allow('').optional(),
   HOKUSAI_AUTH_INTERNAL_TOKEN: Joi.string().allow('').default(''),
   HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS: Joi.number().integer().min(1).default(10000),
   USE_SSM: Joi.alternatives()
@@ -213,7 +216,9 @@ export interface Config {
   AWS_ACCESS_KEY_ID?: string;
   AWS_SECRET_ACCESS_KEY?: string;
   PAYOUT_INTENT_TABLE: string;
+  AUTH_SERVICE_URL?: string;
   HOKUSAI_AUTH_SERVICE_URL: string;
+  INTERNAL_SERVICE_TOKEN?: string;
   HOKUSAI_AUTH_INTERNAL_TOKEN: string;
   HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS: number;
   USE_SSM: boolean;
@@ -285,6 +290,14 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
   if (ssmParams.webhook_secret) {
     mapping.WEBHOOK_SECRET = ssmParams.webhook_secret;
   }
+  if (ssmParams.auth_service_url) {
+    mapping.HOKUSAI_AUTH_SERVICE_URL = ssmParams.auth_service_url;
+  }
+  if (ssmParams.hokusai_auth_internal_token) {
+    mapping.HOKUSAI_AUTH_INTERNAL_TOKEN = ssmParams.hokusai_auth_internal_token;
+  } else if (ssmParams.internal_service_token) {
+    mapping.HOKUSAI_AUTH_INTERNAL_TOKEN = ssmParams.internal_service_token;
+  }
   if (ssmParams.usage_fee_router_address) {
     mapping.USAGE_FEE_ROUTER_ADDRESS = ssmParams.usage_fee_router_address;
   }
@@ -329,6 +342,9 @@ function mapSSMToEnvVars(ssmParams: SSMParameters): Record<string, string> {
         'jwt_secret',
         'webhook_url',
         'webhook_secret',
+        'auth_service_url',
+        'hokusai_auth_internal_token',
+        'internal_service_token',
         'usage_fee_router_address',
         'model_supplier_allocation',
         'model_supplier_recipient',
@@ -413,7 +429,7 @@ export async function validateEnv(): Promise<Config> {
   }
 
   console.log('[STARTUP] Basic environment validation passed');
-  let config = value as Config;
+  let config = normalizeAuthCallbackAliases(value as Config);
   const envPrivateKeySet = Boolean(process.env.DEPLOYER_PRIVATE_KEY);
   let ssmDeployerKeySet = false;
 
@@ -451,7 +467,7 @@ export async function validateEnv(): Promise<Config> {
         throw new Error(`SSM configuration validation error: ${ssmError.message}`);
       }
 
-      config = ssmValue as Config;
+      config = normalizeAuthCallbackAliases(ssmValue as Config);
       logger.info('Successfully loaded and validated SSM configuration');
     }
   } catch (error) {
@@ -481,6 +497,7 @@ export async function validateEnv(): Promise<Config> {
     envPrivateKey: envPrivateKeySet,
     ssmPrivateKey: ssmDeployerKeySet,
   });
+  assertAuthSettlementTargetMatchesEnvironment(config);
 
   // Deployment addresses (supplier recipient, governor) must be non-zero — the
   // contract rejects zero. These are validated at DEPLOY time, not service startup:
@@ -529,7 +546,7 @@ export function validateEnvSync(): Config {
     throw new Error(`Environment validation error: ${error.message}`);
   }
 
-  const config = value as Config;
+  const config = normalizeAuthCallbackAliases(value as Config);
 
   // Convert string booleans
   if (typeof config.USE_SSM === 'string') {
@@ -548,8 +565,25 @@ export function validateEnvSync(): Config {
     envPrivateKey: Boolean(process.env.DEPLOYER_PRIVATE_KEY),
     ssmPrivateKey: false,
   });
+  assertAuthSettlementTargetMatchesEnvironment(config);
 
   return config;
+}
+
+function normalizeAuthCallbackAliases(config: Config): Config {
+  return {
+    ...config,
+    HOKUSAI_AUTH_SERVICE_URL: (
+      config.HOKUSAI_AUTH_SERVICE_URL ||
+      config.AUTH_SERVICE_URL ||
+      ''
+    ).trim(),
+    HOKUSAI_AUTH_INTERNAL_TOKEN: (
+      config.HOKUSAI_AUTH_INTERNAL_TOKEN ||
+      config.INTERNAL_SERVICE_TOKEN ||
+      ''
+    ).trim(),
+  };
 }
 
 export interface DlqCliConfig {

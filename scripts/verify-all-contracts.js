@@ -1,6 +1,7 @@
 const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
+const { loadLaunchTokensConfig, scaleTokenEntry } = require('./lib/launch-tokens');
 
 /**
  * Verifies all deployed contracts on Etherscan
@@ -80,6 +81,18 @@ async function main() {
     else results.failed.push("ModelRegistry");
   }
 
+  // 1b. TokenDeploymentFactory (no constructor args)
+  if (deployment.contracts.TokenDeploymentFactory) {
+    const success = await verifyContract(
+      deployment.contracts.TokenDeploymentFactory,
+      [],
+      "TokenDeploymentFactory",
+      "contracts/TokenDeploymentFactory.sol:TokenDeploymentFactory"
+    );
+    if (success) results.success.push("TokenDeploymentFactory");
+    else results.failed.push("TokenDeploymentFactory");
+  }
+
   // 2. TokenManager (DeployableTokenManager constructor: registryAddress, tokenDeploymentFactoryAddress)
   if (deployment.contracts.TokenManager &&
       deployment.contracts.ModelRegistry &&
@@ -106,6 +119,76 @@ async function main() {
     );
     if (success) results.success.push("DataContributionRegistry");
     else results.failed.push("DataContributionRegistry");
+  }
+
+  // 3b. RewardVestingVault (constructor: tokenManagerAddress)
+  if (deployment.contracts.RewardVestingVault && deployment.contracts.TokenManager) {
+    const success = await verifyContract(
+      deployment.contracts.RewardVestingVault,
+      [deployment.contracts.TokenManager],
+      "RewardVestingVault",
+      "contracts/RewardVestingVault.sol:RewardVestingVault"
+    );
+    if (success) results.success.push("RewardVestingVault");
+    else results.failed.push("RewardVestingVault");
+  }
+
+  // 3c. HokusaiAMMPoolDeployer (constructor: _factory)
+  if (deployment.contracts.HokusaiAMMPoolDeployer && deployment.contracts.HokusaiAMMFactory) {
+    const success = await verifyContract(
+      deployment.contracts.HokusaiAMMPoolDeployer,
+      [deployment.contracts.HokusaiAMMFactory],
+      "HokusaiAMMPoolDeployer",
+      "contracts/HokusaiAMMPoolDeployer.sol:HokusaiAMMPoolDeployer"
+    );
+    if (success) results.success.push("HokusaiAMMPoolDeployer");
+    else results.failed.push("HokusaiAMMPoolDeployer");
+  }
+
+  // 3d. PurchaserWhitelist (constructor: admin). Admin was the deployer at construction
+  // time; governance roles are granted/renounced post-deploy, but the constructor arg
+  // is fixed to the original admin (deployer).
+  if (deployment.contracts.PurchaserWhitelist) {
+    const admin = deployment.deployer;
+    const success = await verifyContract(
+      deployment.contracts.PurchaserWhitelist,
+      [admin],
+      "PurchaserWhitelist",
+      "contracts/PurchaserWhitelist.sol:PurchaserWhitelist"
+    );
+    if (success) results.success.push("PurchaserWhitelist");
+    else results.failed.push("PurchaserWhitelist");
+  }
+
+  // 3e. InfrastructureReserve (constructor: _reserveToken, _factory, _treasury)
+  if (deployment.contracts.InfrastructureReserve &&
+      reserveToken &&
+      deployment.contracts.HokusaiAMMFactory) {
+    const treasury = deployment.treasury || deployment.deployer;
+    const success = await verifyContract(
+      deployment.contracts.InfrastructureReserve,
+      [reserveToken, deployment.contracts.HokusaiAMMFactory, treasury],
+      "InfrastructureReserve",
+      "contracts/InfrastructureReserve.sol:InfrastructureReserve"
+    );
+    if (success) results.success.push("InfrastructureReserve");
+    else results.failed.push("InfrastructureReserve");
+  }
+
+  // 3f. InfrastructureCostOracle (constructor: admin, initialGrossMarginBps). Admin was
+  // the deployer at construction (GOV_ROLE re-granted to governance post-deploy).
+  if (deployment.contracts.InfrastructureCostOracle) {
+    const icoParams = (deployment.config && deployment.config.infrastructureCostOracleParams) || {};
+    const initialGrossMarginBps =
+      icoParams.initialGrossMarginBps != null ? icoParams.initialGrossMarginBps : 1500;
+    const success = await verifyContract(
+      deployment.contracts.InfrastructureCostOracle,
+      [deployment.deployer, initialGrossMarginBps],
+      "InfrastructureCostOracle",
+      "contracts/InfrastructureCostOracle.sol:InfrastructureCostOracle"
+    );
+    if (success) results.success.push("InfrastructureCostOracle");
+    else results.failed.push("InfrastructureCostOracle");
   }
 
   // 4. MockUSDC (no constructor args)
@@ -189,6 +272,72 @@ async function main() {
     else results.failed.push("DeltaVerifier");
   }
 
+  // 7b. Verify per-token HokusaiParams contracts.
+  // Each token has a sibling params contract (token.paramsAddress) deployed by
+  // TokenDeploymentFactory.deployTokenAndParams -> new HokusaiParams(
+  //   tokensPerDeltaOne, infrastructureAccrualBps, oraclePricePerThousandUsd,
+  //   licenseHash, licenseURI, governor, vestingConfig).
+  // The scalar/wei constructor values are NOT stored in the deployment artifact, so we
+  // source them from the same launch-tokens config the deploy used, scaled identically
+  // (scaleTokenEntry), and join to the deployed tokens by configKey.
+  const launchConfigPath =
+    process.env.LAUNCH_TOKENS_CONFIG ||
+    path.join(__dirname, 'configs', `${hre.network.name}-launch-tokens.json`);
+
+  let scaledByConfigKey = null;
+  if ((deployment.tokens || []).length > 0) {
+    try {
+      const launchConfig = loadLaunchTokensConfig(launchConfigPath);
+      scaledByConfigKey = new Map(
+        launchConfig.tokens.map(scaleTokenEntry).map((e) => [e.configKey, e])
+      );
+    } catch (err) {
+      console.log(
+        `\n⚠️  Skipping HokusaiParams verification — could not load launch config ` +
+        `(${launchConfigPath}): ${err.message}`
+      );
+    }
+  }
+
+  if (scaledByConfigKey) {
+    console.log("\n⚙️  Verifying HokusaiParams contracts...");
+    for (const token of deployment.tokens || []) {
+      if (!token.paramsAddress) continue;
+      const scaled = scaledByConfigKey.get(token.configKey);
+      if (!scaled) {
+        console.log(
+          `   ⚠️  No launch-config entry for configKey "${token.configKey}" — ` +
+          `skipping ${token.symbol} params`
+        );
+        results.failed.push(`${token.symbol} Params`);
+        continue;
+      }
+
+      const vc = scaled.vestingConfig;
+      const success = await verifyContract(
+        token.paramsAddress,
+        [
+          scaled.tokensPerDeltaOneWei.toString(),   // initialTokensPerDeltaOne
+          scaled.infrastructureAccrualBps,          // initialInfrastructureAccrualBps
+          scaled.oraclePriceValue.toString(),       // initialOraclePricePerThousandUsd
+          scaled.licenseHash,                       // initialLicenseHash
+          scaled.licenseURI,                        // initialLicenseURI
+          scaled.governor,                          // governor
+          [                                         // VestingConfig tuple
+            vc.enabled,
+            vc.immediateUnlockBps,
+            vc.vestingDurationSeconds,
+            vc.cliffSeconds,
+          ],
+        ],
+        `${token.symbol} Params`,
+        "contracts/HokusaiParams.sol:HokusaiParams"
+      );
+      if (success) results.success.push(`${token.symbol} Params`);
+      else results.failed.push(`${token.symbol} Params`);
+    }
+  }
+
   // 8. Verify all tokens (HokusaiToken instances)
   // Deployed via TokenManager.deployTokenWithAllocations -> TokenDeploymentFactory.deployTokenAndParams
   // -> new HokusaiToken(name, symbol, controller, params, initialSupply, maxSupply,
@@ -269,7 +418,11 @@ async function main() {
 
   console.log("\n🎉 Verification process complete!");
   console.log("\nView verified contracts at:");
-  console.log(`https://sepolia.etherscan.io/address/${deployment.contracts.ModelRegistry}#code`);
+  const explorerBase =
+    hre.network.name === "mainnet" || String(deployment.chainId) === "1"
+      ? "https://etherscan.io"
+      : "https://sepolia.etherscan.io";
+  console.log(`${explorerBase}/address/${deployment.contracts.ModelRegistry}#code`);
 }
 
 main()

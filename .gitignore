@@ -30,6 +30,16 @@ gas-report.txt
 deployments/*.log
 deployments/*.backup.json
 
+# Ephemeral deployment run output — commit canonical *-latest.json pointers and
+# mainnet records instead of every timestamped run snapshot.
+# - hardhat = local chainId 31337 rehearsals (never useful in git)
+# - launch-posture / governance-verification per-run snapshots (keep the -latest)
+# - sepolia testnet timestamped deploy/launch/timelock runs
+deployments/*hardhat*.json
+deployments/launch-posture-*-*T*Z.json
+deployments/governance-verification-*-*T*Z.json
+deployments/sepolia-*T*Z.json
+
 # IDE files
 .vscode
 .idea

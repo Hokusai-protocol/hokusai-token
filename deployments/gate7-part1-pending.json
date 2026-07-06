@@ -1,0 +1,134 @@
+{
+  "DV": "0x867E61c9D4ccF1419180B3257314fa8CEb2D27a6",
+  "chainId": 11155111,
+  "domain": {
+    "name": "HokusaiDeltaVerifier",
+    "version": "1",
+    "chainId": 11155111,
+    "verifyingContract": "0x867E61c9D4ccF1419180B3257314fa8CEb2D27a6"
+  },
+  "types": {
+    "MintRequest": [
+      {
+        "name": "modelId",
+        "type": "uint256"
+      },
+      {
+        "name": "payload",
+        "type": "MintRequestPayload"
+      },
+      {
+        "name": "contributors",
+        "type": "Contributor[]"
+      }
+    ],
+    "MintRequestPayload": [
+      {
+        "name": "pipelineRunId",
+        "type": "string"
+      },
+      {
+        "name": "baselineScoreBps",
+        "type": "uint256"
+      },
+      {
+        "name": "candidateScoreBps",
+        "type": "uint256"
+      },
+      {
+        "name": "maxCostUsdMicro",
+        "type": "uint256"
+      },
+      {
+        "name": "actualCostUsdMicro",
+        "type": "uint256"
+      },
+      {
+        "name": "totalSamples",
+        "type": "uint256"
+      },
+      {
+        "name": "anchors",
+        "type": "BenchmarkAnchors"
+      },
+      {
+        "name": "baselineCommitment",
+        "type": "bytes32"
+      },
+      {
+        "name": "candidateCommitment",
+        "type": "bytes32"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256"
+      }
+    ],
+    "BenchmarkAnchors": [
+      {
+        "name": "benchmarkSpecHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "datasetHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "attestationHash",
+        "type": "bytes32"
+      },
+      {
+        "name": "idempotencyKey",
+        "type": "bytes32"
+      },
+      {
+        "name": "metricName",
+        "type": "string"
+      },
+      {
+        "name": "metricFamily",
+        "type": "string"
+      }
+    ],
+    "Contributor": [
+      {
+        "name": "walletAddress",
+        "type": "address"
+      },
+      {
+        "name": "weight",
+        "type": "uint256"
+      }
+    ]
+  },
+  "message": {
+    "modelId": "930",
+    "payload": {
+      "pipelineRunId": "hok2223-reconcile-drill-1782157843-23900",
+      "baselineScoreBps": "4200",
+      "candidateScoreBps": "4300",
+      "maxCostUsdMicro": "1000000",
+      "actualCostUsdMicro": "500000",
+      "totalSamples": "1000",
+      "anchors": {
+        "benchmarkSpecHash": "0xa16f2c0e801798ca38eafb757fb387e765120e39e6e9108d96501a37db154cd8",
+        "datasetHash": "0xbc9be3ecbac787962dd2bc73799f61d88b5ddfc724be59c3d4c558a34cd74f95",
+        "attestationHash": "0xc3e2795c36fbb55256e1cd3e4c8b52eea910fbbaeb0e8d3c2901b5d19e46fe85",
+        "idempotencyKey": "0x2a1d99d6fa3a65066632af80cf673e194753d9a128ae22c5f8bf6b33353b067b",
+        "metricName": "accuracy",
+        "metricFamily": "proportion"
+      },
+      "baselineCommitment": "0x2f5479faf3d2b2edf220e09eb1e95046916bb2a383b02123ccc2cf9d145d3d00",
+      "candidateCommitment": "0xa1e961a9bb123b7f75b13832a1e374f3d1c0a1c4d439c3942a4c4ebdd9f205d2",
+      "deadline": "1782589843"
+    },
+    "contributors": [
+      {
+        "walletAddress": "0x46779C8eA22A9554cD53346bE382558F0d7EdEC0",
+        "weight": "10000"
+      }
+    ]
+  },
+  "digest": "0x6a6d52900fbc4574967a652d59bce8e0d74fcaf49bc794becb1052da6d5fa04c",
+  "head": "0x2f5479faf3d2b2edf220e09eb1e95046916bb2a383b02123ccc2cf9d145d3d00"
+}

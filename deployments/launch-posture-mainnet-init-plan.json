@@ -1,0 +1,8 @@
+{
+  "mode": "dry-run",
+  "generatedAt": "2026-07-01T21:48:53.407Z",
+  "network": "mainnet",
+  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/scripts/configs/mainnet-launch-posture.json",
+  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/deployments/mainnet-latest.json",
+  "plan": []
+}

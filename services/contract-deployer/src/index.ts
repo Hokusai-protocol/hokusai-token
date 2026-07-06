@@ -11,6 +11,7 @@ import { ethers } from 'ethers';
 import { createBackendSigner } from './blockchain/signer-factory';
 import { setBackendSigner } from './blockchain/signer-singleton';
 import { asyncHandler } from './middleware/async-handler';
+import { buildAuthSettlementCallbackConfig } from './config/auth-callback';
 
 // Load environment variables
 dotenv.config();
@@ -22,6 +23,12 @@ async function main(): Promise<void> {
     // Load configuration (including SSM parameters if enabled)
     const { validateEnv } = await import('./config/env.validation');
     const config = await validateEnv();
+    const authSettlementCallback = buildAuthSettlementCallbackConfig(config);
+    logger.info('Auth settlement callback configuration', {
+      enabled: authSettlementCallback.enabled,
+      targetHost: authSettlementCallback.targetHost,
+      reason: authSettlementCallback.reason,
+    });
 
     // For backward compatibility, also set environment variables from config
     if (config.REDIS_URL) {
@@ -126,14 +133,13 @@ async function main(): Promise<void> {
           payoutIntent: config.PAYOUT_INTENT_TABLE
             ? { tableName: config.PAYOUT_INTENT_TABLE, awsRegion: config.AWS_REGION }
             : undefined,
-          directMintSettlement:
-            config.HOKUSAI_AUTH_SERVICE_URL && config.HOKUSAI_AUTH_INTERNAL_TOKEN
-              ? {
-                  authServiceUrl: config.HOKUSAI_AUTH_SERVICE_URL,
-                  internalToken: config.HOKUSAI_AUTH_INTERNAL_TOKEN,
-                  timeoutMs: config.HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS,
-                }
-              : undefined,
+          directMintSettlement: authSettlementCallback.enabled
+            ? {
+                authServiceUrl: authSettlementCallback.authServiceUrl!,
+                internalToken: authSettlementCallback.internalToken!,
+                timeoutMs: authSettlementCallback.timeoutMs,
+              }
+            : undefined,
         });
 
         await mintListener.initialize();

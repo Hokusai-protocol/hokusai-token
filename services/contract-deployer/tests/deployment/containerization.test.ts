@@ -180,12 +180,14 @@ describe('Containerization and Deployment Tests', () => {
       expect(envVars).toContain('PORT');
       expect(envVars).toContain('NODE_ENV');
       expect(envVars).toContain('AWS_REGION');
+      expect(envVars).toContain('HOKUSAI_AUTH_SERVICE_URL');
 
       // Check secrets from SSM
       const secrets = container.secrets.map((s: any) => s.name);
       expect(secrets).toContain('REDIS_URL');
       expect(secrets).toContain('DEPLOYER_PRIVATE_KEY');
       expect(secrets).toContain('MODEL_REGISTRY_ADDRESS');
+      expect(secrets).toContain('HOKUSAI_AUTH_INTERNAL_TOKEN');
 
       // Container health checking now lives in the Dockerfile's HEALTHCHECK
       // instruction (which probes /health on the configured PORT, default 8002)
@@ -246,6 +248,8 @@ describe('Containerization and Deployment Tests', () => {
       const taskDef = JSON.parse(fs.readFileSync(taskDefPath, 'utf-8'));
 
       const secrets = taskDef.containerDefinitions[0].secrets;
+      const secretNames = secrets.map((secret: any) => secret.name);
+      expect(secretNames).toContain('HOKUSAI_AUTH_INTERNAL_TOKEN');
 
       // Check that sensitive values come from SSM
       secrets.forEach((secret: any) => {

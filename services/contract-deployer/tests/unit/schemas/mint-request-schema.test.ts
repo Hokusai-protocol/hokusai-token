@@ -66,6 +66,7 @@ describe('MintRequest schema', () => {
         {
           wallet_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f82b3d',
           weight_bps: 6000,
+          recipientKind: 'wallet',
           submissionId: 'sub-1',
           contributionBatchId: 'batch-1',
           contributorId: 'contrib-1',
@@ -73,6 +74,7 @@ describe('MintRequest schema', () => {
         {
           wallet_address: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
           weight_bps: 4000,
+          recipientKind: 'escrow',
           submissionId: null,
           contributionBatchId: null,
           contributorId: null,
@@ -81,6 +83,21 @@ describe('MintRequest schema', () => {
     };
     const result = validateMintRequestMessage(withProvenance);
     expect(result.error).toBeUndefined();
+  });
+
+  test('rejects unknown recipientKind values', () => {
+    const result = validateMintRequestMessage({
+      ...validMessage,
+      contributors: [
+        {
+          ...validMessage.contributors[0],
+          weight_bps: 10000,
+          recipientKind: 'custody',
+        },
+      ],
+    });
+
+    expect(result.error?.message).toContain('recipientKind');
   });
 
   test('accepts the canonical statistical metadata fields', () => {

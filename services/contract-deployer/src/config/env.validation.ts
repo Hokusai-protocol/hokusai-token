@@ -114,6 +114,9 @@ const envSchema = Joi.object({
   // DeltaOne payout-intent table (HOK-2223). When set, the mint listener records
   // authorized recipients per mint for the anomaly detector to reconcile. Empty = off.
   PAYOUT_INTENT_TABLE: Joi.string().allow('').default(''),
+  HOKUSAI_AUTH_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  HOKUSAI_AUTH_INTERNAL_TOKEN: Joi.string().allow('').default(''),
+  HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS: Joi.number().integer().min(1).default(10000),
   USE_SSM: Joi.alternatives()
     .try(Joi.boolean(), Joi.string().valid('true', 'false'))
     .default(false),
@@ -210,6 +213,9 @@ export interface Config {
   AWS_ACCESS_KEY_ID?: string;
   AWS_SECRET_ACCESS_KEY?: string;
   PAYOUT_INTENT_TABLE: string;
+  HOKUSAI_AUTH_SERVICE_URL: string;
+  HOKUSAI_AUTH_INTERNAL_TOKEN: string;
+  HOKUSAI_AUTH_SETTLEMENT_TIMEOUT_MS: number;
   USE_SSM: boolean;
   DEPLOY_ENV?: string;
   SERVICE_NAME: string;

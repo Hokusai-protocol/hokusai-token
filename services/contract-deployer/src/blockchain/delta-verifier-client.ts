@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import DeltaVerifierArtifact from '../../contracts/DeltaVerifier.json';
+import TokenManagerArtifact from '../../contracts/TokenManager.json';
 import { logger } from '../utils/logger';
 
 const MODEL_REGISTRY_ABI = [
@@ -39,9 +40,44 @@ export interface DeltaVerifierClientConfig {
   signer: ethers.Signer;
   deltaVerifierAddress: string;
   modelRegistryAddress: string;
+  tokenManagerAddress?: string;
   confirmations: number;
   gasMultiplier: number;
   maxGasPrice: string;
+}
+
+export interface DecodedMintVestingSchedule {
+  scheduleId: string;
+  vaultAddress: string;
+  tokenAddress: string;
+  beneficiaryAddress: string;
+  totalAmount: string;
+  claimedAmount: string;
+  startAt?: string;
+  endAt?: string;
+  durationSeconds?: number;
+  cliffSeconds?: number;
+}
+
+export interface DecodedMintRecipientSettlement {
+  recipientAddress: string;
+  totalReward?: string;
+  immediateAmount?: string;
+  vestedAmount?: string;
+  vestingSchedule?: DecodedMintVestingSchedule;
+}
+
+export interface DecodedMintReceipt {
+  txHash: string;
+  blockNumber: number;
+  totalReward: string;
+  tokenAddress?: string;
+  tokenSymbol?: string;
+  immediateAmount?: string;
+  vestedAmount?: string;
+  vestingVault?: string;
+  vestingSchedule?: DecodedMintVestingSchedule;
+  recipientSettlements?: DecodedMintRecipientSettlement[];
 }
 
 export interface MintSubmissionResult {
@@ -50,6 +86,7 @@ export interface MintSubmissionResult {
   blockNumber?: number;
   rewardAmount: string;
   gasUsed?: string;
+  decodedReceipt?: DecodedMintReceipt;
 }
 
 export class MintRequestSubmissionError extends Error {
@@ -108,6 +145,19 @@ interface ParsedLogLike {
   name: string;
   args: {
     rewardAmount?: bigint;
+    contributor?: string;
+    totalReward?: bigint;
+    immediateAmount?: bigint;
+    vestedAmount?: bigint;
+    vestingStart?: bigint;
+    vestingEnd?: bigint;
+    scheduleId?: bigint;
+    beneficiary?: string;
+    token?: string;
+    start?: bigint;
+    cliffSeconds?: bigint;
+    duration?: bigint;
+    modelId?: string | bigint;
   };
 }
 
@@ -151,10 +201,26 @@ interface ModelRegistryContract {
   isModelActive(modelId: bigint): Promise<boolean>;
 }
 
+interface TokenManagerContract {
+  getTokenAddress(modelId: string): Promise<string>;
+}
+
+interface TokenContract {
+  symbol(): Promise<string>;
+}
+
 export class DeltaVerifierClient {
   private readonly contract: DeltaVerifierContract;
   private readonly modelRegistry: ModelRegistryContract;
+  private readonly tokenManager?: TokenManagerContract;
   private readonly config: DeltaVerifierClientConfig;
+  private readonly tokenManagerInterface = new ethers.Interface(TokenManagerArtifact.abi);
+  private readonly vestingVaultInterface = new ethers.Interface([
+    'event VestingScheduleCreated(uint256 indexed scheduleId,string indexed modelId,address indexed beneficiary,address token,uint256 vestedAmount,uint64 start,uint64 cliffSeconds,uint64 duration)',
+  ]);
+  private readonly erc20Interface = new ethers.Interface([
+    'function symbol() view returns (string)',
+  ]);
 
   constructor(config: DeltaVerifierClientConfig) {
     this.config = config;
@@ -168,6 +234,13 @@ export class DeltaVerifierClient {
       MODEL_REGISTRY_ABI,
       config.signer,
     ) as unknown as ModelRegistryContract;
+    this.tokenManager = config.tokenManagerAddress
+      ? (new ethers.Contract(
+          config.tokenManagerAddress,
+          TokenManagerArtifact.abi,
+          config.signer,
+        ) as unknown as TokenManagerContract)
+      : undefined;
   }
 
   private parseMintBudgetExceeded(error: unknown): {
@@ -251,6 +324,7 @@ export class DeltaVerifierClient {
     payload: MintRequestPayloadInput,
     contributors: DeltaVerifierContributor[],
     attesterSignatures: string[],
+    context?: { modelName?: string },
   ): Promise<MintSubmissionResult> {
     if (await this.isIdempotencyKeyProcessed(payload.anchors.idempotencyKey)) {
       return { status: 'replay', rewardAmount: '0' };
@@ -333,12 +407,22 @@ export class DeltaVerifierClient {
         }
       }
 
+      const decodedReceipt =
+        status === 'minted'
+          ? await this.decodeMintReceipt(receipt, {
+              modelId: modelId.toString(),
+              modelName: context?.modelName,
+              rewardAmount,
+            })
+          : undefined;
+
       return {
         status,
         txHash: receipt.hash,
         blockNumber: receipt.blockNumber,
         rewardAmount,
         gasUsed: receipt.gasUsed.toString(),
+        decodedReceipt,
       };
     } catch (error: unknown) {
       const mintBudgetExceeded = this.parseMintBudgetExceeded(error);
@@ -384,4 +468,180 @@ export class DeltaVerifierClient {
       throw error;
     }
   }
+
+  private async decodeMintReceipt(
+    receipt: TxReceiptLike,
+    context: { modelId: string; modelName?: string; rewardAmount: string },
+  ): Promise<DecodedMintReceipt> {
+    const decoded: DecodedMintReceipt = {
+      txHash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+      totalReward: context.rewardAmount,
+    };
+
+    for (const log of receipt.logs) {
+      this.applyTokenManagerLog(decoded, log);
+      this.applyVestingVaultLog(decoded, log);
+    }
+
+    const modelTokenAddress = await this.resolveTokenAddress(context.modelId, context.modelName);
+    if (modelTokenAddress) {
+      decoded.tokenAddress = modelTokenAddress;
+      if (decoded.vestingSchedule && !decoded.vestingSchedule.tokenAddress) {
+        decoded.vestingSchedule.tokenAddress = modelTokenAddress;
+      }
+    }
+
+    if (decoded.tokenAddress) {
+      decoded.tokenSymbol = await this.resolveTokenSymbol(decoded.tokenAddress);
+    }
+
+    return decoded;
+  }
+
+  private applyTokenManagerLog(decoded: DecodedMintReceipt, log: ethers.Log): void {
+    try {
+      const parsed = this.tokenManagerInterface.parseLog(log);
+      if (!parsed || parsed.name !== 'RewardVestingCreated') {
+        return;
+      }
+      const contributor = parsed.args.contributor as string;
+      const totalReward = parsed.args.totalReward as bigint;
+      const immediateAmount = parsed.args.immediateAmount as bigint;
+      const vestedAmount = parsed.args.vestedAmount as bigint;
+      const vestingStart = parsed.args.vestingStart as bigint;
+      const vestingEnd = parsed.args.vestingEnd as bigint;
+
+      const recipient = this.upsertRecipientSettlement(decoded, contributor);
+      recipient.totalReward = totalReward.toString();
+      recipient.immediateAmount = immediateAmount.toString();
+      recipient.vestedAmount = vestedAmount.toString();
+      recipient.vestingSchedule = {
+        ...(recipient.vestingSchedule ?? {
+          scheduleId: '',
+          vaultAddress: '',
+          tokenAddress: '',
+          beneficiaryAddress: contributor,
+          totalAmount: vestedAmount.toString(),
+          claimedAmount: '0',
+        }),
+        beneficiaryAddress: contributor,
+        totalAmount: vestedAmount.toString(),
+        startAt: secondsToIso(vestingStart),
+        endAt: secondsToIso(vestingEnd),
+      };
+
+      decoded.immediateAmount = addDecimalString(decoded.immediateAmount, immediateAmount);
+      decoded.vestedAmount = addDecimalString(decoded.vestedAmount, vestedAmount);
+    } catch {
+      // Ignore logs from other contracts.
+    }
+  }
+
+  private applyVestingVaultLog(decoded: DecodedMintReceipt, log: ethers.Log): void {
+    try {
+      const parsed = this.vestingVaultInterface.parseLog(log);
+      if (!parsed || parsed.name !== 'VestingScheduleCreated') {
+        return;
+      }
+      const scheduleId = parsed.args.scheduleId as bigint;
+      const beneficiary = parsed.args.beneficiary as string;
+      const token = parsed.args.token as string;
+      const vestedAmount = parsed.args.vestedAmount as bigint;
+      const start = parsed.args.start as bigint;
+      const cliffSeconds = parsed.args.cliffSeconds as bigint;
+      const duration = parsed.args.duration as bigint;
+
+      decoded.vestingVault = log.address;
+      const recipient = this.upsertRecipientSettlement(decoded, beneficiary);
+      recipient.vestedAmount = vestedAmount.toString();
+      recipient.vestingSchedule = {
+        scheduleId: scheduleId.toString(),
+        vaultAddress: log.address,
+        tokenAddress: token,
+        beneficiaryAddress: beneficiary,
+        totalAmount: vestedAmount.toString(),
+        claimedAmount: '0',
+        startAt: secondsToIso(start),
+        endAt: secondsToIso(start + duration),
+        durationSeconds: Number(duration),
+        cliffSeconds: Number(cliffSeconds),
+      };
+      decoded.tokenAddress = token;
+    } catch {
+      // Ignore logs from other contracts.
+    }
+  }
+
+  private upsertRecipientSettlement(
+    decoded: DecodedMintReceipt,
+    recipientAddress: string,
+  ): DecodedMintRecipientSettlement {
+    const normalizedAddress = recipientAddress.toLowerCase();
+    decoded.recipientSettlements ??= [];
+    const existing = decoded.recipientSettlements.find(
+      (settlement) => settlement.recipientAddress.toLowerCase() === normalizedAddress,
+    );
+    if (existing) {
+      return existing;
+    }
+
+    const settlement: DecodedMintRecipientSettlement = { recipientAddress };
+    decoded.recipientSettlements.push(settlement);
+    return settlement;
+  }
+
+  private async resolveTokenAddress(
+    modelId: string,
+    modelName?: string,
+  ): Promise<string | undefined> {
+    if (!this.tokenManager) {
+      return undefined;
+    }
+
+    for (const candidate of [modelName, modelId]) {
+      if (!candidate) {
+        continue;
+      }
+      try {
+        const tokenAddress = await this.tokenManager.getTokenAddress(candidate);
+        if (ethers.isAddress(tokenAddress) && tokenAddress !== ethers.ZeroAddress) {
+          return tokenAddress;
+        }
+      } catch {
+        // Model ids have historically appeared as either numeric strings or names.
+      }
+    }
+    return undefined;
+  }
+
+  private async resolveTokenSymbol(tokenAddress: string): Promise<string | undefined> {
+    const configuredSymbol = process.env.REWARD_TOKEN_SYMBOL || process.env.TOKEN_SYMBOL;
+    if (configuredSymbol?.trim()) {
+      return configuredSymbol.trim();
+    }
+
+    try {
+      const token = new ethers.Contract(
+        tokenAddress,
+        this.erc20Interface,
+        this.config.provider,
+      ) as unknown as TokenContract;
+      return await token.symbol();
+    } catch (error) {
+      logger.warn('Failed to resolve minted token symbol', {
+        tokenAddress,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
+  }
+}
+
+function secondsToIso(value: bigint): string {
+  return new Date(Number(value) * 1000).toISOString();
+}
+
+function addDecimalString(current: string | undefined, value: bigint): string {
+  return ((current ? BigInt(current) : 0n) + value).toString();
 }

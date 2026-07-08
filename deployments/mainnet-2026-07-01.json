@@ -188,7 +188,7 @@
         "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
-      "modelSupplierDistributed": false,
+      "modelSupplierDistributed": true,
       "supplierImmediateAmount": "250000000000000000000000",
       "supplierVestedAmount": "2250000000000000000000000"
     },
@@ -210,7 +210,7 @@
         "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
-      "modelSupplierDistributed": false,
+      "modelSupplierDistributed": true,
       "supplierImmediateAmount": "125000000000000000000000",
       "supplierVestedAmount": "1125000000000000000000000"
     },
@@ -232,7 +232,7 @@
         "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
-      "modelSupplierDistributed": false,
+      "modelSupplierDistributed": true,
       "supplierImmediateAmount": "250000000000000000000000",
       "supplierVestedAmount": "2250000000000000000000000"
     }
@@ -282,5 +282,11 @@
     }
   ],
   "poolsCreatedAt": "2026-07-01T21:28:40.795Z",
-  "pendingActionsPath": "deployments/mainnet-pending-actions.json"
+  "pendingActionsPath": "deployments/mainnet-pending-actions.json",
+  "supplierDistribution": {
+    "status": "completed",
+    "note": "Post-verification supplier mints executed via the admin Safe (schedule -> 48h timelock -> executeBatch). Verified on-chain 2026-07-08: supplier recipient 0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136 holds the 10% immediate unlock; RewardVestingVault holds the 90% vested remainder; token totalSupply equals the full supplier allocation. The per-token modelSupplierDistributed flags were backfilled to true; mainnet-pending-actions.json is retained as an executed historical record.",
+    "recipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+    "verifiedAtBlock": 25488836
+  }
 }

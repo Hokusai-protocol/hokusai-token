@@ -1,4 +1,6 @@
 {
+  "_status": "EXECUTED",
+  "_note": "These post-verification supplier mints were executed via the admin Safe (schedule -> 48h timelock -> executeBatch); see deployments/mainnet-supplier-distribute-1-schedule-safe.json and -2-execute-safe.json. Verified on-chain 2026-07-08 at block 25488836: recipient holds the 10% immediate unlock and RewardVestingVault holds the 90% vested remainder. Retained as a historical record — no longer pending.",
   "createdAt": "2026-07-01T21:28:40.797Z",
   "actions": [
     {

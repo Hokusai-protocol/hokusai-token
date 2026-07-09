@@ -7,11 +7,14 @@ const hre = require("hardhat");
 const {
   add,
   addBatch,
+  buildSafeTransaction,
   check,
   getWhitelistContract,
   remove,
   resolveWhitelistAddress,
 } = require("../../scripts/lib/purchaser-whitelist");
+
+const ORIGINAL_ADMIN_SAFE_ADDRESS = process.env.ADMIN_SAFE_ADDRESS;
 
 function writeDeployment(address) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hok-whitelist-artifact-"));
@@ -47,10 +50,16 @@ describe("purchaser whitelist helper", function () {
     await whitelist.waitForDeployment();
     deploymentPath = writeDeployment(await whitelist.getAddress());
     delete process.env.WHITELIST_ADDRESS;
+    delete process.env.ADMIN_SAFE_ADDRESS;
   });
 
   afterEach(function () {
     delete process.env.WHITELIST_ADDRESS;
+    if (ORIGINAL_ADMIN_SAFE_ADDRESS) {
+      process.env.ADMIN_SAFE_ADDRESS = ORIGINAL_ADMIN_SAFE_ADDRESS;
+    } else {
+      delete process.env.ADMIN_SAFE_ADDRESS;
+    }
   });
 
   it("adds, checks, and removes a single wallet", async function () {
@@ -96,5 +105,32 @@ describe("purchaser whitelist helper", function () {
 
     const contractInfo = await getWhitelistContract(hre, { deploymentPath });
     expect(contractInfo.address).to.equal(await overrideWhitelist.getAddress());
+  });
+
+  it("builds Safe transaction batches for mainnet-style whitelist updates", async function () {
+    const addresses = Array.from({ length: 201 }, () => hre.ethers.Wallet.createRandom().address);
+    const whitelistAddress = await whitelist.getAddress();
+    const safeTx = buildSafeTransaction({
+      runtime: hre,
+      deployment: {
+        chainId: "1",
+        governance: { adminSafe: owner.address },
+      },
+      whitelistAddress,
+      method: "addBatch",
+      addresses,
+    });
+    const iface = new hre.ethers.Interface(["function addBatch(address[] accounts)"]);
+
+    expect(safeTx.chainId).to.equal("1");
+    expect(safeTx.safe).to.equal(owner.address);
+    expect(safeTx.transactions).to.have.lengthOf(2);
+    expect(safeTx.transactions[0].to).to.equal(whitelistAddress);
+    expect(safeTx.transactions[0].value).to.equal("0");
+
+    const decodedFirst = iface.decodeFunctionData("addBatch", safeTx.transactions[0].data);
+    const decodedSecond = iface.decodeFunctionData("addBatch", safeTx.transactions[1].data);
+    expect(decodedFirst.accounts).to.have.lengthOf(200);
+    expect(decodedSecond.accounts).to.deep.equal([addresses[200]]);
   });
 });

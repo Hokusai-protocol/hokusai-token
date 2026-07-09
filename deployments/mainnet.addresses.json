@@ -30,6 +30,11 @@
     "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
     "emergencySafe": "0x158B985CC667b4E022AD05B99E89007790da66E2"
   },
+  "settlement": {
+    "$comment": "Backend/settlement contracts. PendingClaimsEscrow holds DeltaOne reward tranches for contributors who earn before registering a verified payout wallet; the auth EscrowReleaseService (RELEASER_ROLE = backendSettler) releases once a wallet is verified. Add the escrow to deltaone_system_sinks (HOK-2223) so the pipeline reconciler treats its holdings as a system sink, not circulating.",
+    "PendingClaimsEscrow": "0xC05F6244a1C94129F54dbcFe1261c8CAB3E05623",
+    "backendSettler": "0xc18D0B6eE049B2B113eE4671cB9C8109192e29E2"
+  },
   "deploymentBlocks": {
     "$comment": "Indexer backfill start blocks. Pools were created ~block 25440290+ (poolsCreatedAt 2026-07-01T21:28Z).",
     "ModelRegistry": 25440259,

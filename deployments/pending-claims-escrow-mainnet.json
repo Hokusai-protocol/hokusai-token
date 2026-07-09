@@ -1,0 +1,20 @@
+{
+  "contract": "PendingClaimsEscrow",
+  "network": "mainnet",
+  "chainId": 1,
+  "address": "0xC05F6244a1C94129F54dbcFe1261c8CAB3E05623",
+  "admin": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+  "pauser": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+  "releaser": "0xc18D0B6eE049B2B113eE4671cB9C8109192e29E2",
+  "deployedBy": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+  "deployTx": "0x370aa8b94c3c0962a13bdfb831b33e0ffb5023e5824e9e84a2519b176d324fc4",
+  "roleTxs": {
+    "grantReleaser": "0xb4a557503086ca2f327524e744cfb3bfb7abdcacb1acc8dc32bf469e2160d0ac",
+    "grantPauserSafe": "0x56503477050093a901c8e60ae35bfd4b38c060f557cff3dd014a4be394a815fb",
+    "grantAdminSafe": "0x5463fb26b748129c3fb0a98e353b06e47ffa27ded15326840637ecc99923823c",
+    "renouncePauser": "0x1341284bd94fe7fef32a68743a732d87f22c12c6feef624cb6eb9d526b07de89",
+    "renounceAdmin": "0x389ac9fac8646a77ca4d2654d7b039e42d32fb9d0d51a77f5e0ded359021a3b6"
+  },
+  "adminModel": "Option A: deployer bootstrap -> admin Safe (DEFAULT_ADMIN+PAUSER); deployer renounced",
+  "note": "RELEASER_ROLE = mainnet backend/settler key (also DeltaVerifier SUBMITTER). Add PENDING_CLAIMS_ESCROW_ADDRESS to .env.mainnet and the escrow to deltaone_system_sinks (HOK-2223)."
+}

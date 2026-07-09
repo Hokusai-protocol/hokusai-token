@@ -44,6 +44,7 @@
     "whitelist:add:sepolia": "npx hardhat run scripts/whitelist-add-sepolia.ts --network sepolia",
     "whitelist:remove:sepolia": "npx hardhat run scripts/whitelist-remove-sepolia.ts --network sepolia",
     "whitelist:check:sepolia": "npx hardhat run scripts/whitelist-check-sepolia.ts --network sepolia",
+    "whitelist:mainnet": "HARDHAT_NETWORK=mainnet node scripts/whitelist-mainnet.js",
     "backfill:sepolia:pools": "npx hardhat run scripts/backfill-model-registry-pools.js --network sepolia",
     "smoke:sepolia": "npx hardhat run scripts/smoke-readonly.js --network sepolia",
     "smoke:mainnet": "npx hardhat run scripts/smoke-readonly.js --network mainnet",

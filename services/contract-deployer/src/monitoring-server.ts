@@ -46,6 +46,7 @@ async function initializeBackendSigner(
 
 async function main(): Promise<void> {
   let redis: RedisClientType | null = null;
+  let redisHealthTimer: ReturnType<typeof setInterval> | undefined;
 
   try {
     logger.info('[MONITORING-SERVER] Starting AMM Monitoring Service...');
@@ -74,7 +75,12 @@ async function main(): Promise<void> {
     if (process.env.REDIS_URL) {
       try {
         logger.info('[MONITORING-SERVER] Connecting to Redis for readiness checks...');
-        redis = createClient({ url: process.env.REDIS_URL });
+        redis = createClient({
+          url: process.env.REDIS_URL,
+          socket: {
+            reconnectStrategy: (retries) => Math.min(250 * 2 ** Math.min(retries, 5), 5000),
+          },
+        });
         // Avoid an unhandled 'error' on a Redis socket drop crashing the monitor (B2); node-redis reconnects.
         redis.on('error', (err: unknown) => {
           logger.error('[MONITORING-SERVER] Redis client error', {
@@ -93,10 +99,8 @@ async function main(): Promise<void> {
           '[MONITORING-SERVER] Redis connection failed; readiness will report degraded',
           error,
         );
-        if (redis) {
-          await redis.disconnect().catch(() => undefined);
-        }
-        redis = null;
+        // Retain the client. A later readiness tick will reconnect it instead of requiring a task
+        // restart to recover from a transient startup dependency failure.
       }
     } else {
       logger.warn('[MONITORING-SERVER] REDIS_URL not set; queue readiness checks disabled');
@@ -174,6 +178,7 @@ async function main(): Promise<void> {
         status: health.isHealthy ? 'healthy' : 'unhealthy',
         uptime: health.uptime,
         components: health.components,
+        ingestion: health.ingestion,
         timestamp: new Date().toISOString(),
       });
     });
@@ -192,11 +197,43 @@ async function main(): Promise<void> {
       }),
     );
 
+    // ECS only needs the dependencies required to keep monitoring trustworthy. The signer and
+    // DeltaVerifier role are reported by /health/ready for reconciliation/deployment operators,
+    // but must not hide otherwise healthy RPC ingestion or Redis readiness from the monitor task.
+    app.get(
+      '/health/monitor-ready',
+      asyncHandler(async (_req: Request, res: Response) => {
+        const readiness = await getReadiness(
+          {
+            ammMonitor,
+            provider,
+            networkChainId: network.chainId,
+            redis,
+          },
+          { requireSignerChecks: false },
+        );
+
+        res.status(readiness.ready ? 200 : 503).json(readiness);
+      }),
+    );
+
     // Monitoring API routes
     app.use('/api/monitoring', monitoringRouter(ammMonitor));
 
     // Reconciliation API routes
     app.use('/api/reconciliation', reconciliationRouter(reconciliationService));
+
+    const recordRedisReadiness = async (): Promise<void> => {
+      const redisCheck = await getRedisReadiness(redis);
+      await ammMonitor.recordRedisReadiness(redisCheck.ok);
+    };
+    await recordRedisReadiness();
+    redisHealthTimer = setInterval(() => {
+      void recordRedisReadiness().catch((error) => {
+        logger.error('[MONITORING-SERVER] Failed to record Redis readiness', { error });
+      });
+    }, 60_000);
+    redisHealthTimer.unref?.();
 
     // 404 handler
     app.use((_req: Request, res: Response) => {
@@ -220,11 +257,14 @@ async function main(): Promise<void> {
     // Graceful shutdown
     process.on('SIGTERM', () => {
       logger.info('[MONITORING-SERVER] SIGTERM received, shutting down gracefully...');
+      if (redisHealthTimer) {
+        clearInterval(redisHealthTimer);
+      }
       void reconciliationService
         .stop()
         .then(() => ammMonitor.stop())
         .then(async () => {
-          if (redis) {
+          if (redis?.isOpen) {
             await redis.quit();
           }
           process.exit(0);
@@ -237,11 +277,14 @@ async function main(): Promise<void> {
 
     process.on('SIGINT', () => {
       logger.info('[MONITORING-SERVER] SIGINT received, shutting down gracefully...');
+      if (redisHealthTimer) {
+        clearInterval(redisHealthTimer);
+      }
       void reconciliationService
         .stop()
         .then(() => ammMonitor.stop())
         .then(async () => {
-          if (redis) {
+          if (redis?.isOpen) {
             await redis.quit();
           }
           process.exit(0);
@@ -264,12 +307,14 @@ interface ReadinessContext {
   redis: RedisClientType | null;
 }
 
-async function getReadiness({
-  ammMonitor,
-  provider,
-  networkChainId,
-  redis,
-}: ReadinessContext): Promise<Record<string, unknown> & { ready: boolean }> {
+interface ReadinessOptions {
+  requireSignerChecks?: boolean;
+}
+
+export async function getReadiness(
+  { ammMonitor, provider, networkChainId, redis }: ReadinessContext,
+  { requireSignerChecks = true }: ReadinessOptions = {},
+): Promise<Record<string, unknown> & { ready: boolean }> {
   const checks: Record<string, unknown> = {};
   let ready = true;
 
@@ -288,16 +333,18 @@ async function getReadiness({
     };
   }
 
-  const signerCheck = await getSignerReadiness(provider);
-  checks.signer = signerCheck;
-  if (!signerCheck.ok) {
-    ready = false;
-  }
+  if (requireSignerChecks) {
+    const signerCheck = await getSignerReadiness(provider);
+    checks.signer = signerCheck;
+    if (!signerCheck.ok) {
+      ready = false;
+    }
 
-  const roleCheck = await getDeltaVerifierRoleReadiness(provider, signerCheck.address);
-  checks.deltaVerifier = roleCheck;
-  if (!roleCheck.ok) {
-    ready = false;
+    const roleCheck = await getDeltaVerifierRoleReadiness(provider, signerCheck.address);
+    checks.deltaVerifier = roleCheck;
+    if (!roleCheck.ok) {
+      ready = false;
+    }
   }
 
   const redisCheck = await getRedisReadiness(redis);
@@ -312,6 +359,7 @@ async function getReadiness({
     status: health.status,
     poolsMonitored: health.poolsMonitored,
     components: health.components,
+    ingestion: health.ingestion,
   };
   if (!health.isHealthy) {
     ready = false;
@@ -411,6 +459,17 @@ async function getRedisReadiness(
   }
 
   try {
+    if (!redis.isOpen) {
+      await Promise.race([
+        redis.connect(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Redis reconnect timeout')), 5000),
+        ),
+      ]);
+    }
+    if (!redis.isReady) {
+      return { ok: false, error: 'Redis connection is not ready' };
+    }
     await redis.ping();
     const queueNames = {
       mintRequest: process.env.MINT_REQUEST_QUEUE || 'hokusai:mint_requests',

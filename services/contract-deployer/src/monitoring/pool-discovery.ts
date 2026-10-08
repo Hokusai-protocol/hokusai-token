@@ -13,8 +13,10 @@ import { PoolConfig } from '../config/monitoring-config';
  * New pools are automatically added to monitoring.
  */
 
+export type PoolDiscoveryOrigin = 'bootstrap' | 'historical' | 'live';
+
 export interface PoolDiscoveredCallback {
-  (pool: PoolConfig): Promise<void>;
+  (pool: PoolConfig, origin: PoolDiscoveryOrigin): Promise<void>;
 }
 
 export class PoolDiscovery {
@@ -36,6 +38,20 @@ export class PoolDiscovery {
     this.provider = provider;
     this.factoryAddress = factoryAddress;
     this.factoryContract = new ethers.Contract(factoryAddress, PoolDiscovery.FACTORY_ABI, provider);
+  }
+
+  /**
+   * Rebind discovery to a replacement provider while preserving the pool inventory.
+   * Callers are responsible for restarting the live listener after rebinding.
+   */
+  setProvider(provider: ethers.Provider): void {
+    this.stopListening();
+    this.provider = provider;
+    this.factoryContract = new ethers.Contract(
+      this.factoryAddress,
+      PoolDiscovery.FACTORY_ABI,
+      provider,
+    );
   }
 
   /**
@@ -61,7 +77,7 @@ export class PoolDiscovery {
       logger.info(`Initial pool added: ${pool.modelId} at ${pool.ammAddress}`);
 
       // Notify callbacks
-      await this.notifyCallbacks(pool);
+      await this.notifyCallbacks(pool, 'bootstrap');
     }
 
     logger.info(`Initial pool discovery complete: ${this.discoveredPools.size} pools`);
@@ -100,7 +116,7 @@ export class PoolDiscovery {
           if (poolConfig) {
             this.discoveredPools.set(poolAddress, poolConfig);
             logger.info(`Existing pool discovered: ${poolConfig.modelId} at ${poolAddress}`);
-            await this.notifyCallbacks(poolConfig);
+            await this.notifyCallbacks(poolConfig, 'bootstrap');
           }
         }
       } catch (error) {
@@ -136,16 +152,19 @@ export class PoolDiscovery {
           ibrDuration: bigint,
           event: ethers.EventLog,
         ) => {
-          void this.handlePoolCreated({
-            modelId,
-            poolAddress,
-            tokenAddress,
-            crr: Number(crr),
-            tradeFee: Number(tradeFee),
-            protocolFeeBps,
-            ibrDuration: Number(ibrDuration),
-            event,
-          }).catch((error) => {
+          void this.handlePoolCreated(
+            {
+              modelId,
+              poolAddress,
+              tokenAddress,
+              crr: Number(crr),
+              tradeFee: Number(tradeFee),
+              protocolFeeBps,
+              ibrDuration: Number(ibrDuration),
+              event,
+            },
+            'live',
+          ).catch((error) => {
             logger.error('Failed to handle PoolCreated event:', error);
           });
         },
@@ -201,16 +220,19 @@ export class PoolDiscovery {
         if (event instanceof ethers.EventLog) {
           const { modelId, poolAddress, tokenAddress, crr, tradeFee, protocolFeeBps, ibrDuration } =
             event.args;
-          await this.handlePoolCreated({
-            modelId,
-            poolAddress,
-            tokenAddress,
-            crr: Number(crr),
-            tradeFee: Number(tradeFee),
-            protocolFeeBps: Number(protocolFeeBps),
-            ibrDuration: Number(ibrDuration),
-            event,
-          });
+          await this.handlePoolCreated(
+            {
+              modelId,
+              poolAddress,
+              tokenAddress,
+              crr: Number(crr),
+              tradeFee: Number(tradeFee),
+              protocolFeeBps: Number(protocolFeeBps),
+              ibrDuration: Number(ibrDuration),
+              event,
+            },
+            'historical',
+          );
         }
       }
     } catch (error) {
@@ -221,16 +243,19 @@ export class PoolDiscovery {
   /**
    * Handle PoolCreated event
    */
-  private async handlePoolCreated(data: {
-    modelId: string;
-    poolAddress: string;
-    tokenAddress: string;
-    crr: number;
-    tradeFee: number;
-    protocolFeeBps: number;
-    ibrDuration: number;
-    event: ethers.EventLog;
-  }): Promise<void> {
+  private async handlePoolCreated(
+    data: {
+      modelId: string;
+      poolAddress: string;
+      tokenAddress: string;
+      crr: number;
+      tradeFee: number;
+      protocolFeeBps: number;
+      ibrDuration: number;
+      event: ethers.EventLog;
+    },
+    origin: PoolDiscoveryOrigin,
+  ): Promise<void> {
     const {
       modelId,
       poolAddress,
@@ -301,7 +326,7 @@ export class PoolDiscovery {
     this.discoveredPools.set(poolAddress, poolConfig);
 
     // Notify callbacks
-    await this.notifyCallbacks(poolConfig);
+    await this.notifyCallbacks(poolConfig, origin);
 
     logger.info(
       `✅ Pool ${modelId} added to monitoring (${this.discoveredPools.size} total pools)`,
@@ -432,10 +457,10 @@ export class PoolDiscovery {
   /**
    * Notify all registered callbacks about a new pool
    */
-  private async notifyCallbacks(pool: PoolConfig): Promise<void> {
+  private async notifyCallbacks(pool: PoolConfig, origin: PoolDiscoveryOrigin): Promise<void> {
     for (const callback of this.callbacks) {
       try {
-        await callback(pool);
+        await callback(pool, origin);
       } catch (error) {
         logger.error(`Pool discovery callback failed for ${pool.modelId}:`, error);
       }

@@ -96,7 +96,11 @@ export class AlertManager {
    * occurrence, independent of email dedup/rate-limiting, so the health report + mttr see the true
    * signal. Best-effort — a metric failure never blocks the alert path.
    */
-  private async emitMetric(metricName: string): Promise<void> {
+  private async emitMetric(
+    metricName: string,
+    value: number = 1,
+    unit: 'Count' | 'None' = 'Count',
+  ): Promise<void> {
     if (!this.cwClient) {
       return;
     }
@@ -111,8 +115,8 @@ export class AlertManager {
           MetricData: [
             {
               MetricName: metricName,
-              Value: 1,
-              Unit: 'Count',
+              Value: value,
+              Unit: unit,
               Timestamp: new Date(),
               Dimensions: dimensions,
             },
@@ -130,6 +134,22 @@ export class AlertManager {
    */
   async recordHeartbeat(): Promise<void> {
     await this.emitMetric('Heartbeat');
+  }
+
+  /**
+   * Persistent dependency gauge. Unlike transition alerts, this is emitted on every health tick so
+   * a CloudWatch alarm remains in ALARM for the full outage and treats missing samples as failure.
+   */
+  async recordDependencyHealth(
+    metricName: 'IngestionHealthy' | 'RedisReady',
+    healthy: boolean,
+  ): Promise<void> {
+    await this.emitMetric(metricName, healthy ? 1 : 0, 'None');
+  }
+
+  /** Persistent provider-selection gauge: 0 means primary, 1 means temporary backup. */
+  async recordRpcProviderState(usingBackupProvider: boolean): Promise<void> {
+    await this.emitMetric('UsingBackupProvider', usingBackupProvider ? 1 : 0, 'None');
   }
 
   /**
@@ -593,9 +613,10 @@ export class AlertManager {
 
     // Add to recent alerts with expiration
     this.recentAlerts.add(alertKey);
-    setTimeout(() => {
+    const deduplicationTimer = setTimeout(() => {
       this.recentAlerts.delete(alertKey);
     }, this.config.deduplicationWindowMs);
+    deduplicationTimer.unref?.();
 
     return false;
   }

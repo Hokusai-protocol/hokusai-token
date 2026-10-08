@@ -5,7 +5,7 @@ import {
   createMonitoringConfig,
   getConfigSummary,
 } from '../config/monitoring-config';
-import { PoolDiscovery } from './pool-discovery';
+import { PoolDiscovery, PoolDiscoveryOrigin } from './pool-discovery';
 import { StateTracker, StateAlert } from './state-tracker';
 import { EventListener, TradeEvent, SecurityEvent, FeeEvent, EventAlert } from './event-listener';
 import { MetricsCollector } from './metrics-collector';
@@ -51,12 +51,21 @@ export interface AMMMonitorHealth {
     metricsCollection: boolean;
   };
   lastUpdateTime: number;
+  ingestion: {
+    healthy: boolean;
+    sampled: boolean;
+    reason: string | null;
+    lastBlockNumber: number | null;
+    lastAdvanceAtMs: number | null;
+    usingBackupProvider: boolean;
+  };
   errors?: string[];
 }
 
 export class AMMMonitor {
   private config: MonitoringConfig;
   private provider: ethers.Provider;
+  private primaryProvider?: ethers.Provider;
   private backupProvider?: ethers.Provider;
   private usingBackupProvider: boolean = false;
 
@@ -72,6 +81,12 @@ export class AMMMonitor {
   private startTime: number = 0;
   private errors: string[] = [];
   private ingestionHealth: IngestionHealthState = INITIAL_INGESTION_HEALTH;
+  private ingestionSampled: boolean = false;
+  private ingestionReason: string | null = null;
+  private heartbeatInFlight: boolean = false;
+  private providerRebindInFlight: boolean = false;
+  private backupActivatedAtMs: number | null = null;
+  private primaryRecoverySuccesses: number = 0;
   private heartbeatTimer?: ReturnType<typeof setInterval>;
   private alertCallbacks: Array<(alert: StateAlert | EventAlert) => Promise<void>> = [];
   private alerts: Array<StateAlert | EventAlert> = [];
@@ -81,30 +96,12 @@ export class AMMMonitor {
     // Load or use provided config
     this.config = config || createMonitoringConfig();
 
-    // Create provider - use WebSocket if URL starts with ws:// or wss://
-    if (this.config.rpcUrl.startsWith('ws://') || this.config.rpcUrl.startsWith('wss://')) {
-      this.provider = this.createWebSocketProvider(this.config.rpcUrl);
-      logger.info('Using WebSocket provider for event listening (reduces RPC calls)');
-    } else {
-      // Convert https:// to wss:// for Alchemy URLs
-      const wsUrl = this.config.rpcUrl.replace('https://', 'wss://').replace('http://', 'ws://');
-      if (wsUrl.startsWith('wss://') || wsUrl.startsWith('ws://')) {
-        try {
-          this.provider = this.createWebSocketProvider(wsUrl);
-          logger.info(`Converted to WebSocket provider: ${wsUrl.split('.com')[0]}.com/...`);
-        } catch (error) {
-          logger.warn('Failed to create WebSocket provider, falling back to HTTP', { error });
-          this.provider = new ethers.JsonRpcProvider(this.config.rpcUrl);
-        }
-      } else {
-        this.provider = new ethers.JsonRpcProvider(this.config.rpcUrl);
-        logger.warn('Using HTTP provider - consider switching to WebSocket for efficiency');
-      }
-    }
+    this.primaryProvider = this.createMonitoringProvider(this.config.rpcUrl);
+    this.provider = this.primaryProvider;
 
     // Create backup provider if configured
     if (this.config.backupRpcUrl) {
-      this.backupProvider = new ethers.JsonRpcProvider(this.config.backupRpcUrl);
+      this.backupProvider = this.createMonitoringProvider(this.config.backupRpcUrl);
     }
 
     // Initialize components
@@ -195,15 +192,9 @@ export class AMMMonitor {
         await this.poolDiscovery.startListening(this.config.eventPollingFromBlock);
       }
 
-      // 4. Start monitoring all discovered pools
-      const pools = this.poolDiscovery.getDiscoveredPools();
-      for (const pool of pools) {
-        await this.startMonitoringPool(pool.ammAddress, pool);
-      }
-
-      // 5. Start the ingestion-health heartbeat (HOK-1698): detect a blind monitor (RPC down /
+      // 4. Start the ingestion-health heartbeat (HOK-1698): detect a blind monitor (RPC down /
       //    stale or stuck head) so the other alerts can be trusted to actually fire.
-      this.startIngestionHeartbeat();
+      await this.startIngestionHeartbeat();
 
       // Log summary
       this.logStartupSummary();
@@ -237,6 +228,10 @@ export class AMMMonitor {
       this.stateTracker.stopAllTracking();
       this.eventListener.stopAllListening();
 
+      for (const provider of new Set([this.provider, this.primaryProvider, this.backupProvider])) {
+        this.destroyProvider(provider, true);
+      }
+
       this.isRunning = false;
 
       // Log final metrics
@@ -256,16 +251,17 @@ export class AMMMonitor {
   private async initializePoolDiscovery(): Promise<void> {
     logger.info('Initializing pool discovery...');
 
+    // Register before bootstrap hydration so every pool is attached to monitoring, while the origin
+    // lets us suppress "new pool" alerts for inventory that existed before this process started.
+    this.poolDiscovery.onPoolDiscovered((pool, origin) => {
+      logger.info(`Pool discovered (${origin}): ${pool.modelId} at ${pool.ammAddress}`);
+      return this.handlePoolDiscovered(pool, origin);
+    });
+
     // Add initial pools from config
     if (this.config.initialPools.length > 0) {
       await this.poolDiscovery.addInitialPools(this.config.initialPools);
     }
-
-    // Set up callback for newly discovered pools
-    this.poolDiscovery.onPoolDiscovered((pool) => {
-      logger.info(`🆕 New pool discovered: ${pool.modelId} at ${pool.ammAddress}`);
-      return this.handlePoolDiscovered(pool);
-    });
 
     logger.info('Pool discovery initialized');
   }
@@ -321,6 +317,28 @@ export class AMMMonitor {
     return provider;
   }
 
+  /** Prefer WebSockets only when the configured endpoint is explicitly WS or known to support it. */
+  private createMonitoringProvider(rpcUrl: string): ethers.Provider {
+    if (rpcUrl.startsWith('ws://') || rpcUrl.startsWith('wss://')) {
+      logger.info('Using WebSocket provider for event listening');
+      return this.createWebSocketProvider(rpcUrl);
+    }
+
+    try {
+      const url = new URL(rpcUrl);
+      if (url.hostname.endsWith('alchemy.com')) {
+        url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        logger.info(`Using Alchemy WebSocket provider: ${url.origin}/...`);
+        return this.createWebSocketProvider(url.toString());
+      }
+    } catch (error) {
+      logger.warn('Could not parse RPC URL for WebSocket selection; using HTTP', { error });
+    }
+
+    logger.info('Using HTTP polling provider for event listening');
+    return new ethers.JsonRpcProvider(rpcUrl);
+  }
+
   /**
    * Verify provider connection
    */
@@ -359,20 +377,208 @@ export class AMMMonitor {
       throw new Error('No backup provider configured');
     }
 
+    if (this.providerRebindInFlight) {
+      logger.warn('Provider rebind already in progress');
+      return;
+    }
+
+    this.providerRebindInFlight = true;
+    const previousPrimaryProvider = this.primaryProvider;
     try {
       const network = await this.backupProvider.getNetwork();
-      logger.info(`Switched to backup provider: ${network.name}`);
+      const blockNumber = await this.backupProvider.getBlockNumber();
+      if (Number(network.chainId) !== this.config.chainId) {
+        throw new Error(
+          `Backup RPC chain ID mismatch: expected ${this.config.chainId}, got ${network.chainId}`,
+        );
+      }
+      logger.info(`Backup provider verified on ${network.name} at block ${blockNumber}`);
 
-      // Update components to use backup provider
-      this.provider = this.backupProvider;
+      await this.rebindProvider(this.backupProvider);
       this.usingBackupProvider = true;
-
-      // Recreate components with new provider
-      // Note: This is simplified - in production, components should support provider switching
-      logger.warn('Provider switched - monitoring may be temporarily interrupted');
+      this.backupActivatedAtMs = Date.now();
+      this.primaryRecoverySuccesses = 0;
+      this.primaryProvider = undefined;
+      this.destroyProvider(previousPrimaryProvider);
+      logger.warn('Monitoring components rebound to backup RPC provider');
     } catch (error) {
       logger.error('Backup provider also failed:', error);
       throw error;
+    } finally {
+      this.providerRebindInFlight = false;
+    }
+  }
+
+  /** Replace every provider-bound contract and subscription, then resume all discovered pools. */
+  private async rebindProvider(provider: ethers.Provider): Promise<void> {
+    const pools = this.poolDiscovery.getDiscoveredPools();
+
+    this.poolDiscovery.stopListening();
+    this.stateTracker.stopAllTracking();
+    this.eventListener.stopAllListening();
+
+    this.provider = provider;
+    this.poolDiscovery.setProvider(provider);
+    this.stateTracker.setProvider(provider);
+    this.eventListener.setProvider(provider);
+
+    for (const pool of pools) {
+      await this.startMonitoringPool(pool.ammAddress, pool);
+    }
+
+    if (this.config.poolDiscoveryEnabled) {
+      await this.poolDiscovery.startListening('latest');
+    }
+  }
+
+  /** Probe the primary over HTTP so recovery checks do not leave throwaway WebSockets open. */
+  private createPrimaryProbeProvider(): ethers.JsonRpcProvider {
+    const url = new URL(this.config.rpcUrl);
+    if (url.protocol === 'wss:') {
+      url.protocol = 'https:';
+    } else if (url.protocol === 'ws:') {
+      url.protocol = 'http:';
+    }
+    return new ethers.JsonRpcProvider(url.toString());
+  }
+
+  private async verifyProviderCandidate(provider: ethers.Provider): Promise<number> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        Promise.all([provider.getNetwork(), provider.getBlockNumber()]),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error('Primary RPC recovery probe timed out')),
+            this.config.thresholds.ingestionRpcTimeoutMs,
+          );
+          timeout.unref?.();
+        }),
+      ]);
+      const [network, blockNumber] = result;
+      if (Number(network.chainId) !== this.config.chainId) {
+        throw new Error(
+          `Primary RPC chain ID mismatch: expected ${this.config.chainId}, got ${network.chainId}`,
+        );
+      }
+
+      const currentBlockNumber = this.ingestionHealth.lastBlockNumber;
+      if (
+        currentBlockNumber !== null &&
+        blockNumber + this.config.thresholds.primaryRpcFailbackMaxBlockLag < currentBlockNumber
+      ) {
+        throw new Error(
+          `Primary RPC is ${currentBlockNumber - blockNumber} blocks behind the active provider`,
+        );
+      }
+      return blockNumber;
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
+  /**
+   * The backup is temporary. Probe the configured primary on every heartbeat while failed over,
+   * require stable consecutive successes plus a minimum dwell, then recreate every listener on a
+   * fresh primary provider. This avoids both permanent backup use and rapid provider flapping.
+   */
+  private async maybeFailBackToPrimary(nowMs: number = Date.now()): Promise<boolean> {
+    if (
+      !this.usingBackupProvider ||
+      this.backupActivatedAtMs === null ||
+      this.providerRebindInFlight
+    ) {
+      return false;
+    }
+
+    let probeProvider: ethers.Provider | undefined;
+    let candidateProvider: ethers.Provider | undefined;
+    let promoted = false;
+    try {
+      probeProvider = this.createPrimaryProbeProvider();
+      const blockNumber = await this.verifyProviderCandidate(probeProvider);
+      this.primaryRecoverySuccesses += 1;
+
+      const backupDurationMs = nowMs - this.backupActivatedAtMs;
+      const stable =
+        this.primaryRecoverySuccesses >= this.config.thresholds.primaryRpcFailbackSuccesses;
+      const dwellComplete =
+        backupDurationMs >= this.config.thresholds.primaryRpcFailbackMinBackupMs;
+
+      logger.info('Primary RPC recovery probe succeeded', {
+        blockNumber,
+        consecutiveSuccesses: this.primaryRecoverySuccesses,
+        requiredSuccesses: this.config.thresholds.primaryRpcFailbackSuccesses,
+        backupDurationMs,
+        dwellComplete,
+      });
+
+      if (!stable || !dwellComplete) {
+        return false;
+      }
+
+      candidateProvider = this.createMonitoringProvider(this.config.rpcUrl);
+      const verifiedBlockNumber = await this.verifyProviderCandidate(candidateProvider);
+
+      this.providerRebindInFlight = true;
+      try {
+        await this.rebindProvider(candidateProvider);
+      } catch (error) {
+        // A candidate can pass its RPC probe but still fail while recreating contracts/filters.
+        // Put every component back on the known backup before discarding that candidate.
+        if (this.backupProvider && this.provider === candidateProvider) {
+          try {
+            await this.rebindProvider(this.backupProvider);
+          } catch (rollbackError) {
+            logger.error('Failed to restore backup provider after primary rebind failure', {
+              error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+            });
+          }
+        }
+        throw error;
+      }
+      this.primaryProvider = candidateProvider;
+      this.usingBackupProvider = false;
+      this.backupActivatedAtMs = null;
+      this.primaryRecoverySuccesses = 0;
+      promoted = true;
+
+      logger.warn('Primary RPC recovered; monitoring components returned to primary provider', {
+        blockNumber: verifiedBlockNumber,
+      });
+      await Promise.all([
+        this.alertManager.recordRpcProviderState(false),
+        this.handleAlert(this.buildPrimaryRpcRecoveredAlert(verifiedBlockNumber)),
+      ]);
+      return true;
+    } catch (error) {
+      this.primaryRecoverySuccesses = 0;
+      logger.warn('Primary RPC recovery probe failed; remaining on backup provider', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    } finally {
+      this.providerRebindInFlight = false;
+      this.destroyProvider(probeProvider);
+      if (!promoted) {
+        this.destroyProvider(candidateProvider);
+      }
+    }
+  }
+
+  private destroyProvider(provider?: ethers.Provider, destroyCurrent: boolean = false): void {
+    if (!provider || (!destroyCurrent && provider === this.provider)) {
+      return;
+    }
+    try {
+      const destroy = (provider as ethers.Provider & { destroy?: () => void }).destroy;
+      destroy?.call(provider);
+    } catch (error) {
+      logger.warn('Failed to close replaced RPC provider', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -429,7 +635,7 @@ export class AMMMonitor {
    * silently stops firing. Emits a critical alert on the unhealthy transition (once, not per tick)
    * and a recovery alert when it clears. On an RPC error it also attempts the backup provider.
    */
-  private startIngestionHeartbeat(): void {
+  private async startIngestionHeartbeat(): Promise<void> {
     const thresholds = {
       staleBlockMs: this.config.thresholds.ingestionStaleBlockMs,
       stuckMs: this.config.thresholds.ingestionStuckMs,
@@ -440,34 +646,56 @@ export class AMMMonitor {
       // Liveness (HOK-1698): a Heartbeat metric each tick so the health report can tell "no alerts"
       // apart from "monitor is dead" (absence of Heartbeat => the monitor itself is down).
       // Emit before sampling RPC so a hung provider cannot suppress the detector liveness signal.
-      void this.alertManager.recordHeartbeat();
+      const heartbeatMetric = this.alertManager.recordHeartbeat();
 
-      const sample = await this.sampleLatestBlock(rpcTimeoutMs);
+      let sample = await this.sampleLatestBlock(rpcTimeoutMs);
 
-      const assessment = assessIngestionHealth(
-        this.ingestionHealth,
-        sample,
-        Date.now(),
-        thresholds,
-      );
+      let assessment = assessIngestionHealth(this.ingestionHealth, sample, Date.now(), thresholds);
       this.ingestionHealth = assessment.state;
+      this.ingestionSampled = true;
+      this.ingestionReason = assessment.healthy ? null : assessment.reason;
+
+      // On an RPC error, move to the backup first. Once there, continuously probe the primary and
+      // return only after it is stable and the anti-flap dwell has elapsed.
+      if (
+        assessment.transitioned &&
+        !assessment.healthy &&
+        assessment.reason === 'rpc_error' &&
+        this.backupProvider &&
+        !this.usingBackupProvider
+      ) {
+        try {
+          await this.switchToBackupProvider();
+        } catch (error) {
+          logger.error('Backup provider failover failed during ingestion outage:', error);
+        }
+      }
+
+      if (this.usingBackupProvider && (await this.maybeFailBackToPrimary())) {
+        // The assessment above sampled the backup. Re-sample the freshly rebound primary so the
+        // health gauge and readiness endpoint reflect the provider now serving listeners.
+        sample = await this.sampleLatestBlock(rpcTimeoutMs);
+        assessment = assessIngestionHealth(this.ingestionHealth, sample, Date.now(), thresholds);
+        this.ingestionHealth = assessment.state;
+        this.ingestionReason = assessment.healthy ? null : assessment.reason;
+      }
+
+      await Promise.all([
+        heartbeatMetric,
+        this.alertManager.recordDependencyHealth('IngestionHealthy', assessment.healthy),
+        this.alertManager.recordRpcProviderState(this.usingBackupProvider),
+      ]);
       if (!assessment.transitioned) {
         return;
       }
 
       if (!assessment.healthy) {
-        // RPC failure: try to fail over to the backup provider before paging.
-        if (assessment.reason === 'rpc_error' && this.backupProvider && !this.usingBackupProvider) {
-          try {
-            await this.switchToBackupProvider();
-          } catch (error) {
-            logger.error('Backup provider failover failed during ingestion outage:', error);
-          }
-        }
         await this.handleAlert(
           this.buildIngestionAlert(
             'critical',
-            `Monitor ingestion unhealthy (${assessment.reason}) — alerts may be blind`,
+            `Monitor ingestion unhealthy (${assessment.reason}) — alerts may be blind${
+              this.usingBackupProvider ? '; temporary backup RPC is active' : ''
+            }`,
             assessment.reason,
           ),
         );
@@ -478,8 +706,18 @@ export class AMMMonitor {
       }
     };
 
+    // Establish readiness before the server begins accepting health checks.
+    await tick();
+
     this.heartbeatTimer = setInterval(() => {
-      void tick();
+      if (this.heartbeatInFlight) {
+        logger.warn('Skipping overlapping ingestion heartbeat');
+        return;
+      }
+      this.heartbeatInFlight = true;
+      void tick().finally(() => {
+        this.heartbeatInFlight = false;
+      });
     }, this.config.thresholds.ingestionHeartbeatIntervalMs);
     // Don't keep the process alive solely for the heartbeat.
     this.heartbeatTimer.unref?.();
@@ -524,6 +762,20 @@ export class AMMMonitor {
         reason,
         usingBackupProvider: this.usingBackupProvider,
         lastBlockNumber: this.ingestionHealth.lastBlockNumber,
+      },
+    };
+  }
+
+  private buildPrimaryRpcRecoveredAlert(blockNumber: number): StateAlert {
+    return {
+      type: 'rpc_primary_recovered',
+      priority: 'medium',
+      poolAddress: 'monitor',
+      modelId: 'monitor',
+      message: 'Primary RPC recovered; returned monitoring to the primary provider',
+      metadata: {
+        blockNumber,
+        usingBackupProvider: false,
       },
     };
   }
@@ -597,17 +849,20 @@ export class AMMMonitor {
     return Promise.resolve();
   }
 
-  private async handlePoolDiscovered(pool: {
-    ammAddress: string;
-    modelId: string;
-    crr: number;
-    tradeFee: number;
-    protocolFee: number;
-    ibrDuration: number;
-  }): Promise<void> {
+  private async handlePoolDiscovered(
+    pool: {
+      ammAddress: string;
+      modelId: string;
+      crr: number;
+      tradeFee: number;
+      protocolFee: number;
+      ibrDuration: number;
+    },
+    origin: PoolDiscoveryOrigin,
+  ): Promise<void> {
     await this.startMonitoringPool(pool.ammAddress, pool);
 
-    if (this.config.alertsEnabled) {
+    if (this.config.alertsEnabled && origin === 'live') {
       await this.handleAlert({
         type: 'security_event',
         priority: 'medium',
@@ -672,18 +927,22 @@ export class AMMMonitor {
   getHealth(): AMMMonitorHealth {
     const uptime = this.isRunning ? Date.now() - this.startTime : 0;
 
-    const status: 'healthy' | 'degraded' | 'unhealthy' = !this.isRunning
-      ? 'unhealthy'
-      : this.errors.length > 5
-        ? 'degraded'
-        : 'healthy';
-
     const components = {
-      poolDiscovery: this.poolDiscovery.getPoolCount() > 0,
-      stateTracking: this.stateTracker.getTrackedPoolCount() > 0,
-      eventListening: this.eventListener.getListeningPoolCount() > 0,
+      poolDiscovery: !this.config.poolDiscoveryEnabled || this.poolDiscovery.getPoolCount() > 0,
+      stateTracking:
+        !this.config.statePollingEnabled || this.stateTracker.getTrackedPoolCount() > 0,
+      eventListening:
+        !this.config.eventListenersEnabled || this.eventListener.getListeningPoolCount() > 0,
       metricsCollection: this.metricsCollector.getAllPoolMetrics().length > 0,
     };
+    const componentsHealthy = Object.values(components).every(Boolean);
+    const ingestionHealthy = this.ingestionSampled && this.ingestionHealth.healthy;
+    const status: 'healthy' | 'degraded' | 'unhealthy' =
+      !this.isRunning || !ingestionHealthy
+        ? 'unhealthy'
+        : !componentsHealthy || this.errors.length > 5
+          ? 'degraded'
+          : 'healthy';
 
     return {
       status,
@@ -693,8 +952,21 @@ export class AMMMonitor {
       components,
       componentsStatus: components, // Alias for backwards compatibility
       lastUpdateTime: Date.now(),
+      ingestion: {
+        healthy: ingestionHealthy,
+        sampled: this.ingestionSampled,
+        reason: this.ingestionReason,
+        lastBlockNumber: this.ingestionHealth.lastBlockNumber,
+        lastAdvanceAtMs: this.ingestionHealth.lastAdvanceAtMs,
+        usingBackupProvider: this.usingBackupProvider,
+      },
       errors: this.errors.length > 0 ? [...this.errors] : undefined,
     };
+  }
+
+  /** Publish the Redis readiness gauge from the standalone server's dependency check. */
+  async recordRedisReadiness(ready: boolean): Promise<void> {
+    await this.alertManager.recordDependencyHealth('RedisReady', ready);
   }
 
   /**

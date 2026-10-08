@@ -76,6 +76,29 @@ describe('AlertManager CloudWatch metrics (HOK-1698)', () => {
     ).toBe(true);
   });
 
+  it('emits persistent dependency and provider-selection gauges', async () => {
+    const am = new AlertManager(baseConfig);
+    await am.recordDependencyHealth('IngestionHealthy', false);
+    await am.recordDependencyHealth('RedisReady', true);
+    await am.recordRpcProviderState(true);
+
+    const inputs = putMetricCtor.mock.calls.map(
+      (call) =>
+        (
+          call[0] as {
+            MetricData: Array<{ MetricName: string; Value: number; Unit: string }>;
+          }
+        ).MetricData[0],
+    );
+    expect(inputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ MetricName: 'IngestionHealthy', Value: 0, Unit: 'None' }),
+        expect.objectContaining({ MetricName: 'RedisReady', Value: 1, Unit: 'None' }),
+        expect.objectContaining({ MetricName: 'UsingBackupProvider', Value: 1, Unit: 'None' }),
+      ]),
+    );
+  });
+
   it('emits the metric even when email is throttled (ground truth before dedup)', async () => {
     const am = new AlertManager({ ...baseConfig, deduplicationWindowMs: 60_000 });
     await am.sendAlert(ingestionAlert);

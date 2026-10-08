@@ -59,7 +59,8 @@ export interface StateAlert {
     | 'high_fees'
     // HOK-1698: monitor-level ingestion health (not pool-specific; carries no currentState).
     | 'stale_ingestion'
-    | 'ingestion_recovered';
+    | 'ingestion_recovered'
+    | 'rpc_primary_recovered';
   priority: 'critical' | 'high' | 'medium';
   poolAddress: string;
   modelId: string;
@@ -137,6 +138,12 @@ export class StateTracker {
     this.provider = provider;
     this.thresholds = thresholds;
     this.callbacks = callbacks;
+  }
+
+  /** Rebind future calls and subscriptions to a replacement provider. */
+  setProvider(provider: ethers.Provider): void {
+    this.stopAllTracking();
+    this.provider = provider;
   }
 
   /**

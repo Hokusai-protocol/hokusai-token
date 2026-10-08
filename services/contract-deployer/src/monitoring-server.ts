@@ -210,7 +210,7 @@ async function main(): Promise<void> {
             networkChainId: network.chainId,
             redis,
           },
-          { requireSignerChecks: false },
+          { requireSignerChecks: false, requirePrimaryRpc: false },
         );
 
         res.status(readiness.ready ? 200 : 503).json(readiness);
@@ -309,11 +309,15 @@ interface ReadinessContext {
 
 interface ReadinessOptions {
   requireSignerChecks?: boolean;
+  // The monitor's ingestion health already samples whichever provider is active (primary or
+  // backup). Gating on the configured primary as well would fail readiness, and make ECS replace a
+  // task that is healthy on the backup, during exactly the outages the backup exists for.
+  requirePrimaryRpc?: boolean;
 }
 
 export async function getReadiness(
   { ammMonitor, provider, networkChainId, redis }: ReadinessContext,
-  { requireSignerChecks = true }: ReadinessOptions = {},
+  { requireSignerChecks = true, requirePrimaryRpc = true }: ReadinessOptions = {},
 ): Promise<Record<string, unknown> & { ready: boolean }> {
   const checks: Record<string, unknown> = {};
   let ready = true;
@@ -326,9 +330,12 @@ export async function getReadiness(
       blockNumber,
     };
   } catch (error) {
-    ready = false;
+    if (requirePrimaryRpc) {
+      ready = false;
+    }
     checks.rpc = {
       ok: false,
+      gating: requirePrimaryRpc,
       error: error instanceof Error ? error.message : String(error),
     };
   }

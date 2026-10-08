@@ -25,12 +25,22 @@ A forced provider transition should only be run through a reversible fault proxy
 canary-only mechanism. Do not edit a shared SSM parameter to force a running production task onto a
 different provider. The expected transition is:
 
-1. Alchemy failure produces an ingestion error and a rebind to Infura.
-2. `UsingBackupProvider` changes to `1`.
+1. The first Alchemy ingestion error triggers a reconnect to a fresh Alchemy provider
+   (`Primary RPC reconnected` or `Primary RPC reconnect failed`). A blip that heals here
+   emits no ingestion alert and `UsingBackupProvider` stays `0`.
+2. After `ALERT_BACKUP_RPC_FAILOVER_ERRORS` (default 2) consecutive heartbeat errors, Infura is
+   burst-probed (`eth_getCode` on the factory and up to nine pools). If it throttles, it is
+   refused for `ALERT_BACKUP_RPC_REJECT_COOLDOWN_MS` (default 15 minutes) and the monitor keeps
+   retrying Alchemy (`Backup RPC rejected`). Otherwise all listeners rebind to Infura, polling
+   every `BACKUP_RPC_POLLING_INTERVAL_MS` (default 60s), and `UsingBackupProvider` changes to `1`.
 3. Alchemy probes succeed on the correct chain and are no more than three blocks behind.
 4. After at least five minutes and three consecutive successful probes, all listeners rebind to a
    fresh Alchemy WebSocket provider.
 5. `UsingBackupProvider` returns to `0` and `rpc_primary_recovered` is emitted.
+
+`/health/monitor-ready` reports the configured-primary RPC check as `gating: false`; readiness
+follows ingestion health, which samples the active provider, so ECS does not replace a task that is
+healthy on the backup.
 
 ## Alarm and mainnet promotion
 

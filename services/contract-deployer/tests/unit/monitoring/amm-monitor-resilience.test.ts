@@ -47,6 +47,9 @@ type TestMonitor = {
   handlePoolDiscovered(poolConfig: PoolConfig, origin: string): Promise<void>;
   rebindProvider: jest.Mock | ((provider: ethers.Provider) => Promise<void>);
   maybeFailBackToPrimary(nowMs?: number): Promise<boolean>;
+  handlePrimaryRpcError(nowMs?: number): Promise<boolean>;
+  switchToBackupProvider: jest.Mock | (() => Promise<void>);
+  reconnectPrimary: jest.Mock | (() => Promise<boolean>);
   getHealth(): ReturnType<AMMMonitor['getHealth']>;
   isRunning: boolean;
   startTime: number;
@@ -61,6 +64,8 @@ type TestMonitor = {
   usingBackupProvider: boolean;
   backupActivatedAtMs: number | null;
   primaryRecoverySuccesses: number;
+  consecutivePrimaryRpcErrors: number;
+  backupRejectedUntilMs: number | null;
   providerRebindInFlight: boolean;
 };
 
@@ -73,11 +78,14 @@ function createMonitor(): TestMonitor {
     eventListenersEnabled: true,
     rpcUrl: 'https://eth-mainnet.g.alchemy.com/v2/test',
     chainId: 1,
+    contracts: { ammFactory: '0x0000000000000000000000000000000000000003' },
     thresholds: {
       ingestionRpcTimeoutMs: 10_000,
       primaryRpcFailbackMinBackupMs: 300_000,
       primaryRpcFailbackSuccesses: 3,
       primaryRpcFailbackMaxBlockLag: 3,
+      backupRpcFailoverConsecutiveErrors: 2,
+      backupRpcRejectCooldownMs: 900_000,
     },
   };
   monitor.poolDiscovery = {
@@ -118,6 +126,8 @@ function createMonitor(): TestMonitor {
   monitor.usingBackupProvider = false;
   monitor.backupActivatedAtMs = null;
   monitor.primaryRecoverySuccesses = 0;
+  monitor.consecutivePrimaryRpcErrors = 0;
+  monitor.backupRejectedUntilMs = null;
   monitor.providerRebindInFlight = false;
   return monitor;
 }
@@ -285,5 +295,112 @@ describe('AMMMonitor resilience wiring', () => {
     expect(monitor.provider).toBe(backupProvider);
     expect(monitor.usingBackupProvider).toBe(true);
     expect(monitor.destroyProvider).toHaveBeenCalledWith(primaryProvider);
+  });
+
+  describe('primary RPC errors', () => {
+    it('reconnects to the primary instead of using the backup on a first error', async () => {
+      const monitor = createMonitor();
+      monitor.backupProvider = { name: 'backup' } as unknown as ethers.Provider;
+      monitor.consecutivePrimaryRpcErrors = 1;
+      monitor.switchToBackupProvider = jest.fn(() => Promise.resolve());
+      monitor.reconnectPrimary = jest.fn(() => Promise.resolve(true));
+
+      await expect(monitor.handlePrimaryRpcError(0)).resolves.toBe(true);
+
+      expect(monitor.switchToBackupProvider).not.toHaveBeenCalled();
+      expect(monitor.reconnectPrimary).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves to the backup after consecutive heartbeat failures', async () => {
+      const monitor = createMonitor();
+      monitor.backupProvider = { name: 'backup' } as unknown as ethers.Provider;
+      monitor.consecutivePrimaryRpcErrors = 2;
+      monitor.switchToBackupProvider = jest.fn(() => Promise.resolve());
+      monitor.reconnectPrimary = jest.fn(() => Promise.resolve(true));
+
+      await expect(monitor.handlePrimaryRpcError(0)).resolves.toBe(true);
+
+      expect(monitor.switchToBackupProvider).toHaveBeenCalledTimes(1);
+      expect(monitor.reconnectPrimary).not.toHaveBeenCalled();
+    });
+
+    it('stays on the primary and cools down when the backup is rejected', async () => {
+      const monitor = createMonitor();
+      monitor.backupProvider = { name: 'backup' } as unknown as ethers.Provider;
+      monitor.consecutivePrimaryRpcErrors = 2;
+      monitor.switchToBackupProvider = jest.fn(() =>
+        Promise.reject(new Error('Too Many Requests')),
+      );
+      monitor.reconnectPrimary = jest.fn(() => Promise.resolve(false));
+
+      await expect(monitor.handlePrimaryRpcError(1_000)).resolves.toBe(false);
+
+      expect(monitor.backupRejectedUntilMs).toBe(901_000);
+      expect(monitor.reconnectPrimary).toHaveBeenCalledTimes(1);
+
+      monitor.consecutivePrimaryRpcErrors = 3;
+      await monitor.handlePrimaryRpcError(900_999);
+      expect(monitor.switchToBackupProvider).toHaveBeenCalledTimes(1);
+
+      await monitor.handlePrimaryRpcError(901_000);
+      expect(monitor.switchToBackupProvider).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses a backup that throttles a burst of calls', async () => {
+      const monitor = createMonitor();
+      const throttled = Object.assign(new Error('Too Many Requests'), { code: -32005 });
+      const getCode = jest.fn(() => Promise.reject(throttled));
+      const backupProvider = {
+        getNetwork: jest.fn(() => Promise.resolve({ chainId: 1n, name: 'mainnet' })),
+        getBlockNumber: jest.fn(() => Promise.resolve(1_000)),
+        getCode,
+      } as unknown as ethers.Provider;
+      monitor.backupProvider = backupProvider;
+      monitor.rebindProvider = jest.fn(() => Promise.resolve());
+
+      await expect(monitor.switchToBackupProvider()).rejects.toThrow('Too Many Requests');
+
+      expect(getCode).toHaveBeenCalledWith(pool.ammAddress);
+      expect(monitor.rebindProvider).not.toHaveBeenCalled();
+      expect(monitor.usingBackupProvider).toBe(false);
+      expect(monitor.providerRebindInFlight).toBe(false);
+    });
+
+    it('rebinds every component to a fresh primary when it answers', async () => {
+      const monitor = createMonitor();
+      const stalePrimary = { name: 'stale' } as unknown as ethers.Provider;
+      const freshPrimary = { name: 'fresh' } as unknown as ethers.Provider;
+      monitor.provider = stalePrimary;
+      monitor.primaryProvider = stalePrimary;
+      monitor.createMonitoringProvider.mockReturnValue(freshPrimary);
+      monitor.verifyProviderCandidate.mockResolvedValue(1_000);
+      monitor.rebindProvider = jest.fn((provider: ethers.Provider) => {
+        monitor.provider = provider;
+        return Promise.resolve();
+      });
+
+      await expect(monitor.reconnectPrimary()).resolves.toBe(true);
+
+      expect(monitor.rebindProvider).toHaveBeenCalledWith(freshPrimary);
+      expect(monitor.primaryProvider).toBe(freshPrimary);
+      expect(monitor.destroyProvider).toHaveBeenCalledWith(stalePrimary);
+      expect(monitor.providerRebindInFlight).toBe(false);
+    });
+
+    it('keeps the current provider when the primary still does not answer', async () => {
+      const monitor = createMonitor();
+      const stalePrimary = { name: 'stale' } as unknown as ethers.Provider;
+      const candidate = { name: 'candidate' } as unknown as ethers.Provider;
+      monitor.provider = stalePrimary;
+      monitor.createMonitoringProvider.mockReturnValue(candidate);
+      monitor.verifyProviderCandidate.mockRejectedValue(new Error('primary unavailable'));
+      monitor.rebindProvider = jest.fn(() => Promise.resolve());
+
+      await expect(monitor.reconnectPrimary()).resolves.toBe(false);
+
+      expect(monitor.rebindProvider).not.toHaveBeenCalled();
+      expect(monitor.provider).toBe(stalePrimary);
+      expect(monitor.destroyProvider).toHaveBeenCalledWith(candidate);
+    });
   });
 });

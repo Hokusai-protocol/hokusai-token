@@ -78,6 +78,13 @@ export interface AlertThresholds {
   primaryRpcFailbackMinBackupMs: number;
   primaryRpcFailbackSuccesses: number;
   primaryRpcFailbackMaxBlockLag: number;
+
+  // Backup RPC failover. The backup has a small quota, so a primary blip is first answered by
+  // reconnecting to the primary; the backup is used only after consecutive heartbeat failures,
+  // only if it survives a burst probe, and not again until a cooldown after it was rejected.
+  backupRpcFailoverConsecutiveErrors: number;
+  backupRpcRejectCooldownMs: number;
+  backupRpcPollingIntervalMs: number; // HTTP filter/block polling interval while on the backup
 }
 
 export interface MonitoringConfig {
@@ -147,6 +154,13 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
   primaryRpcFailbackMinBackupMs: 5 * 60 * 1000,
   primaryRpcFailbackSuccesses: 3,
   primaryRpcFailbackMaxBlockLag: 3,
+  // Two 60s heartbeats: a sub-minute primary blip heals via reconnect, while a real outage reaches
+  // the backup before ECS exhausts the readiness health check (3 x 30s) and replaces the task.
+  backupRpcFailoverConsecutiveErrors: 2,
+  backupRpcRejectCooldownMs: 15 * 60 * 1000,
+  // ~10 filter subscriptions per pool are polled once per interval; per-block (4s) polling is what
+  // exhausted the backup quota within hours.
+  backupRpcPollingIntervalMs: 60 * 1000,
 };
 
 /**
@@ -358,6 +372,21 @@ export function createMonitoringConfig(): MonitoringConfig {
           String(DEFAULT_THRESHOLDS.primaryRpcFailbackMaxBlockLag),
         10,
       ),
+      backupRpcFailoverConsecutiveErrors: parseInt(
+        process.env.ALERT_BACKUP_RPC_FAILOVER_ERRORS ||
+          String(DEFAULT_THRESHOLDS.backupRpcFailoverConsecutiveErrors),
+        10,
+      ),
+      backupRpcRejectCooldownMs: parseInt(
+        process.env.ALERT_BACKUP_RPC_REJECT_COOLDOWN_MS ||
+          String(DEFAULT_THRESHOLDS.backupRpcRejectCooldownMs),
+        10,
+      ),
+      backupRpcPollingIntervalMs: parseInt(
+        process.env.BACKUP_RPC_POLLING_INTERVAL_MS ||
+          String(DEFAULT_THRESHOLDS.backupRpcPollingIntervalMs),
+        10,
+      ),
     },
 
     statePollingIntervalMs: parseInt(process.env.MONITORING_INTERVAL_MS || '300000'), // 5 minutes fallback (was 12s)
@@ -426,6 +455,14 @@ function validateMonitoringConfig(config: MonitoringConfig): void {
 
   if (config.thresholds.primaryRpcFailbackMaxBlockLag < 0) {
     errors.push('Primary RPC failback maximum block lag cannot be negative');
+  }
+
+  if (config.thresholds.backupRpcFailoverConsecutiveErrors < 1) {
+    errors.push('Backup RPC failover must require at least one heartbeat failure');
+  }
+
+  if (config.thresholds.backupRpcPollingIntervalMs < 1000) {
+    errors.push('Backup RPC polling interval must be at least 1000ms');
   }
 
   if (errors.length > 0) {

@@ -87,6 +87,8 @@ export class AMMMonitor {
   private providerRebindInFlight: boolean = false;
   private backupActivatedAtMs: number | null = null;
   private primaryRecoverySuccesses: number = 0;
+  private consecutivePrimaryRpcErrors: number = 0;
+  private backupRejectedUntilMs: number | null = null;
   private heartbeatTimer?: ReturnType<typeof setInterval>;
   private alertCallbacks: Array<(alert: StateAlert | EventAlert) => Promise<void>> = [];
   private alerts: Array<StateAlert | EventAlert> = [];
@@ -102,6 +104,9 @@ export class AMMMonitor {
     // Create backup provider if configured
     if (this.config.backupRpcUrl) {
       this.backupProvider = this.createMonitoringProvider(this.config.backupRpcUrl);
+      if (this.backupProvider instanceof ethers.JsonRpcProvider) {
+        this.backupProvider.pollingInterval = this.config.thresholds.backupRpcPollingIntervalMs;
+      }
     }
 
     // Initialize components
@@ -392,6 +397,7 @@ export class AMMMonitor {
           `Backup RPC chain ID mismatch: expected ${this.config.chainId}, got ${network.chainId}`,
         );
       }
+      await this.probeProviderUnderLoad(this.backupProvider);
       logger.info(`Backup provider verified on ${network.name} at block ${blockNumber}`);
 
       await this.rebindProvider(this.backupProvider);
@@ -406,6 +412,111 @@ export class AMMMonitor {
       throw error;
     } finally {
       this.providerRebindInFlight = false;
+    }
+  }
+
+  /**
+   * A rate-limited backup still answers chainId/blockNumber, then rejects the burst of calls a
+   * rebind makes (-32005 Too Many Requests). Send a comparable batch so that backup is refused
+   * up front instead of leaving the monitor half-blind on it.
+   */
+  private async probeProviderUnderLoad(provider: ethers.Provider): Promise<void> {
+    const addresses = [
+      this.config.contracts.ammFactory,
+      ...this.poolDiscovery.getDiscoveredPools().map((pool) => pool.ammAddress),
+    ]
+      .filter((address): address is string => !!address)
+      .slice(0, 10);
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all(addresses.map((address) => provider.getCode(address))),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error('RPC load probe timed out')),
+            this.config.thresholds.ingestionRpcTimeoutMs,
+          );
+          timeout.unref?.();
+        }),
+      ]);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
+  /**
+   * React to a heartbeat RPC error on the primary. Primary blips are usually brief, so first
+   * reconnect to a fresh primary provider (this also replaces a dropped WebSocket). Only after
+   * consecutive failures move to the backup, and skip a backup recently rejected as unusable.
+   * Returns true when the active provider changed.
+   */
+  private async handlePrimaryRpcError(nowMs: number = Date.now()): Promise<boolean> {
+    if (this.providerRebindInFlight) {
+      return false;
+    }
+
+    const backupAvailable =
+      !!this.backupProvider &&
+      (this.backupRejectedUntilMs === null || nowMs >= this.backupRejectedUntilMs);
+
+    if (
+      backupAvailable &&
+      this.consecutivePrimaryRpcErrors >= this.config.thresholds.backupRpcFailoverConsecutiveErrors
+    ) {
+      try {
+        await this.switchToBackupProvider();
+        this.backupRejectedUntilMs = null;
+        return true;
+      } catch (error) {
+        this.backupRejectedUntilMs = nowMs + this.config.thresholds.backupRpcRejectCooldownMs;
+        logger.error('Backup RPC rejected; staying on primary and retrying it', {
+          error: error instanceof Error ? error.message : String(error),
+          retryBackupAfterMs: this.config.thresholds.backupRpcRejectCooldownMs,
+        });
+        // A failed backup rebind can leave components on the backup; reconnect them to a primary.
+      }
+    }
+
+    return this.reconnectPrimary();
+  }
+
+  /** Recreate every listener on a fresh primary provider if the primary answers right now. */
+  private async reconnectPrimary(): Promise<boolean> {
+    let candidateProvider: ethers.Provider | undefined;
+    let promoted = false;
+    this.providerRebindInFlight = true;
+    try {
+      candidateProvider = this.createMonitoringProvider(this.config.rpcUrl);
+      const blockNumber = await this.verifyProviderCandidate(candidateProvider);
+      const previousProvider = this.provider;
+
+      await this.rebindProvider(candidateProvider);
+      this.primaryProvider = candidateProvider;
+      promoted = true;
+      if (previousProvider !== this.backupProvider) {
+        this.destroyProvider(previousProvider);
+      }
+
+      logger.warn('Primary RPC reconnected; monitoring components rebound to a fresh provider', {
+        blockNumber,
+        consecutivePrimaryRpcErrors: this.consecutivePrimaryRpcErrors,
+      });
+      return true;
+    } catch (error) {
+      logger.warn('Primary RPC reconnect failed', {
+        error: error instanceof Error ? error.message : String(error),
+        consecutivePrimaryRpcErrors: this.consecutivePrimaryRpcErrors,
+        backupThreshold: this.config.thresholds.backupRpcFailoverConsecutiveErrors,
+      });
+      return false;
+    } finally {
+      this.providerRebindInFlight = false;
+      if (!promoted) {
+        this.destroyProvider(candidateProvider);
+      }
     }
   }
 
@@ -543,6 +654,7 @@ export class AMMMonitor {
       this.usingBackupProvider = false;
       this.backupActivatedAtMs = null;
       this.primaryRecoverySuccesses = 0;
+      this.consecutivePrimaryRpcErrors = 0;
       promoted = true;
 
       logger.warn('Primary RPC recovered; monitoring components returned to primary provider', {
@@ -648,36 +760,40 @@ export class AMMMonitor {
       // Emit before sampling RPC so a hung provider cannot suppress the detector liveness signal.
       const heartbeatMetric = this.alertManager.recordHeartbeat();
 
+      const previousHealth = this.ingestionHealth;
       let sample = await this.sampleLatestBlock(rpcTimeoutMs);
 
-      let assessment = assessIngestionHealth(this.ingestionHealth, sample, Date.now(), thresholds);
+      let assessment = assessIngestionHealth(previousHealth, sample, Date.now(), thresholds);
       this.ingestionHealth = assessment.state;
       this.ingestionSampled = true;
       this.ingestionReason = assessment.healthy ? null : assessment.reason;
 
-      // On an RPC error, move to the backup first. Once there, continuously probe the primary and
-      // return only after it is stable and the anti-flap dwell has elapsed.
-      if (
-        assessment.transitioned &&
-        !assessment.healthy &&
-        assessment.reason === 'rpc_error' &&
-        this.backupProvider &&
-        !this.usingBackupProvider
-      ) {
-        try {
-          await this.switchToBackupProvider();
-        } catch (error) {
-          logger.error('Backup provider failover failed during ingestion outage:', error);
+      // On a primary RPC error, reconnect to the primary first and fall back to the backup only
+      // after consecutive failures. Once on the backup, continuously probe the primary and return
+      // only after it is stable and the anti-flap dwell has elapsed.
+      let providerChanged = false;
+      if (!this.usingBackupProvider) {
+        if (!assessment.healthy && assessment.reason === 'rpc_error') {
+          this.consecutivePrimaryRpcErrors += 1;
+          providerChanged = await this.handlePrimaryRpcError();
+        } else if (sample.ok) {
+          this.consecutivePrimaryRpcErrors = 0;
         }
+      } else {
+        providerChanged = await this.maybeFailBackToPrimary();
       }
 
-      if (this.usingBackupProvider && (await this.maybeFailBackToPrimary())) {
-        // The assessment above sampled the backup. Re-sample the freshly rebound primary so the
-        // health gauge and readiness endpoint reflect the provider now serving listeners.
+      if (providerChanged) {
+        // The assessment above sampled the previous provider. Re-sample the freshly rebound one,
+        // against the pre-tick state, so a blip healed within this tick neither pages nor flips the
+        // health gauge, and readiness reflects the provider now serving listeners.
         sample = await this.sampleLatestBlock(rpcTimeoutMs);
-        assessment = assessIngestionHealth(this.ingestionHealth, sample, Date.now(), thresholds);
+        assessment = assessIngestionHealth(previousHealth, sample, Date.now(), thresholds);
         this.ingestionHealth = assessment.state;
         this.ingestionReason = assessment.healthy ? null : assessment.reason;
+        if (sample.ok && !this.usingBackupProvider) {
+          this.consecutivePrimaryRpcErrors = 0;
+        }
       }
 
       await Promise.all([

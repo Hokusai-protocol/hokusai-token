@@ -50,3 +50,15 @@ healthy on the backup.
   missing metrics.
 - Promote the exact testnet image digest to mainnet with circuit-breaker rollback.
 - Verify the same provider, readiness, metric, and bootstrap-alert checks before closing the rollout.
+
+## Automated readiness regression checks
+
+Run `npm test -- --runInBand tests/unit/monitoring/readiness.test.ts` from
+`services/contract-deployer` before building the canary image. These tests exercise the same
+handler as the ECS endpoint with controlled primary RPC, ingestion-health, and Redis results.
+They cover healthy backup operation during a primary outage, ingestion failures, Redis failures,
+and primary recovery followed by failback. General readiness retains its primary and signer gates.
+
+These checks complement the testnet canary above. They do not validate live provider capacity,
+listener rebinding, heartbeat metrics, ECS rollout behavior, or deployment status. Testnet
+validation and promotion of the exact validated image digest remain required before mainnet.

@@ -116,6 +116,12 @@ export class EventListener {
     this.callbacks = callbacks;
   }
 
+  /** Rebind future subscriptions to a replacement provider. */
+  setProvider(provider: ethers.Provider): void {
+    this.stopAllListening();
+    this.provider = provider;
+  }
+
   /**
    * Start listening to events for a pool
    */

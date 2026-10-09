@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
@@ -27,7 +27,7 @@ RUN npm prune --omit=dev && \
     cp -R node_modules prod_node_modules
 
 # Runtime stage
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Install dumb-init for proper signal handling and curl for health checks
 RUN apk add --no-cache dumb-init curl

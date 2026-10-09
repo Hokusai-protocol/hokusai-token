@@ -72,6 +72,19 @@ export interface AlertThresholds {
   ingestionRpcTimeoutMs: number; // Max time to wait for a chain-head sample before treating it as RPC failure
   ingestionStaleBlockMs: number; // Head timestamp older than now - this => stale chain/RPC
   ingestionStuckMs: number; // Head block number not advancing for this long => stuck
+
+  // Primary RPC recovery. The backup is temporary: after a minimum dwell, require several
+  // consecutive current-chain probes before recreating listeners on the primary endpoint.
+  primaryRpcFailbackMinBackupMs: number;
+  primaryRpcFailbackSuccesses: number;
+  primaryRpcFailbackMaxBlockLag: number;
+
+  // Backup RPC failover. The backup has a small quota, so a primary blip is first answered by
+  // reconnecting to the primary; the backup is used only after consecutive heartbeat failures,
+  // only if it survives a burst probe, and not again until a cooldown after it was rejected.
+  backupRpcFailoverConsecutiveErrors: number;
+  backupRpcRejectCooldownMs: number;
+  backupRpcPollingIntervalMs: number; // HTTP filter/block polling interval while on the backup
 }
 
 export interface MonitoringConfig {
@@ -138,6 +151,16 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
   ingestionRpcTimeoutMs: 10 * 1000,
   ingestionStaleBlockMs: 5 * 60 * 1000,
   ingestionStuckMs: 5 * 60 * 1000,
+  primaryRpcFailbackMinBackupMs: 5 * 60 * 1000,
+  primaryRpcFailbackSuccesses: 3,
+  primaryRpcFailbackMaxBlockLag: 3,
+  // Two 60s heartbeats: a sub-minute primary blip heals via reconnect, while a real outage reaches
+  // the backup before ECS exhausts the readiness health check (3 x 30s) and replaces the task.
+  backupRpcFailoverConsecutiveErrors: 2,
+  backupRpcRejectCooldownMs: 15 * 60 * 1000,
+  // ~10 filter subscriptions per pool are polled once per interval; per-block (4s) polling is what
+  // exhausted the backup quota within hours.
+  backupRpcPollingIntervalMs: 60 * 1000,
 };
 
 /**
@@ -334,6 +357,36 @@ export function createMonitoringConfig(): MonitoringConfig {
         process.env.ALERT_INGESTION_STUCK_MS || String(DEFAULT_THRESHOLDS.ingestionStuckMs),
         10,
       ),
+      primaryRpcFailbackMinBackupMs: parseInt(
+        process.env.ALERT_PRIMARY_RPC_FAILBACK_MIN_BACKUP_MS ||
+          String(DEFAULT_THRESHOLDS.primaryRpcFailbackMinBackupMs),
+        10,
+      ),
+      primaryRpcFailbackSuccesses: parseInt(
+        process.env.ALERT_PRIMARY_RPC_FAILBACK_SUCCESSES ||
+          String(DEFAULT_THRESHOLDS.primaryRpcFailbackSuccesses),
+        10,
+      ),
+      primaryRpcFailbackMaxBlockLag: parseInt(
+        process.env.ALERT_PRIMARY_RPC_FAILBACK_MAX_BLOCK_LAG ||
+          String(DEFAULT_THRESHOLDS.primaryRpcFailbackMaxBlockLag),
+        10,
+      ),
+      backupRpcFailoverConsecutiveErrors: parseInt(
+        process.env.ALERT_BACKUP_RPC_FAILOVER_ERRORS ||
+          String(DEFAULT_THRESHOLDS.backupRpcFailoverConsecutiveErrors),
+        10,
+      ),
+      backupRpcRejectCooldownMs: parseInt(
+        process.env.ALERT_BACKUP_RPC_REJECT_COOLDOWN_MS ||
+          String(DEFAULT_THRESHOLDS.backupRpcRejectCooldownMs),
+        10,
+      ),
+      backupRpcPollingIntervalMs: parseInt(
+        process.env.BACKUP_RPC_POLLING_INTERVAL_MS ||
+          String(DEFAULT_THRESHOLDS.backupRpcPollingIntervalMs),
+        10,
+      ),
     },
 
     statePollingIntervalMs: parseInt(process.env.MONITORING_INTERVAL_MS || '300000'), // 5 minutes fallback (was 12s)
@@ -392,6 +445,26 @@ function validateMonitoringConfig(config: MonitoringConfig): void {
     errors.push('State polling interval must be at least 1000ms');
   }
 
+  if (config.thresholds.primaryRpcFailbackMinBackupMs < 0) {
+    errors.push('Primary RPC failback minimum backup duration cannot be negative');
+  }
+
+  if (config.thresholds.primaryRpcFailbackSuccesses < 1) {
+    errors.push('Primary RPC failback must require at least one successful probe');
+  }
+
+  if (config.thresholds.primaryRpcFailbackMaxBlockLag < 0) {
+    errors.push('Primary RPC failback maximum block lag cannot be negative');
+  }
+
+  if (config.thresholds.backupRpcFailoverConsecutiveErrors < 1) {
+    errors.push('Backup RPC failover must require at least one heartbeat failure');
+  }
+
+  if (config.thresholds.backupRpcPollingIntervalMs < 1000) {
+    errors.push('Backup RPC polling interval must be at least 1000ms');
+  }
+
   if (errors.length > 0) {
     throw new Error(`Monitoring configuration validation failed:\n${errors.join('\n')}`);
   }
@@ -407,6 +480,9 @@ Monitoring Configuration
 Network:        ${config.network} (Chain ID: ${config.chainId})
 RPC:            ${config.rpcUrl.substring(0, 50)}...
 Backup RPC:     ${config.backupRpcUrl ? 'Configured' : 'None'}
+RPC Failback:   ${config.thresholds.primaryRpcFailbackSuccesses} healthy probes after ${
+    config.thresholds.primaryRpcFailbackMinBackupMs
+  }ms minimum backup dwell
 
 Contracts:
   ModelRegistry:    ${config.contracts.modelRegistry}

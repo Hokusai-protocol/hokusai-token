@@ -14,8 +14,8 @@ describe('Containerization and Deployment Tests', () => {
       const dockerfileContent = fs.readFileSync(dockerfilePath, 'utf-8');
 
       // Check for multi-stage build
-      expect(dockerfileContent).toContain('FROM node:18-alpine AS builder');
-      expect(dockerfileContent).toContain('FROM node:18-alpine');
+      expect(dockerfileContent).toContain('FROM node:20-alpine AS builder');
+      expect(dockerfileContent).toContain('FROM node:20-alpine');
 
       // Check for security features
       expect(dockerfileContent).toContain('USER nodejs');
@@ -254,7 +254,8 @@ describe('Containerization and Deployment Tests', () => {
       // Check that sensitive values come from SSM
       secrets.forEach((secret: any) => {
         expect(secret.valueFrom).toMatch(/arn:aws:ssm:/);
-        expect(secret.valueFrom).toContain('/hokusai/development/contracts/');
+        // The in-process AMM monitor reads its backup RPC from the shared monitoring namespace.
+        expect(secret.valueFrom).toMatch(/\/hokusai\/development\/(contracts|monitoring)\//);
       });
     });
 

@@ -1,0 +1,323 @@
+{
+  "generatedAt": "2026-10-21T17:49:13.479Z",
+  "chainId": 1,
+  "block": 26242572,
+  "blockHash": "0x7579c410f283f8d1fe44ec6b44c55c06d7c6122b0928432c7e0c41784f3774ee",
+  "blockTimestamp": 1792604903,
+  "rpcHost": "mainnet.gateway.tenderly.co",
+  "pools": [
+    {
+      "symbol": "HMESS",
+      "modelId": "28",
+      "pool": "0xC187ffc6a465247f228a63f00C2515041792A0fA",
+      "token": "0x559028b237ff7d4b019d90250D70c604f4894379",
+      "poolState": {
+        "reserveBalance": "10000000",
+        "usdcBalance": "10000000",
+        "hasGraduated": false,
+        "paused": false,
+        "buyOnlyUntil": "1783545803",
+        "threshold": "25000000000",
+        "flatPrice": "10000",
+        "crr": "300000",
+        "tradeFee": "30",
+        "maxTradeBps": "2000",
+        "owner": "0xC0d2958E54A8FBAf7E0ed054Ff885227804FE3B4",
+        "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+        "purchaserWhitelist": "0x7304dC498D5d7Ef0674891D7260d00Ea3ff37569",
+        "redeemableSupply": "250000000000000000000000",
+        "poolIsMinter": true
+      },
+      "tokenState": {
+        "totalSupply": "2500000000000000000000000",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "maxSupply": "12500000000000000000000000",
+        "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+        "vaultBalance": "2250000000000000000000000",
+        "escrowBalance": "0"
+      },
+      "holders": [
+        {
+          "holder": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+          "balance": "250000000000000000000000",
+          "kind": "expected"
+        },
+        {
+          "holder": "0x69a1A7fF6b765B27a4436EB7AC343b13abE523a5",
+          "balance": "2250000000000000000000000",
+          "kind": "system"
+        }
+      ],
+      "events": {
+        "buys": 0,
+        "buyers": [],
+        "usdcIn": "0",
+        "sells": 0,
+        "sellers": [],
+        "usdcOut": "0",
+        "feeDeposits": 1,
+        "feeDepositors": [
+          "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        ],
+        "feesDeposited": "10000000"
+      }
+    },
+    {
+      "symbol": "HLEAD",
+      "modelId": "27",
+      "pool": "0xa6D4a50496ce6808508e6DCaB19D57845D4e30e4",
+      "token": "0x25618B023c0e65E4daDb21ee04dc010AaE84B1F5",
+      "poolState": {
+        "reserveBalance": "10000000",
+        "usdcBalance": "10000000",
+        "hasGraduated": false,
+        "paused": false,
+        "buyOnlyUntil": "1783545995",
+        "threshold": "25000000000",
+        "flatPrice": "10000",
+        "crr": "100000",
+        "tradeFee": "30",
+        "maxTradeBps": "2000",
+        "owner": "0xC0d2958E54A8FBAf7E0ed054Ff885227804FE3B4",
+        "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+        "purchaserWhitelist": "0x7304dC498D5d7Ef0674891D7260d00Ea3ff37569",
+        "redeemableSupply": "125000000000000000000000",
+        "poolIsMinter": true
+      },
+      "tokenState": {
+        "totalSupply": "1250000000000000000000000",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "maxSupply": "11250000000000000000000000",
+        "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+        "vaultBalance": "1125000000000000000000000",
+        "escrowBalance": "0"
+      },
+      "holders": [
+        {
+          "holder": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+          "balance": "125000000000000000000000",
+          "kind": "expected"
+        },
+        {
+          "holder": "0x69a1A7fF6b765B27a4436EB7AC343b13abE523a5",
+          "balance": "1125000000000000000000000",
+          "kind": "system"
+        }
+      ],
+      "events": {
+        "buys": 0,
+        "buyers": [],
+        "usdcIn": "0",
+        "sells": 0,
+        "sellers": [],
+        "usdcOut": "0",
+        "feeDeposits": 1,
+        "feeDepositors": [
+          "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        ],
+        "feesDeposited": "10000000"
+      }
+    },
+    {
+      "symbol": "HROUT",
+      "modelId": "30",
+      "pool": "0x6C40EF10da0c0Fc87352b0026A49a6769af12816",
+      "token": "0x8866f3262621daBCC973f6D3A4953E7ad9F56D39",
+      "poolState": {
+        "reserveBalance": "874420",
+        "usdcBalance": "874420",
+        "hasGraduated": true,
+        "paused": false,
+        "buyOnlyUntil": "1783546067",
+        "threshold": "25000000000",
+        "flatPrice": "10000",
+        "crr": "200000",
+        "tradeFee": "30",
+        "maxTradeBps": "2000",
+        "owner": "0xC0d2958E54A8FBAf7E0ed054Ff885227804FE3B4",
+        "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+        "purchaserWhitelist": "0x7304dC498D5d7Ef0674891D7260d00Ea3ff37569",
+        "redeemableSupply": "623188009246107941649278",
+        "poolIsMinter": true
+      },
+      "tokenState": {
+        "totalSupply": "2873188009246107941649278",
+        "investorMinted": "373188009246107941649278",
+        "rewardMinted": "0",
+        "maxSupply": "12500000000000000000000000",
+        "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+        "vaultBalance": "2250000000000000000000000",
+        "escrowBalance": "0"
+      },
+      "holders": [
+        {
+          "holder": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+          "balance": "623188009246107941649278",
+          "kind": "expected"
+        },
+        {
+          "holder": "0x69a1A7fF6b765B27a4436EB7AC343b13abE523a5",
+          "balance": "2250000000000000000000000",
+          "kind": "system"
+        }
+      ],
+      "events": {
+        "buys": 13,
+        "buyers": [
+          "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136"
+        ],
+        "usdcIn": "25160000000",
+        "sells": 46,
+        "sellers": [
+          "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136"
+        ],
+        "usdcOut": "25093645580",
+        "feeDeposits": 1,
+        "feeDepositors": [
+          "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        ],
+        "feesDeposited": "10000000"
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "HMESS: tracked reserve == pool USDC balance",
+      "ok": true,
+      "details": "reserve 10.0 usdc 10.0"
+    },
+    {
+      "name": "HMESS: replayed holder balances match balanceOf",
+      "ok": true,
+      "details": "2 transfers"
+    },
+    {
+      "name": "HMESS: holder balances sum to totalSupply",
+      "ok": true,
+      "details": "sum 2500000.0 supply 2500000.0"
+    },
+    {
+      "name": "HMESS: redeemable supply == totalSupply - vesting vault",
+      "ok": true,
+      "details": "250000.0"
+    },
+    {
+      "name": "HMESS: no unexpected liquid holders",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: no reward mints",
+      "ok": true,
+      "details": "0.0"
+    },
+    {
+      "name": "HMESS: escrow holds no claims",
+      "ok": true,
+      "details": "0.0"
+    },
+    {
+      "name": "HMESS: only expected wallets traded",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: USDC flow reconciles",
+      "ok": true,
+      "details": "buys 0.0 sells 0.0 fees 10.0"
+    },
+    {
+      "name": "HLEAD: tracked reserve == pool USDC balance",
+      "ok": true,
+      "details": "reserve 10.0 usdc 10.0"
+    },
+    {
+      "name": "HLEAD: replayed holder balances match balanceOf",
+      "ok": true,
+      "details": "2 transfers"
+    },
+    {
+      "name": "HLEAD: holder balances sum to totalSupply",
+      "ok": true,
+      "details": "sum 1250000.0 supply 1250000.0"
+    },
+    {
+      "name": "HLEAD: redeemable supply == totalSupply - vesting vault",
+      "ok": true,
+      "details": "125000.0"
+    },
+    {
+      "name": "HLEAD: no unexpected liquid holders",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: no reward mints",
+      "ok": true,
+      "details": "0.0"
+    },
+    {
+      "name": "HLEAD: escrow holds no claims",
+      "ok": true,
+      "details": "0.0"
+    },
+    {
+      "name": "HLEAD: only expected wallets traded",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: USDC flow reconciles",
+      "ok": true,
+      "details": "buys 0.0 sells 0.0 fees 10.0"
+    },
+    {
+      "name": "HROUT: tracked reserve == pool USDC balance",
+      "ok": true,
+      "details": "reserve 0.87442 usdc 0.87442"
+    },
+    {
+      "name": "HROUT: replayed holder balances match balanceOf",
+      "ok": true,
+      "details": "107 transfers"
+    },
+    {
+      "name": "HROUT: holder balances sum to totalSupply",
+      "ok": true,
+      "details": "sum 2873188.009246107941649278 supply 2873188.009246107941649278"
+    },
+    {
+      "name": "HROUT: redeemable supply == totalSupply - vesting vault",
+      "ok": true,
+      "details": "623188.009246107941649278"
+    },
+    {
+      "name": "HROUT: no unexpected liquid holders",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: no reward mints",
+      "ok": true,
+      "details": "0.0"
+    },
+    {
+      "name": "HROUT: escrow holds no claims",
+      "ok": true,
+      "details": "0.0"
+    },
+    {
+      "name": "HROUT: only expected wallets traded",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: USDC flow reconciles",
+      "ok": true,
+      "details": "buys 25160.0 sells 25093.64558 fees 10.0"
+    }
+  ],
+  "ok": true
+}

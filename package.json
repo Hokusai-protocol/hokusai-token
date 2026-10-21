@@ -60,6 +60,7 @@
     "echidna:phase": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaAMMPhase --config echidna.config.yaml"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-ledger": "^1.2.2",
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@openzeppelin/contracts": "^4.9.6",
     "@prb/math": "^4.1.0",

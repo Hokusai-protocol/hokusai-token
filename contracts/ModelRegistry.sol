@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/IModelRegistry.sol";
 
 interface IStringModelTokenManager {
     function getTokenAddress(string memory modelId) external view returns (address);
@@ -10,9 +11,11 @@ interface IStringModelTokenManager {
 
 /**
  * @title ModelRegistry
- * @dev Registry contract to map model IDs to their corresponding token addresses and performance metrics
+ * @dev Registry contract to map model IDs to their corresponding token addresses and performance metrics.
+ * IModelRegistry is the canonical API; the deprecated aliases below delegate to it
+ * so the two can never diverge.
  */
-contract ModelRegistry is Ownable {
+contract ModelRegistry is Ownable, IModelRegistry {
     struct ModelInfo {
         address tokenAddress;
         string performanceMetric;
@@ -196,21 +199,18 @@ contract ModelRegistry is Ownable {
     }
 
     /**
+     * @dev Deprecated alias of getTokenAddress, kept for older integrations.
+     */
+    function getToken(uint256 modelId) external view returns (address) {
+        return getTokenAddress(modelId);
+    }
+
+    /**
      * @dev Gets the token address for a given model ID
      * @param modelId The model identifier
      * @return The token address for the model
      */
-    function getToken(uint256 modelId) external view returns (address) {
-        require(isModelRegistered[modelId], "Model not registered");
-        return models[modelId].tokenAddress;
-    }
-
-    /**
-     * @dev Gets the token address for a given model ID (alternative name)
-     * @param modelId The model identifier
-     * @return The token address for the model
-     */
-    function getTokenAddress(uint256 modelId) external view returns (address) {
+    function getTokenAddress(uint256 modelId) public view returns (address) {
         require(isModelRegistered[modelId], "Model not registered");
         return models[modelId].tokenAddress;
     }
@@ -250,17 +250,15 @@ contract ModelRegistry is Ownable {
      * @param modelId The model identifier to check
      * @return True if the model is registered, false otherwise
      */
-    function isRegistered(uint256 modelId) external view returns (bool) {
+    function isRegistered(uint256 modelId) public view returns (bool) {
         return isModelRegistered[modelId];
     }
 
     /**
-     * @dev Checks if a model exists (alias for isRegistered)
-     * @param modelId The model identifier to check
-     * @return True if the model exists, false otherwise
+     * @dev Deprecated alias of isRegistered, kept for older integrations.
      */
     function exists(uint256 modelId) external view returns (bool) {
-        return isModelRegistered[modelId];
+        return isRegistered(modelId);
     }
 
     /**
@@ -268,17 +266,15 @@ contract ModelRegistry is Ownable {
      * @param modelId The model identifier to check
      * @return True if the model is registered and active
      */
-    function isActive(uint256 modelId) external view returns (bool) {
+    function isActive(uint256 modelId) public view returns (bool) {
         return isModelRegistered[modelId] && models[modelId].active;
     }
 
     /**
-     * @dev Checks if a numeric model is active
-     * @param modelId The model identifier to check
-     * @return True if the model is registered and active
+     * @dev Deprecated alias of isActive, kept for older integrations.
      */
     function isModelActive(uint256 modelId) external view returns (bool) {
-        return isModelRegistered[modelId] && models[modelId].active;
+        return isActive(modelId);
     }
 
     // ============================================================
@@ -384,15 +380,11 @@ contract ModelRegistry is Ownable {
     }
 
     /**
-     * @dev Compatibility getter retained for older integrations that read the
-     * former public `isStringModelRegistered` mapping directly.
+     * @dev Deprecated alias of isStringRegistered, retained for older
+     * integrations that read the former public `isStringModelRegistered` mapping.
      */
     function isStringModelRegistered(string memory modelId) external view returns (bool) {
-        if (!_isCanonicalStringModelId(modelId)) {
-            return false;
-        }
-
-        return isModelRegistered[_parseModelId(modelId)];
+        return isStringRegistered(modelId);
     }
 
     /**
@@ -400,7 +392,7 @@ contract ModelRegistry is Ownable {
      * @param modelId The model identifier to check
      * @return True if the model is registered, false otherwise
      */
-    function isStringRegistered(string memory modelId) external view returns (bool) {
+    function isStringRegistered(string memory modelId) public view returns (bool) {
         if (!_isCanonicalStringModelId(modelId)) {
             return false;
         }
@@ -441,7 +433,7 @@ contract ModelRegistry is Ownable {
      * @param modelId The model identifier to check
      * @return True if the model is registered and active
      */
-    function isStringActive(string memory modelId) external view returns (bool) {
+    function isStringActive(string memory modelId) public view returns (bool) {
         if (!_isCanonicalStringModelId(modelId)) {
             return false;
         }
@@ -451,17 +443,10 @@ contract ModelRegistry is Ownable {
     }
 
     /**
-     * @dev Checks if a string model is active
-     * @param modelId The model identifier to check
-     * @return True if the model is registered and active
+     * @dev Deprecated alias of isStringActive, kept for older integrations.
      */
     function isModelActive(string memory modelId) external view returns (bool) {
-        if (!_isCanonicalStringModelId(modelId)) {
-            return false;
-        }
-
-        uint256 numericModelId = _parseModelId(modelId);
-        return isModelRegistered[numericModelId] && models[numericModelId].active;
+        return isStringActive(modelId);
     }
 
     // ============================================================

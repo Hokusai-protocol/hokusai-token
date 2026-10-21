@@ -171,7 +171,7 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         ValidationLib.requirePositiveAmount(amount, "amount");
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         require(factory.hasPool(modelId), "Pool does not exist");
-        require(factory.modelRegistry().isModelActive(modelId), "Model is deactivated");
+        require(factory.modelRegistry().isStringActive(modelId), "Model is deactivated");
 
         address poolAddress = factory.getPool(modelId);
         ValidationLib.requireNonZeroAddress(poolAddress, "pool address");
@@ -246,7 +246,7 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
             ValidationLib.requirePositiveAmount(amounts[i], "amount");
             ValidationLib.requireNonEmptyString(modelIds[i], "model ID");
             require(factory.hasPool(modelIds[i]), "Pool does not exist");
-            require(factory.modelRegistry().isModelActive(modelIds[i]), "Model is deactivated");
+            require(factory.modelRegistry().isStringActive(modelIds[i]), "Model is deactivated");
             totalAmount += amounts[i];
         }
 

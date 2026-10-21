@@ -7,7 +7,7 @@ import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
 import "./HokusaiAMMFactory.sol";
 import "./TokenManager.sol";
-import "./ModelRegistry.sol";
+import "./interfaces/IModelRegistry.sol";
 
 /**
  * @title FundingVault
@@ -34,7 +34,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
     IERC20 public immutable usdc;
     HokusaiAMMFactory public immutable ammFactory;
     TokenManager public immutable tokenManager;
-    ModelRegistry public immutable modelRegistry;
+    IModelRegistry public immutable modelRegistry;
 
     bytes32 public constant GRADUATOR_ROLE = keccak256("GRADUATOR_ROLE");
 
@@ -157,7 +157,7 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
         usdc = IERC20(_usdc);
         ammFactory = HokusaiAMMFactory(_ammFactory);
         tokenManager = TokenManager(_tokenManager);
-        modelRegistry = ModelRegistry(_modelRegistry);
+        modelRegistry = IModelRegistry(_modelRegistry);
 
         // Grant GRADUATOR_ROLE to admin initially
         _grantRole(GRADUATOR_ROLE, _admin);

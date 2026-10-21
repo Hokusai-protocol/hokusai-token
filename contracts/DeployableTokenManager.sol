@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
-import "./ModelRegistry.sol";
+import "./interfaces/IModelRegistry.sol";
 import "./interfaces/IHokusaiParams.sol";
 import "./interfaces/IManagedHokusaiToken.sol";
 import "./interfaces/IRewardVestingVault.sol";
@@ -19,7 +19,7 @@ import "./libraries/RewardSplitLib.sol";
  * contract stays below the EIP-170 runtime bytecode limit.
  */
 contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
-    ModelRegistry public registry;
+    IModelRegistry public registry;
     ITokenDeploymentFactory public tokenDeploymentFactory;
     address public deltaVerifier;
     IRewardVestingVault public vestingVault;
@@ -106,7 +106,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         ValidationLib.requireNonZeroAddress(registryAddress, "registry address");
         ValidationLib.requireNonZeroAddress(tokenDeploymentFactoryAddress, "token deployment factory");
 
-        registry = ModelRegistry(registryAddress);
+        registry = IModelRegistry(registryAddress);
         tokenDeploymentFactory = ITokenDeploymentFactory(tokenDeploymentFactoryAddress);
         feeRecipient = msg.sender;
 
@@ -334,7 +334,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
         require(
-            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            !registry.isStringRegistered(modelId) || registry.isStringActive(modelId),
             "Model is deactivated"
         );
 
@@ -357,7 +357,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
         require(
-            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            !registry.isStringRegistered(modelId) || registry.isStringActive(modelId),
             "Model is deactivated"
         );
 
@@ -390,7 +390,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
         require(
-            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            !registry.isStringRegistered(modelId) || registry.isStringActive(modelId),
             "Model is deactivated"
         );
 
@@ -413,7 +413,7 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         address tokenAddress = modelTokens[modelId];
         require(tokenAddress != address(0), "Token not deployed for this model");
         require(
-            !registry.isStringModelRegistered(modelId) || registry.isStringActive(modelId),
+            !registry.isStringRegistered(modelId) || registry.isStringActive(modelId),
             "Model is deactivated"
         );
 

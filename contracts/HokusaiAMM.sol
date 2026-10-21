@@ -343,7 +343,10 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @param reserveIn Amount of USDC to deposit
      * @return tokensOut Tokens to be minted
      *
-     * Handles three cases:
+     * Graduation is permanent: once hasGraduated is set, every buy is priced on
+     * the bonding curve from the actual reserve and supply, even if sells have
+     * taken the reserve back below the threshold. Before graduation there are
+     * three cases:
      * 1. Entirely in flat price phase
      * 2. Entirely in bonding curve phase
      * 3. Trade crosses threshold (hybrid calculation)
@@ -352,6 +355,11 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         if (reserveIn == 0) return 0;
 
         uint256 supply = _redeemableSupply();
+
+        if (hasGraduated) {
+            return _calculateBondingCurveTokens(reserveIn, reserveBalance, supply);
+        }
+
         uint256 futureReserve = reserveBalance + reserveIn;
 
         // Case 1: Entirely in flat price phase
@@ -388,7 +396,8 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @param tokensIn Amount of tokens to sell
      * @return reserveOut USDC to be returned
      *
-     * Uses flat price during flat phase, bonding curve formula otherwise
+     * Uses flat price before graduation, bonding curve formula once graduated
+     * (permanently, regardless of later reserve level)
      */
     function getSellQuote(uint256 tokensIn) public view returns (uint256 reserveOut) {
         if (tokensIn == 0) return 0;
@@ -398,7 +407,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         if (reserveBalance == 0) return 0;
 
         // If we're in flat price phase, use flat pricing
-        if (reserveBalance < FLAT_CURVE_THRESHOLD) {
+        if (getCurrentPhase() == PricingPhase.FLAT_PRICE) {
             // Selling at fixed price (fee applied in sell() function)
             reserveOut = (tokensIn * FLAT_CURVE_PRICE) / 1e18;
             return reserveOut;
@@ -417,19 +426,22 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @dev Get current spot price from redeemable circulating supply
      * @return Current price in USDC per token (6 decimals)
      *
-     * Returns flat price during flat phase, bonding curve formula otherwise
+     * Returns flat price before graduation, bonding curve formula once graduated
+     * (permanently, regardless of later reserve level)
      */
     function spotPrice() public view returns (uint256) {
         uint256 supply = _redeemableSupply();
 
         // During flat price phase, return fixed price
-        if (reserveBalance < FLAT_CURVE_THRESHOLD) {
+        if (getCurrentPhase() == PricingPhase.FLAT_PRICE) {
             return FLAT_CURVE_PRICE;
         }
 
-        // After threshold, use bonding curve formula
+        // No curve price exists without supply (e.g. a pool graduated by
+        // depositFees before any redeemable tokens exist): report the launch
+        // price, matching _calculateBondingCurveTokens' bootstrap pricing.
         if (supply == 0 || reserveBalance == 0) {
-            return FLAT_CURVE_PRICE; // Default to flat price
+            return FLAT_CURVE_PRICE;
         }
 
         // P = R / (w × S)
@@ -791,7 +803,11 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         uint256 currentSupply
     ) internal view returns (uint256) {
         if (currentReserve == 0 || currentSupply == 0) {
-            // Safety fallback to flat pricing
+            // Bootstrap: no curve price exists without supply, so the first
+            // tokens of a graduated pool with zero redeemable supply (seeded by
+            // depositFees) are sold at the launch price. This is the only way
+            // flat pricing applies after graduation; with any redeemable supply
+            // the curve is used regardless of reserve level.
             return _calculateFlatPriceTokens(reserveIn);
         }
 

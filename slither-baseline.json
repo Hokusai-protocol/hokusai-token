@@ -1296,6 +1296,34 @@
       "justification": "HokusaiAMM withdrawTreasury is owner-gated and unchanged by HOK-3300; the new ID is baseline drift from line shifts. The only theoretical risk remains event ordering after a successful treasury transfer.",
       "reviewedBy": "claude",
       "followUp": "HOK-3300"
+    },
+    {
+      "id": "bda98084b0b38c45d869f7c090d92f1c6566486c7c9a56f5b66ae280a1b4b5f3",
+      "check": "reentrancy-no-eth",
+      "justification": "HokusaiAMM buy is nonReentrant and its logic is unchanged by HOK-3281; the new ID is baseline drift from the upgradeable refactor (initializer, storage gap, former immutables now in storage). Reserve accounting is still updated before the TokenManager mint.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3281"
+    },
+    {
+      "id": "dd03e85a513d7a97aa02263f9fbc5106c935e4aeeeafc1cf3dbf1458d136a3e7",
+      "check": "reentrancy-benign",
+      "justification": "HokusaiAMM depositFees is nonReentrant and unchanged by HOK-3281; the new ID is baseline drift from line shifts in the upgradeable refactor.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3281"
+    },
+    {
+      "id": "7c983095b7595d3d3799425d2f77d0205ca8fb5d7ff0930a2e18cb7a740bf5f2",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMM withdrawTreasury is owner-gated and unchanged by HOK-3281; the new ID is baseline drift from line shifts. The only theoretical risk remains event ordering after a successful treasury transfer.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3281"
+    },
+    {
+      "id": "8f113f878a0f5e5b5bb4ee4995632ec2926a8392b2bb3c1b276dedaa5e778ffd",
+      "check": "reentrancy-events",
+      "justification": "Same pattern previously accepted as 29bb9fed (HOK-1846): HokusaiAMMPoolDeployer.deployPool now creates a TransparentUpgradeableProxy over its own implementation (initialized in the proxy constructor) instead of `new HokusaiAMM`, transfers pool ownership to the factory, then emits. All calls target contracts it just created; the detector flags only event ordering. onlyFactory still gates the function.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3281"
     }
   ]
 }

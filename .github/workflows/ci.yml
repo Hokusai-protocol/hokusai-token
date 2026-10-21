@@ -31,6 +31,8 @@ jobs:
 
       - run: npx hardhat compile
 
+      - run: npm run validate:upgrades
+
       - run: npx hardhat test
 
   contract-deployer:

@@ -7,6 +7,7 @@
     "conformance:check": "node scripts/generate-mint-request-known-answer.js --check",
     "slither": "node scripts/slither-gate.js",
     "slither:report": "node scripts/slither-gate.js --report",
+    "validate:upgrades": "hardhat run scripts/validate-upgrades.js",
     "echidna:sanity": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaSanity --config echidna.config.yaml",
     "echidna:token": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaHokusaiToken --config echidna.config.yaml",
     "echidna:manager": "docker run --rm --platform linux/amd64 --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD:/code\" -w /code ghcr.io/crytic/echidna/echidna:v2.2.4 echidna . --contract EchidnaTokenManager --config echidna.config.yaml",
@@ -63,6 +64,8 @@
     "@nomicfoundation/hardhat-ledger": "^1.2.2",
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@openzeppelin/contracts": "^4.9.6",
+    "@openzeppelin/contracts-upgradeable": "^4.9.6",
+    "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@prb/math": "^4.1.0",
     "dotenv": "^16.5.0",
     "hardhat": "^2.24.2"

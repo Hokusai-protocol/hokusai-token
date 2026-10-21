@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("Phase 5: Reserve Accounting Invariants", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -41,7 +42,7 @@ describe("Phase 5: Reserve Accounting Invariants", function () {
 
         // Deploy AMM
         const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-        hokusaiAMM = await HokusaiAMM.deploy(
+        hokusaiAMM = await deployAMMProxy(HokusaiAMM,
             await mockUSDC.getAddress(),
             await hokusaiToken.getAddress(),
             await tokenManager.getAddress(),

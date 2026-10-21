@@ -1,5 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("@nomicfoundation/hardhat-ledger");
+require("@openzeppelin/hardhat-upgrades");
 
 // Network-aware env loading: when targeting mainnet (--network mainnet or
 // HARDHAT_NETWORK=mainnet) load .env.mainnet so MAINNET_RPC_URL / ETHERSCAN_API_KEY /

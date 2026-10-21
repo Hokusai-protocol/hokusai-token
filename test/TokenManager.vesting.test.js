@@ -8,6 +8,7 @@ const {
   buildInitialParams,
   buildVestingConfig,
 } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("TokenManager Vesting", function () {
   let tokenManager;
@@ -54,7 +55,7 @@ describe("TokenManager Vesting", function () {
     await mockUsdc.waitForDeployment();
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    const amm = await HokusaiAMM.deploy(
+    const amm = await deployAMMProxy(HokusaiAMM,
       await mockUsdc.getAddress(),
       tokenAddress,
       await tokenManager.getAddress(),

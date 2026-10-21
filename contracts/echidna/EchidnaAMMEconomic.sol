@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../HokusaiAMM.sol";
 import "../HokusaiToken.sol";
 import "../ModelRegistry.sol";
@@ -90,18 +91,22 @@ contract EchidnaAMMEconomic {
 
         _deployModel();
         token = HokusaiToken(manager.getTokenAddress(MODEL_ID));
-        amm = new HokusaiAMM(
-            address(usdc),
-            address(token),
-            payable(address(manager)),
-            MODEL_ID,
-            address(this),
-            200_000,
-            30,
-            0,
-            FLAT_THRESHOLD,
-            FLAT_PRICE
-        );
+        // Pools run behind proxies; ERC1967Proxy is enough for the harness.
+        amm = HokusaiAMM(address(new ERC1967Proxy(
+            address(new HokusaiAMM()),
+            abi.encodeCall(HokusaiAMM.initialize, (
+                address(usdc),
+                address(token),
+                payable(address(manager)),
+                MODEL_ID,
+                address(this),
+                200_000,
+                30,
+                0,
+                FLAT_THRESHOLD,
+                FLAT_PRICE
+            ))
+        )));
 
         victim = new EchidnaVictim(amm, IERC20(address(usdc)), IERC20(address(token)));
 

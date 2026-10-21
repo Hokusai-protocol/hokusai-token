@@ -2,9 +2,10 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "./TokenManager.sol";
 import "./interfaces/IPurchaserWhitelist.sol";
 import "./libraries/ValidationLib.sol";
@@ -32,17 +33,23 @@ import "./libraries/BondingCurveMath.sol";
  *   E = USDC deposited
  *   F = USDC returned
  *   w = CRR (reserve ratio)
+ *
+ * Upgradeability: each pool is a TransparentUpgradeableProxy over a shared
+ * implementation, so fixes keep the pool address and state. Configuration that
+ * was immutable (tokens, TokenManager, flat-phase threshold and price) is set
+ * once in initialize() and has no setters. Append new state only, and shrink
+ * __gap by the same number of slots.
  */
-contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
+contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable {
     error NotWhitelisted(address buyer);
 
     // ============================================================
     // STATE VARIABLES
     // ============================================================
 
-    IERC20 public immutable reserveToken; // USDC
-    address public immutable hokusaiToken; // Model's token
-    TokenManager public immutable tokenManager; // For mint/burn delegation
+    IERC20 public reserveToken; // USDC (set once in initialize)
+    address public hokusaiToken; // Model's token (set once in initialize)
+    TokenManager public tokenManager; // For mint/burn delegation (set once in initialize)
     string public modelId; // String model ID
     address public treasury; // Fee recipient
 
@@ -53,9 +60,9 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     uint256 public maxTradeBps; // Maximum trade size as % of reserve in bps, default 2000 = 20%
     IPurchaserWhitelist public purchaserWhitelist;
 
-    // Two-phase pricing parameters (immutable)
-    uint256 public immutable FLAT_CURVE_THRESHOLD; // Reserve amount where bonding curve activates (6 decimals)
-    uint256 public immutable FLAT_CURVE_PRICE;     // Fixed price during flat period (6 decimals)
+    // Two-phase pricing parameters (set once in initialize, no setters)
+    uint256 public FLAT_CURVE_THRESHOLD; // Reserve amount where bonding curve activates (6 decimals)
+    uint256 public FLAT_CURVE_PRICE;     // Fixed price during flat period (6 decimals)
 
     // Graduation flag - once true, permanently in bonding curve phase
     bool public hasGraduated;
@@ -64,6 +71,9 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     // greater of this and maxTradeBps of the reserve, so small pools can still
     // take or release meaningful liquidity in one trade.
     uint256 public minTradeCap;
+
+    // Reserved slots for state added by future implementations (15 used above).
+    uint256[35] private __gap;
 
     // Constants
     uint256 public constant PRECISION = 1e18; // Fixed-point precision
@@ -137,11 +147,16 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     event PurchaserWhitelistUpdated(address indexed oldWhitelist, address indexed newWhitelist);
 
     // ============================================================
-    // CONSTRUCTOR
+    // INITIALIZATION
     // ============================================================
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
-     * @dev Initialize the AMM pool with two-phase pricing
+     * @dev Initialize the AMM pool with two-phase pricing. The caller becomes owner.
      * @param _reserveToken USDC token address
      * @param _hokusaiToken Hokusai token address
      * @param _tokenManager TokenManager contract address
@@ -153,7 +168,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
      * @param _flatCurveThreshold Reserve amount where bonding curve activates (6 decimals)
      * @param _flatCurvePrice Fixed price per token during flat period (6 decimals)
      */
-    constructor(
+    function initialize(
         address _reserveToken,
         address _hokusaiToken,
         address payable _tokenManager,
@@ -164,7 +179,11 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         uint256 _ibrDuration,
         uint256 _flatCurveThreshold,
         uint256 _flatCurvePrice
-    ) Ownable() {
+    ) external initializer {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
+
         // Use ValidationLib for cleaner validation
         ValidationLib.requireNonZeroAddress(_reserveToken, "reserve token");
         ValidationLib.requireNonZeroAddress(_hokusaiToken, "Hokusai token");
@@ -670,6 +689,11 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     // ============================================================
     // GOVERNANCE
     // ============================================================
+
+    // Economic setters (setParameters, setMaxTradeBps, setMinTradeCap) are kept
+    // unchanged by the proxy refactor. Pools are owned by HokusaiAMMFactory,
+    // which forwards only whitelist and pause calls, so these remain unreachable
+    // in production until pool ownership is deliberately moved to governance.
 
     /**
      * @dev Update AMM parameters

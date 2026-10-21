@@ -4,6 +4,7 @@ const { parseEther, parseUnits, MaxUint256 } = require("ethers");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
 const { deployFactoryWithPoolDeployer } = require("./helpers/factoryDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("HokusaiAMM Purchaser Whitelist Integration", function () {
   let modelRegistry;
@@ -160,7 +161,7 @@ describe("HokusaiAMM Purchaser Whitelist Integration", function () {
     await newWhitelist.waitForDeployment();
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    const standalonePool = await HokusaiAMM.deploy(
+    const standalonePool = await deployAMMProxy(HokusaiAMM,
       await mockUSDC.getAddress(),
       await token.getAddress(),
       await tokenManager.getAddress(),

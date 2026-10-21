@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 // HOK-3270: graduation to bonding-curve pricing is permanent. Once hasGraduated
 // is set, getBuyQuote/getSellQuote/spotPrice must keep using the curve even after
@@ -38,7 +39,7 @@ describe("HokusaiAMM permanent graduation pricing", function () {
     const usdc = await (await ethers.getContractFactory("MockUSDC")).deploy();
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    const amm = await HokusaiAMM.deploy(
+    const amm = await deployAMMProxy(HokusaiAMM,
       await usdc.getAddress(),
       await token.getAddress(),
       await tokenManager.getAddress(),

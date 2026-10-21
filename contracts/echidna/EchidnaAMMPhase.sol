@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../HokusaiAMM.sol";
 import "../HokusaiToken.sol";
 import "../ModelRegistry.sol";
@@ -51,18 +52,22 @@ contract EchidnaAMMPhase {
 
         _deployModel();
         token = HokusaiToken(manager.getTokenAddress(MODEL_ID));
-        amm = new HokusaiAMM(
-            address(usdc),
-            address(token),
-            payable(address(manager)),
-            MODEL_ID,
-            address(this),
-            200_000,
-            30,
-            IBR_DURATION,
-            FLAT_THRESHOLD,
-            FLAT_PRICE
-        );
+        // Pools run behind proxies; ERC1967Proxy is enough for the harness.
+        amm = HokusaiAMM(address(new ERC1967Proxy(
+            address(new HokusaiAMM()),
+            abi.encodeCall(HokusaiAMM.initialize, (
+                address(usdc),
+                address(token),
+                payable(address(manager)),
+                MODEL_ID,
+                address(this),
+                200_000,
+                30,
+                IBR_DURATION,
+                FLAT_THRESHOLD,
+                FLAT_PRICE
+            ))
+        )));
 
         manager.authorizeAMM(address(amm));
         usdc.mint(address(this), 50_000_000e6);

@@ -1,5 +1,5 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, upgrades } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 
 const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
@@ -108,6 +108,34 @@ describe("HokusaiAMMPoolDeployer", function () {
 
     const pool = await ethers.getContractAt("HokusaiAMM", poolAddress);
     expect(await pool.owner()).to.equal(await factory.getAddress());
+  });
+
+  it("deploys pools as proxies over one implementation, administered by a factory-owned ProxyAdmin", async function () {
+    const poolAddress = await factory.createPool.staticCall(MODEL_ID, tokenAddress);
+    await factory.createPool(MODEL_ID, tokenAddress);
+
+    const implementation = await poolDeployer.implementation();
+    const proxyAdmin = await ethers.getContractAt("ProxyAdmin", await poolDeployer.proxyAdmin());
+    expect(await upgrades.erc1967.getImplementationAddress(poolAddress)).to.equal(implementation);
+    expect(await upgrades.erc1967.getAdminAddress(poolAddress)).to.equal(await proxyAdmin.getAddress());
+    expect(await proxyAdmin.owner()).to.equal(await factory.getAddress());
+
+    // The shared implementation cannot be initialized directly.
+    const impl = await ethers.getContractAt("HokusaiAMM", implementation);
+    await expect(
+      impl.initialize(
+        await mockUSDC.getAddress(),
+        tokenAddress,
+        await tokenManager.getAddress(),
+        MODEL_ID,
+        treasury.address,
+        200000,
+        30,
+        0,
+        FLAT_CURVE_THRESHOLD,
+        FLAT_CURVE_PRICE
+      )
+    ).to.be.revertedWith("Initializable: contract is already initialized");
   });
 
   it("rejects a second pool deployer configuration", async function () {

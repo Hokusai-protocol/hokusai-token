@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { buildInitialParams } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("Slither remediations", function () {
   let owner;
@@ -142,7 +143,7 @@ describe("Slither remediations", function () {
     await tokenManager.setRedeemableSupply(parseEther("1000000"));
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    const amm = await HokusaiAMM.deploy(
+    const amm = await deployAMMProxy(HokusaiAMM,
       await reserveToken.getAddress(),
       await hokusaiToken.getAddress(),
       await tokenManager.getAddress(),

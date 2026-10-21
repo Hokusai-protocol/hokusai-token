@@ -1275,6 +1275,27 @@
       "justification": "HokusaiAMM withdrawTreasury is owner-gated and unchanged by HOK-3270; the new ID is baseline drift from line shifts. The only theoretical risk remains event ordering after a successful treasury transfer.",
       "reviewedBy": "claude",
       "followUp": "HOK-3270"
+    },
+    {
+      "id": "625a85972e8b336e3c0fb5e0c3d30bd65bd61d5a93952067bd3bc99462d8db4a",
+      "check": "reentrancy-no-eth",
+      "justification": "HokusaiAMM buy is nonReentrant; HOK-3300 only changes its size check to the view maxTradeSize() (greater of maxTradeBps of reserve and minTradeCap). The new ID is baseline drift. Reserve accounting is still updated before the TokenManager mint.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3300"
+    },
+    {
+      "id": "d16c94278b161adde2d27219fccef465424c2c76633c9eda250fb3ecf21aeabf",
+      "check": "reentrancy-benign",
+      "justification": "HokusaiAMM depositFees is nonReentrant and unchanged by HOK-3300; the new ID is baseline drift from line shifts (minTradeCap storage/setter added above it).",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3300"
+    },
+    {
+      "id": "f98a08d8c2d641c77903bd41a2e82ea6cb809a7068bd293af75585bb17c6eb0f",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMM withdrawTreasury is owner-gated and unchanged by HOK-3300; the new ID is baseline drift from line shifts. The only theoretical risk remains event ordering after a successful treasury transfer.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3300"
     }
   ]
 }

@@ -244,8 +244,7 @@ describe("HokusaiAMM permanent graduation pricing", function () {
       await graduateAndDipBelow(ctx);
       await expectCurvePricing(ctx);
 
-      const { reserve } = await state(ctx);
-      const tooBig = (reserve * 2000n) / 10000n + 1n;
+      const tooBig = (await ctx.amm.maxTradeSize()) + 1n;
       await expect(ctx.amm.connect(buyer).buy(tooBig, 0, buyer.address, DEADLINE))
         .to.be.revertedWith("Trade exceeds max size limit");
 

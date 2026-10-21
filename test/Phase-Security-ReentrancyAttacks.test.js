@@ -390,8 +390,9 @@ describe("Phase 4: Reentrancy Attack Security", function () {
         });
 
         it("Should combine ReentrancyGuard with trade size limits", async function () {
-            // Set trade size limit
+            // Set trade size limit (percentage only; absolute floor tested separately)
             await hokusaiAMM.setMaxTradeBps(2000); // 20%
+            await hokusaiAMM.setMinTradeCap(0);
 
             const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
             const currentReserve = await hokusaiAMM.reserveBalance();

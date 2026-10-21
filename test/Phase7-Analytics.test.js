@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("Phase 7: Analytics & View Functions", function () {
     let modelRegistry;
@@ -47,7 +48,7 @@ describe("Phase 7: Analytics & View Functions", function () {
 
         // Deploy AMM
         const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-        hokusaiAMM = await HokusaiAMM.deploy(
+        hokusaiAMM = await deployAMMProxy(HokusaiAMM,
             await mockUSDC.getAddress(),
             await hokusaiToken.getAddress(),
             await tokenManager.getAddress(),
@@ -468,43 +469,43 @@ describe("Phase 7: Analytics & View Functions", function () {
             const tx = await hokusaiAMM.getPoolState.estimateGas();
             // View functions with external calls use more gas than pure storage reads.
             // spotPrice() reads the hasGraduated latch (HOK-3270): one extra cold SLOAD.
-            expect(tx).to.be.lt(52000); // Reasonable for multi-value view
+            expect(tx).to.be.lt(64000); // Reasonable for multi-value view (HOK-3281: proxy delegatecall + former immutables now in storage)
             console.log("        getPoolState gas:", tx.toString());
         });
 
         it("Should consume reasonable gas for getTradeInfo", async function () {
             const tx = await hokusaiAMM.getTradeInfo.estimateGas();
-            expect(tx).to.be.lt(30000);
+            expect(tx).to.be.lt(36000); //(HOK-3281: proxy delegatecall + former immutables now in storage)
             console.log("        getTradeInfo gas:", tx.toString());
         });
 
         it("Should consume reasonable gas for calculateBuyImpact", async function () {
             const tx = await hokusaiAMM.calculateBuyImpact.estimateGas(parseUnits("1000", 6));
-            expect(tx).to.be.lt(70000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
+            expect(tx).to.be.lt(78000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage)
             console.log("        calculateBuyImpact gas:", tx.toString());
         });
 
         it("Should consume reasonable gas for calculateSellImpact", async function () {
             const tx = await hokusaiAMM.calculateSellImpact.estimateGas(parseEther("1000"));
-            expect(tx).to.be.lt(70000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
+            expect(tx).to.be.lt(78000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage)
             console.log("        calculateSellImpact gas:", tx.toString());
         });
 
         it("Should consume reasonable gas for spotPrice", async function () {
             const tx = await hokusaiAMM.spotPrice.estimateGas();
-            expect(tx).to.be.lt(45000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
+            expect(tx).to.be.lt(58000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage)
             console.log("        spotPrice gas:", tx.toString());
         });
 
         it("Should consume reasonable gas for isSellEnabled", async function () {
             const tx = await hokusaiAMM.isSellEnabled.estimateGas();
-            expect(tx).to.be.lt(25000);
+            expect(tx).to.be.lt(34000); //(HOK-3281: proxy delegatecall + former immutables now in storage)
             console.log("        isSellEnabled gas:", tx.toString());
         });
 
         it("Should consume reasonable gas for getReserves", async function () {
             const tx = await hokusaiAMM.getReserves.estimateGas();
-            expect(tx).to.be.lt(45000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
+            expect(tx).to.be.lt(53000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage)
             console.log("        getReserves gas:", tx.toString());
         });
     });

@@ -7,6 +7,7 @@ const {
   buildInitialParams,
   buildVestingConfig,
 } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("HokusaiAMM redeemable supply pricing", function () {
   let owner;
@@ -54,7 +55,7 @@ describe("HokusaiAMM redeemable supply pricing", function () {
     await usdc.waitForDeployment();
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    const amm = await HokusaiAMM.deploy(
+    const amm = await deployAMMProxy(HokusaiAMM,
       await usdc.getAddress(),
       tokenAddress,
       await tokenManager.getAddress(),
@@ -119,7 +120,7 @@ describe("HokusaiAMM redeemable supply pricing", function () {
     await usdc.waitForDeployment();
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    const amm = await HokusaiAMM.deploy(
+    const amm = await deployAMMProxy(HokusaiAMM,
       await usdc.getAddress(),
       tokenAddress,
       await tokenManager.getAddress(),

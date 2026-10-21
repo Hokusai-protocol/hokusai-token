@@ -3,6 +3,7 @@ const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { parseEther, parseUnits } = require("ethers");
 const { buildInitialParams, buildVestingConfig } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 // Scenario-specific separated-accounting regression coverage now lives in
 // test/AllocationAccountingSeparation.regression.test.js.
@@ -57,7 +58,7 @@ describe("Investor allocation separation", function () {
     await usdc.waitForDeployment();
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    amm = await HokusaiAMM.deploy(
+    amm = await deployAMMProxy(HokusaiAMM,
       await usdc.getAddress(),
       tokenAddress,
       await tokenManager.getAddress(),

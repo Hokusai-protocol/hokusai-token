@@ -16,6 +16,7 @@ const {
   configureLineageGenesis,
   payloadForNextLink,
 } = require("./helpers/mintRequest");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("Allocation accounting separation regression", function () {
   const MODEL_ID_STR = "1101783";
@@ -111,7 +112,7 @@ describe("Allocation accounting separation regression", function () {
     await usdc.waitForDeployment();
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    const amm = await HokusaiAMM.deploy(
+    const amm = await deployAMMProxy(HokusaiAMM,
       await usdc.getAddress(),
       tokenAddress,
       await tokenManager.getAddress(),

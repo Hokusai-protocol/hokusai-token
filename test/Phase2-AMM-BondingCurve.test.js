@@ -3,6 +3,7 @@ const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress, MaxUint256 } = require("ethers");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("Phase 2: Core AMM Bonding Curve", function () {
   let hokusaiAMM;
@@ -46,7 +47,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
 
     // Deploy HokusaiAMM
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    hokusaiAMM = await HokusaiAMM.deploy(
+    hokusaiAMM = await deployAMMProxy(HokusaiAMM,
       await mockUSDC.getAddress(),
       await hokusaiToken.getAddress(),
       await tokenManager.getAddress(),
@@ -116,7 +117,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
 
       // Invalid reserve token
       await expect(
-        HokusaiAMM.deploy(
+        deployAMMProxy(HokusaiAMM,
           ZeroAddress,
           await hokusaiToken.getAddress(),
           await tokenManager.getAddress(),
@@ -132,7 +133,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
 
       // CRR too low
       await expect(
-        HokusaiAMM.deploy(
+        deployAMMProxy(HokusaiAMM,
           await mockUSDC.getAddress(),
           await hokusaiToken.getAddress(),
           await tokenManager.getAddress(),
@@ -148,7 +149,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
 
       // CRR too high
       await expect(
-        HokusaiAMM.deploy(
+        deployAMMProxy(HokusaiAMM,
           await mockUSDC.getAddress(),
           await hokusaiToken.getAddress(),
           await tokenManager.getAddress(),
@@ -355,7 +356,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
     it("Should revert during IBR", async function () {
       // Deploy new AMM that's still in IBR
       const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-      const newAMM = await HokusaiAMM.deploy(
+      const newAMM = await deployAMMProxy(HokusaiAMM,
         await mockUSDC.getAddress(),
         await hokusaiToken.getAddress(),
         await tokenManager.getAddress(),
@@ -563,7 +564,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       const receipt = await tx.wait();
 
       console.log(`      Gas used for buy(): ${receipt.gasUsed}`);
-      expect(receipt.gasUsed).to.be.lt(175000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
+      expect(receipt.gasUsed).to.be.lt(195000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage)
     });
 
     it("Should measure gas for sell()", async function () {
@@ -590,7 +591,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
 
       const gasUsed = await hokusaiAMM.getBuyQuote.estimateGas(reserveIn);
       console.log(`      Gas used for getBuyQuote(): ${gasUsed}`);
-      expect(gasUsed).to.be.lt(60000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads
+      expect(gasUsed).to.be.lt(70000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage)
     });
   });
 
@@ -637,7 +638,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
     it("isSellEnabled should return false during IBR", async function () {
       // Deploy new AMM in IBR
       const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-      const newAMM = await HokusaiAMM.deploy(
+      const newAMM = await deployAMMProxy(HokusaiAMM,
         await mockUSDC.getAddress(),
         await hokusaiToken.getAddress(),
         await tokenManager.getAddress(),

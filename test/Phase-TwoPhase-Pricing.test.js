@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("Two-Phase Pricing System", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -41,7 +42,7 @@ describe("Two-Phase Pricing System", function () {
 
         // Deploy HokusaiAMM
         const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-        hokusaiAMM = await HokusaiAMM.deploy(
+        hokusaiAMM = await deployAMMProxy(HokusaiAMM,
             await mockUSDC.getAddress(),
             await hokusaiToken.getAddress(),
             await tokenManager.getAddress(),
@@ -463,7 +464,7 @@ describe("Two-Phase Pricing System", function () {
             const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
 
             await expect(
-                HokusaiAMM.deploy(
+                deployAMMProxy(HokusaiAMM,
                     await mockUSDC.getAddress(),
                     await hokusaiToken.getAddress(),
                     await tokenManager.getAddress(),
@@ -482,7 +483,7 @@ describe("Two-Phase Pricing System", function () {
             const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
 
             await expect(
-                HokusaiAMM.deploy(
+                deployAMMProxy(HokusaiAMM,
                     await mockUSDC.getAddress(),
                     await hokusaiToken.getAddress(),
                     await tokenManager.getAddress(),

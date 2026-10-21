@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits, parseEther, ZeroAddress } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 /**
  * Phase 6: Token Issuance Gap Coverage Tests
@@ -476,7 +477,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
 
       const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-      hokusaiAMM = await HokusaiAMM.deploy(
+      hokusaiAMM = await deployAMMProxy(HokusaiAMM,
         await mockUSDC.getAddress(),
         await hokusaiToken.getAddress(),
         await tokenManager.getAddress(),

@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("Phase 3: Flash Loan Attack Security", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -41,7 +42,7 @@ describe("Phase 3: Flash Loan Attack Security", function () {
 
         // Deploy AMM
         const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-        hokusaiAMM = await HokusaiAMM.deploy(
+        hokusaiAMM = await deployAMMProxy(HokusaiAMM,
             await mockUSDC.getAddress(),
             await hokusaiToken.getAddress(),
             await tokenManager.getAddress(),
@@ -388,7 +389,7 @@ describe("Phase 3: Flash Loan Attack Security", function () {
             // Total cost: ~$80
             // This makes flash loan arbitrage unprofitable
 
-            expect(totalGas).to.be.lt(350000); // Should be under 350k gas
+            expect(totalGas).to.be.lt(380000); // Should be under 350k gas (HOK-3281: proxy delegatecall + former immutables now in storage)
 
             // Log for analysis
             console.log(`        Buy gas: ${buyGas.toString()}`);

@@ -8,6 +8,7 @@ const {
   buildInitialParams,
   buildVestingConfig,
 } = require("../helpers/tokenDeployment");
+const { deployAMMProxy } = require("../helpers/ammDeployment");
 
 describe("DeployableTokenManager sell path", function () {
   const INITIAL_RESERVE = parseUnits("100000", 6);
@@ -85,7 +86,7 @@ describe("DeployableTokenManager sell path", function () {
     const tokenAddress = await tokenManager.getTokenAddress(modelId);
     const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
 
-    const amm = await ethers.deployContract("HokusaiAMM", [
+    const amm = await deployAMMProxy(await ethers.getContractFactory("HokusaiAMM"), ...[
       await usdc.getAddress(),
       tokenAddress,
       await tokenManager.getAddress(),

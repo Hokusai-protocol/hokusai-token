@@ -14,6 +14,7 @@ const {
   configureLineageGenesis,
   payloadForNextLink,
 } = require("../helpers/mintRequest");
+const { deployAMMProxy } = require("../helpers/ammDeployment");
 
 const GOLDEN_FIXTURE_PATH = path.resolve(__dirname, "../fixtures/deltaverifier-mint-request.golden.json");
 
@@ -194,7 +195,7 @@ describe("Property fuzz invariants", function () {
     const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    const amm = await HokusaiAMM.deploy(
+    const amm = await deployAMMProxy(HokusaiAMM,
       await mockUSDC.getAddress(),
       tokenAddress,
       await tokenManager.getAddress(),

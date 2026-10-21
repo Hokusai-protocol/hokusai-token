@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
+const { deployAMMProxy } = require("./helpers/ammDeployment");
 
 describe("Security: Maximum Trade Size Limits", function () {
   let hokusaiAMM;
@@ -41,7 +42,7 @@ describe("Security: Maximum Trade Size Limits", function () {
     hokusaiToken = await ethers.getContractAt("HokusaiToken", tokenAddress);
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
-    hokusaiAMM = await HokusaiAMM.deploy(
+    hokusaiAMM = await deployAMMProxy(HokusaiAMM,
       await mockUSDC.getAddress(),
       await hokusaiToken.getAddress(),
       await tokenManager.getAddress(),

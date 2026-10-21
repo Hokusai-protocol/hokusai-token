@@ -60,12 +60,19 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     // Graduation flag - once true, permanently in bonding curve phase
     bool public hasGraduated;
 
+    // Absolute per-trade floor (reserve-token units): the trade limit is the
+    // greater of this and maxTradeBps of the reserve, so small pools can still
+    // take or release meaningful liquidity in one trade.
+    uint256 public minTradeCap;
+
     // Constants
     uint256 public constant PRECISION = 1e18; // Fixed-point precision
     uint256 public constant MAX_CRR = 1000000; // 100% max
     uint256 public constant MIN_CRR = 50000; // 5% min
     uint256 public constant MAX_TRADE_FEE = 1000; // 10% max
     uint256 public constant MAX_TRADE_BPS_LIMIT = 5000; // 50% max trade size
+    uint256 public constant DEFAULT_MIN_TRADE_CAP = 5000e6; // $5,000 (6-decimal USDC)
+    uint256 public constant MAX_MIN_TRADE_CAP = 50000e6; // $50,000
     uint256 public constant PPM = 1000000; // Parts per million
 
     // ============================================================
@@ -126,6 +133,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
     );
 
     event MaxTradeBpsUpdated(uint256 oldBps, uint256 newBps);
+    event MinTradeCapUpdated(uint256 oldCap, uint256 newCap);
     event PurchaserWhitelistUpdated(address indexed oldWhitelist, address indexed newWhitelist);
 
     // ============================================================
@@ -177,6 +185,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         tradeFee = _tradeFee;
         buyOnlyUntil = block.timestamp + _ibrDuration;
         maxTradeBps = 2000; // Default 20% of reserve
+        minTradeCap = DEFAULT_MIN_TRADE_CAP;
 
         FLAT_CURVE_THRESHOLD = _flatCurveThreshold;
         FLAT_CURVE_PRICE = _flatCurvePrice;
@@ -219,8 +228,7 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         // Check trade size limit only in bonding curve phase
         // During flat phase, unlimited trade sizes are allowed
         if (phaseBefore == PricingPhase.BONDING_CURVE) {
-            uint256 maxTradeSize = (reserveBalance * maxTradeBps) / 10000;
-            require(reserveIn <= maxTradeSize, "Trade exceeds max size limit");
+            require(reserveIn <= maxTradeSize(), "Trade exceeds max size limit");
         }
 
         // Calculate tokens to mint
@@ -290,8 +298,10 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
         require(reserveOut >= minReserveOut, "Slippage exceeded");
 
         // Check trade size limit (prevents whale manipulation and flash loan attacks)
-        uint256 maxTradeSize = (reserveBalance * maxTradeBps) / 10000;
-        require(reserveOut <= maxTradeSize, "Trade exceeds max size limit");
+        require(reserveOut <= maxTradeSize(), "Trade exceeds max size limit");
+        // Flat-phase quotes are tokens x price and not bounded by the reserve;
+        // with the absolute floor the limit alone can exceed what the pool holds.
+        require(reserveOut <= reserveBalance, "Insufficient reserve");
 
         // Calculate and deduct trade fee using FeeLib
         (uint256 reserveAfterFee, uint256 feeAmount) = FeeLib.applyFee(reserveOut, tradeFee);
@@ -695,6 +705,29 @@ contract HokusaiAMM is Ownable, ReentrancyGuard, Pausable {
 
         emit MaxTradeBpsUpdated(maxTradeBps, newMaxTradeBps);
         maxTradeBps = newMaxTradeBps;
+    }
+
+    /**
+     * @dev Update the absolute per-trade floor
+     * @param newMinTradeCap New floor in reserve-token units (0 = percentage limit only)
+     *
+     * Range: 0 to MAX_MIN_TRADE_CAP. Default: DEFAULT_MIN_TRADE_CAP ($5,000).
+     */
+    function setMinTradeCap(uint256 newMinTradeCap) external onlyOwner {
+        require(newMinTradeCap <= MAX_MIN_TRADE_CAP, "Min trade cap too high");
+
+        emit MinTradeCapUpdated(minTradeCap, newMinTradeCap);
+        minTradeCap = newMinTradeCap;
+    }
+
+    /**
+     * @dev Maximum single-trade size in reserve-token units: the greater of
+     * maxTradeBps of the current reserve and the absolute minTradeCap floor.
+     * Applies to sells always and to buys once the pool is in BONDING_CURVE.
+     */
+    function maxTradeSize() public view returns (uint256) {
+        uint256 percentCap = (reserveBalance * maxTradeBps) / 10000;
+        return percentCap > minTradeCap ? percentCap : minTradeCap;
     }
 
     function setPurchaserWhitelist(address whitelist) external onlyOwner {

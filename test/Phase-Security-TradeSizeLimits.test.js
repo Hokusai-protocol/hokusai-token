@@ -56,6 +56,9 @@ describe("Security: Maximum Trade Size Limits", function () {
     await hokusaiAMM.waitForDeployment();
 
     await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
+    // These tests cover the percentage cap; disable the absolute floor
+    // (HOK-3300, covered in HokusaiAMM.minTradeCap.test.js).
+    await hokusaiAMM.setMinTradeCap(0);
 
     // Seed AMM with initial reserve
     await mockUSDC.mint(owner.address, INITIAL_RESERVE);

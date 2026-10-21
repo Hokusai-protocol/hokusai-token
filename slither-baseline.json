@@ -1,6 +1,6 @@
 {
   "_comment": "Accepted or triaged Slither findings. Each entry must include a justification and review metadata. See docs/slither-static-analysis.md.",
-  "_retriage": "HOK-2137: re-triaged 2026-06-10 against DeltaVerifier.sol and ModelRegistry.sol. Zero un-acknowledged High/Medium findings. All existing DeltaVerifier Medium unused-return entries (044352de, 3a7488a0) confirmed still valid \u2014 contribution IDs are intentionally not consumed; registry side effect is canonical. Slither 0.11.5, 146 results, 16 High/Medium.",
+  "_retriage": "HOK-2137: re-triaged 2026-06-10 against DeltaVerifier.sol and ModelRegistry.sol. Zero un-acknowledged High/Medium findings. All existing DeltaVerifier Medium unused-return entries (044352de, 3a7488a0) confirmed still valid — contribution IDs are intentionally not consumed; registry side effect is canonical. Slither 0.11.5, 146 results, 16 High/Medium.",
   "accepted": [
     {
       "id": "1d7ad28cad4e8097946a98348cad9ba5573af5b8c2c21093f73f9662a88325cf",
@@ -1254,6 +1254,27 @@
       "justification": "Accepted (relocated by H-5 line shift, security review): pre-existing block.timestamp comparison on deposit() (deadline check; minute-scale granularity is immaterial to a proposal funding window). Re-hashed only because cancelGraduation()/GraduationCancelled shifted FundingVault line numbers. No functional change.",
       "reviewedBy": "claude (pre-mainnet security review sweep)",
       "followUp": "n/a (line-shift re-hash of pre-existing FundingVault finding from H-5 cancelGraduation)"
+    },
+    {
+      "id": "0a164d19ff1aac9257d8d7a6f38ba2eb4a70ada3938a3c82729538c369389b74",
+      "check": "reentrancy-no-eth",
+      "justification": "HokusaiAMM buy is nonReentrant and its body is unchanged by HOK-3270; the new ID is baseline drift because getBuyQuote now routes graduated pools through hasGraduated. Reserve accounting is still updated before the TokenManager mint.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3270"
+    },
+    {
+      "id": "1e8a7e4992da9937f17c5dea6f1bc34688c704f134d04736f6931fe2e629da30",
+      "check": "reentrancy-benign",
+      "justification": "HokusaiAMM depositFees is nonReentrant and unchanged by HOK-3270; the new ID is baseline drift from line shifts in the quote functions above it.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3270"
+    },
+    {
+      "id": "e3727a4021ab2494e96238c754ff9c468218a039176d0ea2f6b22ccbc3074010",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMM withdrawTreasury is owner-gated and unchanged by HOK-3270; the new ID is baseline drift from line shifts. The only theoretical risk remains event ordering after a successful treasury transfer.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3270"
     }
   ]
 }

@@ -466,8 +466,9 @@ describe("Phase 7: Analytics & View Functions", function () {
     describe("Gas Benchmarks", function () {
         it("Should consume reasonable gas for getPoolState", async function () {
             const tx = await hokusaiAMM.getPoolState.estimateGas();
-            // View functions with external calls use more gas than pure storage reads
-            expect(tx).to.be.lt(50000); // Reasonable for multi-value view
+            // View functions with external calls use more gas than pure storage reads.
+            // spotPrice() reads the hasGraduated latch (HOK-3270): one extra cold SLOAD.
+            expect(tx).to.be.lt(52000); // Reasonable for multi-value view
             console.log("        getPoolState gas:", tx.toString());
         });
 

@@ -1,4 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("@nomicfoundation/hardhat-ledger");
 
 // Network-aware env loading: when targeting mainnet (--network mainnet or
 // HARDHAT_NETWORK=mainnet) load .env.mainnet so MAINNET_RPC_URL / ETHERSCAN_API_KEY /
@@ -60,7 +61,12 @@ module.exports = {
     },
     mainnet: {
       url: process.env.MAINNET_RPC_URL || "",
-      accounts: [],
+      // Opt-in Ledger signer (LEDGER_ACCOUNT=0x...): every tx is confirmed on the device.
+      // `accounts` must be left unset then — even `[]` installs a local-key provider
+      // above the Ledger provider that rejects the Ledger address (HH103).
+      ...(process.env.LEDGER_ACCOUNT
+        ? { ledgerAccounts: [process.env.LEDGER_ACCOUNT] }
+        : { accounts: [] }),
       chainId: 1
     },
     sepolia: {

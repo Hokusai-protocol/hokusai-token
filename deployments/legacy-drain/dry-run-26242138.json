@@ -1,0 +1,782 @@
+{
+  "generatedAt": "2026-10-21T16:28:14.571Z",
+  "forkBlock": 26242138,
+  "stopAtUsdc": "1000000",
+  "results": [
+    {
+      "symbol": "HROUT",
+      "modelId": "30",
+      "pool": "0x6C40EF10da0c0Fc87352b0026A49a6769af12816",
+      "seller": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+      "maxTradeBps": "2000",
+      "before": {
+        "poolUsdc": "25094520000",
+        "reserve": "25094520000",
+        "sellerUsdc": "1075840464",
+        "treasuryUsdc": "95480000",
+        "sellerTokens": "2750724433119822973868340",
+        "totalSupply": "5000724433119822973868340",
+        "investorMinted": "2500724433119822973868340",
+        "rewardMinted": "0",
+        "graduated": true
+      },
+      "after": {
+        "poolUsdc": "874419",
+        "reserve": "874419",
+        "sellerUsdc": "26094205130",
+        "treasuryUsdc": "170760915",
+        "sellerTokens": "623188025221291892149095",
+        "totalSupply": "2873188025221291892149095",
+        "investorMinted": "373188025221291892149095",
+        "rewardMinted": "0",
+        "graduated": true
+      },
+      "totals": {
+        "sells": 46,
+        "curveSells": 1,
+        "usdcToSeller": "25018364666",
+        "usdcToTreasury": "75280915",
+        "usdcStranded": "874419",
+        "tokensSold": "2127536407898531081719245",
+        "tokensLeftUnbacked": "623188025221291892149095",
+        "investorMintedDelta": "2127536407898531081719245",
+        "rewardMintedDelta": "0",
+        "gasUsed": "7414813",
+        "gasPriceWei": "1344492637",
+        "gasCostWei": "9969161483231881"
+      },
+      "steps": [
+        {
+          "step": 1,
+          "pricing": "curve",
+          "reserveBefore": "25094520000",
+          "tokensIn": "120062245298531081719290",
+          "reserveOut": "5018904000",
+          "gasUsed": "187817"
+        },
+        {
+          "step": 2,
+          "pricing": "flat",
+          "reserveBefore": "20075616000",
+          "tokensIn": "401512320099999999999999",
+          "reserveOut": "4015123200",
+          "gasUsed": "159577"
+        },
+        {
+          "step": 3,
+          "pricing": "flat",
+          "reserveBefore": "16060492800",
+          "tokensIn": "321209856099999999999999",
+          "reserveOut": "3212098560",
+          "gasUsed": "159577"
+        },
+        {
+          "step": 4,
+          "pricing": "flat",
+          "reserveBefore": "12848394240",
+          "tokensIn": "256967884899999999999999",
+          "reserveOut": "2569678848",
+          "gasUsed": "159577"
+        },
+        {
+          "step": 5,
+          "pricing": "flat",
+          "reserveBefore": "10278715392",
+          "tokensIn": "205574307899999999999999",
+          "reserveOut": "2055743078",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 6,
+          "pricing": "flat",
+          "reserveBefore": "8222972314",
+          "tokensIn": "164459446299999999999999",
+          "reserveOut": "1644594462",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 7,
+          "pricing": "flat",
+          "reserveBefore": "6578377852",
+          "tokensIn": "131567557099999999999999",
+          "reserveOut": "1315675570",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 8,
+          "pricing": "flat",
+          "reserveBefore": "5262702282",
+          "tokensIn": "105254045699999999999999",
+          "reserveOut": "1052540456",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 9,
+          "pricing": "flat",
+          "reserveBefore": "4210161826",
+          "tokensIn": "84203236599999999999999",
+          "reserveOut": "842032365",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 10,
+          "pricing": "flat",
+          "reserveBefore": "3368129461",
+          "tokensIn": "67362589299999999999999",
+          "reserveOut": "673625892",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 11,
+          "pricing": "flat",
+          "reserveBefore": "2694503569",
+          "tokensIn": "53890071399999999999999",
+          "reserveOut": "538900713",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 12,
+          "pricing": "flat",
+          "reserveBefore": "2155602856",
+          "tokensIn": "43112057199999999999999",
+          "reserveOut": "431120571",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 13,
+          "pricing": "flat",
+          "reserveBefore": "1724482285",
+          "tokensIn": "34489645799999999999999",
+          "reserveOut": "344896457",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 14,
+          "pricing": "flat",
+          "reserveBefore": "1379585828",
+          "tokensIn": "27591716599999999999999",
+          "reserveOut": "275917165",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 15,
+          "pricing": "flat",
+          "reserveBefore": "1103668663",
+          "tokensIn": "22073373299999999999999",
+          "reserveOut": "220733732",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 16,
+          "pricing": "flat",
+          "reserveBefore": "882934931",
+          "tokensIn": "17658698699999999999999",
+          "reserveOut": "176586986",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 17,
+          "pricing": "flat",
+          "reserveBefore": "706347945",
+          "tokensIn": "14126958999999999999999",
+          "reserveOut": "141269589",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 18,
+          "pricing": "flat",
+          "reserveBefore": "565078356",
+          "tokensIn": "11301567199999999999999",
+          "reserveOut": "113015671",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 19,
+          "pricing": "flat",
+          "reserveBefore": "452062685",
+          "tokensIn": "9041253799999999999999",
+          "reserveOut": "90412537",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 20,
+          "pricing": "flat",
+          "reserveBefore": "361650148",
+          "tokensIn": "7233002999999999999999",
+          "reserveOut": "72330029",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 21,
+          "pricing": "flat",
+          "reserveBefore": "289320119",
+          "tokensIn": "5786402399999999999999",
+          "reserveOut": "57864023",
+          "gasUsed": "159589"
+        },
+        {
+          "step": 22,
+          "pricing": "flat",
+          "reserveBefore": "231456096",
+          "tokensIn": "4629121999999999999999",
+          "reserveOut": "46291219",
+          "gasUsed": "159577"
+        },
+        {
+          "step": 23,
+          "pricing": "flat",
+          "reserveBefore": "185164877",
+          "tokensIn": "3703297599999999999999",
+          "reserveOut": "37032975",
+          "gasUsed": "159577"
+        },
+        {
+          "step": 24,
+          "pricing": "flat",
+          "reserveBefore": "148131902",
+          "tokensIn": "2962638099999999999999",
+          "reserveOut": "29626380",
+          "gasUsed": "159577"
+        },
+        {
+          "step": 25,
+          "pricing": "flat",
+          "reserveBefore": "118505522",
+          "tokensIn": "2370110499999999999999",
+          "reserveOut": "23701104",
+          "gasUsed": "159577"
+        },
+        {
+          "step": 26,
+          "pricing": "flat",
+          "reserveBefore": "94804418",
+          "tokensIn": "1896088399999999999999",
+          "reserveOut": "18960883",
+          "gasUsed": "159577"
+        },
+        {
+          "step": 27,
+          "pricing": "flat",
+          "reserveBefore": "75843535",
+          "tokensIn": "1516870799999999999999",
+          "reserveOut": "15168707",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 28,
+          "pricing": "flat",
+          "reserveBefore": "60674828",
+          "tokensIn": "1213496599999999999999",
+          "reserveOut": "12134965",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 29,
+          "pricing": "flat",
+          "reserveBefore": "48539863",
+          "tokensIn": "970797299999999999999",
+          "reserveOut": "9707972",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 30,
+          "pricing": "flat",
+          "reserveBefore": "38831891",
+          "tokensIn": "776637899999999999999",
+          "reserveOut": "7766378",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 31,
+          "pricing": "flat",
+          "reserveBefore": "31065513",
+          "tokensIn": "621310299999999999999",
+          "reserveOut": "6213102",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 32,
+          "pricing": "flat",
+          "reserveBefore": "24852411",
+          "tokensIn": "497048299999999999999",
+          "reserveOut": "4970482",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 33,
+          "pricing": "flat",
+          "reserveBefore": "19881929",
+          "tokensIn": "397638599999999999999",
+          "reserveOut": "3976385",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 34,
+          "pricing": "flat",
+          "reserveBefore": "15905544",
+          "tokensIn": "318110899999999999999",
+          "reserveOut": "3181108",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 35,
+          "pricing": "flat",
+          "reserveBefore": "12724436",
+          "tokensIn": "254488799999999999999",
+          "reserveOut": "2544887",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 36,
+          "pricing": "flat",
+          "reserveBefore": "10179549",
+          "tokensIn": "203590999999999999999",
+          "reserveOut": "2035909",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 37,
+          "pricing": "flat",
+          "reserveBefore": "8143640",
+          "tokensIn": "162872899999999999999",
+          "reserveOut": "1628728",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 38,
+          "pricing": "flat",
+          "reserveBefore": "6514912",
+          "tokensIn": "130298299999999999999",
+          "reserveOut": "1302982",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 39,
+          "pricing": "flat",
+          "reserveBefore": "5211930",
+          "tokensIn": "104238699999999999999",
+          "reserveOut": "1042386",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 40,
+          "pricing": "flat",
+          "reserveBefore": "4169544",
+          "tokensIn": "83390899999999999999",
+          "reserveOut": "833908",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 41,
+          "pricing": "flat",
+          "reserveBefore": "3335636",
+          "tokensIn": "66712799999999999999",
+          "reserveOut": "667127",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 42,
+          "pricing": "flat",
+          "reserveBefore": "2668509",
+          "tokensIn": "53370199999999999999",
+          "reserveOut": "533701",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 43,
+          "pricing": "flat",
+          "reserveBefore": "2134808",
+          "tokensIn": "42696199999999999999",
+          "reserveOut": "426961",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 44,
+          "pricing": "flat",
+          "reserveBefore": "1707847",
+          "tokensIn": "34156999999999999999",
+          "reserveOut": "341569",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 45,
+          "pricing": "flat",
+          "reserveBefore": "1366278",
+          "tokensIn": "27325599999999999999",
+          "reserveOut": "273255",
+          "gasUsed": "159565"
+        },
+        {
+          "step": 46,
+          "pricing": "flat",
+          "reserveBefore": "1093023",
+          "tokensIn": "21860499999999999999",
+          "reserveOut": "218604",
+          "gasUsed": "159565"
+        }
+      ]
+    },
+    {
+      "symbol": "HMESS",
+      "modelId": "28",
+      "pool": "0xC187ffc6a465247f228a63f00C2515041792A0fA",
+      "seller": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+      "maxTradeBps": "2000",
+      "before": {
+        "poolUsdc": "10000000",
+        "reserve": "10000000",
+        "sellerUsdc": "26094205130",
+        "treasuryUsdc": "170760915",
+        "sellerTokens": "250000000000000000000000",
+        "totalSupply": "2500000000000000000000000",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "graduated": false
+      },
+      "after": {
+        "poolUsdc": "858995",
+        "reserve": "858995",
+        "sellerUsdc": "26103318715",
+        "treasuryUsdc": "170788335",
+        "sellerTokens": "249085898400000000000011",
+        "totalSupply": "2499085898400000000000011",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "graduated": false
+      },
+      "totals": {
+        "sells": 11,
+        "curveSells": 0,
+        "usdcToSeller": "9113585",
+        "usdcToTreasury": "27420",
+        "usdcStranded": "858995",
+        "tokensSold": "914101599999999999989",
+        "tokensLeftUnbacked": "249085898400000000000011",
+        "investorMintedDelta": "0",
+        "rewardMintedDelta": "0",
+        "gasUsed": "1787473",
+        "gasPriceWei": "1344492637",
+        "gasCostWei": "2403244287336301"
+      },
+      "steps": [
+        {
+          "step": 1,
+          "pricing": "flat",
+          "reserveBefore": "10000000",
+          "tokensIn": "200000099999999999999",
+          "reserveOut": "2000000",
+          "gasUsed": "173866"
+        },
+        {
+          "step": 2,
+          "pricing": "flat",
+          "reserveBefore": "8000000",
+          "tokensIn": "160000099999999999999",
+          "reserveOut": "1600000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 3,
+          "pricing": "flat",
+          "reserveBefore": "6400000",
+          "tokensIn": "128000099999999999999",
+          "reserveOut": "1280000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 4,
+          "pricing": "flat",
+          "reserveBefore": "5120000",
+          "tokensIn": "102400099999999999999",
+          "reserveOut": "1024000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 5,
+          "pricing": "flat",
+          "reserveBefore": "4096000",
+          "tokensIn": "81920099999999999999",
+          "reserveOut": "819200",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 6,
+          "pricing": "flat",
+          "reserveBefore": "3276800",
+          "tokensIn": "65536099999999999999",
+          "reserveOut": "655360",
+          "gasUsed": "156742"
+        },
+        {
+          "step": 7,
+          "pricing": "flat",
+          "reserveBefore": "2621440",
+          "tokensIn": "52428899999999999999",
+          "reserveOut": "524288",
+          "gasUsed": "156742"
+        },
+        {
+          "step": 8,
+          "pricing": "flat",
+          "reserveBefore": "2097152",
+          "tokensIn": "41943099999999999999",
+          "reserveOut": "419430",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 9,
+          "pricing": "flat",
+          "reserveBefore": "1677722",
+          "tokensIn": "33554499999999999999",
+          "reserveOut": "335544",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 10,
+          "pricing": "flat",
+          "reserveBefore": "1342178",
+          "tokensIn": "26843599999999999999",
+          "reserveOut": "268435",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 11,
+          "pricing": "flat",
+          "reserveBefore": "1073743",
+          "tokensIn": "21474899999999999999",
+          "reserveOut": "214748",
+          "gasUsed": "156766"
+        }
+      ]
+    },
+    {
+      "symbol": "HLEAD",
+      "modelId": "27",
+      "pool": "0xa6D4a50496ce6808508e6DCaB19D57845D4e30e4",
+      "seller": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+      "maxTradeBps": "2000",
+      "before": {
+        "poolUsdc": "10000000",
+        "reserve": "10000000",
+        "sellerUsdc": "26103318715",
+        "treasuryUsdc": "170788335",
+        "sellerTokens": "125000000000000000000000",
+        "totalSupply": "1250000000000000000000000",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "graduated": false
+      },
+      "after": {
+        "poolUsdc": "858995",
+        "reserve": "858995",
+        "sellerUsdc": "26112432300",
+        "treasuryUsdc": "170815755",
+        "sellerTokens": "124085898400000000000011",
+        "totalSupply": "1249085898400000000000011",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "graduated": false
+      },
+      "totals": {
+        "sells": 11,
+        "curveSells": 0,
+        "usdcToSeller": "9113585",
+        "usdcToTreasury": "27420",
+        "usdcStranded": "858995",
+        "tokensSold": "914101599999999999989",
+        "tokensLeftUnbacked": "124085898400000000000011",
+        "investorMintedDelta": "0",
+        "rewardMintedDelta": "0",
+        "gasUsed": "1787473",
+        "gasPriceWei": "1344492637",
+        "gasCostWei": "2403244287336301"
+      },
+      "steps": [
+        {
+          "step": 1,
+          "pricing": "flat",
+          "reserveBefore": "10000000",
+          "tokensIn": "200000099999999999999",
+          "reserveOut": "2000000",
+          "gasUsed": "173866"
+        },
+        {
+          "step": 2,
+          "pricing": "flat",
+          "reserveBefore": "8000000",
+          "tokensIn": "160000099999999999999",
+          "reserveOut": "1600000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 3,
+          "pricing": "flat",
+          "reserveBefore": "6400000",
+          "tokensIn": "128000099999999999999",
+          "reserveOut": "1280000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 4,
+          "pricing": "flat",
+          "reserveBefore": "5120000",
+          "tokensIn": "102400099999999999999",
+          "reserveOut": "1024000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 5,
+          "pricing": "flat",
+          "reserveBefore": "4096000",
+          "tokensIn": "81920099999999999999",
+          "reserveOut": "819200",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 6,
+          "pricing": "flat",
+          "reserveBefore": "3276800",
+          "tokensIn": "65536099999999999999",
+          "reserveOut": "655360",
+          "gasUsed": "156742"
+        },
+        {
+          "step": 7,
+          "pricing": "flat",
+          "reserveBefore": "2621440",
+          "tokensIn": "52428899999999999999",
+          "reserveOut": "524288",
+          "gasUsed": "156742"
+        },
+        {
+          "step": 8,
+          "pricing": "flat",
+          "reserveBefore": "2097152",
+          "tokensIn": "41943099999999999999",
+          "reserveOut": "419430",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 9,
+          "pricing": "flat",
+          "reserveBefore": "1677722",
+          "tokensIn": "33554499999999999999",
+          "reserveOut": "335544",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 10,
+          "pricing": "flat",
+          "reserveBefore": "1342178",
+          "tokensIn": "26843599999999999999",
+          "reserveOut": "268435",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 11,
+          "pricing": "flat",
+          "reserveBefore": "1073743",
+          "tokensIn": "21474899999999999999",
+          "reserveOut": "214748",
+          "gasUsed": "156766"
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "HROUT: pool not paused",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: sells enabled",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: USDC conserved (pool out == seller + treasury in)",
+      "ok": true,
+      "details": "25093.645581 == 25018.364666 + 75.280915"
+    },
+    {
+      "name": "HROUT: tracked reserve still equals pool balance",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: burned supply equals tokens sold",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: drained to stop threshold",
+      "ok": true,
+      "details": "reserve 0.874419 stop 1.0"
+    },
+    {
+      "name": "HMESS: pool not paused",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: sells enabled",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: USDC conserved (pool out == seller + treasury in)",
+      "ok": true,
+      "details": "9.141005 == 9.113585 + 0.02742"
+    },
+    {
+      "name": "HMESS: tracked reserve still equals pool balance",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: burned supply equals tokens sold",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: drained to stop threshold",
+      "ok": true,
+      "details": "reserve 0.858995 stop 1.0"
+    },
+    {
+      "name": "HLEAD: pool not paused",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: sells enabled",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: USDC conserved (pool out == seller + treasury in)",
+      "ok": true,
+      "details": "9.141005 == 9.113585 + 0.02742"
+    },
+    {
+      "name": "HLEAD: tracked reserve still equals pool balance",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: burned supply equals tokens sold",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: drained to stop threshold",
+      "ok": true,
+      "details": "reserve 0.858995 stop 1.0"
+    }
+  ],
+  "ok": true
+}

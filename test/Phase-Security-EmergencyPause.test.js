@@ -368,8 +368,9 @@ describe("Phase 8: Emergency Pause & Safety Mechanisms", function () {
         it("Should maintain trade size limits after unpause", async function () {
             const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
 
-            // Set trade limit
+            // Set trade limit (percentage only; absolute floor tested separately)
             await hokusaiAMM.setMaxTradeBps(2000); // 20%
+            await hokusaiAMM.setMinTradeCap(0);
 
             // Pause and unpause
             await hokusaiAMM.pause();
@@ -538,6 +539,7 @@ describe("Phase 8: Emergency Pause & Safety Mechanisms", function () {
 
         it("Should work with trade size limits", async function () {
             await hokusaiAMM.setMaxTradeBps(2000);
+            await hokusaiAMM.setMinTradeCap(0); // percentage cap only
             await hokusaiAMM.pause();
             await hokusaiAMM.unpause();
 

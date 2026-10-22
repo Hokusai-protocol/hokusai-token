@@ -31,7 +31,7 @@ There is one unresolved High: AMM-H1, early-seller extraction at graduation. The
 | `npm run validate:upgrades` | PASS. This gate is weak: see PROXY-M1. |
 | `npm run slither` (gate vs baseline) | PASS: only informational and optimization findings are new |
 | Echidna `fuzz-short` (`npm run echidna:all`) | PASS. Run 39820934117, dispatched on `2332beb`. The Echidna workflow had been disabled by GitHub for inactivity since 2026-07-09, so it did not run on PRs #235–#241. Re-enabled 2026-10-22. |
-| Echidna `fuzz-long` (5M per harness) | Recorded on the re-review run |
+| Echidna `fuzz-long` (5M per harness) | INCOMPLETE. Same run: no property violated. 7 harnesses finished (TimelockController, UsageFeeRouter, AMMPhase, HokusaiToken, Sanity, PendingClaimsEscrow, plus fuzz-short). 8 hit the 3h job limit and were cancelled (FundingVault, InfrastructureReserve, DeltaVerifier, DeltaVerifierMultiAttester, AMMEconomic, TokenManager, AMMReserve, RewardVestingVault). Full coverage is re-run at the re-review with a longer limit or a smaller test count. |
 
 The fuzzers passing while AMM-H1 exists is itself a finding (AMM-I1). The June review's "0% round-trip extraction" check measured a single actor and never a victim holder.
 

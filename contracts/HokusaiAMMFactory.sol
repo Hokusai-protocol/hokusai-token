@@ -401,6 +401,8 @@ contract HokusaiAMMFactory is Ownable {
     function setPoolDeployer(address _poolDeployer) external onlyOwner {
         require(poolDeployer == address(0), "PoolDeployerAlreadySet");
         ValidationLib.requireNonZeroAddress(_poolDeployer, "pool deployer");
+        // Set-once: a deployer bound to another factory would brick createPool.
+        require(IHokusaiAMMPoolDeployer(_poolDeployer).factory() == address(this), "Pool deployer not bound here");
         poolDeployer = _poolDeployer;
         emit PoolDeployerUpdated(_poolDeployer);
         _setPoolImplementation(IHokusaiAMMPoolDeployer(_poolDeployer).defaultImplementation());

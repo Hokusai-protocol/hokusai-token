@@ -4,14 +4,26 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
+interface IPoolExitState {
+    function isSellEnabled() external view returns (bool);
+}
+
 /**
- * @dev Reads a pool's pause state on behalf of HokusaiPoolProxyAdmin. A
+ * @dev Reads a pool's exit state on behalf of HokusaiPoolProxyAdmin. A
  * transparent proxy never forwards calls from its admin, so the admin cannot
- * call `paused()` on the pool itself; this separate contract can.
+ * call the pool itself; this separate contract can.
  */
 contract PoolPauseReader {
     function isPaused(address pool) external view returns (bool) {
         return PausableUpgradeable(pool).paused();
+    }
+
+    /**
+     * @dev True when holders can sell: not paused and past the buy-only
+     * period. Reverts if the pool's implementation cannot answer.
+     */
+    function canExit(address pool) external view returns (bool) {
+        return !PausableUpgradeable(pool).paused() && IPoolExitState(pool).isSellEnabled();
     }
 }
 
@@ -20,10 +32,13 @@ contract PoolPauseReader {
  * @dev ProxyAdmin for HokusaiAMM pool proxies, owned by the governance
  * timelock (48h on mainnet). Adds two guarantees on top of OZ ProxyAdmin:
  *
- * - Exit-safe pause: a pool cannot be upgraded while it is paused, so pause
- *   cannot be combined with an upgrade to keep holders from exiting under
- *   the implementation they agreed to. (Governance can still batch an
- *   unpause with an upgrade; see docs/architecture/upgradeable-amm-trust-model.md.)
+ * - Exit-safe pause: a pool cannot be upgraded while holders cannot sell
+ *   (paused, or still in its buy-only period), so pause cannot be combined
+ *   with an upgrade to keep holders from exiting under the implementation
+ *   they agreed to. (Governance can still batch an unpause with an upgrade;
+ *   see docs/architecture/upgradeable-amm-trust-model.md.) If the current
+ *   implementation cannot report its state, the upgrade is allowed, so a
+ *   broken implementation can still be replaced.
  * - Per-pool freeze: `freezeUpgrades` permanently disables upgrades for one
  *   pool. It is one-way and, being owner-only, timelocked.
  *
@@ -72,6 +87,8 @@ contract HokusaiPoolProxyAdmin is ProxyAdmin {
 
     function _requireUpgradeable(ITransparentUpgradeableProxy proxy) private view {
         require(!upgradesFrozen[address(proxy)], "Upgrades frozen");
-        require(!pauseReader.isPaused(address(proxy)), "Pool is paused");
+        try pauseReader.canExit(address(proxy)) returns (bool exitOpen) {
+            require(exitOpen, "Pool exit is closed");
+        } catch {} // solhint-disable-line no-empty-blocks
     }
 }

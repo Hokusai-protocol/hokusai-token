@@ -8,7 +8,7 @@ This document states who can change what in the Hokusai AMM system, how quickly 
 
 - Every model's AMM pool is a `TransparentUpgradeableProxy`. **Its logic can be replaced.** Upgrade authority sits with the governance **timelock (48h on mainnet)**, which only the **admin Safe** can propose to.
 - An upgrade can change anything the pool does, including how its USDC reserve is priced, paid out or withdrawn, and it can **move any tokens or USDC that users have approved the pool to spend**. Integrators must use **exact-amount approvals** (see below).
-- Holders get at least the timelock delay (48h) of public notice before any upgrade takes effect, and an upgrade cannot execute while the target pool is paused.
+- Holders get at least the timelock delay (48h) of public notice before any upgrade takes effect, and an upgrade cannot execute while holders of the target pool cannot sell (paused, or still in the pool's buy-only period). This guarantee is bounded by the Safe-held powers listed under [Residual trust outside the timelock](#residual-trust-outside-the-timelock).
 - Governance can permanently give up the ability to upgrade a pool (`freezeUpgrades`), pool by pool.
 - One pool's upgrade authority cannot mint or burn another model's token: each pool's TokenManager authority is scoped to its own model (HOK-3283).
 
@@ -43,11 +43,13 @@ It cannot:
 
 ## Notice window and pause
 
-Every upgrade, freeze, unpause and pool-parameter change is a timelock operation, visible on-chain (`CallScheduled`) at least 48h before it can execute. Monitoring should alert on any scheduled call targeting `HokusaiPoolProxyAdmin` or `HokusaiAMMFactory`.
+Every upgrade, freeze, unpause and pool-parameter change is a timelock operation, visible on-chain (`CallScheduled`) at least 48h before it can execute. Monitoring should alert on any scheduled call targeting `HokusaiPoolProxyAdmin` or `HokusaiAMMFactory`, and on the Safe-held powers listed under [Residual trust outside the timelock](#residual-trust-outside-the-timelock).
 
 Pause stops both buys and sells. That is deliberate: the most likely reason to pause is an active exploit, and stopping sells may be what protects the reserve. Pause is fast (the emergency Safe can pause without delay), and unpause is timelocked.
 
-**Exit-safe pause rule.** `HokusaiPoolProxyAdmin` refuses to upgrade a pool that is paused when the upgrade executes. Governance therefore cannot pause a pool for the whole notice window and then upgrade it in the paused state.
+**Exit-safe pause rule.** `HokusaiPoolProxyAdmin` refuses to upgrade a pool whose holders cannot sell when the upgrade executes: the pool is paused, or it is still in its buy-only (IBR) period. Governance therefore cannot pause a pool for the whole notice window and then upgrade it in the paused state, and cannot upgrade a newly created pool before its holders have been able to sell. If the pool's current implementation cannot report its state (its `paused()` or `isSellEnabled()` reverts), the upgrade is allowed, so a broken implementation can still be replaced rather than locking the pool forever.
+
+**Pause blocks a scheduled upgrade.** Because of the rule above, a pause landing before a scheduled upgrade executes makes that upgrade revert. A planned upgrade of a paused pool (for example the fix for an exploit) has to be scheduled as one timelock batch, `[factory.unpausePool, proxyAdmin.upgrade, (optionally) factory.pausePool]`, which is the batch case below.
 
 **Accepted residual trust.** Governance could still schedule `[unpausePool, upgrade]` as one timelock batch. Holders would then see the batch 48h in advance but could not sell during that window if the pool stayed paused throughout. Closing this gap would require a minimum unpaused period before an upgrade, which would also block a fast fix of an exploited, paused pool. For the initial release we accept trusting the admin Safe and timelock here (decision 2026-10-22). Monitoring should treat a scheduled batch containing both an unpause and an upgrade as high severity.
 
@@ -56,6 +58,27 @@ Pause stops both buys and sells. That is deliberate: the most likely reason to p
 ## Freezing upgrades
 
 `HokusaiPoolProxyAdmin.freezeUpgrades(pool)` permanently disables upgrades for one pool. It is owner-only, so it is itself a 48h timelock operation. It is irreversible (there is no unfreeze), and it applies only to that pool. After a freeze the pool's logic is immutable; pause, unpause and parameter changes through the factory still work.
+
+The freeze holds only while the frozen implementation has no way to write arbitrary storage (no `delegatecall`, UUPS upgrade function or raw slot write). `HokusaiAMM` has none; any future implementation must keep it that way before a pool running it is frozen.
+
+## Writing upgrades
+
+- The pool owner is the factory, not the ProxyAdmin, so `upgradeAndCall` cannot run an `onlyOwner` reinitializer. Schedule `[proxyAdmin.upgrade, factory.callPool(modelId, reinitializerCalldata)]` as one timelock batch, and keep reinitializers `onlyOwner` so they cannot be front-run between two transactions.
+- Use `upgrade`, not `upgradeAndCall` with empty calldata (`HokusaiAMM` has no fallback, so an empty call reverts).
+- Append new state variables and shrink `__gap` by the same amount. Run `npm run validate:upgrades` against the released implementation (see HOK-3289: the reference layout is frozen at the HOK-3291 deploy).
+
+## Residual trust outside the timelock
+
+These powers are held directly by the admin Safe (2-of-3), with no timelock delay. They were accepted for launch (H-1, HOK-2409) and remain for the redeploy. Monitoring should alert on each of them.
+
+| Power | Holder | What it allows | Follow-up |
+| --- | --- | --- | --- |
+| Per-model `HokusaiToken.setController` | Token owner = admin Safe | Point the controller elsewhere: every sell then reverts (`burnAMM` is controller-only), which is a "pause" the ProxyAdmin cannot see, so an upgrade can execute with no exit window. Or make the Safe the controller, mint up to the cap headroom, restore TokenManager and sell into the pool. | HOK-3318. Alert on `ControllerUpdated`. |
+| DeltaVerifier admin (attesters, mint budgets, `maxReward`) | Admin Safe | Add an attester and raise a budget, then mint rewards that can be sold into the pool. | HOK-2409. Alert on attester/budget changes. |
+| `HokusaiParams` `GOV_ROLE` (incl. `infrastructureAccrualBps`, `tokensPerDeltaOne`) | Admin Safe | Instantly send up to 100% of future usage fees to `InfrastructureReserve` instead of the pool. `PAYER_ROLE` (treasury) can pay any payee up to a model's accrual. Funds already in a pool are not affected. | HOK-2409. Alert on params changes. |
+| `HokusaiAMMFactory.pauser` | Emergency Safe (= admin Safe) | Pause any pool (fast), which also blocks a scheduled upgrade from executing. Cannot unpause. | Accepted (decision 2026-10-22). |
+
+Timelocked powers that holders should also know about: TokenManager's owner, `MINTER_ROLE` holders and the DeltaVerifier can burn any account's model tokens without an allowance and mint investor tokens up to the cap. After handoff these sit with the timelock.
 
 ## Implementation for new pools
 
@@ -75,7 +98,10 @@ Pause stops both buys and sells. That is deliberate: the most likely reason to p
 - every pool's ERC-1967 admin slot is `PoolProxyAdmin` and its implementation slot is an approved implementation (`contracts.HokusaiAMMImplementation`, or one recorded under `upgrades.approvedPoolImplementations` after a timelocked upgrade);
 - every pool is the ModelRegistry pool for its model and holds no TokenManager `MINTER_ROLE`;
 - the factory's `poolDeployer`, `poolImplementation`, `modelRegistry` and `tokenManager`, and TokenManager's `registry`, match the deployment;
-- the deployer holds no role named anywhere in the policy (TokenManager `MINTER_ROLE`/`DEPLOYER_ROLE`, router `FEE_DEPOSITOR_ROLE`, whitelist and contribution-registry roles included).
+- the deployer holds no role named anywhere in the policy (TokenManager `MINTER_ROLE`/`DEPLOYER_ROLE`, router `FEE_DEPOSITOR_ROLE`, whitelist and contribution-registry roles included), and no policy symbol (treasury, relayer, backend service, recorded role holders) resolves to the deployer;
+- the deployer audited is the one recorded in the deployment artifact, not whichever key is loaded;
+- the timelock delay is at least 48h on mainnet, and the deployer holds no timelock role;
+- the factory's on-chain pool count matches the pools recorded in the artifact, so no pool goes unchecked.
 
 ## Published addresses
 

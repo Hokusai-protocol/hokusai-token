@@ -27,15 +27,25 @@ function getMainnetConfig(deployerAddress) {
     infrastructureCostOracleParams: {
       initialGrossMarginBps: Number(process.env.INFRASTRUCTURE_GROSS_MARGIN_BPS || "1500"),
     },
-    treasury: process.env.TREASURY_ADDRESS || deployerAddress,
+    // Required: a fallback to the deployer would make it the permanent pool
+    // treasury and InfrastructureReserve payer (HOK-3289).
+    treasury: requireAddressEnv("TREASURY_ADDRESS"),
     backendService: process.env.BACKEND_SERVICE_ADDRESS || null,
-    verifierAddress: process.env.VERIFIER_ADDRESS || deployerAddress,
+    verifierAddress: requireAddressEnv("VERIFIER_ADDRESS"),
     minDeployerBalanceEth: "0.5",
     maxGasPriceGwei: process.env.MAX_GAS_PRICE_GWEI
       ? Number(process.env.MAX_GAS_PRICE_GWEI)
       : 100,
     confirmationPauseSeconds: 10,
   };
+}
+
+function requireAddressEnv(name) {
+  const value = process.env[name];
+  if (!value || !ethers.isAddress(value)) {
+    throw new Error(`${name} must be set to an address for a mainnet deployment`);
+  }
+  return value;
 }
 
 async function main() {

@@ -13,7 +13,7 @@ describe("HokusaiPoolProxyAdmin", function () {
   const MODEL_B = "8202";
 
   let owner, treasury, outsider;
-  let factory, poolDeployer, proxyAdmin, poolA, poolB, v2;
+  let factory, poolDeployer, proxyAdmin, poolA, poolB, v2, ctx;
 
   async function addPool(modelRegistry, tokenManager, modelId) {
     const tokenAddress = await deployTestTokenAddress(tokenManager, modelId, "T", "T", parseEther("1"), owner.address);
@@ -35,7 +35,15 @@ describe("HokusaiPoolProxyAdmin", function () {
     poolA = await addPool(modelRegistry, tokenManager, MODEL_A);
     poolB = await addPool(modelRegistry, tokenManager, MODEL_B);
     v2 = await ethers.deployContract("HokusaiAMMV2Mock");
+    ctx = { modelRegistry, tokenManager };
+    await passBuyOnlyPeriod(poolB);
   });
+
+  // Pools start in a buy-only period, during which the ProxyAdmin refuses upgrades.
+  async function passBuyOnlyPeriod(pool) {
+    await ethers.provider.send("evm_setNextBlockTimestamp", [Number(await pool.buyOnlyUntil())]);
+    await ethers.provider.send("evm_mine");
+  }
 
   const implOf = async (pool) => upgrades.erc1967.getImplementationAddress(await pool.getAddress());
 
@@ -73,15 +81,37 @@ describe("HokusaiPoolProxyAdmin", function () {
   it("refuses to upgrade a paused pool, and allows it again once unpaused", async function () {
     const pool = await poolA.getAddress();
     await factory.pausePool(MODEL_A);
-    await expect(proxyAdmin.upgrade(pool, await v2.getAddress())).to.be.revertedWith("Pool is paused");
+    await expect(proxyAdmin.upgrade(pool, await v2.getAddress())).to.be.revertedWith("Pool exit is closed");
     await expect(proxyAdmin.upgradeAndCall(pool, await v2.getAddress(), "0x")).to.be.revertedWith(
-      "Pool is paused"
+      "Pool exit is closed"
     );
 
     // Another, unpaused pool is unaffected.
     await proxyAdmin.upgrade(await poolB.getAddress(), await v2.getAddress());
 
     await factory.unpausePool(MODEL_A);
+    await proxyAdmin.upgrade(pool, await v2.getAddress());
+    expect(await implOf(poolA)).to.equal(await v2.getAddress());
+  });
+
+  it("refuses to upgrade a pool during its buy-only period", async function () {
+    const poolC = await addPool(ctx.modelRegistry, ctx.tokenManager, "8203");
+    expect(await poolC.isSellEnabled()).to.equal(false);
+    await expect(proxyAdmin.upgrade(await poolC.getAddress(), await v2.getAddress())).to.be.revertedWith(
+      "Pool exit is closed"
+    );
+
+    await passBuyOnlyPeriod(poolC);
+    await proxyAdmin.upgrade(await poolC.getAddress(), await v2.getAddress());
+    expect(await implOf(poolC)).to.equal(await v2.getAddress());
+  });
+
+  it("can still replace an implementation that cannot report its pause state", async function () {
+    const pool = await poolA.getAddress();
+    const broken = await ethers.deployContract("HokusaiAMMBrokenStateMock");
+    await proxyAdmin.upgrade(pool, await broken.getAddress());
+    await expect(poolA.paused()).to.be.revertedWith("paused() unavailable");
+
     await proxyAdmin.upgrade(pool, await v2.getAddress());
     expect(await implOf(poolA)).to.equal(await v2.getAddress());
   });

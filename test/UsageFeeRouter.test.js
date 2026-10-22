@@ -628,6 +628,38 @@ describe("UsageFeeRouter", function () {
       expect(await infraReserve.accrued(MODEL_ID_2)).to.equal(parseUnits("1600", 6));
     });
 
+    it("Should batch entries whose infrastructure share is zero alongside others", async function () {
+      // Oracle-priced model with no calls: everything goes to the pool.
+      await setOracleCost(MODEL_ID_1, parseUnits("500", 6));
+
+      await feeRouter.connect(depositor).batchDepositFees(
+        [MODEL_ID_1, MODEL_ID_2],
+        [parseUnits("1000", 6), parseUnits("2000", 6)],
+        [0, 1000]
+      );
+
+      expect(await infraReserve.accrued(MODEL_ID_1)).to.equal(0);
+      expect(await pool1.reserveBalance()).to.equal(parseUnits("1000", 6));
+      expect(await infraReserve.accrued(MODEL_ID_2)).to.equal(parseUnits("1600", 6));
+      expect(await mockUSDC.balanceOf(await feeRouter.getAddress())).to.equal(0);
+    });
+
+    it("Should revert when a pool does not take its fees", async function () {
+      const MODEL_ID_3 = "403";
+      const token3Address = await deployTestTokenAddress(tokenManager, MODEL_ID_3, "Gamma", "GAMMA", INITIAL_SUPPLY, owner.address);
+      await deployTestToken(tokenManager, MODEL_ID_3, "Gamma", "GAMMA", INITIAL_SUPPLY, owner.address);
+      await modelRegistry.registerStringModel(MODEL_ID_3, token3Address, "Test metric");
+      const badPool = await ethers.deployContract("NonPullingPoolMock");
+      await modelRegistry.registerPool(MODEL_ID_3, await badPool.getAddress());
+
+      await expect(
+        feeRouter.connect(depositor).depositFee(MODEL_ID_3, parseUnits("1000", 6), 1000)
+      ).to.be.revertedWith("Pool did not take fees");
+      await expect(
+        feeRouter.connect(depositor).batchDepositFees([MODEL_ID_1, MODEL_ID_3], [parseUnits("1000", 6), parseUnits("1000", 6)], [1000, 1000])
+      ).to.be.revertedWith("Pool did not take fees");
+    });
+
     it("Should emit individual FeeDeposited events", async function () {
       const amounts = [parseUnits("1000", 6), parseUnits("2000", 6)];
 

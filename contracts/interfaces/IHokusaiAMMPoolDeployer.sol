@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 interface IHokusaiAMMPoolDeployer {
+    function factory() external view returns (address);
+
     function defaultImplementation() external view returns (address);
 
     function deployPool(

@@ -203,9 +203,7 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
 
         // Route profit to AMM (increases reserve, benefits token holders)
         if (profitAmount > 0) {
-            HokusaiAMM pool = HokusaiAMM(poolAddress);
-            reserveToken.approve(poolAddress, profitAmount);
-            pool.depositFees(profitAmount);
+            _depositToPool(poolAddress, profitAmount);
         }
 
         // Update statistics
@@ -268,6 +266,7 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         // Process each model
         string[] memory infraModelIds = new string[](modelIds.length);
         uint256[] memory infraAmounts = new uint256[](modelIds.length);
+        uint256 infraCount = 0;
 
         for (uint256 i = 0; i < modelIds.length; i++) {
             string memory modelId = modelIds[i];
@@ -280,17 +279,19 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
             (uint256 infrastructureAmount, uint256 profitAmount, CostBasis costBasis) =
                 _calculateFeeSplit(modelId, amount, callCount);
 
-            // Accumulate for batch operations
-            infraModelIds[i] = modelId;
-            infraAmounts[i] = infrastructureAmount;
-            totalInfra += infrastructureAmount;
+            // Accumulate for batch operations. InfrastructureReserve rejects
+            // zero amounts, so entries with no infrastructure share are left out.
+            if (infrastructureAmount > 0) {
+                infraModelIds[infraCount] = modelId;
+                infraAmounts[infraCount] = infrastructureAmount;
+                infraCount++;
+                totalInfra += infrastructureAmount;
+            }
             totalProfit += profitAmount;
 
             // Deposit profit to AMM immediately (can't batch this)
             if (profitAmount > 0) {
-                HokusaiAMM pool = HokusaiAMM(poolAddress);
-                reserveToken.approve(poolAddress, profitAmount);
-                pool.depositFees(profitAmount);
+                _depositToPool(poolAddress, profitAmount);
             }
 
             // Update statistics
@@ -317,8 +318,14 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
 
         // Batch deposit to infrastructure reserve
         if (totalInfra > 0) {
+            string[] memory depositModelIds = new string[](infraCount);
+            uint256[] memory depositAmounts = new uint256[](infraCount);
+            for (uint256 i = 0; i < infraCount; i++) {
+                depositModelIds[i] = infraModelIds[i];
+                depositAmounts[i] = infraAmounts[i];
+            }
             reserveToken.approve(address(infraReserve), totalInfra);
-            infraReserve.batchDeposit(infraModelIds, infraAmounts);
+            infraReserve.batchDeposit(depositModelIds, depositAmounts);
         }
 
         totalFeesDeposited += totalAmount;
@@ -335,6 +342,17 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
     // ============================================================
     // INTERNAL FUNCTIONS
     // ============================================================
+
+    /**
+     * @dev Approve and deposit `amount` into a model's pool. Pools are
+     * upgradeable, so require the pool to take exactly what it was approved
+     * for: nothing stays stuck here or approved for a later pull.
+     */
+    function _depositToPool(address poolAddress, uint256 amount) private {
+        require(reserveToken.approve(poolAddress, amount), "Approve failed");
+        HokusaiAMM(poolAddress).depositFees(amount);
+        require(reserveToken.allowance(address(this), poolAddress) == 0, "Pool did not take fees");
+    }
 
     /**
      * @dev Internal function to calculate fee split using cost-plus logic

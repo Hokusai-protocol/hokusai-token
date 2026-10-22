@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./libraries/ValidationLib.sol";
 import "./libraries/FeeLib.sol";
 import "./HokusaiAMM.sol";
-import "./ModelRegistry.sol";
+import "./interfaces/IModelRegistry.sol";
 import "./TokenManager.sol";
 import "./interfaces/IHokusaiAMMPoolDeployer.sol";
 
@@ -25,7 +25,7 @@ contract HokusaiAMMFactory is Ownable {
     // STATE VARIABLES
     // ============================================================
 
-    ModelRegistry public immutable modelRegistry;
+    IModelRegistry public immutable modelRegistry;
     TokenManager public immutable tokenManager;
     address public immutable reserveToken; // USDC
 
@@ -107,7 +107,7 @@ contract HokusaiAMMFactory is Ownable {
         ValidationLib.requireNonZeroAddress(_reserveToken, "reserve token");
         ValidationLib.requireNonZeroAddress(_treasury, "treasury");
 
-        modelRegistry = ModelRegistry(_modelRegistry);
+        modelRegistry = IModelRegistry(_modelRegistry);
         tokenManager = TokenManager(_tokenManager);
         reserveToken = _reserveToken;
         treasury = _treasury;

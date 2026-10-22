@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./libraries/ValidationLib.sol";
-import "./ModelRegistry.sol";
+import "./interfaces/IModelRegistry.sol";
 import "./TokenManager.sol";
 import "./HokusaiToken.sol";
 import "./interfaces/IHokusaiParams.sol";
@@ -146,7 +146,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         uint256 deadline;
     }
 
-    ModelRegistry public immutable modelRegistry;
+    IModelRegistry public immutable modelRegistry;
     TokenManager public immutable tokenManager;
     IDataContributionRegistry public immutable contributionRegistry;
 
@@ -282,7 +282,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         ValidationLib.requirePositiveAmount(_baseRewardRate, "reward rate");
         ValidationLib.requirePositiveAmount(_minImprovementBps, "min improvement");
 
-        modelRegistry = ModelRegistry(_modelRegistry);
+        modelRegistry = IModelRegistry(_modelRegistry);
         tokenManager = TokenManager(_tokenManager);
         contributionRegistry = IDataContributionRegistry(_contributionRegistry);
         baseRewardRate = _baseRewardRate;
@@ -301,7 +301,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         if (legacyMintsDisabled) revert LegacyMintEntrypointDisabled();
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
-        require(modelRegistry.isModelActive(modelId), "Model is deactivated");
+        require(modelRegistry.isActive(modelId), "Model is deactivated");
         _assertCanonicalTokenMatch(modelId);
         
         return _processEvaluation(modelId, data);
@@ -314,7 +314,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         if (legacyMintsDisabled) revert LegacyMintEntrypointDisabled();
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
-        require(modelRegistry.isModelActive(modelId), "Model is deactivated");
+        require(modelRegistry.isActive(modelId), "Model is deactivated");
         _assertCanonicalTokenMatch(modelId);
         
         // Validate wallet address
@@ -345,7 +345,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         if (legacyMintsDisabled) revert LegacyMintEntrypointDisabled();
         // Validate model exists
         require(modelRegistry.isRegistered(modelId), "Model not registered");
-        require(modelRegistry.isModelActive(modelId), "Model is deactivated");
+        require(modelRegistry.isActive(modelId), "Model is deactivated");
         _assertCanonicalTokenMatch(modelId);
         (address[] memory contributorAddresses, uint256[] memory rewardAmounts) = _validateContributors(contributors);
         require(data.totalSamples > 0, "Total samples must be positive");
@@ -422,7 +422,7 @@ contract DeltaVerifier is AccessControl, ReentrancyGuard, Pausable, EIP712 {
         bytes[] calldata attesterSignatures
     ) external nonReentrant whenNotPaused onlyRole(SUBMITTER_ROLE) returns (uint256) {
         require(modelRegistry.isRegistered(modelId), "Model not registered");
-        require(modelRegistry.isModelActive(modelId), "Model is deactivated");
+        require(modelRegistry.isActive(modelId), "Model is deactivated");
         _assertCanonicalTokenMatch(modelId);
         require(payload.anchors.idempotencyKey != bytes32(0), "Idempotency key cannot be empty");
         require(!processedIdempotencyKeys[payload.anchors.idempotencyKey], "Idempotency key already processed");

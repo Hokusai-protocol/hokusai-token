@@ -9,6 +9,12 @@ const { ethers } = require("hardhat");
  *     isModelRegistered[id].
  *   - "active" family: isActive(uint256) and isModelActive(uint256) — both return
  *     isModelRegistered[id] && models[id].active.
+ *   - string-ID families: isStringRegistered / isStringModelRegistered, and
+ *     isStringActive / isModelActive(string).
+ *   - token lookup: getTokenAddress(uint256) / getToken(uint256).
+ *
+ * HOK-2450: the canonical names are pinned in IModelRegistry and the deprecated
+ * aliases delegate to them, so they cannot diverge; this suite still guards it.
  *
  * These aliases are byte-for-byte equivalent today, so callers treat them as
  * interchangeable. This suite pins that equivalence across every model state so a
@@ -59,14 +65,25 @@ describe("ModelRegistry - view alias invariants", function () {
 
   // Reads every alias for a model id and returns the two logical groupings.
   async function readAliases(id) {
-    const [isRegistered, exists, isModelRegistered, isActive, isModelActive] = await Promise.all([
+    const sid = String(id);
+    const [
+      isRegistered, exists, isModelRegistered, isActive, isModelActive,
+      isStringRegistered, isStringModelRegistered, isStringActive, isModelActiveString,
+    ] = await Promise.all([
       modelRegistry.isRegistered(id),
       modelRegistry.exists(id),
       modelRegistry.isModelRegistered(id),
       modelRegistry.isActive(id),
       modelRegistry["isModelActive(uint256)"](id),
+      modelRegistry.isStringRegistered(sid),
+      modelRegistry.isStringModelRegistered(sid),
+      modelRegistry.isStringActive(sid),
+      modelRegistry["isModelActive(string)"](sid),
     ]);
-    return { isRegistered, exists, isModelRegistered, isActive, isModelActive };
+    return {
+      isRegistered, exists, isModelRegistered, isActive, isModelActive,
+      isStringRegistered, isStringModelRegistered, isStringActive, isModelActiveString,
+    };
   }
 
   // Asserts every alias inside a family agrees, and returns the family's value.
@@ -76,6 +93,11 @@ describe("ModelRegistry - view alias invariants", function () {
     expect(a.isModelRegistered).to.equal(a.isRegistered);
     // "active" family must all agree.
     expect(a.isModelActive).to.equal(a.isActive);
+    // String IDs resolve to the same model, so they join the same families.
+    expect(a.isStringRegistered).to.equal(a.isRegistered);
+    expect(a.isStringModelRegistered).to.equal(a.isRegistered);
+    expect(a.isStringActive).to.equal(a.isActive);
+    expect(a.isModelActiveString).to.equal(a.isActive);
     return { registered: a.isRegistered, active: a.isActive };
   }
 
@@ -106,6 +128,38 @@ describe("ModelRegistry - view alias invariants", function () {
       expect(registered).to.be.true;
       expect(active).to.be.true;
     }
+  });
+
+  it("keeps getToken and getTokenAddress equivalent, including the unregistered revert", async function () {
+    await expect(modelRegistry.getToken(5)).to.be.revertedWith("Model not registered");
+    await expect(modelRegistry.getTokenAddress(5)).to.be.revertedWith("Model not registered");
+    await modelRegistry.registerModel(5, token0Addr, "accuracy");
+    expect(await modelRegistry.getToken(5)).to.equal(token0Addr);
+    expect(await modelRegistry.getTokenAddress(5)).to.equal(token0Addr);
+  });
+
+  it("treats non-canonical string IDs as unregistered in every string alias", async function () {
+    await modelRegistry.registerModel(9, token0Addr, "accuracy");
+    for (const sid of ["", "09x", "nine"]) {
+      expect(await modelRegistry.isStringRegistered(sid)).to.be.false;
+      expect(await modelRegistry.isStringModelRegistered(sid)).to.be.false;
+      expect(await modelRegistry.isStringActive(sid)).to.be.false;
+      expect(await modelRegistry["isModelActive(string)"](sid)).to.be.false;
+    }
+  });
+
+  it("pins only canonical names in IModelRegistry", async function () {
+    const iface = (await ethers.getContractAt("IModelRegistry", await modelRegistry.getAddress())).interface;
+    const names = iface.fragments.filter((f) => f.type === "function").map((f) => f.name);
+    for (const deprecated of ["exists", "isModelActive", "isStringModelRegistered", "getToken", "isModelRegistered"]) {
+      expect(names).to.not.include(deprecated);
+    }
+    // ModelRegistry implements the interface, so a canonical call through it
+    // matches the concrete contract.
+    await modelRegistry.registerModel(4, token1Addr, "accuracy");
+    const asInterface = await ethers.getContractAt("IModelRegistry", await modelRegistry.getAddress());
+    expect(await asInterface.isActive(4)).to.equal(true);
+    expect(await asInterface.isStringRegistered("4")).to.equal(true);
   });
 
   it("keeps registered and active distinct (they must never collapse into one flag)", async function () {

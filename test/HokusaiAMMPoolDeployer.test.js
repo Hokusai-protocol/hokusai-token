@@ -111,16 +111,17 @@ describe("HokusaiAMMPoolDeployer", function () {
     expect(await pool.owner()).to.equal(await factory.getAddress());
   });
 
-  it("deploys pools as proxies over one implementation, administered by a factory-owned ProxyAdmin", async function () {
+  it("deploys pools as proxies over one implementation, administered by the bootstrap-owned HokusaiPoolProxyAdmin", async function () {
     const poolAddress = await factory.createPool.staticCall(MODEL_ID, tokenAddress);
     await factory.createPool(MODEL_ID, tokenAddress);
 
     const implementation = await poolDeployer.defaultImplementation();
     expect(await factory.poolImplementation()).to.equal(implementation);
-    const proxyAdmin = await ethers.getContractAt("ProxyAdmin", await poolDeployer.proxyAdmin());
+    const proxyAdmin = await ethers.getContractAt("HokusaiPoolProxyAdmin", await poolDeployer.proxyAdmin());
     expect(await upgrades.erc1967.getImplementationAddress(poolAddress)).to.equal(implementation);
     expect(await upgrades.erc1967.getAdminAddress(poolAddress)).to.equal(await proxyAdmin.getAddress());
-    expect(await proxyAdmin.owner()).to.equal(await factory.getAddress());
+    // Bootstrap owner is the deployer; the governance handoff moves it to the timelock.
+    expect(await proxyAdmin.owner()).to.equal(owner.address);
 
     // The shared implementation cannot be initialized directly.
     const impl = await ethers.getContractAt("HokusaiAMM", implementation);
@@ -140,9 +141,16 @@ describe("HokusaiAMMPoolDeployer", function () {
     ).to.be.revertedWith("Initializable: contract is already initialized");
   });
 
+  it("rejects a zero proxy admin owner", async function () {
+    const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
+    await expect(
+      HokusaiAMMPoolDeployer.deploy(await factory.getAddress(), ZeroAddress)
+    ).to.be.revertedWithCustomError(HokusaiAMMPoolDeployer, "ZeroAddress");
+  });
+
   it("rejects a second pool deployer configuration", async function () {
     const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
-    const otherPoolDeployer = await HokusaiAMMPoolDeployer.deploy(await factory.getAddress());
+    const otherPoolDeployer = await HokusaiAMMPoolDeployer.deploy(await factory.getAddress(), owner.address);
     await otherPoolDeployer.waitForDeployment();
 
     await expect(
@@ -152,7 +160,7 @@ describe("HokusaiAMMPoolDeployer", function () {
 
   it("rejects non-owner pool deployer configuration", async function () {
     const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
-    const otherPoolDeployer = await HokusaiAMMPoolDeployer.deploy(await factory.getAddress());
+    const otherPoolDeployer = await HokusaiAMMPoolDeployer.deploy(await factory.getAddress(), owner.address);
     await otherPoolDeployer.waitForDeployment();
 
     await expect(

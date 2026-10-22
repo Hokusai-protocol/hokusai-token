@@ -1,6 +1,8 @@
 const { ethers } = require("hardhat");
 
-async function deployFactoryWithPoolDeployer(modelRegistry, tokenManager, reserveToken, treasury) {
+// proxyAdminOwner defaults to the factory's deploying signer (bootstrap owner,
+// before a governance handoff).
+async function deployFactoryWithPoolDeployer(modelRegistry, tokenManager, reserveToken, treasury, proxyAdminOwner) {
   const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
   const factory = await HokusaiAMMFactory.deploy(
     await modelRegistry.getAddress(),
@@ -11,7 +13,10 @@ async function deployFactoryWithPoolDeployer(modelRegistry, tokenManager, reserv
   await factory.waitForDeployment();
 
   const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
-  const poolDeployer = await HokusaiAMMPoolDeployer.deploy(await factory.getAddress());
+  const poolDeployer = await HokusaiAMMPoolDeployer.deploy(
+    await factory.getAddress(),
+    proxyAdminOwner || (await factory.runner.getAddress())
+  );
   await poolDeployer.waitForDeployment();
 
   await factory.setPoolDeployer(await poolDeployer.getAddress());

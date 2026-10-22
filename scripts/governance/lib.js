@@ -6,6 +6,10 @@ const DEFAULT_POLICY_PATH = path.resolve(__dirname, "governance-policy.json");
 const DEFAULT_ADMIN_SAFE = "0x158B985CC667b4E022AD05B99E89007790da66E2";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ZERO_ROLE = "0x0000000000000000000000000000000000000000000000000000000000000000";
+// ERC-1967 storage slots read directly, since a transparent proxy's admin/implementation
+// getters are only callable by its admin.
+const ERC1967_IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+const ERC1967_ADMIN_SLOT = "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103";
 
 function loadJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -217,6 +221,28 @@ function expandContractSpecs(policy, deployment, governance) {
   });
 }
 
+// Every role the policy names for a contract (expected holders or deployer revocations),
+// minus roles the policy deliberately assigns to the deployer. Post-handoff the deployer
+// must hold none of these.
+function deployerRevokedRoles(spec, deployer) {
+  const roleNames = new Set([
+    ...Object.keys(spec.roles),
+    ...(spec.policy.revokedFromDeployer || []).filter((entry) => entry !== "owner"),
+  ]);
+  return [...roleNames].filter(
+    (roleName) => !(spec.roles[roleName] || []).some((holder) => addressesEqual(holder, deployer))
+  );
+}
+
+function expectedList(expected) {
+  return (Array.isArray(expected) ? expected : [expected]).flat().filter(Boolean);
+}
+
+async function readSlotAddress(provider, address, slot) {
+  const raw = await provider.getStorage(address, slot);
+  return `0x${raw.slice(-40)}`;
+}
+
 async function getRoleId(contract, roleName) {
   if (roleName === "DEFAULT_ADMIN_ROLE") {
     return ZERO_ROLE;
@@ -419,11 +445,7 @@ async function runGovernanceTransfer({ hre, deployment, policy, dryRun = false, 
       });
     }
 
-    for (const revoked of spec.policy.revokedFromDeployer || []) {
-      if (revoked === "owner") {
-        continue;
-      }
-
+    for (const revoked of deployerRevokedRoles(spec, governance.deployer)) {
       const roleId = await getRoleId(contract, revoked);
       await renounceRoleIfHeld({
         contract,
@@ -531,12 +553,48 @@ async function verifyGovernance({ hre, deployment, policy }) {
     for (const check of spec.checks) {
       if (check.type === "equals") {
         const actual = await contract[check.method]();
+        const expected = expectedList(check.expected);
         pushCheck({
           contract: spec.instanceKey,
           check: check.method,
-          expected: check.expected,
+          expected: expected.join(" | "),
           actual,
-          status: addressesEqual(actual, check.expected) ? "pass" : "fail",
+          status: expected.some((value) => addressesEqual(actual, value)) ? "pass" : "fail",
+        });
+      } else if (check.type === "proxyImplementation" || check.type === "proxyAdmin") {
+        const slot = check.type === "proxyAdmin" ? ERC1967_ADMIN_SLOT : ERC1967_IMPLEMENTATION_SLOT;
+        const actual = await readSlotAddress(hre.ethers.provider, spec.address, slot);
+        const expected = expectedList(check.expected);
+        pushCheck({
+          contract: spec.instanceKey,
+          check: check.type,
+          expected: expected.join(" | "),
+          actual,
+          status: expected.some((value) => addressesEqual(actual, value)) ? "pass" : "fail",
+        });
+      } else if (check.type === "registryPool") {
+        // The registry binding is the pool's TokenManager mint/burn authority (HOK-3283).
+        const registry = await hre.ethers.getContractAt("ModelRegistry", deployment.contracts.ModelRegistry);
+        const actual = await registry.getPool(spec.item.modelId);
+        pushCheck({
+          contract: spec.instanceKey,
+          check: `ModelRegistry.getPool(${spec.item.modelId})`,
+          expected: spec.address,
+          actual,
+          status: addressesEqual(actual, spec.address) ? "pass" : "fail",
+        });
+      } else if (check.type === "notRoleHolder") {
+        const target = await hre.ethers.getContractAt(
+          check.abiFrom ? getByPath(deployment, check.abiFrom) : check.contract,
+          deployment.contracts[check.contract]
+        );
+        const hasRole = await target.hasRole(await getRoleId(target, check.role), spec.address);
+        pushCheck({
+          contract: spec.instanceKey,
+          check: `${check.contract}.${check.role} not held`,
+          expected: "false",
+          actual: String(hasRole),
+          status: hasRole ? "fail" : "pass",
         });
       } else if (check.type === "mappingBool") {
         const actual = await contract[check.method](...check.args);
@@ -550,23 +608,18 @@ async function verifyGovernance({ hre, deployment, policy }) {
       }
     }
 
-    for (const revoked of spec.policy.revokedFromDeployer || []) {
-      if (revoked === "owner") {
-        if (!spec.owner) {
-          continue;
-        }
+    if (spec.owner && (spec.policy.revokedFromDeployer || []).includes("owner")) {
+      const actualOwner = await contract.owner();
+      pushCheck({
+        contract: spec.instanceKey,
+        check: "deployer-owner-revoked",
+        expected: `not ${governance.deployer}`,
+        actual: actualOwner,
+        status: !addressesEqual(actualOwner, governance.deployer) ? "pass" : "fail",
+      });
+    }
 
-        const actualOwner = await contract.owner();
-        pushCheck({
-          contract: spec.instanceKey,
-          check: "deployer-owner-revoked",
-          expected: `not ${governance.deployer}`,
-          actual: actualOwner,
-          status: !addressesEqual(actualOwner, governance.deployer) ? "pass" : "fail",
-        });
-        continue;
-      }
-
+    for (const revoked of deployerRevokedRoles(spec, governance.deployer)) {
       const roleId = await getRoleId(contract, revoked);
       const hasRole = await contract.hasRole(roleId, governance.deployer);
       pushCheck({

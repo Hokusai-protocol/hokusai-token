@@ -194,7 +194,7 @@ async function main() {
 
     console.log("   6a️⃣ Deploying HokusaiAMMPoolDeployer...");
     const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
-    const poolDeployer = await HokusaiAMMPoolDeployer.deploy(factoryAddress);
+    const poolDeployer = await HokusaiAMMPoolDeployer.deploy(factoryAddress, deployer.address);
     await poolDeployer.waitForDeployment();
     const poolDeployerAddress = await poolDeployer.getAddress();
     deployment.contracts.HokusaiAMMPoolDeployer = poolDeployerAddress;

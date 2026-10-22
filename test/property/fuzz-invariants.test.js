@@ -14,7 +14,7 @@ const {
   configureLineageGenesis,
   payloadForNextLink,
 } = require("../helpers/mintRequest");
-const { deployAMMProxy } = require("../helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("../helpers/ammDeployment");
 
 const GOLDEN_FIXTURE_PATH = path.resolve(__dirname, "../fixtures/deltaverifier-mint-request.golden.json");
 
@@ -208,7 +208,7 @@ describe("Property fuzz invariants", function () {
       parseUnits("0.01", 6),
     );
     await amm.waitForDeployment();
-    await tokenManager.authorizeAMM(await amm.getAddress());
+    await bindPool(tokenManager, await amm.getAddress());
     await amm.setMaxTradeBps(5000);
 
     await mockUSDC.mint(owner.address, parseUnits("10000", 6));

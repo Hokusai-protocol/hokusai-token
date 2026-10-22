@@ -3,12 +3,12 @@ const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { parseEther, parseUnits } = require("ethers");
 const { buildInitialParams, buildVestingConfig } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 // Scenario-specific separated-accounting regression coverage now lives in
 // test/AllocationAccountingSeparation.regression.test.js.
 describe("Investor allocation separation", function () {
-  const MODEL_ID = "cap-model";
+  const MODEL_ID = "7207";
   const INVESTOR_ALLOCATION = parseEther("100");
   const SUPPLIER_ALLOCATION = parseEther("25");
 
@@ -73,7 +73,7 @@ describe("Investor allocation separation", function () {
     await amm.waitForDeployment();
 
     await amm.setMaxTradeBps(5000);
-    await tokenManager.authorizeAMM(await amm.getAddress());
+    await bindPool(tokenManager, await amm.getAddress());
 
     await usdc.mint(buyer.address, parseUnits("1000", 6));
     await usdc.connect(buyer).approve(await amm.getAddress(), parseUnits("1000", 6));

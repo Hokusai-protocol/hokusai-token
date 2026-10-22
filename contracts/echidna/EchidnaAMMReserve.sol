@@ -23,7 +23,7 @@ import "../interfaces/IHokusaiParams.sol";
  *   altering the buyer eligibility model for baseline accounting properties.
  */
 contract EchidnaAMMReserve {
-    string private constant MODEL_ID = "echidna-amm-reserve";
+    string private constant MODEL_ID = "9101"; // numeric: ModelRegistry string IDs are decimal
     uint256 private constant SUPPLIER_ALLOCATION = 1_000 ether;
     uint256 private constant INVESTOR_ALLOCATION = 1_000_000 ether;
     uint256 private constant MAX_USDC_INPUT = 5_000_000e6;
@@ -74,7 +74,9 @@ contract EchidnaAMMReserve {
             ))
         )));
 
-        manager.authorizeAMM(address(amm));
+        // Registry pool binding is the AMM's (model-scoped) mint/burn authorization.
+        registry.registerStringModel(MODEL_ID, address(token), "accuracy");
+        registry.registerPool(MODEL_ID, address(amm));
         usdc.mint(address(this), 50_000_000e6);
         usdc.approve(address(amm), type(uint256).max);
 

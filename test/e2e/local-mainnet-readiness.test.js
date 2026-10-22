@@ -5,6 +5,7 @@ const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 const { buildInitialParams, buildVestingConfig } = require("../helpers/tokenDeployment");
 const { buildMintRequestPayload, attestMintRequest, configureLaunchAttester, configureMintBudget, configureLineageGenesis, payloadForNextLink } = require("../helpers/mintRequest");
 const { deployFactoryWithPoolDeployer } = require("../helpers/factoryDeployment");
+const { bindPool } = require("../helpers/ammDeployment");
 
 describe("Local mainnet readiness end-to-end suite", function () {
   const MODEL_ID = 1;
@@ -138,10 +139,10 @@ describe("Local mainnet readiness end-to-end suite", function () {
 
     const HokusaiAMM = await ethers.getContractFactory("HokusaiAMM");
     pool = HokusaiAMM.attach(poolAddress);
-    await tokenManager.authorizeAMM(poolAddress);
+    await bindPool(tokenManager, poolAddress);
 
     const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
-    infraReserve = await InfrastructureReserve.deploy(await mockUSDC.getAddress(), await factory.getAddress(), treasury.address);
+    infraReserve = await InfrastructureReserve.deploy(await mockUSDC.getAddress(), await modelRegistry.getAddress(), treasury.address);
     await infraReserve.waitForDeployment();
 
     const InfrastructureCostOracle = await ethers.getContractFactory("InfrastructureCostOracle");
@@ -150,7 +151,8 @@ describe("Local mainnet readiness end-to-end suite", function () {
 
     const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
     feeRouter = await UsageFeeRouter.deploy(
-      await factory.getAddress(),
+      await modelRegistry.getAddress(),
+      await tokenManager.getAddress(),
       await mockUSDC.getAddress(),
       await infraReserve.getAddress(),
       await costOracle.getAddress(),

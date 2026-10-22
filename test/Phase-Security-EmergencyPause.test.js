@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("Phase 8: Emergency Pause & Safety Mechanisms", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -57,7 +57,7 @@ describe("Phase 8: Emergency Pause & Safety Mechanisms", function () {
         await hokusaiAMM.waitForDeployment();
 
         // Authorize AMM
-        await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
+        await bindPool(tokenManager, await hokusaiAMM.getAddress());
 
         // Fund initial reserve
         await mockUSDC.mint(owner.address, INITIAL_RESERVE);

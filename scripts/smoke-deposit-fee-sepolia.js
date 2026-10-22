@@ -74,9 +74,14 @@ async function main() {
   const usdc = await hre.ethers.getContractAt("MockUSDC", usdcAddress, signer);
   const reserve = await hre.ethers.getContractAt("InfrastructureReserve", reserveAddress, signer);
   const oracle = await hre.ethers.getContractAt("InfrastructureCostOracle", oracleAddress, signer);
-  const factoryAddress = await router.factory();
-  const factory = await hre.ethers.getContractAt("HokusaiAMMFactory", factoryAddress, signer);
-  const poolAddress = await factory.getPool(modelId);
+  // HOK-3283 routers resolve pools via ModelRegistry; legacy routers via the factory.
+  const poolSourceAddress = await router.modelRegistry().catch(() => router.factory());
+  const poolSource = await hre.ethers.getContractAt(
+    ["function getPool(string) view returns (address)"],
+    poolSourceAddress,
+    signer
+  );
+  const poolAddress = await poolSource.getPool(modelId);
 
   if (!poolAddress || sameAddress(poolAddress, hre.ethers.ZeroAddress)) {
     throw new Error(`No AMM pool found for model ${modelId}.`);

@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "./HokusaiAMMFactory.sol";
+import "./interfaces/IModelRegistry.sol";
 import "./libraries/ValidationLib.sol";
 
 /**
@@ -27,8 +27,10 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
     /// @dev Reserve token (USDC)
     IERC20 public immutable reserveToken;
 
-    /// @dev Factory contract for pool validation
-    HokusaiAMMFactory public immutable factory;
+    /// @dev ModelRegistry for pool validation. The registry pool mapping is
+    /// write-once and factory-independent, so replacing the factory never
+    /// strands deposits for existing models.
+    IModelRegistry public immutable modelRegistry;
 
     /// @dev Treasury address for emergency withdrawals
     address public treasury;
@@ -196,20 +198,20 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
     /**
      * @dev Initialize the infrastructure reserve
      * @param _reserveToken USDC token address
-     * @param _factory HokusaiAMMFactory address for pool validation
+     * @param _modelRegistry ModelRegistry address for pool validation
      * @param _treasury Treasury address for emergency withdrawals
      */
     constructor(
         address _reserveToken,
-        address _factory,
+        address _modelRegistry,
         address _treasury
     ) {
         ValidationLib.requireNonZeroAddress(_reserveToken, "reserve token");
-        ValidationLib.requireNonZeroAddress(_factory, "factory");
+        ValidationLib.requireNonZeroAddress(_modelRegistry, "model registry");
         ValidationLib.requireNonZeroAddress(_treasury, "treasury");
 
         reserveToken = IERC20(_reserveToken);
-        factory = HokusaiAMMFactory(_factory);
+        modelRegistry = IModelRegistry(_modelRegistry);
         treasury = _treasury;
 
         // Set default reconciliation period to 30 days
@@ -237,7 +239,7 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
     {
         ValidationLib.requirePositiveAmount(amount, "amount");
         ValidationLib.requireNonEmptyString(modelId, "model ID");
-        require(factory.hasPool(modelId), "Model pool does not exist");
+        require(modelRegistry.hasPool(modelId), "Model pool does not exist");
 
         // Transfer USDC from depositor
         require(
@@ -270,7 +272,7 @@ contract InfrastructureReserve is AccessControl, ReentrancyGuard, Pausable {
         for (uint256 i = 0; i < modelIds.length; i++) {
             ValidationLib.requirePositiveAmount(amounts[i], "amount");
             ValidationLib.requireNonEmptyString(modelIds[i], "model ID");
-            require(factory.hasPool(modelIds[i]), "Model pool does not exist");
+            require(modelRegistry.hasPool(modelIds[i]), "Model pool does not exist");
 
             // Update per-model accounting
             accrued[modelIds[i]] += amounts[i];

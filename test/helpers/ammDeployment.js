@@ -21,4 +21,21 @@ async function deployAMMProxy(ammFactory, ...args) {
   return (await deployAMMProxyWithAdmin(ammFactory, ...args)).amm;
 }
 
-module.exports = { deployAMMProxy, deployAMMProxyWithAdmin };
+// HOK-3283: a pool's only TokenManager mint/burn authorization is its
+// ModelRegistry binding (registry.getPool(modelId) == pool). Registers the
+// pool's model (if needed) and binds the pool, as the factory does on create.
+// Signs as the registry owner (default signer unless `signer` is given).
+async function bindPool(tokenManager, pool, signer) {
+  const poolAddress = typeof pool === "string" ? pool : await pool.getAddress();
+  const modelId = await (await ethers.getContractAt("HokusaiAMM", poolAddress)).modelId();
+  const registry = await ethers.getContractAt("ModelRegistry", await tokenManager.registry(), signer);
+  if ((await registry.getPool(modelId)) === poolAddress) {
+    return;
+  }
+  if (!(await registry.isStringRegistered(modelId))) {
+    await registry.registerStringModel(modelId, await tokenManager.getTokenAddress(modelId), "accuracy");
+  }
+  await registry.registerPool(modelId, poolAddress);
+}
+
+module.exports = { deployAMMProxy, deployAMMProxyWithAdmin, bindPool };

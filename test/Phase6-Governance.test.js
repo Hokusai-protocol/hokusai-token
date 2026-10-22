@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress } = require("ethers");
 const { deployTestToken, deployTestTokenAddress } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("Phase 6: Governance & Safety", function () {
     let modelRegistry;
@@ -63,7 +63,7 @@ describe("Phase 6: Governance & Safety", function () {
         await hokusaiAMM.waitForDeployment();
 
         // Authorize AMM
-        await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
+        await bindPool(tokenManager, await hokusaiAMM.getAddress());
 
         // Initialize pool
         await mockUSDC.mint(owner.address, INITIAL_RESERVE);

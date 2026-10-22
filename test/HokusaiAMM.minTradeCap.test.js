@@ -2,13 +2,13 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 // HOK-3300: the per-trade limit is the greater of maxTradeBps of the reserve and
 // an absolute minTradeCap floor ($5,000 default), so small pools can take or
 // release meaningful liquidity in one trade.
 describe("HokusaiAMM absolute trade-size floor", function () {
-  const MODEL_ID = "min-trade-cap-model";
+  const MODEL_ID = "7201";
   const CRR = 200000n;
   const THRESHOLD = parseUnits("25000", 6);
   const FLAT_PRICE = parseUnits("0.01", 6);
@@ -42,7 +42,7 @@ describe("HokusaiAMM absolute trade-size floor", function () {
       THRESHOLD,
       FLAT_PRICE
     );
-    await tokenManager.authorizeAMM(await amm.getAddress());
+    await bindPool(tokenManager, await amm.getAddress());
 
     const ammAddress = await amm.getAddress();
     for (const signer of [owner, trader, other]) {

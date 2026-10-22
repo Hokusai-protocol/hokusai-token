@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("Phase 9: Edge Cases & Boundary Conditions", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -53,7 +53,7 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
         );
         await hokusaiAMM.waitForDeployment();
 
-        await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
+        await bindPool(tokenManager, await hokusaiAMM.getAddress());
 
         await mockUSDC.mint(owner.address, INITIAL_RESERVE);
         await mockUSDC.approve(await hokusaiAMM.getAddress(), INITIAL_RESERVE);

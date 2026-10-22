@@ -16,7 +16,7 @@ const {
   configureLineageGenesis,
   payloadForNextLink,
 } = require("./helpers/mintRequest");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("Allocation accounting separation regression", function () {
   const MODEL_ID_STR = "1101783";
@@ -127,7 +127,7 @@ describe("Allocation accounting separation regression", function () {
     await amm.waitForDeployment();
 
     await amm.setMaxTradeBps(5000);
-    await tokenManager.authorizeAMM(await amm.getAddress());
+    await bindPool(tokenManager, await amm.getAddress());
 
     await usdc.mint(buyer.address, buyerUsdc);
     await usdc.connect(buyer).approve(await amm.getAddress(), buyerUsdc);

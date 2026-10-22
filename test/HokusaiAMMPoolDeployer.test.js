@@ -66,6 +66,7 @@ describe("HokusaiAMMPoolDeployer", function () {
   it("rejects direct EOA deployPool calls", async function () {
     await expect(
       poolDeployer.connect(outsider).deployPool(
+        await poolDeployer.defaultImplementation(),
         await mockUSDC.getAddress(),
         tokenAddress,
         await tokenManager.getAddress(),
@@ -114,7 +115,8 @@ describe("HokusaiAMMPoolDeployer", function () {
     const poolAddress = await factory.createPool.staticCall(MODEL_ID, tokenAddress);
     await factory.createPool(MODEL_ID, tokenAddress);
 
-    const implementation = await poolDeployer.implementation();
+    const implementation = await poolDeployer.defaultImplementation();
+    expect(await factory.poolImplementation()).to.equal(implementation);
     const proxyAdmin = await ethers.getContractAt("ProxyAdmin", await poolDeployer.proxyAdmin());
     expect(await upgrades.erc1967.getImplementationAddress(poolAddress)).to.equal(implementation);
     expect(await upgrades.erc1967.getAdminAddress(poolAddress)).to.equal(await proxyAdmin.getAddress());

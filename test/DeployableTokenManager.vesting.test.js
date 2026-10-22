@@ -8,7 +8,7 @@ const {
   buildInitialParams,
   buildVestingConfig,
 } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("DeployableTokenManager Vesting", function () {
   let tokenManager;
@@ -70,7 +70,7 @@ describe("DeployableTokenManager Vesting", function () {
     );
     await amm.waitForDeployment();
 
-    await tokenManager.authorizeAMM(await amm.getAddress());
+    await bindPool(tokenManager, await amm.getAddress());
     await tokenManager.setDeltaVerifier(owner.address);
 
     await mockUsdc.mint(owner.address, parseUnits("100000", 6));

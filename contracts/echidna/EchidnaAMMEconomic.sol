@@ -56,7 +56,7 @@ contract EchidnaVictim {
  *   that sandwich sequencing does not create supply or reserve-accounting drift.
  */
 contract EchidnaAMMEconomic {
-    string private constant MODEL_ID = "echidna-amm-economic";
+    string private constant MODEL_ID = "9103"; // numeric: ModelRegistry string IDs are decimal
     uint256 private constant SUPPLIER_ALLOCATION = 1_000 ether;
     uint256 private constant INVESTOR_ALLOCATION = 1_000_000 ether;
     uint256 private constant MAX_TRADE = 2_500_000e6;
@@ -110,7 +110,9 @@ contract EchidnaAMMEconomic {
 
         victim = new EchidnaVictim(amm, IERC20(address(usdc)), IERC20(address(token)));
 
-        manager.authorizeAMM(address(amm));
+        // Registry pool binding is the AMM's (model-scoped) mint/burn authorization.
+        registry.registerStringModel(MODEL_ID, address(token), "accuracy");
+        registry.registerPool(MODEL_ID, address(amm));
         usdc.mint(address(this), 50_000_000e6);
         usdc.mint(address(victim), VICTIM_INITIAL_USDC);
 

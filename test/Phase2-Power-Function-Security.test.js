@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("Phase 2: Power Function Security Analysis", function () {
   let hokusaiAMM;
@@ -56,7 +56,7 @@ describe("Phase 2: Power Function Security Analysis", function () {
     );
     await hokusaiAMM.waitForDeployment();
 
-    await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
+    await bindPool(tokenManager, await hokusaiAMM.getAddress());
 
     // Seed AMM
     await mockUSDC.mint(owner.address, INITIAL_RESERVE);

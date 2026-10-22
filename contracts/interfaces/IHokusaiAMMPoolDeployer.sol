@@ -2,7 +2,10 @@
 pragma solidity ^0.8.0;
 
 interface IHokusaiAMMPoolDeployer {
+    function defaultImplementation() external view returns (address);
+
     function deployPool(
+        address implementation,
         address reserveToken,
         address tokenAddress,
         address payable tokenManager,

@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("Two-Phase Pricing System", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -57,7 +57,7 @@ describe("Two-Phase Pricing System", function () {
         await hokusaiAMM.waitForDeployment();
 
         // Authorize AMM
-        await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
+        await bindPool(tokenManager, await hokusaiAMM.getAddress());
 
         // Fund test accounts with USDC
         await mockUSDC.mint(buyer1.address, parseUnits("100000", 6)); // $100k

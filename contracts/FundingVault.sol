@@ -431,9 +431,8 @@ contract FundingVault is AccessControlBase, ReentrancyGuard {
             "Factory pool registration mismatch"
         );
 
-        // Authorize pool to mint tokens (grant MINTER_ROLE)
-        bytes32 MINTER_ROLE = tokenManager.MINTER_ROLE();
-        tokenManager.grantRole(MINTER_ROLE, poolAddress);
+        // No MINTER_ROLE grant: the registry pool binding checked above is the
+        // pool's model-scoped TokenManager mint/burn authorization.
 
         // Approve pool to spend USDC
         require(

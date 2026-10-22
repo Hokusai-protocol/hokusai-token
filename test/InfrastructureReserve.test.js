@@ -10,6 +10,7 @@ describe("InfrastructureReserve", function () {
   let usdc;
   let HokusaiAMMFactory;
   let factory;
+  let modelRegistry;
   let owner;
   let depositor;
   let payer;
@@ -28,7 +29,7 @@ describe("InfrastructureReserve", function () {
 
     // Deploy core contracts
     const ModelRegistry = await ethers.getContractFactory("ModelRegistry");
-    const modelRegistry = await ModelRegistry.deploy();
+    modelRegistry = await ModelRegistry.deploy();
     await modelRegistry.waitForDeployment();
 
     const TokenManager = await ethers.getContractFactory("TokenManager");
@@ -57,7 +58,7 @@ describe("InfrastructureReserve", function () {
     InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
     infraReserve = await InfrastructureReserve.deploy(
       await usdc.getAddress(),
-      await factory.getAddress(),
+      await modelRegistry.getAddress(),
       treasury.address
     );
     await infraReserve.waitForDeployment();
@@ -87,7 +88,7 @@ describe("InfrastructureReserve", function () {
   describe("Constructor", function () {
     it("Should initialize with correct addresses", async function () {
       expect(await infraReserve.reserveToken()).to.equal(await usdc.getAddress());
-      expect(await infraReserve.factory()).to.equal(await factory.getAddress());
+      expect(await infraReserve.modelRegistry()).to.equal(await modelRegistry.getAddress());
       expect(await infraReserve.treasury()).to.equal(treasury.address);
     });
 
@@ -100,13 +101,13 @@ describe("InfrastructureReserve", function () {
       await expect(
         InfrastructureReserve.deploy(
           ZeroAddress,
-          await factory.getAddress(),
+          await modelRegistry.getAddress(),
           treasury.address
         )
       ).to.be.reverted;
     });
 
-    it("Should reject zero address for factory", async function () {
+    it("Should reject zero address for model registry", async function () {
       await expect(
         InfrastructureReserve.deploy(
           await usdc.getAddress(),
@@ -120,7 +121,7 @@ describe("InfrastructureReserve", function () {
       await expect(
         InfrastructureReserve.deploy(
           await usdc.getAddress(),
-          await factory.getAddress(),
+          await modelRegistry.getAddress(),
           ZeroAddress
         )
       ).to.be.reverted;

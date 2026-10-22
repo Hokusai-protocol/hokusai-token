@@ -299,39 +299,9 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
   });
 
   describe("TokenManager - AMM Authorization", function () {
-    it("Should authorize AMM contract", async function () {
-      await tokenManager.authorizeAMM(amm.address);
-
-      const MINTER_ROLE = await tokenManager.MINTER_ROLE();
-      expect(await tokenManager.hasRole(MINTER_ROLE, amm.address)).to.be.true;
-    });
-
-    it("Should allow owner to revoke AMM authorization", async function () {
-      await tokenManager.authorizeAMM(amm.address);
-      await tokenManager.revokeAMM(amm.address);
-
-      const MINTER_ROLE = await tokenManager.MINTER_ROLE();
-      expect(await tokenManager.hasRole(MINTER_ROLE, amm.address)).to.be.false;
-    });
-
-    it("Should revert with zero address", async function () {
-      await expect(
-        tokenManager.authorizeAMM(ZeroAddress)
-      ).to.be.revertedWithCustomError(tokenManager, "ZeroAddress");
-    });
-
-    it("Should only allow owner to authorize", async function () {
-      await expect(
-        tokenManager.connect(nonOwner).authorizeAMM(amm.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
-    });
-
-    it("Should only allow owner to revoke", async function () {
-      await tokenManager.authorizeAMM(amm.address);
-
-      await expect(
-        tokenManager.connect(nonOwner).revokeAMM(amm.address)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+    it("Should not expose authorizeAMM/revokeAMM (pools are authorized by registry binding)", async function () {
+      expect(tokenManager.authorizeAMM).to.be.undefined;
+      expect(tokenManager.revokeAMM).to.be.undefined;
     });
   });
 
@@ -363,7 +333,7 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
     });
 
     it("Should allow MINTER_ROLE holder to burn tokens", async function () {
-      await tokenManager.authorizeAMM(amm.address);
+      await tokenManager.grantRole(await tokenManager.MINTER_ROLE(), amm.address);
 
       const burnAmount = parseEther("100");
       const balanceBefore = await (await ethers.getContractAt("HokusaiToken", tokenAddress)).balanceOf(user.address);
@@ -454,20 +424,21 @@ describe("Phase 1: AMM Foundation - ModelRegistry & TokenManager Extensions", fu
       await modelRegistry.registerPool(modelId, amm.address);
       expect(await modelRegistry.getPool(modelId)).to.equal(amm.address);
 
-      // Step 4: Authorize AMM in TokenManager
-      await tokenManager.authorizeAMM(amm.address);
+      // Step 4: No TokenManager authorization step: the registry pool binding
+      // is the pool's mint/burn authorization (and it holds no MINTER_ROLE).
       const MINTER_ROLE = await tokenManager.MINTER_ROLE();
-      expect(await tokenManager.hasRole(MINTER_ROLE, amm.address)).to.be.true;
+      expect(await tokenManager.hasRole(MINTER_ROLE, amm.address)).to.be.false;
 
-      // Step 5: Mint tokens via TokenManager (simulating AMM)
+      // Step 5: Mint tokens via TokenManager (simulating an AMM buy)
       await tokenManager.connect(amm).mintTokens(modelId, user.address, parseEther("1000"));
       const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
       expect(await token.balanceOf(user.address)).to.equal(parseEther("1000"));
 
-      // Step 6: Burn tokens via TokenManager (simulating AMM)
-      await token.connect(user).approve(await tokenManager.getAddress(), MaxUint256);
-      await tokenManager.connect(amm).burnTokens(modelId, user.address, parseEther("100"));
+      // Step 6: Burn tokens sold into the pool (simulating an AMM sell)
+      await token.connect(user).transfer(amm.address, parseEther("100"));
+      await tokenManager.connect(amm).burnAMMTokens(modelId, amm.address, parseEther("100"));
       expect(await token.balanceOf(user.address)).to.equal(parseEther("900"));
+      expect(await token.balanceOf(amm.address)).to.equal(0);
     });
 
     it("Should handle MockUSDC in preparation for AMM", async function () {

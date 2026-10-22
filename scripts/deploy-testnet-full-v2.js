@@ -224,7 +224,7 @@ async function main() {
     const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
     const infraReserve = await InfrastructureReserve.deploy(
       usdcAddress,       // reserveToken (USDC)
-      factoryAddress,    // HokusaiAMMFactory
+      registryAddress,   // ModelRegistry (pool validation)
       treasuryAddress    // treasury (for emergency withdrawals)
     );
     await infraReserve.waitForDeployment();
@@ -248,7 +248,8 @@ async function main() {
     console.log("\n9️⃣  Deploying UsageFeeRouter (V2 - Infrastructure Split)...");
     const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
     const feeRouter = await UsageFeeRouter.deploy(
-      factoryAddress,       // factory
+      registryAddress,      // ModelRegistry (pool lookup)
+      managerAddress,       // TokenManager (params lookup)
       usdcAddress,          // reserveToken (USDC)
       infraReserveAddress,  // infrastructureReserve
       costOracleAddress     // infrastructure cost oracle
@@ -407,11 +408,8 @@ async function main() {
       }
       console.log(`   ✅ Pool created: ${poolAddress}`);
 
-      // 10. Authorize AMM to mint tokens
-      console.log(`   🔐 Authorizing AMM to mint tokens...`);
-      const authorizeTx = await tokenManager.authorizeAMM(poolAddress);
-      await authorizeTx.wait();
-      console.log(`   ✅ AMM authorized with MINTER_ROLE`);
+      // 10. No AMM authorization step: the factory's ModelRegistry pool
+      // registration is the pool's model-scoped mint/burn authorization.
 
       // 11. Set provider for infrastructure payments
       console.log(`   🏭 Setting infrastructure provider to treasury...`);

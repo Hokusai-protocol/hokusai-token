@@ -435,10 +435,8 @@ async function runLaunchDeploy({
         );
       }
 
-      console.log("   🔐 Authorizing AMM to mint tokens...");
-      const authorizeTx = await tokenManager.authorizeAMM(poolAddress);
-      await authorizeTx.wait();
-      console.log("   ✅ AMM authorized with MINTER_ROLE");
+      // No TokenManager authorization step: the ModelRegistry pool binding
+      // verified above is the pool's (model-scoped) mint/burn authorization.
 
       console.log(`   💰 Adding initial liquidity ($${ethers.formatUnits(config.initialReserveUsdc, 6)} USDC)...`);
       const pool = await ethers.getContractAt("HokusaiAMM", poolAddress, deployer);

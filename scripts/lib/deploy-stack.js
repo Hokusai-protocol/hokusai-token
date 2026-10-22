@@ -212,7 +212,7 @@ async function deployFullStack(networkConfig, runtime) {
   contracts.HokusaiAMMFactory = await factory.getAddress();
 
   const HokusaiAMMPoolDeployer = await getFactory("HokusaiAMMPoolDeployer");
-  const poolDeployer = await HokusaiAMMPoolDeployer.deploy(contracts.HokusaiAMMFactory);
+  const poolDeployer = await HokusaiAMMPoolDeployer.deploy(contracts.HokusaiAMMFactory, deployerAddress);
   await poolDeployer.waitForDeployment();
   await recordDeploymentReceipt(poolDeployer, "HokusaiAMMPoolDeployer");
   contracts.HokusaiAMMPoolDeployer = await poolDeployer.getAddress();
@@ -370,6 +370,13 @@ async function deployFullStack(networkConfig, runtime) {
     "HokusaiAMMFactory.poolImplementation"
   );
   expectAddress(await poolDeployer.factory(), contracts.HokusaiAMMFactory, "HokusaiAMMPoolDeployer.factory");
+  expectAddress(await poolDeployer.proxyAdmin(), contracts.PoolProxyAdmin, "HokusaiAMMPoolDeployer.proxyAdmin");
+  // Bootstrap owner; transfer-governance hands the pool ProxyAdmin to the timelock.
+  expectAddress(
+    await (await ethers.getContractAt("HokusaiPoolProxyAdmin", contracts.PoolProxyAdmin)).owner(),
+    deployerAddress,
+    "PoolProxyAdmin.owner"
+  );
   expectAddress(
     contracts.PurchaserWhitelist,
     await purchaserWhitelist.getAddress(),

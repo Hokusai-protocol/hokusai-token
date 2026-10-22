@@ -27,16 +27,16 @@
       "abiFrom": "contracts._tokenManagerImpl",
       "addressFrom": "contracts.TokenManager",
       "owner": "TIMELOCK",
-      "revokedFromDeployer": ["owner", "DEFAULT_ADMIN_ROLE"],
+      "revokedFromDeployer": ["owner", "DEFAULT_ADMIN_ROLE", "MINTER_ROLE", "DEPLOYER_ROLE"],
       "roles": {
-        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
-        "MINTER_ROLE": ["DEPLOYMENT_ROLE:TokenManager:MINTER_ROLE"],
-        "DEPLOYER_ROLE": ["DEPLOYMENT_ROLE:TokenManager:DEPLOYER_ROLE"]
+        "DEFAULT_ADMIN_ROLE": ["TIMELOCK"]
       },
       "checks": [
+        { "type": "equals", "method": "registry", "expected": "CONTRACT:ModelRegistry" },
         { "type": "equals", "method": "deltaVerifier", "expected": "CONTRACT:DeltaVerifier" },
         { "type": "equals", "method": "vestingVault", "expected": "CONTRACT:RewardVestingVault" }
-      ]
+      ],
+      "_rolesNote": "HOK-3285: AMM pools are authorized by their ModelRegistry binding, not MINTER_ROLE, and DEPLOYER_ROLE gates nothing; the deployer's constructor-granted MINTER_ROLE and DEPLOYER_ROLE are revoked so no EOA keeps mint power. Governance (timelock, DEFAULT_ADMIN_ROLE) can grant MINTER_ROLE to an approved minter explicitly."
     },
     {
       "name": "HokusaiAMMFactory",
@@ -45,15 +45,41 @@
       "owner": "TIMELOCK",
       "revokedFromDeployer": ["owner"],
       "setters": {
-        "pauser": { "method": "setPauser", "expected": "EMERGENCY_SAFE" }
-      }
+        "pauser": {
+          "method": "setPauser",
+          "expected": "EMERGENCY_SAFE"
+        }
+      },
+      "checks": [
+        { "type": "equals", "method": "poolDeployer", "expected": "CONTRACT:HokusaiAMMPoolDeployer" },
+        { "type": "equals", "method": "poolImplementation", "expected": ["CONTRACT:HokusaiAMMImplementation", "FIELD:upgrades.approvedPoolImplementations"] },
+        { "type": "equals", "method": "modelRegistry", "expected": "CONTRACT:ModelRegistry" },
+        { "type": "equals", "method": "tokenManager", "expected": "CONTRACT:TokenManager" }
+      ]
     },
+    {
+      "name": "HokusaiAMMPoolDeployer",
+      "abi": "HokusaiAMMPoolDeployer",
+      "addressFrom": "contracts.HokusaiAMMPoolDeployer",
+      "checks": [
+        { "type": "equals", "method": "factory", "expected": "CONTRACT:HokusaiAMMFactory" },
+        { "type": "equals", "method": "proxyAdmin", "expected": "CONTRACT:PoolProxyAdmin" }
+      ]
+    },
+    { "name": "PoolProxyAdmin", "abi": "HokusaiPoolProxyAdmin", "addressFrom": "contracts.PoolProxyAdmin", "_ownerNote": "HOK-3285: the single ProxyAdmin for every HokusaiAMM pool proxy. Owned by the timelock, so upgrades, upgradeAndCall and freezeUpgrades are all 48h-delayed and Safe-proposed. The contract refuses upgrades of paused or frozen pools and refuses changeProxyAdmin.", "owner": "TIMELOCK", "revokedFromDeployer": ["owner"] },
     {
       "name": "HokusaiAMM",
       "abi": "HokusaiAMM",
       "collection": "pools",
       "addressFrom": "ammAddress",
-      "owner": "CONTRACT:HokusaiAMMFactory"
+      "owner": "CONTRACT:HokusaiAMMFactory",
+      "_checksNote": "HOK-3285: each pool proxy must point at an approved implementation (the deploy-time default or one recorded in upgrades.approvedPoolImplementations after a timelocked upgrade), be administered by PoolProxyAdmin, be the ModelRegistry pool for its model (its only TokenManager mint/burn authority), and hold no TokenManager MINTER_ROLE.",
+      "checks": [
+        { "type": "proxyImplementation", "expected": ["CONTRACT:HokusaiAMMImplementation", "FIELD:upgrades.approvedPoolImplementations"] },
+        { "type": "proxyAdmin", "expected": "CONTRACT:PoolProxyAdmin" },
+        { "type": "registryPool" },
+        { "type": "notRoleHolder", "contract": "TokenManager", "abiFrom": "contracts._tokenManagerImpl", "role": "MINTER_ROLE" }
+      ]
     },
     {
       "name": "DeltaVerifier",
@@ -94,11 +120,12 @@
       "name": "UsageFeeRouter",
       "abi": "UsageFeeRouter",
       "addressFrom": "contracts.UsageFeeRouter",
-      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE"],
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "FEE_DEPOSITOR_ROLE"],
       "roles": {
         "DEFAULT_ADMIN_ROLE": ["TIMELOCK"],
-        "FEE_DEPOSITOR_ROLE": ["DEPLOYMENT_ROLE:UsageFeeRouter:FEE_DEPOSITOR_ROLE"]
-      }
+        "FEE_DEPOSITOR_ROLE": ["BACKEND_SERVICE"]
+      },
+      "_depositorNote": "HOK-3285: FEE_DEPOSITOR_ROLE goes to the backend service only; the deployer's bootstrap FEE_DEPOSITOR_ROLE is revoked (deploy-stack grants both)."
     },
     {
       "name": "DataContributionRegistry",
@@ -106,11 +133,24 @@
       "addressFrom": "contracts.DataContributionRegistry",
       "_adminNote": "DataContributionRegistry DEFAULT_ADMIN intentionally stays at the admin Safe (not the timelock), consistent with DeltaVerifier and mainnet-launch-posture.json roleAudit. Deployer is still revoked.",
       "_recorderNote": "RECORDER_ROLE is DeltaVerifier only (CONTRACT:DeltaVerifier), NOT DEPLOYMENT_ROLE which resolves to [deployer, DeltaVerifier]. With RECORDER_ROLE in revokedFromDeployer the handoff drops the deployer's bootstrap RECORDER while keeping DeltaVerifier's. Same class of bug as DeltaVerifier SUBMITTER (mainnet 2026-07-01). VERIFIER_ROLE stays DEPLOYMENT_ROLE (un-audited deployer-key leftover) — separate follow-up cleanup.",
-      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "RECORDER_ROLE"],
+      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "RECORDER_ROLE", "VERIFIER_ROLE"],
       "roles": {
         "DEFAULT_ADMIN_ROLE": ["ADMIN_SAFE"],
         "RECORDER_ROLE": ["CONTRACT:DeltaVerifier"],
-        "VERIFIER_ROLE": ["DEPLOYMENT_ROLE:DataContributionRegistry:VERIFIER_ROLE"]
+        "VERIFIER_ROLE": ["ADMIN_SAFE"]
+      },
+      "_verifierNote": "HOK-3285: VERIFIER_ROLE moves from the deployer key to the admin Safe (which already holds DEFAULT_ADMIN here); no off-chain service calls verify/rejectContribution today."
+    },
+    {
+      "name": "PurchaserWhitelist",
+      "abi": "PurchaserWhitelist",
+      "addressFrom": "contracts.PurchaserWhitelist",
+      "optional": true,
+      "_rolesNote": "HOK-3285: whitelist administration is a Safe operation (docs/purchaser-whitelist-operations.md); the deployer's bootstrap admin roles are revoked.",
+      "revokedFromDeployer": ["WHITELIST_ADMIN_ROLE", "DEFAULT_ADMIN_ROLE"],
+      "roles": {
+        "DEFAULT_ADMIN_ROLE": ["ADMIN_SAFE"],
+        "WHITELIST_ADMIN_ROLE": ["ADMIN_SAFE"]
       }
     },
     {
@@ -124,22 +164,7 @@
         "GRADUATOR_ROLE": ["DEPLOYMENT_ROLE:FundingVault:GRADUATOR_ROLE"]
       }
     },
-    {
-      "name": "HokusaiToken",
-      "abi": "HokusaiToken",
-      "collection": "tokens",
-      "addressFrom": "address",
-      "_ownerNote": "Per-model token Ownable owner stays at the admin Safe (the governor set by the factory at creation, per H-1), NOT the timelock. The token's only owner-power is setController; keeping it with the 2-of-3 Safe (not 48h-timelocked) is the launch decision (2026-06-30). The deployer never owns the tokens, so the handoff does not move them — ensureOwner flags non-deployer-owned contracts instead of reverting; ownership is verified via launch-posture expectedTokenOwner.",
-      "owner": "ADMIN_SAFE",
-      "revokedFromDeployer": ["owner"]
-    },
-    {
-      "name": "HokusaiParams",
-      "abi": "HokusaiParams",
-      "collection": "tokens",
-      "addressFrom": "paramsAddress",
-      "_rolesNote": "HokusaiParams grants DEFAULT_ADMIN_ROLE to its deployer (the TokenManager) and GOV_ROLE to the governor (admin Safe) at construction, and TokenManager exposes no params role-management method — so neither role is the deployer's to move, and GOV_ROLE (the economic-param control: tokensPerDeltaOne etc.) is permanently held by the admin Safe by contract design (consistent with the H-1 token-owner decision: economic/control powers stay under the 2-of-3 Safe, not the timelock). The handoff therefore does not transfer params roles. Moving economic-param control to the timelock would require a TokenManager/params contract change (tracked follow-up).",
-      "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "GOV_ROLE"]
-    }
+    { "name": "HokusaiToken", "abi": "HokusaiToken", "collection": "tokens", "addressFrom": "address", "_ownerNote": "Per-model token Ownable owner stays at the admin Safe (the governor set by the factory at creation, per H-1), NOT the timelock. The token's only owner-power is setController; keeping it with the 2-of-3 Safe (not 48h-timelocked) is the launch decision (2026-06-30). The deployer never owns the tokens, so the handoff does not move them — ensureOwner flags non-deployer-owned contracts instead of reverting; ownership is verified via launch-posture expectedTokenOwner.", "owner": "ADMIN_SAFE", "revokedFromDeployer": ["owner"] },
+    { "name": "HokusaiParams", "abi": "HokusaiParams", "collection": "tokens", "addressFrom": "paramsAddress", "_rolesNote": "HokusaiParams grants DEFAULT_ADMIN_ROLE to its deployer (the TokenManager) and GOV_ROLE to the governor (admin Safe) at construction, and TokenManager exposes no params role-management method — so neither role is the deployer's to move, and GOV_ROLE (the economic-param control: tokensPerDeltaOne etc.) is permanently held by the admin Safe by contract design (consistent with the H-1 token-owner decision: economic/control powers stay under the 2-of-3 Safe, not the timelock). The handoff therefore does not transfer params roles. Moving economic-param control to the timelock would require a TokenManager/params contract change (tracked follow-up).", "revokedFromDeployer": ["DEFAULT_ADMIN_ROLE", "GOV_ROLE"] }
   ]
 }

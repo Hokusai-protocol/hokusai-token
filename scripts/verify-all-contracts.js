@@ -133,16 +133,42 @@ async function main() {
     else results.failed.push("RewardVestingVault");
   }
 
-  // 3c. HokusaiAMMPoolDeployer (constructor: _factory)
+  // 3c. HokusaiAMMPoolDeployer (constructor: _factory, plus proxyAdminOwner = deployer on
+  // upgradeable-AMM deployments, which record PoolProxyAdmin; legacy ones took _factory only)
   if (deployment.contracts.HokusaiAMMPoolDeployer && deployment.contracts.HokusaiAMMFactory) {
     const success = await verifyContract(
       deployment.contracts.HokusaiAMMPoolDeployer,
-      [deployment.contracts.HokusaiAMMFactory],
+      deployment.contracts.PoolProxyAdmin
+        ? [deployment.contracts.HokusaiAMMFactory, deployment.deployer]
+        : [deployment.contracts.HokusaiAMMFactory],
       "HokusaiAMMPoolDeployer",
       "contracts/HokusaiAMMPoolDeployer.sol:HokusaiAMMPoolDeployer"
     );
     if (success) results.success.push("HokusaiAMMPoolDeployer");
     else results.failed.push("HokusaiAMMPoolDeployer");
+  }
+
+  // 3c-ii. Contracts created inside the pool deployer's constructor: the pool ProxyAdmin
+  // (constructor: initialOwner = deployer) and the default HokusaiAMM implementation (no args).
+  if (deployment.contracts.PoolProxyAdmin) {
+    const success = await verifyContract(
+      deployment.contracts.PoolProxyAdmin,
+      [deployment.deployer],
+      "PoolProxyAdmin",
+      "contracts/HokusaiPoolProxyAdmin.sol:HokusaiPoolProxyAdmin"
+    );
+    if (success) results.success.push("PoolProxyAdmin");
+    else results.failed.push("PoolProxyAdmin");
+  }
+  if (deployment.contracts.HokusaiAMMImplementation) {
+    const success = await verifyContract(
+      deployment.contracts.HokusaiAMMImplementation,
+      [],
+      "HokusaiAMMImplementation",
+      "contracts/HokusaiAMM.sol:HokusaiAMM"
+    );
+    if (success) results.success.push("HokusaiAMMImplementation");
+    else results.failed.push("HokusaiAMMImplementation");
   }
 
   // 3d. PurchaserWhitelist (constructor: admin). Admin was the deployer at construction

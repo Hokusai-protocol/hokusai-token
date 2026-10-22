@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
+import "./HokusaiPoolProxyAdmin.sol";
 import "./HokusaiAMM.sol";
 import "./libraries/ValidationLib.sol";
 
@@ -12,14 +12,14 @@ import "./libraries/ValidationLib.sol";
  * factory chooses the implementation per call (its timelocked
  * `poolImplementation`); `defaultImplementation` is deployed here only because
  * the factory cannot hold HokusaiAMM initcode under the size limit. All pool
- * proxies are administered by a single ProxyAdmin owned by the factory; the
- * factory exposes no upgrade calls, so upgrade authority stays unreachable
- * until it is wired to governance (HOK-3285).
+ * proxies are administered by one HokusaiPoolProxyAdmin, owned by
+ * `proxyAdminOwner` (the deployer at bootstrap, handed to the governance
+ * timelock by scripts/governance/transfer-governance.js).
  */
 contract HokusaiAMMPoolDeployer {
     address public immutable factory;
     address public immutable defaultImplementation;
-    ProxyAdmin public immutable proxyAdmin;
+    HokusaiPoolProxyAdmin public immutable proxyAdmin;
 
     event PoolDeployed(address indexed pool);
 
@@ -28,13 +28,12 @@ contract HokusaiAMMPoolDeployer {
         _;
     }
 
-    constructor(address _factory) {
+    constructor(address _factory, address proxyAdminOwner) {
         ValidationLib.requireNonZeroAddress(_factory, "factory");
+        ValidationLib.requireNonZeroAddress(proxyAdminOwner, "proxy admin owner");
         factory = _factory;
         defaultImplementation = address(new HokusaiAMM());
-        ProxyAdmin admin = new ProxyAdmin();
-        admin.transferOwnership(_factory);
-        proxyAdmin = admin;
+        proxyAdmin = new HokusaiPoolProxyAdmin(proxyAdminOwner);
     }
 
     function deployPool(

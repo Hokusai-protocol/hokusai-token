@@ -183,6 +183,23 @@ describe("HokusaiAMMPoolDeployer", function () {
     ).to.be.revertedWithCustomError(unconfiguredFactory, "ZeroAddress");
   });
 
+  it("rejects a pool deployer bound to another factory", async function () {
+    const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
+    const unconfiguredFactory = await HokusaiAMMFactory.deploy(
+      await modelRegistry.getAddress(),
+      await tokenManager.getAddress(),
+      await mockUSDC.getAddress(),
+      treasury.address
+    );
+    await unconfiguredFactory.waitForDeployment();
+    const HokusaiAMMPoolDeployer = await ethers.getContractFactory("HokusaiAMMPoolDeployer");
+    const foreignDeployer = await HokusaiAMMPoolDeployer.deploy(await factory.getAddress(), owner.address);
+
+    await expect(
+      unconfiguredFactory.setPoolDeployer(await foreignDeployer.getAddress())
+    ).to.be.revertedWith("Pool deployer not bound here");
+  });
+
   it("rejects pool creation until the deployer is configured", async function () {
     const HokusaiAMMFactory = await ethers.getContractFactory("HokusaiAMMFactory");
     const unconfiguredFactory = await HokusaiAMMFactory.deploy(

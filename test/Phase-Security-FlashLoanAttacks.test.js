@@ -389,7 +389,7 @@ describe("Phase 3: Flash Loan Attack Security", function () {
             // Total cost: ~$80
             // This makes flash loan arbitrage unprofitable
 
-            expect(totalGas).to.be.lt(380000); // Should be under 350k gas (HOK-3281: proxy delegatecall + former immutables now in storage)
+            expect(totalGas).to.be.lt(385000); // HOK-3281: proxy delegatecall + former immutables now in storage; HOK-3289: canonical model-ID check on registry lookups
 
             // Log for analysis
             console.log(`        Buy gas: ${buyGas.toString()}`);

@@ -140,12 +140,23 @@ describe("ModelRegistry - view alias invariants", function () {
 
   it("treats non-canonical string IDs as unregistered in every string alias", async function () {
     await modelRegistry.registerModel(9, token0Addr, "accuracy");
-    for (const sid of ["", "09x", "nine"]) {
+    // "09" is a leading-zero alias of 9 (HOK-3289): one spelling per number.
+    for (const sid of ["", "09x", "nine", "09", "009"]) {
       expect(await modelRegistry.isStringRegistered(sid)).to.be.false;
       expect(await modelRegistry.isStringModelRegistered(sid)).to.be.false;
       expect(await modelRegistry.isStringActive(sid)).to.be.false;
       expect(await modelRegistry["isModelActive(string)"](sid)).to.be.false;
     }
+  });
+
+  it("refuses pool bindings under a leading-zero alias", async function () {
+    await modelRegistry.registerModel(9, token0Addr, "accuracy");
+    const [, other] = await ethers.getSigners();
+    await expect(modelRegistry.registerPool("09", other.address)).to.be.reverted;
+    await expect(modelRegistry.registerStringModel("05", token0Addr, "accuracy")).to.be.revertedWith(
+      "Model ID has leading zero"
+    );
+    expect(await modelRegistry.isStringRegistered("0")).to.be.false;
   });
 
   it("pins only canonical names in IModelRegistry", async function () {

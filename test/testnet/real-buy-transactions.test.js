@@ -17,7 +17,7 @@ const fs = require("fs");
  *
  * PREREQUISITES:
  * 1. Contracts deployed: npx hardhat run scripts/deploy-testnet-full.js --network sepolia
- * 2. AMM pools authorized: npx hardhat run scripts/authorize-amm-pools.js --network sepolia
+ * 2. AMM pools bound in ModelRegistry (factory.createPool does this; pools never hold MINTER_ROLE, HOK-3283)
  * 3. IBR period expired (1 day after deployment)
  *
  * USAGE:

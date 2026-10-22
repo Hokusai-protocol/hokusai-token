@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 import "./libraries/ValidationLib.sol";
 import "./libraries/FeeLib.sol";
 import "./HokusaiAMM.sol";
@@ -16,9 +17,13 @@ import "./interfaces/IHokusaiAMMPoolDeployer.sol";
  * Responsibilities:
  * - Deploy new AMM pools for Hokusai tokens
  * - Initialize pools with correct parameters
- * - Register pools with ModelRegistry
- * - Authorize AMMs with TokenManager
+ * - Register pools with ModelRegistry (registration is also the pool's
+ *   TokenManager mint/burn authorization, scoped to its own model)
  * - Track all deployed pools
+ * - Forward governance (owner) calls to pool owner functions
+ *
+ * The owner is expected to be the governance timelock, so changing the
+ * implementation used for new pools is a timelocked operation.
  */
 contract HokusaiAMMFactory is Ownable {
     // ============================================================
@@ -36,6 +41,7 @@ contract HokusaiAMMFactory is Ownable {
     uint256 public defaultFlatCurveThreshold; // Default flat curve threshold (6 decimals)
     uint256 public defaultFlatCurvePrice; // Default flat curve price (6 decimals)
     address public poolDeployer;
+    address public poolImplementation; // HokusaiAMM implementation for NEW pools only
 
     // Pool tracking
     mapping(string => address) public pools; // modelId => pool address
@@ -81,6 +87,8 @@ contract HokusaiAMMFactory is Ownable {
 
     event TreasuryUpdated(address indexed newTreasury);
     event PoolDeployerUpdated(address indexed poolDeployer);
+    event PoolImplementationUpdated(address indexed previousImplementation, address indexed newImplementation);
+    event PoolCallExecuted(string modelId, address indexed pool, bytes4 indexed selector);
     event PoolPaused(string modelId, address indexed pool, address indexed caller);
     event PoolUnpaused(string modelId, address indexed pool, address indexed caller);
     event PauserUpdated(address indexed previousPauser, address indexed newPauser);
@@ -211,6 +219,7 @@ contract HokusaiAMMFactory is Ownable {
         // Delegate initcode-heavy AMM deployment to the satellite deployer to
         // keep the factory runtime below the EVM contract size limit.
         poolAddress = IHokusaiAMMPoolDeployer(poolDeployer).deployPool(
+            poolImplementation,
             reserveToken,
             tokenAddress,
             payable(address(tokenManager)),
@@ -394,6 +403,54 @@ contract HokusaiAMMFactory is Ownable {
         ValidationLib.requireNonZeroAddress(_poolDeployer, "pool deployer");
         poolDeployer = _poolDeployer;
         emit PoolDeployerUpdated(_poolDeployer);
+        _setPoolImplementation(IHokusaiAMMPoolDeployer(_poolDeployer).defaultImplementation());
+    }
+
+    /**
+     * @dev Set the HokusaiAMM implementation used for pools created from now on.
+     * Existing pool proxies keep their implementation; upgrading them is a
+     * separate ProxyAdmin operation. Owner is the timelock, so this is delayed.
+     * @param newImplementation Deployed HokusaiAMM implementation contract
+     */
+    function setPoolImplementation(address newImplementation) external onlyOwner {
+        _setPoolImplementation(newImplementation);
+    }
+
+    function _setPoolImplementation(address newImplementation) internal {
+        require(newImplementation.code.length > 0, "Implementation has no code");
+        emit PoolImplementationUpdated(poolImplementation, newImplementation);
+        poolImplementation = newImplementation;
+    }
+
+    // ============================================================
+    // POOL GOVERNANCE
+    // ============================================================
+
+    /**
+     * @dev Forward an owner-only call to a pool (params, whitelist, treasury
+     * withdrawal, pause/unpause, ...). This is the timelock's path to pool
+     * owner functions. Ownership transfer/renounce is blocked so the factory
+     * always remains able to pause its pools.
+     * @param modelId String model identifier
+     * @param data ABI-encoded HokusaiAMM call
+     * @return result Raw return data from the pool
+     */
+    function callPool(string calldata modelId, bytes calldata data)
+        external
+        onlyOwner
+        returns (bytes memory result)
+    {
+        address pool = _requirePool(modelId);
+        require(data.length >= 4, "Missing selector");
+        bytes4 selector = bytes4(data[:4]);
+        require(
+            selector != OwnableUpgradeable.transferOwnership.selector &&
+                selector != OwnableUpgradeable.renounceOwnership.selector,
+            "Pool ownership is fixed"
+        );
+        // Emitted first; a reverting pool call reverts the event with it.
+        emit PoolCallExecuted(modelId, pool, selector);
+        result = Address.functionCall(pool, data);
     }
 
     // ============================================================

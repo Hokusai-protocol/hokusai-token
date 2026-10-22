@@ -149,16 +149,15 @@ describe("Phase 4: Factory & Registry Integration", function () {
             expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
         });
 
-        it("Should allow manual authorization with TokenManager", async function () {
+        it("Should authorize the pool through its registry binding, without MINTER_ROLE", async function () {
             const poolAddress = await factory.createPool.staticCall(MODEL_ID_1, token1Address);
             await factory.createPool(MODEL_ID_1, token1Address);
 
-            // Authorize pool manually (in production, TokenManager owner would do this)
-            await tokenManager.authorizeAMM(poolAddress);
-
-            // Pool should have MINTER_ROLE
+            // No TokenManager step: the factory's registry registration is the
+            // pool's model-scoped mint/burn authorization.
+            expect(await modelRegistry.getPool(MODEL_ID_1)).to.equal(poolAddress);
             const MINTER_ROLE = await tokenManager.MINTER_ROLE();
-            expect(await tokenManager.hasRole(MINTER_ROLE, poolAddress)).to.be.true;
+            expect(await tokenManager.hasRole(MINTER_ROLE, poolAddress)).to.be.false;
         });
 
         it("Should revert if pool already exists", async function () {

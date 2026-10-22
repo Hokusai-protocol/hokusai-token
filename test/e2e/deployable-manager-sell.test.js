@@ -8,7 +8,7 @@ const {
   buildInitialParams,
   buildVestingConfig,
 } = require("../helpers/tokenDeployment");
-const { deployAMMProxy } = require("../helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("../helpers/ammDeployment");
 
 describe("DeployableTokenManager sell path", function () {
   const INITIAL_RESERVE = parseUnits("100000", 6);
@@ -100,7 +100,7 @@ describe("DeployableTokenManager sell path", function () {
     ]);
     await amm.waitForDeployment();
 
-    await tokenManager.authorizeAMM(await amm.getAddress());
+    await bindPool(tokenManager, await amm.getAddress());
     await amm.setMaxTradeBps(5000);
 
     await usdc.mint(owner.address, INITIAL_RESERVE);
@@ -134,7 +134,7 @@ describe("DeployableTokenManager sell path", function () {
   });
 
   it("supports post-IBR AMM sells for cap-based tokens via DeployableTokenManager", async function () {
-    const modelId = "deployable-cap-ibr";
+    const modelId = "7101";
     const { tokenManager, token, usdc, amm } = await deployStack({
       modelId,
       tokenMode: "cap",
@@ -177,7 +177,7 @@ describe("DeployableTokenManager sell path", function () {
   });
 
   it("supports AMM sells for legacy-mode tokens via the burnFrom branch", async function () {
-    const modelId = "deployable-legacy-sell";
+    const modelId = "7102";
     const { tokenManager, token, usdc, amm } = await deployStack({
       modelId,
       tokenMode: "legacy",
@@ -207,7 +207,7 @@ describe("DeployableTokenManager sell path", function () {
   });
 
   it("enforces burnAMMTokens authorization and validation in DeployableTokenManager", async function () {
-    const modelId = "deployable-burn-auth";
+    const modelId = "7103";
     const { tokenManager, token } = await deployStack({
       modelId,
       tokenMode: "cap",
@@ -241,7 +241,7 @@ describe("DeployableTokenManager sell path", function () {
   });
 
   it("lets reward holders sell only the unlocked portion while vested rewards stay unsellable in the vault", async function () {
-    const modelId = "deployable-reward-sell";
+    const modelId = "7104";
     const { tokenManager, vestingVault, token, usdc, amm } = await deployStack({
       modelId,
       tokenMode: "cap",
@@ -287,7 +287,7 @@ describe("DeployableTokenManager sell path", function () {
   });
 
   it("allows supplier-allocation holders to sell distributed tokens through the AMM", async function () {
-    const modelId = "deployable-supplier-sell";
+    const modelId = "7105";
     const { tokenManager, token, usdc, amm } = await deployStack({
       modelId,
       tokenMode: "cap",

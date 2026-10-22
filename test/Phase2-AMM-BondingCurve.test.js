@@ -3,7 +3,7 @@ const { ethers } = require("hardhat");
 const { parseEther, parseUnits, ZeroAddress, MaxUint256 } = require("ethers");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("Phase 2: Core AMM Bonding Curve", function () {
   let hokusaiAMM;
@@ -62,7 +62,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
     await hokusaiAMM.waitForDeployment();
 
     // Authorize AMM in TokenManager
-    await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
+    await bindPool(tokenManager, await hokusaiAMM.getAddress());
 
     // Seed AMM with initial reserve and supply
     await mockUSDC.mint(owner.address, INITIAL_RESERVE);
@@ -306,7 +306,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
     });
 
     it("Should allow holders to sell after model deactivation", async function () {
-      await modelRegistry.registerStringModel(modelId, await hokusaiToken.getAddress(), "accuracy");
+      // The model is already registered (bindPool in setup).
       await modelRegistry.deactivateStringModel(modelId);
 
       const balance = await hokusaiToken.balanceOf(buyer.address);
@@ -564,7 +564,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       const receipt = await tx.wait();
 
       console.log(`      Gas used for buy(): ${receipt.gasUsed}`);
-      expect(receipt.gasUsed).to.be.lt(195000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage)
+      expect(receipt.gasUsed).to.be.lt(200000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage; HOK-3283: registry pool lookup on mint)
     });
 
     it("Should measure gas for sell()", async function () {

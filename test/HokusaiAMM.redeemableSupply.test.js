@@ -7,7 +7,7 @@ const {
   buildInitialParams,
   buildVestingConfig,
 } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("HokusaiAMM redeemable supply pricing", function () {
   let owner;
@@ -22,7 +22,7 @@ describe("HokusaiAMM redeemable supply pricing", function () {
   const FLAT_CURVE_PRICE = parseUnits("1", 6);
 
   async function deployLegacyCurveFixture(vestingConfig) {
-    const MODEL_ID = "redeemable-legacy";
+    const MODEL_ID = "7202";
     const INITIAL_SUPPLY = parseEther("1000000");
     const INITIAL_RESERVE = parseUnits("100000", 6);
 
@@ -69,7 +69,7 @@ describe("HokusaiAMM redeemable supply pricing", function () {
     );
     await amm.waitForDeployment();
 
-    await tokenManager.authorizeAMM(await amm.getAddress());
+    await bindPool(tokenManager, await amm.getAddress());
     await amm.setMaxTradeBps(5000);
 
     await usdc.mint(owner.address, INITIAL_RESERVE);
@@ -83,7 +83,7 @@ describe("HokusaiAMM redeemable supply pricing", function () {
   }
 
   async function deployCapCurveFixture() {
-    const MODEL_ID = "redeemable-cap";
+    const MODEL_ID = "7203";
     const SUPPLIER_ALLOCATION = parseEther("250");
     const INVESTOR_ALLOCATION = parseEther("5000");
 
@@ -134,7 +134,7 @@ describe("HokusaiAMM redeemable supply pricing", function () {
     );
     await amm.waitForDeployment();
 
-    await tokenManager.authorizeAMM(await amm.getAddress());
+    await bindPool(tokenManager, await amm.getAddress());
     await amm.setMaxTradeBps(5000);
 
     await usdc.mint(buyer.address, parseUnits("5000", 6));

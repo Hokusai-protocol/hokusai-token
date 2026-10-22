@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseUnits, parseEther, ZeroAddress } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 /**
  * Phase 6: Token Issuance Gap Coverage Tests
@@ -357,7 +357,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
     let tokenManager, modelRegistry;
     let owner, unauthorized, user1;
 
-    const MODEL_ID = "auth-test";
+    const MODEL_ID = "3561"; // numeric: registry pool binding needs a canonical ID
 
     beforeEach(async function () {
       [owner, unauthorized, user1] = await ethers.getSigners();
@@ -395,9 +395,16 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       ).to.be.revertedWith("Unauthorized");
     });
 
+    // Simulates the factory binding an AMM (here an EOA) to MODEL_ID in the registry.
+    async function bindSimulatedPool(poolAddress) {
+      const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
+      await modelRegistry.registerStringModel(MODEL_ID, tokenAddress, "accuracy");
+      await modelRegistry.registerPool(MODEL_ID, poolAddress);
+    }
+
     it("should allow authorized AMM to mint", async function () {
       const ammAddress = user1.address; // Simulate AMM
-      await tokenManager.authorizeAMM(ammAddress);
+      await bindSimulatedPool(ammAddress);
 
       const tokenAddress = await tokenManager.getTokenAddress(MODEL_ID);
       const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
@@ -407,20 +414,20 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       expect(await token.totalSupply()).to.equal(supplyBefore + parseEther("100"));
     });
 
-    it("should reject mint after AMM authorization is revoked", async function () {
+    it("should reject pool mint after its model is deactivated", async function () {
       const ammAddress = user1.address;
-      await tokenManager.authorizeAMM(ammAddress);
+      await bindSimulatedPool(ammAddress);
 
       // Verify mint works
       await tokenManager.connect(user1).mintTokens(MODEL_ID, user1.address, parseEther("1"));
 
-      // Revoke
-      await tokenManager.revokeAMM(ammAddress);
+      // Registry bindings are write-once; deactivation is the cut-off lever.
+      await modelRegistry.deactivateStringModel(MODEL_ID);
 
       // Should fail now
       await expect(
         tokenManager.connect(user1).mintTokens(MODEL_ID, user1.address, parseEther("1"))
-      ).to.be.revertedWith("Caller is not authorized to mint");
+      ).to.be.revertedWith("Model is deactivated");
     });
 
     it("should reject mint with zero amount", async function () {
@@ -449,7 +456,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
     let owner, treasury, buyer1;
 
-    const modelId = "phase-edge-test";
+    const modelId = "3562"; // numeric: registry pool binding needs a canonical ID
     const INITIAL_SUPPLY = parseUnits("1000000", 18);
     const CRR = 200000; // 20%
     const TRADE_FEE = 30; // 0.30%
@@ -488,7 +495,7 @@ describe("Phase 6: Token Issuance Gap Coverage", function () {
       );
       await hokusaiAMM.waitForDeployment();
 
-      await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
+      await bindPool(tokenManager, await hokusaiAMM.getAddress());
 
       // Fund buyer
       await mockUSDC.mint(buyer1.address, parseUnits("200000", 6));

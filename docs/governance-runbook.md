@@ -41,18 +41,25 @@ Operational service roles remain outside the timelock, but they stay narrowly sc
 
 | Contract | Timelocked control | Emergency-only control | Operational roles |
 | --- | --- | --- | --- |
-| `ModelRegistry` | Timelock owns `owner()` | None | Pool registrar wiring only as documented in deployment |
-| `TokenManager` / `DeployableTokenManager` | Timelock owns `owner()` and `DEFAULT_ADMIN_ROLE` | None | `MINTER_ROLE`, `DEPLOYER_ROLE` service wallets |
+| `ModelRegistry` | Timelock owns `owner()`; pool registration is also the pool's TokenManager mint/burn authorization (see below) | None | Pool registrar wiring only as documented in deployment |
+| `TokenManager` / `DeployableTokenManager` | Timelock owns `owner()` and `DEFAULT_ADMIN_ROLE` | None | `MINTER_ROLE`, `DEPLOYER_ROLE` service wallets (never AMM pools) |
 | `HokusaiToken` | Timelock owns `owner()` | None | None |
 | `HokusaiParams` | Timelock holds `DEFAULT_ADMIN_ROLE` and `GOV_ROLE` | None | None |
-| `HokusaiAMMFactory` | Timelock owns `owner()` | Factory `pauser` set to emergency Safe | None |
-| `HokusaiAMM` pools | Factory remains `owner()` | Emergency Safe pauses via factory pause functions | None |
+| `HokusaiAMMFactory` | Timelock owns `owner()`: `setPoolImplementation`, `callPool`, defaults, treasury, unpause | Factory `pauser` set to emergency Safe | None |
+| `HokusaiAMM` pools | Factory remains `owner()`; timelock reaches owner functions via `factory.callPool` | Emergency Safe pauses via factory pause functions | None |
 | `DeltaVerifier` | Timelock holds `DEFAULT_ADMIN_ROLE` | Emergency Safe holds `PAUSER_ROLE` | `SUBMITTER_ROLE` service wallet |
 | `InfrastructureReserve` | Timelock holds `DEFAULT_ADMIN_ROLE` | Emergency Safe holds `PAUSER_ROLE` | `DEPOSITOR_ROLE`, `PAYER_ROLE` service wallets |
 | `InfrastructureCostOracle` | Timelock holds `DEFAULT_ADMIN_ROLE` and `GOV_ROLE` | None | None |
 | `UsageFeeRouter` | Timelock holds `DEFAULT_ADMIN_ROLE` | None | `FEE_DEPOSITOR_ROLE` backend service |
 | `DataContributionRegistry` | Timelock holds `DEFAULT_ADMIN_ROLE` | None | `RECORDER_ROLE`, `VERIFIER_ROLE` service wallets |
 | `FundingVault` | Timelock holds `DEFAULT_ADMIN_ROLE` | None | `GRADUATOR_ROLE` service wallet |
+
+### AMM pool authority (HOK-3283)
+
+- **Mint/burn scoping.** A pool may mint or burn only its own model's token: the TokenManager authorizes an AMM caller when `ModelRegistry.getPool(modelId) == msg.sender`, and `burnAMMTokens` from a pool may only burn the pool's own balance. Pools are never granted `MINTER_ROLE` and there is no `authorizeAMM`; registering a pool (by the factory, a registrar, or the registry owner) *is* its authorization, so treat `setPoolRegistrar` and owner `registerPool` as mint-authority grants. Registry pool bindings are write-once; to cut a pool off, pause it through the factory or deactivate its model (`deactivateStringModel`), which stops pool mints.
+- **Implementation for new pools.** `HokusaiAMMFactory.setPoolImplementation(address)` (timelocked) changes the implementation that *future* pools are deployed with. Existing proxies are unaffected; upgrading them is a separate ProxyAdmin operation (HOK-3285).
+- **Pool owner functions.** `HokusaiAMMFactory.callPool(modelId, data)` (timelocked) forwards an owner-only call (`setMaxTradeBps`, `setMinTradeCap`, `setPurchaserWhitelist`, `setParameters`, `withdrawTreasury`, `pause`, `unpause`) to that model's pool. `transferOwnership`/`renounceOwnership` are blocked so the factory always keeps pause authority.
+- **Fee routing.** `UsageFeeRouter` and `InfrastructureReserve` resolve pools through `ModelRegistry`, and the router reads params from its fixed `TokenManager`, so replacing the factory does not strand settlement.
 
 Operational service wallet registry:
 

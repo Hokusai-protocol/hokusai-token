@@ -53,7 +53,7 @@ describe("UsageFeeRouter", function () {
     const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
     infraReserve = await InfrastructureReserve.deploy(
       await mockUSDC.getAddress(),
-      await factory.getAddress(),
+      await modelRegistry.getAddress(),
       treasury.address
     );
     await infraReserve.waitForDeployment();
@@ -66,7 +66,8 @@ describe("UsageFeeRouter", function () {
     // Deploy UsageFeeRouter with cost oracle
     const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
     feeRouter = await UsageFeeRouter.deploy(
-      await factory.getAddress(),
+      await modelRegistry.getAddress(),
+      await tokenManager.getAddress(),
       await mockUSDC.getAddress(),
       await infraReserve.getAddress(),
       await costOracle.getAddress()
@@ -114,7 +115,8 @@ describe("UsageFeeRouter", function () {
 
   describe("Deployment", function () {
     it("Should initialize with correct addresses", async function () {
-      expect(await feeRouter.factory()).to.equal(await factory.getAddress());
+      expect(await feeRouter.modelRegistry()).to.equal(await modelRegistry.getAddress());
+      expect(await feeRouter.tokenManager()).to.equal(await tokenManager.getAddress());
       expect(await feeRouter.reserveToken()).to.equal(await mockUSDC.getAddress());
       expect(await feeRouter.infraReserve()).to.equal(await infraReserve.getAddress());
       expect(await feeRouter.costOracle()).to.equal(await costOracle.getAddress());
@@ -135,11 +137,25 @@ describe("UsageFeeRouter", function () {
       expect(await feeRouter.getModelFees(MODEL_ID_1)).to.equal(0);
     });
 
-    it("Should reject zero address for factory", async function () {
+    it("Should reject zero address for token manager", async function () {
+      const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
+      await expect(
+        UsageFeeRouter.deploy(
+          await modelRegistry.getAddress(),
+          ZeroAddress,
+          await mockUSDC.getAddress(),
+          await infraReserve.getAddress(),
+          await costOracle.getAddress()
+        )
+      ).to.be.reverted;
+    });
+
+    it("Should reject zero address for model registry", async function () {
       const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
       await expect(
         UsageFeeRouter.deploy(
           ZeroAddress,
+          await tokenManager.getAddress(),
           await mockUSDC.getAddress(),
           await infraReserve.getAddress(),
           await costOracle.getAddress()
@@ -151,7 +167,8 @@ describe("UsageFeeRouter", function () {
       const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
       await expect(
         UsageFeeRouter.deploy(
-          await factory.getAddress(),
+          await modelRegistry.getAddress(),
+          await tokenManager.getAddress(),
           ZeroAddress,
           await infraReserve.getAddress(),
           await costOracle.getAddress()
@@ -163,7 +180,8 @@ describe("UsageFeeRouter", function () {
       const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
       await expect(
         UsageFeeRouter.deploy(
-          await factory.getAddress(),
+          await modelRegistry.getAddress(),
+          await tokenManager.getAddress(),
           await mockUSDC.getAddress(),
           ZeroAddress,
           await costOracle.getAddress()
@@ -175,7 +193,8 @@ describe("UsageFeeRouter", function () {
       const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
       await expect(
         UsageFeeRouter.deploy(
-          await factory.getAddress(),
+          await modelRegistry.getAddress(),
+          await tokenManager.getAddress(),
           await mockUSDC.getAddress(),
           await infraReserve.getAddress(),
           ZeroAddress

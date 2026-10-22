@@ -224,6 +224,9 @@ async function deployFullStack(networkConfig, runtime) {
       "factorySetPoolDeployer"
     )
   );
+  // Recorded for verification/monitoring; both are created inside the pool deployer.
+  contracts.HokusaiAMMImplementation = await factory.poolImplementation();
+  contracts.PoolProxyAdmin = await poolDeployer.proxyAdmin();
 
   recordReceipt(
     await waitForTx(
@@ -254,7 +257,7 @@ async function deployFullStack(networkConfig, runtime) {
   const InfrastructureReserve = await getFactory("InfrastructureReserve");
   const infrastructureReserve = await InfrastructureReserve.deploy(
     reserveTokenAddress,
-    contracts.HokusaiAMMFactory,
+    contracts.ModelRegistry,
     treasury
   );
   await infrastructureReserve.waitForDeployment();
@@ -272,7 +275,8 @@ async function deployFullStack(networkConfig, runtime) {
 
   const UsageFeeRouter = await getFactory("UsageFeeRouter");
   const usageFeeRouter = await UsageFeeRouter.deploy(
-    contracts.HokusaiAMMFactory,
+    contracts.ModelRegistry,
+    contracts.TokenManager,
     reserveTokenAddress,
     contracts.InfrastructureReserve,
     contracts.InfrastructureCostOracle
@@ -361,15 +365,22 @@ async function deployFullStack(networkConfig, runtime) {
   expectAddress(await factory.reserveToken(), reserveTokenAddress, "HokusaiAMMFactory.reserveToken");
   expectAddress(await factory.poolDeployer(), contracts.HokusaiAMMPoolDeployer, "HokusaiAMMFactory.poolDeployer");
   expectAddress(
+    await factory.poolImplementation(),
+    await poolDeployer.defaultImplementation(),
+    "HokusaiAMMFactory.poolImplementation"
+  );
+  expectAddress(await poolDeployer.factory(), contracts.HokusaiAMMFactory, "HokusaiAMMPoolDeployer.factory");
+  expectAddress(
     contracts.PurchaserWhitelist,
     await purchaserWhitelist.getAddress(),
     "PurchaserWhitelist.address"
   );
-  expectAddress(await usageFeeRouter.factory(), contracts.HokusaiAMMFactory, "UsageFeeRouter.factory");
+  expectAddress(await usageFeeRouter.modelRegistry(), contracts.ModelRegistry, "UsageFeeRouter.modelRegistry");
+  expectAddress(await usageFeeRouter.tokenManager(), contracts.TokenManager, "UsageFeeRouter.tokenManager");
   expectAddress(await usageFeeRouter.reserveToken(), reserveTokenAddress, "UsageFeeRouter.reserveToken");
   expectAddress(await usageFeeRouter.infraReserve(), contracts.InfrastructureReserve, "UsageFeeRouter.infraReserve");
   expectAddress(await usageFeeRouter.costOracle(), contracts.InfrastructureCostOracle, "UsageFeeRouter.costOracle");
-  expectAddress(await infrastructureReserve.factory(), contracts.HokusaiAMMFactory, "InfrastructureReserve.factory");
+  expectAddress(await infrastructureReserve.modelRegistry(), contracts.ModelRegistry, "InfrastructureReserve.modelRegistry");
   expectAddress(await infrastructureReserve.reserveToken(), reserveTokenAddress, "InfrastructureReserve.reserveToken");
   expectAddress(await infrastructureReserve.treasury(), treasury, "InfrastructureReserve.treasury");
   expectEqual(await factory.defaultCrr(), BigInt(networkConfig.factoryDefaults.crr), "HokusaiAMMFactory.defaultCrr");

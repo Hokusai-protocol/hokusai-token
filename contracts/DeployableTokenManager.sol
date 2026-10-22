@@ -290,13 +290,16 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         emit VestingVaultUpdated(vaultAddress);
     }
 
-    function authorizeAMM(address amm) external onlyOwner {
-        ValidationLib.requireNonZeroAddress(amm, "AMM address");
-        grantRole(MINTER_ROLE, amm);
-    }
-
-    function revokeAMM(address amm) external onlyOwner {
-        revokeRole(MINTER_ROLE, amm);
+    /**
+     * @dev True when the caller is the pool ModelRegistry binds to `modelId`.
+     * Registry registration is the AMM's only mint/burn authorization: a pool
+     * can mint or burn its own model's token and nothing else, so one pool's
+     * upgrade authority cannot reach other models. Pools are never granted
+     * MINTER_ROLE (which stays model-agnostic for trusted non-AMM minters).
+     * To cut off a pool, pause it or deactivate its model in the registry.
+     */
+    function _isModelPool(string memory modelId) private view returns (bool) {
+        return registry.getPool(modelId) == msg.sender;
     }
 
     /**
@@ -324,7 +327,8 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
 
     function mintTokens(string memory modelId, address recipient, uint256 amount) external nonReentrant {
         require(
-            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            _isModelPool(modelId) ||
+                hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to mint"
         );
         ValidationLib.requireNonEmptyString(modelId, "model ID");
@@ -469,10 +473,13 @@ contract DeployableTokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * Restores investor headroom first, then reward headroom for capped tokens.
      */
     function burnAMMTokens(string memory modelId, address account, uint256 amount) external nonReentrant {
+        bool isModelPool = _isModelPool(modelId);
         require(
-            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            isModelPool || hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to burn"
         );
+        // A pool may only burn tokens it holds itself (sold into it).
+        require(!isModelPool || account == msg.sender, "Pool can only burn own balance");
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonZeroAddress(account, "account");
         ValidationLib.requirePositiveAmount(amount, "amount");

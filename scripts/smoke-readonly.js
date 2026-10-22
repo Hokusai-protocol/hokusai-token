@@ -93,6 +93,7 @@ const ABIS = {
     "function FEE_DEPOSITOR_ROLE() view returns (bytes32)",
     "function hasRole(bytes32 role, address account) view returns (bool)",
     "function factory() view returns (address)",
+    "function modelRegistry() view returns (address)",
     "function reserveToken() view returns (address)",
     "function infraReserve() view returns (address)",
     "function costOracle() view returns (address)",
@@ -750,24 +751,33 @@ async function main() {
   }
 
   // ---- UsageFeeRouter wiring (hard) + FEE_DEPOSITOR custody (reported) ----
+  // HOK-3283 routers resolve pools via ModelRegistry; legacy routers via the factory.
+  const routerPoolSource = await usageFeeRouter.modelRegistry().then(
+    (address) => ({ label: "modelRegistry", address, expected: contracts.ModelRegistry, expectedName: "ModelRegistry" }),
+    async () => ({
+      label: "factory",
+      address: await usageFeeRouter.factory(),
+      expected: contracts.HokusaiAMMFactory,
+      expectedName: "HokusaiAMMFactory",
+    })
+  );
   const [
-    routerFactory,
     routerReserveToken,
     routerInfraReserve,
     routerCostOracle,
     feeDepositorRole,
   ] = await Promise.all([
-    usageFeeRouter.factory(),
     usageFeeRouter.reserveToken(),
     usageFeeRouter.infraReserve(),
     usageFeeRouter.costOracle(),
     usageFeeRouter.FEE_DEPOSITOR_ROLE(),
   ]);
 
-  recorder.assert("UsageFeeRouter.factory matches HokusaiAMMFactory", sameAddress(routerFactory, contracts.HokusaiAMMFactory), {
-    actual: routerFactory,
-    expected: contracts.HokusaiAMMFactory,
-  });
+  recorder.assert(
+    `UsageFeeRouter.${routerPoolSource.label} matches ${routerPoolSource.expectedName}`,
+    sameAddress(routerPoolSource.address, routerPoolSource.expected),
+    { actual: routerPoolSource.address, expected: routerPoolSource.expected }
+  );
   recorder.assert("UsageFeeRouter.reserveToken matches artifact reserve token", sameAddress(routerReserveToken, reserveToken), {
     actual: routerReserveToken,
     expected: reserveToken,

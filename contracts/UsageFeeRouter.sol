@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./libraries/AccessControlBase.sol";
 import "./libraries/ValidationLib.sol";
 import "./HokusaiAMM.sol";
-import "./HokusaiAMMFactory.sol";
+import "./interfaces/IModelRegistry.sol";
 import "./InfrastructureReserve.sol";
 import "./TokenManager.sol";
 import "./interfaces/IHokusaiParams.sol";
@@ -35,7 +35,12 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
 
     bytes32 public constant FEE_DEPOSITOR_ROLE = keccak256("FEE_DEPOSITOR_ROLE");
 
-    HokusaiAMMFactory public immutable factory;
+    // Pools are resolved through ModelRegistry (write-once, factory-independent)
+    // and params through this fixed TokenManager, never through anything a pool
+    // reports about itself, so a factory replacement or a pool upgrade cannot
+    // redirect settlement.
+    IModelRegistry public immutable modelRegistry;
+    TokenManager public immutable tokenManager;
     IERC20 public immutable reserveToken; // USDC
     InfrastructureReserve public immutable infraReserve;
     IInfrastructureCostOracle public immutable costOracle;
@@ -99,24 +104,28 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
     // ============================================================
 
     /**
-     * @dev Initialize router with factory, infrastructure reserve, and cost oracle
-     * @param _factory HokusaiAMMFactory address
+     * @dev Initialize router with registry, token manager, infrastructure reserve, and cost oracle
+     * @param _modelRegistry ModelRegistry address (pool lookup)
+     * @param _tokenManager TokenManager address (params lookup)
      * @param _reserveToken Reserve token address (USDC)
      * @param _infraReserve InfrastructureReserve address
      * @param _costOracle InfrastructureCostOracle address
      */
     constructor(
-        address _factory,
+        address _modelRegistry,
+        address payable _tokenManager,
         address _reserveToken,
         address _infraReserve,
         address _costOracle
     ) AccessControlBase(msg.sender) {
-        ValidationLib.requireNonZeroAddress(_factory, "factory");
+        ValidationLib.requireNonZeroAddress(_modelRegistry, "model registry");
+        ValidationLib.requireNonZeroAddress(_tokenManager, "token manager");
         ValidationLib.requireNonZeroAddress(_reserveToken, "reserve token");
         ValidationLib.requireNonZeroAddress(_infraReserve, "infrastructure reserve");
         ValidationLib.requireNonZeroAddress(_costOracle, "cost oracle");
 
-        factory = HokusaiAMMFactory(_factory);
+        modelRegistry = IModelRegistry(_modelRegistry);
+        tokenManager = TokenManager(_tokenManager);
         reserveToken = IERC20(_reserveToken);
         infraReserve = InfrastructureReserve(_infraReserve);
         costOracle = IInfrastructureCostOracle(_costOracle);
@@ -170,10 +179,10 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
     {
         ValidationLib.requirePositiveAmount(amount, "amount");
         ValidationLib.requireNonEmptyString(modelId, "model ID");
-        require(factory.hasPool(modelId), "Pool does not exist");
-        require(factory.modelRegistry().isStringActive(modelId), "Model is deactivated");
+        require(modelRegistry.hasPool(modelId), "Pool does not exist");
+        require(modelRegistry.isStringActive(modelId), "Model is deactivated");
 
-        address poolAddress = factory.getPool(modelId);
+        address poolAddress = modelRegistry.getPool(modelId);
         ValidationLib.requireNonZeroAddress(poolAddress, "pool address");
 
         // Calculate infrastructure and profit split using cost-plus logic
@@ -245,8 +254,8 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
         for (uint256 i = 0; i < modelIds.length; i++) {
             ValidationLib.requirePositiveAmount(amounts[i], "amount");
             ValidationLib.requireNonEmptyString(modelIds[i], "model ID");
-            require(factory.hasPool(modelIds[i]), "Pool does not exist");
-            require(factory.modelRegistry().isStringActive(modelIds[i]), "Model is deactivated");
+            require(modelRegistry.hasPool(modelIds[i]), "Pool does not exist");
+            require(modelRegistry.isStringActive(modelIds[i]), "Model is deactivated");
             totalAmount += amounts[i];
         }
 
@@ -265,7 +274,7 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
             uint256 amount = amounts[i];
             uint256 callCount = callCounts[i];
 
-            address poolAddress = factory.getPool(modelId);
+            address poolAddress = modelRegistry.getPool(modelId);
 
             // Calculate split using cost-plus logic
             (uint256 infrastructureAmount, uint256 profitAmount, CostBasis costBasis) =
@@ -399,9 +408,6 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
      * @dev Resolve the model's governance-set infrastructure accrual share (basis points).
      */
     function _infraBps(string memory modelId) internal view returns (uint16) {
-        address poolAddress = factory.getPool(modelId);
-        HokusaiAMM pool = HokusaiAMM(poolAddress);
-        TokenManager tokenManager = pool.tokenManager();
         address paramsAddress = tokenManager.getParamsAddress(modelId);
         require(paramsAddress != address(0), "Params not found");
         return IHokusaiParams(paramsAddress).infrastructureAccrualBps();
@@ -433,7 +439,7 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
             CostBasis costBasis
         )
     {
-        require(factory.getPool(modelId) != address(0), "Pool not found");
+        require(modelRegistry.getPool(modelId) != address(0), "Pool not found");
         return _calculateFeeSplit(modelId, amount, callCount);
     }
 
@@ -455,10 +461,7 @@ contract UsageFeeRouter is AccessControlBase, ReentrancyGuard {
     {
         totalFees = modelFees[modelId];
 
-        address poolAddress = factory.getPool(modelId);
-        if (poolAddress != address(0)) {
-            HokusaiAMM pool = HokusaiAMM(poolAddress);
-            TokenManager tokenManager = pool.tokenManager();
+        if (modelRegistry.hasPool(modelId)) {
             address paramsAddress = tokenManager.getParamsAddress(modelId);
 
             if (paramsAddress != address(0)) {

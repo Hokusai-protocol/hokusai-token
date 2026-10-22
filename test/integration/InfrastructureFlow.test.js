@@ -50,7 +50,7 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
     const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
     infraReserve = await InfrastructureReserve.deploy(
       await mockUSDC.getAddress(),
-      await factory.getAddress(),
+      await modelRegistry.getAddress(),
       treasury.address
     );
     await infraReserve.waitForDeployment();
@@ -63,7 +63,8 @@ describe("Integration: Infrastructure Cost Accrual Flow", function () {
     // Deploy UsageFeeRouter
     const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
     feeRouter = await UsageFeeRouter.deploy(
-      await factory.getAddress(),
+      await modelRegistry.getAddress(),
+      await tokenManager.getAddress(),
       await mockUSDC.getAddress(),
       await infraReserve.getAddress(),
       await costOracle.getAddress()

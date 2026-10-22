@@ -385,20 +385,15 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
     }
 
     /**
-     * @dev Authorizes an AMM contract to mint and burn tokens
-     * @param amm The AMM contract address to authorize
+     * @dev True when the caller is the pool ModelRegistry binds to `modelId`.
+     * Registry registration is the AMM's only mint/burn authorization: a pool
+     * can mint or burn its own model's token and nothing else, so one pool's
+     * upgrade authority cannot reach other models. Pools are never granted
+     * MINTER_ROLE (which stays model-agnostic for trusted non-AMM minters).
+     * To cut off a pool, pause it or deactivate its model in the registry.
      */
-    function authorizeAMM(address amm) external onlyOwner {
-        ValidationLib.requireNonZeroAddress(amm, "AMM address");
-        grantRole(MINTER_ROLE, amm);
-    }
-
-    /**
-     * @dev Revokes AMM authorization
-     * @param amm The AMM contract address to revoke
-     */
-    function revokeAMM(address amm) external onlyOwner {
-        revokeRole(MINTER_ROLE, amm);
+    function _isModelPool(string memory modelId) private view returns (bool) {
+        return registry.getPool(modelId) == msg.sender;
     }
 
     /**
@@ -435,7 +430,8 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
         external
     {
         require(
-            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            _isModelPool(modelId) ||
+                hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to mint"
         );
 
@@ -583,7 +579,7 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
      * @param modelId The model identifier
      * @param account The address to burn tokens from
      * @param amount The amount of tokens to burn
-     * Note: Can be called by owner, MINTER_ROLE holders (e.g., AMM contracts), or deltaVerifier
+     * Note: Can be called by owner, MINTER_ROLE holders, or deltaVerifier (not by AMM pools)
      */
     // slither-disable-next-line reentrancy-events
     function burnTokens(string memory modelId, address account, uint256 amount)
@@ -640,10 +636,13 @@ contract TokenManager is Ownable, AccessControlBase, ReentrancyGuard {
     function burnAMMTokens(string memory modelId, address account, uint256 amount)
         external
     {
+        bool isModelPool = _isModelPool(modelId);
         require(
-            hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
+            isModelPool || hasRole(MINTER_ROLE, msg.sender) || msg.sender == owner() || msg.sender == deltaVerifier,
             "Caller is not authorized to burn"
         );
+        // A pool may only burn tokens it holds itself (sold into it).
+        require(!isModelPool || account == msg.sender, "Pool can only burn own balance");
 
         ValidationLib.requireNonEmptyString(modelId, "model ID");
         ValidationLib.requireNonZeroAddress(account, "account");

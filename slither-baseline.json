@@ -1324,6 +1324,188 @@
       "justification": "Same pattern previously accepted as 29bb9fed (HOK-1846): HokusaiAMMPoolDeployer.deployPool now creates a TransparentUpgradeableProxy over its own implementation (initialized in the proxy constructor) instead of `new HokusaiAMM`, transfers pool ownership to the factory, then emits. All calls target contracts it just created; the detector flags only event ordering. onlyFactory still gates the function.",
       "reviewedBy": "claude",
       "followUp": "HOK-3281"
+    },
+    {
+      "id": "20189a5f6de263d6f70249b964d2159c23ee5f6aae1f0ce186c7992bd6a81d17",
+      "check": "incorrect-equality",
+      "justification": "Pre-existing FundingVault.sweepDust finding; ID changed after HOK-3283 line shifts (drift of 016f4bfb) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "100f210a059a6e50076e67f5e5e26d0bd132d03300d6c970f208aaa7e915206b",
+      "check": "reentrancy-no-eth",
+      "justification": "Pre-existing UsageFeeRouter.batchDepositFees finding; ID changed after HOK-3283 line shifts (drift of ba6465ec) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "66811d56903b84ad650e36bf58ee0c33dbc7d41c9f1bdfc20fa08967a3defe09",
+      "check": "reentrancy-no-eth",
+      "justification": "Pre-existing FundingVault.graduate finding; ID changed after HOK-3283 line shifts (drift of dcb092f4) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "7a697a15e1f979a563fc6eab1e82a755911462a01e3a8e68d2ccb0175d067ae8",
+      "check": "reentrancy-no-eth",
+      "justification": "Pre-existing InfrastructureReserve.batchPayInfrastructureCosts finding; ID changed after HOK-3283 line shifts (drift of 61f43cc1) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "8f75babca1cfa009309525edcf55d341e63bb50706d7bc178596038734844e41",
+      "check": "reentrancy-no-eth",
+      "justification": "Pre-existing HokusaiAMMFactory.createPoolWithParams finding; ID changed after HOK-3283 line shifts (drift of 6365b847) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "34318aebc7f10d654b126c37aa2ccfb520bae91488f39d5000963b9fd1002a62",
+      "check": "unused-return",
+      "justification": "Pre-existing UsageFeeRouter.batchDepositFees finding; ID changed after HOK-3283 line shifts (drift of 7d140adb) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "9fbf53d2347fc08a02f93cee3b84c4d84d14cacc0c68ac8668abc3ef894d083c",
+      "check": "unused-return",
+      "justification": "Pre-existing UsageFeeRouter.depositFee finding; ID changed after HOK-3283 line shifts (drift of e7f34671) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "ad175688b172329c7dc9a4a17f8ce7f8636e2aecf8cd77234e48efe4ef4b8091",
+      "check": "unused-return",
+      "justification": "Pre-existing UsageFeeRouter.batchDepositFees finding; ID changed after HOK-3283 line shifts (drift of 7d140adb) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "b3339664dde4f59dd142ed8787228a0e11ac323d5d4ad095d07359ba18490ab1",
+      "check": "unused-return",
+      "justification": "Pre-existing FundingVault.graduate finding; ID changed after HOK-3283 line shifts (drift of 91227761) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "c8482c637175b5e6a33576509de2465ce2faa6a63c98fb53ac92af986dc5e0f6",
+      "check": "unused-return",
+      "justification": "Pre-existing UsageFeeRouter.depositFee finding; ID changed after HOK-3283 line shifts (drift of e7f34671) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "440778ebc39a0590f04f1c79128c7f0318d618be863b3f196d049f1dfcdb27da",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing UsageFeeRouter.batchDepositFees finding; ID changed after HOK-3283 line shifts (drift of 0ed2d869) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "527a6fcd8dadbc7216f70c80ac5f6723ddd77458e649753cb5db4740dee6d23e",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing InfrastructureReserve.batchPayInfrastructureCosts finding; ID changed after HOK-3283 line shifts (drift of 0ab5dc87) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "6cfde476fdace73d15539146433fc82ea0c969b2b1faf22164b553fa156631b3",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing UsageFeeRouter.depositFee finding; ID changed after HOK-3283 line shifts (drift of 58f4146d) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "70585f7b4e8609c943a54b2455479b06a7c661b62d0a9df1128a681b2b9aae8b",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing HokusaiAMMFactory.createPoolWithParams finding; ID changed after HOK-3283 line shifts (drift of e6c4a4fe) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "eb69a1653367db217a397c6b9417b335ded1289cf2b362ece33f9d90f64843bb",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing InfrastructureReserve.batchDeposit finding; ID changed after HOK-3283 line shifts (drift of b0a27cdd) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "f6666ab850045c66cebbc4a36dcbc686827436afb30324eb11879a5a6e7ab7f6",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing InfrastructureReserve.deposit finding; ID changed after HOK-3283 line shifts (drift of b4bc0a69) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "65ab75705e0076ffcff76ff442686aeb5e2ad158e1a6c1788850ddf1b3c3ce1e",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.createPoolWithParams finding; ID changed after HOK-3283 line shifts (drift of ee70ec9f) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "7680bfa1e037c5e0aa9d6f38b6213c05c45ac6c45187f0a244813f288be690e6",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.createPoolWithParamsAndWhitelist finding; ID changed after HOK-3283 line shifts (drift of ea7dee37) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "9c0b13ded0dd5641aa50786d7188f5d130dd54887a54240c230f48ccb4284e6e",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.pausePools finding; ID changed after HOK-3283 line shifts (drift of 7bd43287) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "a7e1b3bc3728cac249a4d6f36cb68eafbdc8df92407def99aaf506373a05e84f",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMPoolDeployer.deployPool finding; ID changed after HOK-3283 line shifts (drift of 8f113f87) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "abef5b18cbb6619ee0effba9b0036a4a4785caa2aaca320af340c5739b8a1a0d",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.unpausePools finding; ID changed after HOK-3283 line shifts (drift of f3b34940) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "bc77bdbdb4b6ea1bd64d8db268641240a2e003df5a896eda0c16726713cef8a7",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing InfrastructureReserve.emergencyWithdraw finding; ID changed after HOK-3283 line shifts (drift of c55fbfa1) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "d3bae9139570a2d7ada42cc527516b0c57affbdf3bad8b57cedba269119a7bf3",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.createPoolWithWhitelist finding; ID changed after HOK-3283 line shifts (drift of 4e827ade) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "d9e4620468a012ae59b568b4fc373efa2e4d6786ce9c0432f550135e2fbe2591",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.pauseAllPools finding; ID changed after HOK-3283 line shifts (drift of 1cf5862d) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "f6b33e59a19535ab2cac063a3153444349c29e50f91cb4128e8eef176cca0a2a",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.pausePool finding; ID changed after HOK-3283 line shifts (drift of 9e994580) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
+    },
+    {
+      "id": "f909748cbc6ab282d0e50287664e4179dae5251a65c3053c1f6997a649786579",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.unpausePool finding; ID changed after HOK-3283 line shifts (drift of 5b35e7f9) without changing the accepted risk.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3283"
     }
   ]
 }

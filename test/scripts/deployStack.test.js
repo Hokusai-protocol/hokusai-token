@@ -93,7 +93,10 @@ describe("deployFullStack", function () {
     expect(await tokenManager.vestingVault()).to.equal(result.contracts.RewardVestingVault);
     expect(await (await hre.ethers.getContractAt("HokusaiAMMFactory", result.contracts.HokusaiAMMFactory)).poolDeployer())
       .to.equal(result.contracts.HokusaiAMMPoolDeployer);
-    expect(await usageFeeRouter.factory()).to.equal(result.contracts.HokusaiAMMFactory);
+    expect(await usageFeeRouter.modelRegistry()).to.equal(result.contracts.ModelRegistry);
+    expect(await usageFeeRouter.tokenManager()).to.equal(result.contracts.TokenManager);
+    expect(await (await hre.ethers.getContractAt("HokusaiAMMFactory", result.contracts.HokusaiAMMFactory)).poolImplementation())
+      .to.equal(result.contracts.HokusaiAMMImplementation);
     expect(await usageFeeRouter.reserveToken()).to.equal(result.config.reserveToken);
     expect(await usageFeeRouter.infraReserve()).to.equal(result.contracts.InfrastructureReserve);
     expect(await usageFeeRouter.costOracle()).to.equal(result.contracts.InfrastructureCostOracle);

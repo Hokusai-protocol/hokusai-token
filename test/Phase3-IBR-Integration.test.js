@@ -68,9 +68,6 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
         );
         await hokusaiAMM.waitForDeployment();
 
-        // Authorize AMM to mint/burn via TokenManager
-        await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
-
         // Register string model in ModelRegistry first
         await modelRegistry.registerStringModel(
             MODEL_ID,
@@ -78,7 +75,7 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             "test-metric"
         );
 
-        // Register pool in ModelRegistry
+        // Register pool in ModelRegistry (this is also its mint/burn authorization)
         await modelRegistry.registerPool(MODEL_ID, await hokusaiAMM.getAddress());
 
         // Initialize pool with reserve
@@ -149,9 +146,9 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             expect(await modelRegistry.getPool(MODEL_ID)).to.equal(await hokusaiAMM.getAddress());
         });
 
-        it("Should grant MINTER_ROLE to AMM", async function () {
+        it("Should not grant MINTER_ROLE to the AMM (registry binding authorizes it)", async function () {
             const MINTER_ROLE = await tokenManager.MINTER_ROLE();
-            expect(await tokenManager.hasRole(MINTER_ROLE, await hokusaiAMM.getAddress())).to.be.true;
+            expect(await tokenManager.hasRole(MINTER_ROLE, await hokusaiAMM.getAddress())).to.be.false;
         });
 
         it("Should revert deployment with invalid parameters", async function () {
@@ -342,14 +339,14 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             expect(supplyAfterSell).to.be.lt(supplyAfterBuy);
         });
 
-        it("Should verify AMM has MINTER_ROLE", async function () {
+        it("Should authorize the AMM by registry binding, not MINTER_ROLE", async function () {
             const MINTER_ROLE = await tokenManager.MINTER_ROLE();
-            expect(await tokenManager.hasRole(MINTER_ROLE, await hokusaiAMM.getAddress())).to.be.true;
+            expect(await tokenManager.hasRole(MINTER_ROLE, await hokusaiAMM.getAddress())).to.be.false;
+            expect(await modelRegistry.getPool(MODEL_ID)).to.equal(await hokusaiAMM.getAddress());
         });
 
-        it("Should fail if AMM loses MINTER_ROLE", async function () {
-            // Revoke AMM authorization
-            await tokenManager.revokeAMM(await hokusaiAMM.getAddress());
+        it("Should fail buys once the model is deactivated", async function () {
+            await modelRegistry.deactivateStringModel(MODEL_ID);
 
             const depositAmount = parseUnits("1000", 6);
             const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
@@ -357,7 +354,7 @@ describe("Phase 3: IBR & TokenManager Integration", function () {
             // Buy should fail
             await expect(
                 hokusaiAMM.connect(buyer1).buy(depositAmount, 0, buyer1.address, deadline)
-            ).to.be.revertedWith("Caller is not authorized to mint");
+            ).to.be.revertedWith("Model is deactivated");
         });
 
         it("Should track modelId correctly in TokenManager", async function () {

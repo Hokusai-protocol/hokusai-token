@@ -7,15 +7,18 @@ import "./HokusaiAMM.sol";
 import "./libraries/ValidationLib.sol";
 
 /**
- * @dev Deploys each pool as a TransparentUpgradeableProxy over one shared
- * HokusaiAMM implementation. All pool proxies are administered by a single
- * ProxyAdmin owned by the factory; the factory exposes no upgrade calls, so
- * upgrade authority stays unreachable until it is wired to governance
- * (HOK-3283 / HOK-3285).
+ * @dev Deploys each pool as a TransparentUpgradeableProxy whose initializer
+ * runs in the proxy constructor, so there is no uninitialized window. The
+ * factory chooses the implementation per call (its timelocked
+ * `poolImplementation`); `defaultImplementation` is deployed here only because
+ * the factory cannot hold HokusaiAMM initcode under the size limit. All pool
+ * proxies are administered by a single ProxyAdmin owned by the factory; the
+ * factory exposes no upgrade calls, so upgrade authority stays unreachable
+ * until it is wired to governance (HOK-3285).
  */
 contract HokusaiAMMPoolDeployer {
     address public immutable factory;
-    address public immutable implementation;
+    address public immutable defaultImplementation;
     ProxyAdmin public immutable proxyAdmin;
 
     event PoolDeployed(address indexed pool);
@@ -28,13 +31,14 @@ contract HokusaiAMMPoolDeployer {
     constructor(address _factory) {
         ValidationLib.requireNonZeroAddress(_factory, "factory");
         factory = _factory;
-        implementation = address(new HokusaiAMM());
+        defaultImplementation = address(new HokusaiAMM());
         ProxyAdmin admin = new ProxyAdmin();
         admin.transferOwnership(_factory);
         proxyAdmin = admin;
     }
 
     function deployPool(
+        address implementation,
         address reserveToken,
         address tokenAddress,
         address payable tokenManager,

@@ -2,13 +2,13 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 // HOK-3270: graduation to bonding-curve pricing is permanent. Once hasGraduated
 // is set, getBuyQuote/getSellQuote/spotPrice must keep using the curve even after
 // sells take reserves back below FLAT_CURVE_THRESHOLD.
 describe("HokusaiAMM permanent graduation pricing", function () {
-  const MODEL_ID = "graduation-model";
+  const MODEL_ID = "7206";
   const CRR = 200000n; // 20%
   const PPM = 1000000n;
   const IBR_DURATION = 0;
@@ -51,7 +51,7 @@ describe("HokusaiAMM permanent graduation pricing", function () {
       THRESHOLD,
       FLAT_PRICE
     );
-    await tokenManager.authorizeAMM(await amm.getAddress());
+    await bindPool(tokenManager, await amm.getAddress());
 
     const math = await (await ethers.getContractFactory("BondingCurveMathTestHarness")).deploy();
 

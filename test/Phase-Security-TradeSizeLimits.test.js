@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
-const { deployAMMProxy } = require("./helpers/ammDeployment");
+const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
 
 describe("Security: Maximum Trade Size Limits", function () {
   let hokusaiAMM;
@@ -56,7 +56,7 @@ describe("Security: Maximum Trade Size Limits", function () {
     );
     await hokusaiAMM.waitForDeployment();
 
-    await tokenManager.authorizeAMM(await hokusaiAMM.getAddress());
+    await bindPool(tokenManager, await hokusaiAMM.getAddress());
     // These tests cover the percentage cap; disable the absolute floor
     // (HOK-3300, covered in HokusaiAMM.minTradeCap.test.js).
     await hokusaiAMM.setMinTradeCap(0);

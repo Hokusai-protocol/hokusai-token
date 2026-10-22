@@ -2,13 +2,14 @@ const { expect } = require("chai");
 const { ethers, upgrades } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
+const { bindPool } = require("./helpers/ammDeployment");
 
 // HOK-3281: pools are TransparentUpgradeableProxy instances over a shared
 // HokusaiAMM implementation. Upgrading a pool must keep its address and every
 // piece of state, and must not touch other pools.
 describe("HokusaiAMM upgradeability", function () {
-  const MODEL_A = "upgrade-model-a";
-  const MODEL_B = "upgrade-model-b";
+  const MODEL_A = "7204";
+  const MODEL_B = "7205";
   const CRR = 200000n;
   const TRADE_FEE = 30n;
   const THRESHOLD = parseUnits("25000", 6);
@@ -49,7 +50,7 @@ describe("HokusaiAMM upgradeability", function () {
       ]);
       const proxy = await Proxy.deploy(await implementation.getAddress(), await proxyAdmin.getAddress(), initData);
       const amm = HokusaiAMM.attach(await proxy.getAddress());
-      await tokenManager.authorizeAMM(await amm.getAddress());
+      await bindPool(tokenManager, await amm.getAddress());
       return { amm, token };
     }
 

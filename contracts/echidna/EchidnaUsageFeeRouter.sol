@@ -5,8 +5,8 @@ import "../UsageFeeRouter.sol";
 import "../mocks/MockUSDC.sol";
 
 // --- Minimal ABI-compatible stubs ---------------------------------------------------------
-// UsageFeeRouter casts its constructor args to concrete types (HokusaiAMMFactory, etc.) and
-// reaches the params via factory.getPool -> pool.tokenManager -> tokenManager.getParamsAddress
+// UsageFeeRouter casts its constructor args to concrete types (IModelRegistry, TokenManager, etc.)
+// and reaches the params via registry.getPool (existence) and tokenManager.getParamsAddress
 // -> params.infrastructureAccrualBps. Casts are compile-time only, so stubs exposing the same
 // selectors satisfy the view path used by calculateFeeSplit without the full AMM graph.
 
@@ -22,13 +22,7 @@ contract StubTokenManager {
     function getParamsAddress(string memory) external view returns (address) { return paramsAddr; }
 }
 
-contract StubPool {
-    address public tm;
-    constructor(address tm_) { tm = tm_; }
-    function tokenManager() external view returns (address) { return tm; }
-}
-
-contract StubFactory {
+contract StubRegistry {
     address public pool;
     constructor(address pool_) { pool = pool_; }
     function getPool(string memory) external view returns (address) { return pool; }
@@ -77,13 +71,13 @@ contract EchidnaUsageFeeRouter {
         params = new StubParams();
         params.setInfraBps(8000); // launch default infra share (80%)
         StubTokenManager tm = new StubTokenManager(address(params));
-        StubPool pool = new StubPool(address(tm));
-        StubFactory factory = new StubFactory(address(pool));
+        // Any non-zero address stands in for the pool; the split path only checks existence.
+        StubRegistry registry = new StubRegistry(address(0xBEEF));
         oracle = new StubCostOracle();
 
         // infraReserve arg is only touched on the deposit path, never by calculateFeeSplit;
         // a non-zero address satisfies the constructor guard.
-        router = new UsageFeeRouter(address(factory), address(usdc), address(usdc), address(oracle));
+        router = new UsageFeeRouter(address(registry), payable(address(tm)), address(usdc), address(usdc), address(oracle));
     }
 
     // --- configuration actions ---

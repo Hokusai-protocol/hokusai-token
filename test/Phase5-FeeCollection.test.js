@@ -68,7 +68,7 @@ describe("Phase 5: Fee Collection System", function () {
         const InfrastructureReserve = await ethers.getContractFactory("InfrastructureReserve");
         infraReserve = await InfrastructureReserve.deploy(
             await mockUSDC.getAddress(),
-            await factory.getAddress(),
+            await modelRegistry.getAddress(),
             treasury.address
         );
         await infraReserve.waitForDeployment();
@@ -81,7 +81,8 @@ describe("Phase 5: Fee Collection System", function () {
         // Deploy UsageFeeRouter
         const UsageFeeRouter = await ethers.getContractFactory("UsageFeeRouter");
         feeRouter = await UsageFeeRouter.deploy(
-            await factory.getAddress(),
+            await modelRegistry.getAddress(),
+            await tokenManager.getAddress(),
             await mockUSDC.getAddress(),
             await infraReserve.getAddress(),
             await costOracle.getAddress()
@@ -107,7 +108,8 @@ describe("Phase 5: Fee Collection System", function () {
 
     describe("Deployment & Initialization", function () {
         it("Should initialize with correct parameters", async function () {
-            expect(await feeRouter.factory()).to.equal(await factory.getAddress());
+            expect(await feeRouter.modelRegistry()).to.equal(await modelRegistry.getAddress());
+      expect(await feeRouter.tokenManager()).to.equal(await tokenManager.getAddress());
             expect(await feeRouter.reserveToken()).to.equal(await mockUSDC.getAddress());
             expect(await feeRouter.infraReserve()).to.equal(await infraReserve.getAddress());
         });

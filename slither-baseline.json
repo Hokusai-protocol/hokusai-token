@@ -1508,7 +1508,8 @@
       "followUp": "HOK-3283"
     },
     {
-      "id": "78fdc96adf5db39c223a28e056b4d815a55549d72473da8d7009b8fa7455b018 reentrancy-events",
+      "id": "78fdc96adf5db39c223a28e056b4d815a55549d72473da8d7009b8fa7455b018",
+      "check": "reentrancy-events",
       "justification": "Pre-existing HokusaiAMMPoolDeployer.deployPool finding; ID changed after HOK-3285 constructor line shifts (drift of a7e1b3bc) without changing the accepted risk.",
       "reviewedBy": "claude",
       "followUp": "HOK-3285"

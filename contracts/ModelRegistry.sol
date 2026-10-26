@@ -536,6 +536,11 @@ contract ModelRegistry is Ownable, IModelRegistry {
         if (buffer.length == 0) {
             return false;
         }
+        // One spelling per number: "01" would alias "1" for registered/active
+        // checks while keying a separate pool and TokenManager entry.
+        if (buffer.length > 1 && buffer[0] == 0x30) {
+            return false;
+        }
 
         for (uint256 i = 0; i < buffer.length; i++) {
             if (buffer[i] < 0x30 || buffer[i] > 0x39) {
@@ -549,6 +554,7 @@ contract ModelRegistry is Ownable, IModelRegistry {
     function _parseModelId(string memory modelId) private pure returns (uint256 parsed) {
         bytes memory buffer = bytes(modelId);
         require(buffer.length > 0, "Model ID cannot be empty");
+        require(buffer.length == 1 || buffer[0] != 0x30, "Model ID has leading zero");
 
         for (uint256 i = 0; i < buffer.length; i++) {
             uint8 charCode = uint8(buffer[i]);

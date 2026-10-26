@@ -234,6 +234,27 @@ function deployerRevokedRoles(spec, deployer) {
   );
 }
 
+// Roles (and ownership) the policy resolves to the deployer without naming it.
+// A symbol such as TREASURY, RELAYER or DEPLOYMENT_ROLE:... that falls back to
+// the deployer would exempt it from revocation, so the handoff and the
+// verifier both treat that as a failure. Only the literal DEPLOYER symbol may
+// hand the deployer a post-handoff role.
+function deployerHolderViolations(spec, deployer) {
+  if (!deployer) return [];
+  const violations = [];
+  for (const [roleName, holders] of Object.entries(spec.roles)) {
+    const symbols = [spec.policy.roles?.[roleName]].flat();
+    if (symbols.includes("DEPLOYER")) continue;
+    if (holders.some((holder) => addressesEqual(holder, deployer))) {
+      violations.push(`${spec.instanceKey}.${roleName}`);
+    }
+  }
+  if (spec.owner && spec.policy.owner !== "DEPLOYER" && addressesEqual(spec.owner, deployer)) {
+    violations.push(`${spec.instanceKey}.owner`);
+  }
+  return violations;
+}
+
 function expectedList(expected) {
   return (Array.isArray(expected) ? expected : [expected]).flat().filter(Boolean);
 }
@@ -344,6 +365,13 @@ async function renounceRoleIfHeld({ contract, roleId, roleName, deployer, dryRun
   }
 }
 
+async function anyRole(contract, roleIds, account) {
+  for (const roleId of roleIds) {
+    if (await contract.hasRole(roleId, account)) return true;
+  }
+  return false;
+}
+
 async function verifyTimelockRoles(timelock, governance) {
   const proposerRole = await timelock.PROPOSER_ROLE();
   const executorRole = await timelock.EXECUTOR_ROLE();
@@ -366,6 +394,10 @@ async function verifyTimelockRoles(timelock, governance) {
     {
       check: "deployer timelock admin revoked",
       pass: !(await timelock.hasRole(adminRole, governance.deployer)),
+    },
+    {
+      check: "deployer holds no proposer/executor/canceller role",
+      pass: !(await anyRole(timelock, [proposerRole, executorRole, cancellerRole], governance.deployer)),
     },
   ];
 
@@ -399,6 +431,10 @@ async function runGovernanceTransfer({ hre, deployment, policy, dryRun = false, 
   await verifyTimelockRoles(timelock, governance);
 
   const specs = expandContractSpecs(policy, deployment, governance);
+  const deployerHeld = specs.flatMap((spec) => deployerHolderViolations(spec, governance.deployer));
+  if (deployerHeld.length > 0) {
+    throw new Error(`Policy resolves these to the deployer ${governance.deployer}: ${deployerHeld.join(", ")}`);
+  }
   const actions = [];
 
   for (const spec of specs) {
@@ -474,12 +510,15 @@ async function runGovernanceTransfer({ hre, deployment, policy, dryRun = false, 
 }
 
 async function verifyGovernance({ hre, deployment, policy }) {
+  // The deployer under audit is the one recorded in the artifact, not whichever
+  // key happens to be loaded (a Ledger or KMS deploy leaves getSigners() empty
+  // or different, which would audit the wrong address).
   const signers = await hre.ethers.getSigners();
-  const governance = getGovernanceContext({
-    deployment,
-    policy,
-    deployer: signers[0]?.address || deployment.deployer,
-  });
+  const deployer = deployment.deployer || signers[0]?.address;
+  if (!deployer) {
+    throw new Error("Missing deployer in deployment artifact");
+  }
+  const governance = getGovernanceContext({ deployment, policy, deployer });
   const checks = [];
   const pushCheck = (entry) => {
     checks.push(entry);
@@ -499,6 +538,12 @@ async function verifyGovernance({ hre, deployment, policy }) {
     ["Timelock", "EXECUTOR_ROLE", governance.adminSafe, await timelock.hasRole(executorRole, governance.adminSafe)],
     ["Timelock", "CANCELLER_ROLE", governance.adminSafe, await timelock.hasRole(cancellerRole, governance.adminSafe)],
     ["Timelock", "TIMELOCK_ADMIN_ROLE", governance.deployer, !(await timelock.hasRole(adminRole, governance.deployer))],
+    [
+      "Timelock",
+      "deployer-proposer/executor/canceller-revoked",
+      governance.deployer,
+      !(await anyRole(timelock, [proposerRole, executorRole, cancellerRole], governance.deployer)),
+    ],
   ];
 
   for (const [contractName, check, expected, pass] of timelockChecks) {
@@ -511,8 +556,46 @@ async function verifyGovernance({ hre, deployment, policy }) {
     });
   }
 
+  // On mainnet, the policy floor rather than the (env-overridable) configured
+  // delay; rehearsal networks may run shorter delays, checked against the
+  // recorded one.
+  const minDelayFloor = BigInt(
+    deployment.network === "mainnet" ? policy.defaults.mainnetMinDelay : governance.minDelay
+  );
+  const actualMinDelay = await timelock.getMinDelay();
+  pushCheck({
+    contract: "Timelock",
+    check: "minDelay",
+    expected: `>= ${minDelayFloor}`,
+    actual: String(actualMinDelay),
+    status: actualMinDelay >= minDelayFloor ? "pass" : "fail",
+  });
+
+  // Pools created after the artifact was written would otherwise go unchecked.
+  if (deployment.contracts?.HokusaiAMMFactory && policy.contracts.some((entry) => entry.collection === "pools")) {
+    const factory = await hre.ethers.getContractAt("HokusaiAMMFactory", deployment.contracts.HokusaiAMMFactory);
+    const onChain = await factory.poolCount();
+    const recorded = (deployment.pools || []).length;
+    pushCheck({
+      contract: "HokusaiAMMFactory",
+      check: "poolCount matches deployment.pools",
+      expected: String(recorded),
+      actual: String(onChain),
+      status: onChain === BigInt(recorded) ? "pass" : "fail",
+    });
+  }
+
   const specs = expandContractSpecs(policy, deployment, governance);
   for (const spec of specs) {
+    for (const violation of deployerHolderViolations(spec, governance.deployer)) {
+      pushCheck({
+        contract: spec.instanceKey,
+        check: "expected holder is not the deployer",
+        expected: `not ${governance.deployer}`,
+        actual: violation,
+        status: "fail",
+      });
+    }
     const contract = await hre.ethers.getContractAt(spec.abiName, spec.address);
     if (spec.owner) {
       const actualOwner = await contract.owner();

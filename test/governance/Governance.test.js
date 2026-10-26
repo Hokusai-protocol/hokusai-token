@@ -364,6 +364,9 @@ describe("Governance transfer and timelock controls", function () {
       dryRun: false,
       logger: { log() {} },
     });
+    // Past the pool's buy-only period; the ProxyAdmin refuses upgrades before then.
+    await hre.network.provider.send("evm_setNextBlockTimestamp", [Number(await fixture.pool.buyOnlyUntil())]);
+    await hre.network.provider.send("evm_mine");
     const proxyAdmin = await ethers.getContractAt("HokusaiPoolProxyAdmin", fixture.artifact.contracts.PoolProxyAdmin);
     const v2 = await ethers.deployContract("HokusaiAMMV2Mock");
     const upgradeData = proxyAdmin.interface.encodeFunctionData("upgrade", [
@@ -443,6 +446,45 @@ describe("Governance transfer and timelock controls", function () {
     expect(report.checks.filter((check) => check.status === "fail").map((check) => check.check)).to.deep.equal([
       "deployer-MINTER_ROLE-revoked",
     ]);
+  });
+
+  it("refuses a handoff whose policy resolves a role to the deployer", async function () {
+    const { artifact, policy, deployer } = await deployFixture();
+    // e.g. TREASURY_ADDRESS unset, so the treasury (InfrastructureReserve payer) fell back to the deployer.
+    artifact.roles.InfrastructureReserve.PAYER_ROLE = [deployer.address];
+
+    await expect(
+      runGovernanceTransfer({ hre, deployment: artifact, policy, dryRun: true, logger: { log() {} } })
+    ).to.be.rejectedWith(/resolves these to the deployer .*InfrastructureReserve\.PAYER_ROLE/);
+  });
+
+  it("audits the recorded deployer, the timelock delay floor and unrecorded pools", async function () {
+    const { artifact, policy, deployer, outsider } = await handedOffFixture();
+    const names = (report) => report.checks.map((check) => `${check.contract}:${check.check}`);
+    const failed = (report) =>
+      report.checks.filter((check) => check.status === "fail").map((check) => `${check.contract}:${check.check}`);
+
+    let report = await verifyGovernance({ hre, deployment: artifact, policy });
+    expect(names(report)).to.include.members([
+      "Timelock:minDelay",
+      "Timelock:deployer-proposer/executor/canceller-revoked",
+      "HokusaiAMMFactory:poolCount matches deployment.pools",
+    ]);
+    expect(failed(report)).to.deep.equal([]);
+
+    // A pool missing from the artifact is caught rather than silently unchecked.
+    const recordedPools = artifact.pools;
+    artifact.pools = [];
+    expect(failed(await verifyGovernance({ hre, deployment: artifact, policy }))).to.include(
+      "HokusaiAMMFactory:poolCount matches deployment.pools"
+    );
+    artifact.pools = recordedPools;
+
+    // The audited deployer is the artifact's, whatever key is loaded.
+    expect(artifact.deployer).to.equal(deployer.address);
+    artifact.deployer = outsider.address;
+    report = await verifyGovernance({ hre, deployment: artifact, policy });
+    expect(report.checks.find((check) => check.check === "TIMELOCK_ADMIN_ROLE").expected).to.equal(outsider.address);
   });
 
   it("only upgrades pools through a delayed, cancellable timelock operation", async function () {

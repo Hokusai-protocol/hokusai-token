@@ -25,8 +25,10 @@ async function main() {
     deployer: deployer.address,
   });
 
-  if (deployment.governance?.timelock) {
-    console.log(`Timelock already recorded at ${deployment.governance.timelock}`);
+  // governance.timelock also honours TIMELOCK_ADDRESS, so an existing timelock
+  // (the redeploy reuses the launch one) is never duplicated.
+  if (governance.timelock) {
+    console.log(`Timelock already set at ${governance.timelock}`);
     return;
   }
 

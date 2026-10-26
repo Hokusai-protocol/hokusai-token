@@ -3,6 +3,7 @@ const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
 const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
+const { curveModel, poolCurveState, near } = require("./helpers/curveModel");
 
 describe("Security: Maximum Trade Size Limits", function () {
   let hokusaiAMM;
@@ -331,8 +332,13 @@ describe("Security: Maximum Trade Size Limits", function () {
       console.log(`      Price: $${initialSpot / BigInt(1e6)} → $${finalSpot / BigInt(1e6)}`);
       console.log(`      Price impact: ${priceImpact / BigInt(100)}%`);
 
-      // Price should increase but not absurdly (CRR = 10% so ~2x deposit impact)
-      expect(priceImpact).to.be.lt(10000); // < 100% price increase
+      // The fee-seeded fixture sits at the curve anchor (HOK-3317), so the
+      // curve reserve is w × R and the impact is (1 + net / (w × R))^(1 - w) - 1:
+      // about 168% for a 20% trade at CRR 10%.
+      const model = curveModel(CRR);
+      const net = Number(maxSize - (maxSize * BigInt(TRADE_FEE)) / 10000n);
+      const expected = Number(initialSpot) * Math.pow(1 + net / (model.w * Number(initialReserve)), 1 - model.w);
+      expect(finalSpot).to.be.closeTo(...near(expected, 1e-6));
     });
   });
 });

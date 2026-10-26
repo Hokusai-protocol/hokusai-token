@@ -3,10 +3,12 @@ const { ethers } = require("hardhat");
 const { parseEther, parseUnits } = require("ethers");
 const { deployTestToken } = require("./helpers/tokenDeployment");
 const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
+const { poolCurveState } = require("./helpers/curveModel");
 
 // HOK-3270: graduation to bonding-curve pricing is permanent. Once hasGraduated
 // is set, getBuyQuote/getSellQuote/spotPrice must keep using the curve even after
-// sells take reserves back below FLAT_CURVE_THRESHOLD.
+// sells take reserves back below FLAT_CURVE_THRESHOLD. HOK-3317: the curve is
+// anchored at the graduation supply (see curveModel below).
 describe("HokusaiAMM permanent graduation pricing", function () {
   const MODEL_ID = "7206";
   const CRR = 200000n; // 20%
@@ -53,8 +55,6 @@ describe("HokusaiAMM permanent graduation pricing", function () {
     );
     await bindPool(tokenManager, await amm.getAddress());
 
-    const math = await (await ethers.getContractFactory("BondingCurveMathTestHarness")).deploy();
-
     const ammAddress = await amm.getAddress();
     for (const signer of [owner, buyer, seller]) {
       await usdc.mint(signer.address, parseUnits("1000000", 6));
@@ -62,7 +62,7 @@ describe("HokusaiAMM permanent graduation pricing", function () {
       await token.connect(signer).approve(ammAddress, ethers.MaxUint256);
     }
 
-    return { tokenManager, token, usdc, amm, math, tradeFee: BigInt(tradeFee) };
+    return { tokenManager, token, usdc, amm, tradeFee: BigInt(tradeFee) };
   }
 
   const afterFee = (amount, tradeFee) => amount - (amount * tradeFee) / 10000n;
@@ -75,20 +75,39 @@ describe("HokusaiAMM permanent graduation pricing", function () {
     };
   }
 
+  // Reference model of the post-graduation curve (HokusaiAMM docs): reserve R
+  // backs supply S along f(s) = s up to the anchor S_g and
+  // S_g × ((1 - w) + w × (s/S_g)^(1/w)) above it. Floats, so compare with
+  // closeTo(REL).
+  const W = Number(CRR) / Number(PPM);
+  const REL = 1e-9;
+  const f = (s, sg) => (s <= sg ? s : sg * (1 - W + W * Math.pow(s / sg, 1 / W)));
+  const fInv = (y, sg) => (y <= sg ? y : sg * Math.pow((y / sg - (1 - W)) / W, W));
+  const slope = (s, sg) => (s <= sg ? 1 : Math.pow(s / sg, 1 / W - 1));
+  const near = (x) => BigInt(Math.floor(Math.max(Math.abs(x) * REL, 2)));
+
+  async function curveState(ctx) {
+    return poolCurveState(ctx.amm, ctx.tokenManager, MODEL_ID);
+  }
+
   async function expectedCurveBuy(ctx, reserveIn) {
-    const { reserve, supply } = await state(ctx);
-    return ctx.math.testCalculateBuy(supply, reserve, afterFee(reserveIn, ctx.tradeFee), CRR);
+    const { R, S, sg } = await curveState(ctx);
+    const E = Number(afterFee(reserveIn, ctx.tradeFee));
+    return fInv((f(S, sg) * (R + E)) / R, sg) - S;
   }
 
   async function expectedCurveSell(ctx, tokensIn) {
-    const { reserve, supply } = await state(ctx);
-    return ctx.math.testCalculateSell(supply, reserve, tokensIn, CRR);
+    const { R, S, sg } = await curveState(ctx);
+    const T = Number(tokensIn);
+    return (R * (f(S, sg) - f(S - T, sg))) / f(S, sg);
   }
 
   async function expectedCurveSpot(ctx) {
-    const { reserve, supply } = await state(ctx);
-    return (reserve * PPM * 10n ** 18n) / (CRR * supply);
+    const { R, S, sg } = await curveState(ctx);
+    return (R * slope(S, sg) * 1e18) / f(S, sg);
   }
+
+  const expectNear = (actual, expected) => expect(actual).to.be.closeTo(BigInt(Math.round(expected)), near(expected));
 
   // Graduate with an exact-threshold buy, then sell on the curve until reserves
   // are below the threshold.
@@ -97,17 +116,16 @@ describe("HokusaiAMM permanent graduation pricing", function () {
     const gross = (THRESHOLD * 10000n + 9999n - ctx.tradeFee) / (10000n - ctx.tradeFee);
     await ctx.amm.connect(seller).buy(gross, 0, seller.address, DEADLINE);
     expect(await ctx.amm.hasGraduated()).to.equal(true);
-    await ctx.amm.connect(seller).sell(parseEther("20000"), 0, seller.address, DEADLINE);
+    await ctx.amm.connect(seller).sell(parseEther("400000"), 0, seller.address, DEADLINE);
     expect(await ctx.amm.reserveBalance()).to.be.lt(THRESHOLD);
   }
 
   async function expectCurvePricing(ctx) {
     const buyIn = parseUnits("500", 6);
     const sellIn = parseEther("10000");
-    expect(await ctx.amm.getBuyQuote(buyIn)).to.equal(await expectedCurveBuy(ctx, buyIn));
-    expect(await ctx.amm.getSellQuote(sellIn)).to.equal(await expectedCurveSell(ctx, sellIn));
-    expect(await ctx.amm.spotPrice()).to.equal(await expectedCurveSpot(ctx));
-    expect(await ctx.amm.spotPrice()).to.not.equal(FLAT_PRICE);
+    expectNear(await ctx.amm.getBuyQuote(buyIn), await expectedCurveBuy(ctx, buyIn));
+    expectNear(await ctx.amm.getSellQuote(sellIn), await expectedCurveSell(ctx, sellIn));
+    expectNear(await ctx.amm.spotPrice(), await expectedCurveSpot(ctx));
   }
 
   describe("before graduation", function () {
@@ -135,7 +153,10 @@ describe("HokusaiAMM permanent graduation pricing", function () {
         .to.emit(ctx.amm, "PhaseTransition");
       expect(await ctx.amm.hasGraduated()).to.equal(true);
       expect(await ctx.amm.getCurrentPhase()).to.equal(1);
-      expect(await ctx.amm.spotPrice()).to.equal(await expectedCurveSpot(ctx));
+      // Continuous: the curve starts at the flat price (the one unbacked
+      // initial-supply token shifts it by under one unit).
+      expectNear(await ctx.amm.spotPrice(), await expectedCurveSpot(ctx));
+      expect(await ctx.amm.spotPrice()).to.be.closeTo(FLAT_PRICE, 1n);
     });
 
     it("keeps hybrid pricing for the initial threshold-crossing buy", async function () {
@@ -144,13 +165,15 @@ describe("HokusaiAMM permanent graduation pricing", function () {
       const flatPortion = THRESHOLD;
       const tokensFromFlat = flatTokens(flatPortion, 0n);
       const { supply } = await state(ctx);
-      const tokensFromCurve = await ctx.math.testCalculateBuy(
-        supply + tokensFromFlat, THRESHOLD, buyIn - flatPortion, CRR
-      );
+      // Curve part starts at the crossing point: anchor S_g, reserve = threshold.
+      const sg = Number(supply + tokensFromFlat);
+      const tokensFromCurve =
+        fInv((sg * Number(THRESHOLD + buyIn - flatPortion)) / Number(THRESHOLD), sg) - sg;
 
-      expect(await ctx.amm.getBuyQuote(buyIn)).to.equal(tokensFromFlat + tokensFromCurve);
+      expectNear(await ctx.amm.getBuyQuote(buyIn), Number(tokensFromFlat) + tokensFromCurve);
       await ctx.amm.connect(buyer).buy(buyIn, 0, buyer.address, DEADLINE);
       expect(await ctx.amm.hasGraduated()).to.equal(true);
+      expect(await ctx.amm.graduationSupply()).to.equal(supply + tokensFromFlat);
     });
   });
 
@@ -173,8 +196,10 @@ describe("HokusaiAMM permanent graduation pricing", function () {
       expect(before.reserve + buyIn).to.be.lt(THRESHOLD);
 
       const quote = await ctx.amm.getBuyQuote(buyIn);
-      expect(quote).to.equal(await expectedCurveBuy(ctx, buyIn));
-      expect(quote).to.be.lt(flatTokens(buyIn, 0n));
+      expectNear(quote, await expectedCurveBuy(ctx, buyIn));
+      // Below the anchor the price is reserve per token, i.e. the flat price
+      // here up to the one unbacked initial-supply token.
+      expect(quote).to.be.closeTo(flatTokens(buyIn, 0n), flatTokens(buyIn, 0n) / 1000000n);
 
       await ctx.amm.connect(buyer).buy(buyIn, quote, buyer.address, DEADLINE);
       const after = await state(ctx);
@@ -189,10 +214,10 @@ describe("HokusaiAMM permanent graduation pricing", function () {
 
       const { reserve } = await state(ctx);
       const buyIn = THRESHOLD - reserve + parseUnits("1000", 6);
-      expect(buyIn).to.be.lte((reserve * 2000n) / 10000n);
+      expect(buyIn).to.be.lte(await ctx.amm.maxTradeSize());
 
       const quote = await ctx.amm.getBuyQuote(buyIn);
-      expect(quote).to.equal(await expectedCurveBuy(ctx, buyIn));
+      expectNear(quote, await expectedCurveBuy(ctx, buyIn));
 
       await expect(ctx.amm.connect(buyer).buy(buyIn, quote, buyer.address, DEADLINE))
         .to.not.emit(ctx.amm, "PhaseTransition");
@@ -209,8 +234,9 @@ describe("HokusaiAMM permanent graduation pricing", function () {
       const usdcBefore = await ctx.usdc.balanceOf(seller.address);
 
       const quote = await ctx.amm.getSellQuote(sellIn);
-      expect(quote).to.equal(await expectedCurveSell(ctx, sellIn));
-      expect(quote).to.be.gt((sellIn * FLAT_PRICE) / 10n ** 18n);
+      expectNear(quote, await expectedCurveSell(ctx, sellIn));
+      const flatQuote = (sellIn * FLAT_PRICE) / 10n ** 18n;
+      expect(quote).to.be.closeTo(flatQuote, flatQuote / 1000000n);
 
       await ctx.amm.connect(seller).sell(sellIn, quote, seller.address, DEADLINE);
       const after = await state(ctx);
@@ -232,7 +258,7 @@ describe("HokusaiAMM permanent graduation pricing", function () {
         await expectCurvePricing(ctx);
 
         while ((await ctx.amm.reserveBalance()) >= THRESHOLD) {
-          await expect(ctx.amm.connect(buyer).sell(parseEther("20000"), 0, buyer.address, DEADLINE))
+          await expect(ctx.amm.connect(buyer).sell(parseEther("200000"), 0, buyer.address, DEADLINE))
             .to.not.emit(ctx.amm, "PhaseTransition");
         }
         expect(await ctx.amm.getCurrentPhase()).to.equal(1);
@@ -267,7 +293,9 @@ describe("HokusaiAMM permanent graduation pricing", function () {
       await ctx.amm.connect(owner).depositFees(parseUnits("5000", 6));
       expect(await ctx.amm.hasGraduated()).to.equal(true);
 
-      await ctx.amm.connect(seller).sell(parseEther("20000"), 0, seller.address, DEADLINE);
+      expect(await ctx.amm.graduationSupply()).to.equal(await ctx.tokenManager.getRedeemableSupply(MODEL_ID));
+
+      await ctx.amm.connect(seller).sell(parseEther("200000"), 0, seller.address, DEADLINE);
       expect(await ctx.amm.reserveBalance()).to.be.lt(THRESHOLD);
       expect(await ctx.amm.getCurrentPhase()).to.equal(1);
       await expectCurvePricing(ctx);

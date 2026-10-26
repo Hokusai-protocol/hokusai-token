@@ -169,18 +169,33 @@ Working examples ready to use:
 
 #### Constant Reserve Ratio (CRR)
 
-The AMM uses a CRR bonding curve:
-- **Buy Formula**: T = S × ((1 + E/R)^w - 1)
-- **Sell Formula**: F = R × (1 - (1 - T/S)^(1/w))
-- **Spot Price**: P = R / (w × S)
+Each pool starts at a flat launch price `p` (`FLAT_CURVE_PRICE`) until its
+reserve reaches `FLAT_CURVE_THRESHOLD`. It then graduates, permanently, and
+records the redeemable supply at that point as the curve anchor `S_g`. From
+then on the reserve R backs the supply S along one curve shape (HOK-3317):
+
+- **Shape**: f(s) = s up to S_g, and S_g × ((1 - w) + w × (s/S_g)^(1/w)) above it
+- **Level**: k = R / f(S), so selling the whole supply returns the whole reserve
+- **Spot Price**: P = k × f'(S): reserve per token up to S_g, then the CRR curve
+- **Buy**: f(S') = f(S) × (R + E) / R
+- **Sell**: F = R × (f(S) - f(S - T)) / f(S)
 
 Where:
 - T = tokens to mint/burn
-- S = current supply
+- S = redeemable supply
 - R = reserve balance (USDC)
-- E = USDC deposited
-- F = USDC returned
+- E = USDC deposited (after the trade fee)
+- F = USDC returned (before the trade fee)
 - w = CRR (reserve ratio)
+
+The slopes match at S_g, so the price does not jump at graduation: without
+fees it continues from exactly `p`. Above S_g this is the Bancor curve on the
+reserve above (1 - w) × k × S_g, so near graduation the curve is thin (its
+reserve starts at w × the threshold) and early post-graduation trades move the
+price more in percentage terms. Fee deposits raise k for every holder pro rata,
+before or after graduation. Supply that enters or leaves without a pool trade
+(reward and supplier unlocks, vesting claims) rescales S_g with it, so it
+dilutes every holder evenly. CRR cannot change after graduation.
 
 See [Smart Contract Guide](integration/smart-contracts.md#parameter-bounds) for allowed ranges.
 

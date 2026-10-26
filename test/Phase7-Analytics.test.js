@@ -126,10 +126,11 @@ describe("Phase 7: Analytics & View Functions", function () {
         });
 
         it("Should reflect parameter updates", async function () {
-            await hokusaiAMM.setParameters(150000, 50);
+            // Graduated fixture: CRR is fixed, the fee can change (HOK-3317).
+            await hokusaiAMM.setParameters(CRR, 50);
 
             const [, , , reserveRatio, tradeFeeRate] = await hokusaiAMM.getPoolState();
-            expect(reserveRatio).to.equal(150000);
+            expect(reserveRatio).to.equal(CRR);
             expect(tradeFeeRate).to.equal(50);
         });
 
@@ -205,8 +206,13 @@ describe("Phase 7: Analytics & View Functions", function () {
 
             const [, priceImpact] = await hokusaiAMM.calculateBuyImpact(buyAmount);
 
-            // Small trade should have minimal impact
-            expect(priceImpact).to.be.lt(100); // < 1%
+            // The fixture sits at the curve anchor (HOK-3317), where the curve
+            // reserve is w × R ($1k), so $100 moves the price by
+            // (1 + net / (w × R))^(1 - w) - 1, about 8.9% at CRR 10%.
+            const w = CRR / 1e6;
+            const net = 100 * (1 - TRADE_FEE / 10000);
+            const expectedBps = (Math.pow(1 + net / (w * 10000), 1 - w) - 1) * 10000;
+            expect(Number(priceImpact)).to.be.closeTo(expectedBps, 1);
         });
 
         it("Should calculate price impact for large buy", async function () {
@@ -271,6 +277,22 @@ describe("Phase 7: Analytics & View Functions", function () {
     // ============================================================
 
     describe("calculateSellImpact()", function () {
+        // The fixture sits at the curve anchor (HOK-3317), where sells price at
+        // reserve per token with no impact; buy up the curve first where the
+        // impact tests need a sloped price.
+        async function buyUpTheCurve() {
+            const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
+            await hokusaiAMM.connect(buyer1).buy(parseUnits("5000", 6), 0, buyer1.address, deadline);
+        }
+
+        it("Should show no price impact for sells at or below the anchor", async function () {
+            const [reserveOut, priceImpact, newSpotPrice] = await hokusaiAMM.calculateSellImpact(parseEther("50000"));
+            expect(priceImpact).to.equal(0);
+            expect(newSpotPrice).to.be.closeTo(await hokusaiAMM.spotPrice(), 1n);
+            const [reserve, supply] = await hokusaiAMM.getReserves();
+            expect(reserveOut).to.equal((reserve * parseEther("50000")) / supply);
+        });
+
         it("Should calculate reserve out correctly", async function () {
             const sellAmount = parseEther("1000");
             const [reserveOut] = await hokusaiAMM.calculateSellImpact(sellAmount);
@@ -290,6 +312,7 @@ describe("Phase 7: Analytics & View Functions", function () {
         });
 
         it("Should calculate price impact for large sell", async function () {
+            await buyUpTheCurve();
             const sellAmount = parseEther("50000");
 
             const [, priceImpact] = await hokusaiAMM.calculateSellImpact(sellAmount);
@@ -299,6 +322,7 @@ describe("Phase 7: Analytics & View Functions", function () {
         });
 
         it("Should calculate new spot price after sell", async function () {
+            await buyUpTheCurve();
             const sellAmount = parseEther("10000");
 
             const [, , newSpotPrice] = await hokusaiAMM.calculateSellImpact(sellAmount);
@@ -309,6 +333,7 @@ describe("Phase 7: Analytics & View Functions", function () {
         });
 
         it("Should show increasing impact for larger sells", async function () {
+            await buyUpTheCurve();
             const [, impact1k] = await hokusaiAMM.calculateSellImpact(parseEther("1000"));
             const [, impact5k] = await hokusaiAMM.calculateSellImpact(parseEther("5000"));
             const [, impact10k] = await hokusaiAMM.calculateSellImpact(parseEther("10000"));
@@ -469,7 +494,7 @@ describe("Phase 7: Analytics & View Functions", function () {
             const tx = await hokusaiAMM.getPoolState.estimateGas();
             // View functions with external calls use more gas than pure storage reads.
             // spotPrice() reads the hasGraduated latch (HOK-3270): one extra cold SLOAD.
-            expect(tx).to.be.lt(64000); // Reasonable for multi-value view (HOK-3281: proxy delegatecall + former immutables now in storage)
+            expect(tx).to.be.lt(70000); // Reasonable for multi-value view (HOK-3281: proxy delegatecall + former immutables now in storage; HOK-3317: anchor reads)
             console.log("        getPoolState gas:", tx.toString());
         });
 
@@ -481,7 +506,7 @@ describe("Phase 7: Analytics & View Functions", function () {
 
         it("Should consume reasonable gas for calculateBuyImpact", async function () {
             const tx = await hokusaiAMM.calculateBuyImpact.estimateGas(parseUnits("1000", 6));
-            expect(tx).to.be.lt(78000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage)
+            expect(tx).to.be.lt(95000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage; HOK-3317: PRBMath pow for quote and new spot)
             console.log("        calculateBuyImpact gas:", tx.toString());
         });
 

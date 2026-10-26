@@ -39,6 +39,7 @@ The npm scripts invoke `echidna .` from the repo root so `crytic-compile` can us
 - `EchidnaAMMReserve`: reserve delta, quote consistency, fee accounting, pause gating, and owner parameter fuzzing.
 - `EchidnaAMMPhase`: IBR sell gating, sell-enable monotonicity, and graduation one-way behavior under mixed actions.
 - `EchidnaAMMEconomic`: economic/price behavior and broader AMM stress paths.
+- `EchidnaAMMGraduation`: HOK-3317 / AMM-H1. A flat-phase victim plus an attacker that crosses the graduation threshold, sells in trade-cap chunks, re-crosses, deposits its own fees and toggles the purchaser whitelist: the attacker never profits, the victim can always redeem what it paid, and the supply never redeems more than the reserve.
 - `EchidnaInfrastructureReserve`: infrastructure reserve-specific invariants.
 - `EchidnaDeltaVerifier`: attester-signature authorization, per-model mint-budget accounting, and lineage-head monotonicity.
 

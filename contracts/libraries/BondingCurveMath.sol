@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {ud} from "@prb/math/src/UD60x18.sol";
+import {sd} from "@prb/math/src/SD59x18.sol";
+
 /**
  * @title BondingCurveMath
  * @dev Fixed-point arithmetic library for bonding curve calculations
  *
- * PRECISION GUARANTEES:
- * - pow(): ±0.1% error for base ∈ [0.5, 2.0], exponent ∈ [0, 2.0]
- * - ln():  ±0.01% error for x ∈ [0.3, 3.0]
- * - exp(): ±0.1% error for x ∈ [-10, 10]
+ * pow, ln and exp delegate to PRBMath (UD60x18 / SD59x18), replacing the
+ * original Taylor-series versions whose ln diverged outside |y| <= 1 and added
+ * k instead of k × ln(3) when rescaling (HOK-3289 AMM-L1).
  *
  * All functions use 18-decimal fixed-point arithmetic (PRECISION = 1e18)
  * This means 1.0 is represented as 1e18, 0.5 as 5e17, etc.
@@ -51,23 +53,17 @@ library BondingCurveMath {
     // ERRORS
     // ============================================================
 
-    error PowerUnderflow();
     error LnUndefined();
-    error DivisionByZero();
 
     // ============================================================
     // CORE MATHEMATICAL FUNCTIONS
     // ============================================================
 
     /**
-     * @dev Fixed-point exponentiation: base^exponent
+     * @dev Fixed-point exponentiation: base^exponent (PRBMath UD60x18)
      * @param base Base value (18 decimals, e.g., 1.5e18 = 1.5)
      * @param exponent Exponent value (18 decimals)
      * @return result base^exponent (18 decimals)
-     *
-     * IMPLEMENTATION STRATEGY:
-     * - For small exponents (< 1%): Binomial expansion (faster, accurate)
-     * - For larger exponents: exp(exponent × ln(base)) method
      *
      * Examples:
      *   pow(2e18, 1e18) = 2e18           // 2^1 = 2
@@ -79,45 +75,13 @@ library BondingCurveMath {
         if (base == 0) return 0;             // 0^x = 0 (for x > 0)
         if (base == PRECISION) return PRECISION; // 1^x = 1
 
-        // For very small exponents, use binomial expansion
-        // (1+x)^n ≈ 1 + nx + n(n-1)x²/2 + n(n-1)(n-2)x³/6
-        if (exponent < PRECISION / 100) { // Less than 1%
-            int256 x = int256(base) - int256(PRECISION);
-            int256 n = int256(exponent);
-
-            // First order: 1 + nx
-            int256 term1 = (n * x) / int256(PRECISION);
-
-            // Second order: n(n-1)x²/2
-            int256 term2 = (n * (n - int256(PRECISION)) * x * x) /
-                          (2 * int256(PRECISION) * int256(PRECISION) * int256(PRECISION));
-
-            // Third order: n(n-1)(n-2)x³/6
-            int256 term3 = (n * (n - int256(PRECISION)) * (n - 2*int256(PRECISION)) * x * x * x) /
-                          (6 * int256(PRECISION) * int256(PRECISION) * int256(PRECISION) * int256(PRECISION) * int256(PRECISION));
-
-            int256 resultInt = int256(PRECISION) + term1 + term2 + term3;
-            if (resultInt <= 0) revert PowerUnderflow();
-            return uint256(resultInt);
-        }
-
-        // For larger exponents, use exp(y * ln(x))
-        int256 lnBase = ln(base);
-        int256 product = (int256(exponent) * lnBase) / int256(PRECISION);
-        return exp(product);
+        return ud(base).pow(ud(exponent)).unwrap();
     }
 
     /**
-     * @dev Natural logarithm using Taylor series
+     * @dev Natural logarithm (PRBMath SD59x18)
      * @param x Input value (18 decimals, must be > 0)
      * @return Natural logarithm of x (18 decimals, can be negative)
-     *
-     * Uses scaling to ensure convergence:
-     * ln(x) = ln(x/3^k) + k where k chosen to make x/3^k ≈ 1
-     *
-     * NOTE: This matches the deployed HokusaiAMM implementation which has
-     * a scaling factor issue (adds k instead of k×ln(3)). We keep this for
-     * compatibility with existing deployments.
      *
      * Examples:
      *   ln(1e18) = 0                     // ln(1) = 0
@@ -125,51 +89,13 @@ library BondingCurveMath {
      */
     function ln(uint256 x) internal pure returns (int256) {
         if (x == 0) revert LnUndefined();
-
-        // Scale x to be close to 1 for Taylor series convergence
-        int256 k = 0;
-        uint256 scaled = x;
-
-        // Scale down if x > 3
-        while (scaled > 3 * PRECISION) {
-            scaled = scaled / 3;
-            k++;
-        }
-
-        // Scale up if x < 1/3
-        while (scaled < PRECISION / 3) {
-            scaled = scaled * 3;
-            k--;
-        }
-
-        // Taylor series: ln(1+y) = y - y²/2 + y³/3 - y⁴/4 + ...
-        int256 y = int256(scaled) - int256(PRECISION);
-        int256 yPower = y;
-        int256 sum = 0;
-
-        // Compute up to y^8 for precision
-        for (uint256 i = 1; i <= 8; i++) {
-            int256 term = yPower / int256(i);
-            if (i % 2 == 0) {
-                sum -= term;
-            } else {
-                sum += term;
-            }
-            yPower = (yPower * y) / int256(PRECISION);
-        }
-
-        // Add back scaling factor (matches deployed code)
-        // NOTE: This should be k×ln(3) but deployed code uses just k
-        return sum + (k * int256(PRECISION));
+        return sd(int256(x)).ln().unwrap();
     }
 
     /**
-     * @dev Exponential function using Taylor series
-     * @param x Input value (18 decimals, can be negative)
-     * @return exp(x) (18 decimals, always positive)
-     *
-     * Handles negative inputs: exp(-x) = 1/exp(x)
-     * Uses scaling for large values: exp(x) = exp(x/2^k)^(2^k)
+     * @dev Exponential function (PRBMath SD59x18)
+     * @param x Input value (18 decimals, can be negative; reverts above ~133e18)
+     * @return exp(x) (18 decimals; 0 below ~-41.4e18)
      *
      * Examples:
      *   exp(0) = 1e18                    // e^0 = 1
@@ -177,40 +103,7 @@ library BondingCurveMath {
      *   exp(-1e18) ≈ 0.368e18           // e^-1 ≈ 0.368
      */
     function exp(int256 x) internal pure returns (uint256) {
-        // Handle negative exponents: exp(-x) = 1/exp(x)
-        bool isNegative = x < 0;
-        uint256 absX = isNegative ? uint256(-x) : uint256(x);
-
-        // Scale large values: exp(x) = exp(x/2^k)^(2^k)
-        uint256 k = 0;
-        while (absX > 10 * PRECISION) {
-            absX = absX / 2;
-            k++;
-        }
-
-        // Taylor series: exp(x) = 1 + x + x²/2! + x³/3! + ...
-        uint256 sum = PRECISION; // 1
-        uint256 term = absX;     // x
-
-        // Add terms up to x^10/10! for precision
-        for (uint256 i = 1; i <= 10; i++) {
-            sum += term;
-            term = (term * absX) / (PRECISION * (i + 1));
-            if (term == 0) break; // Converged
-        }
-
-        // Apply scaling: result^(2^k)
-        for (uint256 i = 0; i < k; i++) {
-            sum = (sum * sum) / PRECISION;
-        }
-
-        // Handle negative exponent
-        if (isNegative) {
-            if (sum == 0) revert DivisionByZero();
-            return (PRECISION * PRECISION) / sum;
-        }
-
-        return sum;
+        return uint256(sd(x).exp().unwrap());
     }
 
     // ============================================================

@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       # One harness per job so the 5M testLimit (~90-120 min each) runs in parallel instead of
-      # serially blowing the job timeout. 14 harnesses = 14 parallel jobs.
+      # serially blowing the job timeout. 15 harnesses = 15 parallel jobs.
       matrix:
         harness:
           - EchidnaSanity
@@ -68,6 +68,7 @@ jobs:
           - EchidnaAMMReserve
           - EchidnaAMMPhase
           - EchidnaAMMEconomic
+          - EchidnaAMMGraduation
           - EchidnaInfrastructureReserve
           - EchidnaDeltaVerifier
           - EchidnaDeltaVerifierMultiAttester

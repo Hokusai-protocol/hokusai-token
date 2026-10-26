@@ -103,13 +103,15 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       expect(await hokusaiAMM.reserveBalance()).to.equal(INITIAL_RESERVE);
     });
 
-    it("Should calculate initial spot price as $1.00", async function () {
+    it("Should calculate initial spot price as $0.10", async function () {
       const price = await hokusaiAMM.spotPrice();
       const reserve = await hokusaiAMM.reserveBalance();
       const supply = await hokusaiToken.totalSupply();
       console.log(`      Reserve: ${reserve}, Supply: ${supply}, Price: ${price}`);
-      // P = R / (w × S) = 10000 / (0.1 × 100000) = $1.00 (in 6 decimals)
-      expect(price).to.be.closeTo(parseUnits("1", 6), parseUnits("0.01", 6));
+      // depositFees graduated the pool at this supply, which anchors the curve
+      // (HOK-3317): the price is reserve per token, 10000 / 100000 = $0.10.
+      expect(await hokusaiAMM.graduationSupply()).to.equal(supply);
+      expect(price).to.equal(parseUnits("0.1", 6));
     });
 
     it("Should reject invalid constructor parameters", async function () {
@@ -497,18 +499,20 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
   });
 
   describe("Governance", function () {
+    // The fixture pool is graduated, so CRR is fixed (HOK-3317).
     it("Should allow owner to update parameters", async function () {
-      const newCrr = 150000; // 15%
       const newTradeFee = 50; // 0.5%
 
-      await hokusaiAMM.setParameters(newCrr, newTradeFee);
+      await hokusaiAMM.setParameters(CRR, newTradeFee);
 
-      expect(await hokusaiAMM.crr()).to.equal(newCrr);
+      expect(await hokusaiAMM.crr()).to.equal(CRR);
       expect(await hokusaiAMM.tradeFee()).to.equal(newTradeFee);
+      await expect(hokusaiAMM.setParameters(150000, newTradeFee))
+        .to.be.revertedWith("CRR fixed after graduation");
     });
 
     it("Should emit ParametersUpdated event", async function () {
-      const newCrr = 150000;
+      const newCrr = CRR;
       const newTradeFee = 50;
 
       await expect(hokusaiAMM.setParameters(newCrr, newTradeFee))
@@ -564,7 +568,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       const receipt = await tx.wait();
 
       console.log(`      Gas used for buy(): ${receipt.gasUsed}`);
-      expect(receipt.gasUsed).to.be.lt(200000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage; HOK-3283: registry pool lookup on mint)
+      expect(receipt.gasUsed).to.be.lt(230000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage; HOK-3283: registry pool lookup on mint; HOK-3317: PRBMath pow for the anchored curve and anchor bookkeeping)
     });
 
     it("Should measure gas for sell()", async function () {
@@ -583,7 +587,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
       const receipt = await tx.wait();
 
       console.log(`      Gas used for sell(): ${receipt.gasUsed}`);
-      expect(receipt.gasUsed).to.be.lt(200000); // Target < 100k (being lenient for now)
+      expect(receipt.gasUsed).to.be.lt(225000); // HOK-3317: PRBMath pow for the anchored curve and anchor bookkeeping
     });
 
     it("Should measure gas for getBuyQuote()", async function () {
@@ -591,7 +595,7 @@ describe("Phase 2: Core AMM Bonding Curve", function () {
 
       const gasUsed = await hokusaiAMM.getBuyQuote.estimateGas(reserveIn);
       console.log(`      Gas used for getBuyQuote(): ${gasUsed}`);
-      expect(gasUsed).to.be.lt(70000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage)
+      expect(gasUsed).to.be.lt(80000); // Redeemable supply lookup adds one manager call plus ERC20 balance reads (HOK-3281: proxy delegatecall + former immutables now in storage; HOK-3317: PRBMath pow)
     });
   });
 

@@ -166,13 +166,23 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
             await ethers.provider.send("evm_increaseTime", [IBR_DURATION + 1]);
             await ethers.provider.send("evm_mine");
 
-            // Sell very small amount
+            // A dust sell worth less than one USDC unit pays nothing, so it is
+            // rejected rather than burning tokens for free (HOK-3317)
             const dustTokens = parseUnits("0.000001", 18);
             await hokusaiToken.connect(user1).approve(await hokusaiAMM.getAddress(), dustTokens);
+            expect(await hokusaiAMM.getSellQuote(dustTokens)).to.equal(0n);
 
             const deadline2 = (await ethers.provider.getBlock('latest')).timestamp + 300;
             await expect(
                 hokusaiAMM.connect(user1).sell(dustTokens, 0, user1.address, deadline2)
+            ).to.be.revertedWith("Insufficient output");
+
+            // The smallest sells that pay out still go through
+            const smallTokens = parseUnits("0.001", 18);
+            expect(await hokusaiAMM.getSellQuote(smallTokens)).to.be.gt(0n);
+            await hokusaiToken.connect(user1).approve(await hokusaiAMM.getAddress(), smallTokens);
+            await expect(
+                hokusaiAMM.connect(user1).sell(smallTokens, 0, user1.address, deadline2)
             ).to.not.be.reverted;
         });
     });
@@ -298,14 +308,15 @@ describe("Phase 9: Edge Cases & Boundary Conditions", function () {
         });
 
         it("Should handle maximum governance parameter values", async function () {
-            // CRR at maximum (1000000 = 100%)
+            // CRR at maximum (1000000 = 100%) is in bounds, but this pool has
+            // graduated and CRR is then fixed (HOK-3317)
             await expect(
                 hokusaiAMM.setParameters(1000000, 30)
-            ).to.not.be.reverted;
+            ).to.be.revertedWith("CRR fixed after graduation");
 
             // Trade fee at maximum (1000 = 10%)
             await expect(
-                hokusaiAMM.setParameters(100000, 1000)
+                hokusaiAMM.setParameters(CRR, 1000)
             ).to.not.be.reverted;
 
             // Max trade bps at maximum (5000 = 50%)

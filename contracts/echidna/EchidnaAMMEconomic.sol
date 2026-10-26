@@ -151,8 +151,14 @@ contract EchidnaAMMEconomic {
                 sellReserveDirectionViolation = true;
             }
 
+            // Below the curve anchor tokens redeem pro rata (HOK-3317), so
+            // the quote holds flat and only the sell's round-down dust (< 1
+            // wei, kept in the reserve) can raise it: by at most
+            // bounded / remaining supply + 1 wei.
             uint256 quoteAfter = amm.getSellQuote(bounded);
-            if (quoteAfter > quoteBefore) {
+            uint256 supplyAfter = manager.getRedeemableSupply(MODEL_ID);
+            uint256 dust = supplyAfter == 0 ? 0 : bounded / supplyAfter + 1;
+            if (quoteAfter > quoteBefore + dust) {
                 sellQuoteImpactViolation = true;
             }
         } catch {}
@@ -280,7 +286,8 @@ contract EchidnaAMMEconomic {
 
     /**
      * @dev Catches sell-side price-impact regressions where completing a sell
-     * improves the executable quote for selling the same token amount again.
+     * improves the executable quote for selling the same token amount again
+     * (beyond the rounding dust a pro-rata sell leaves in the reserve).
      */
     function echidna_sell_does_not_improve_exit_quote() external view returns (bool) {
         return !sellQuoteImpactViolation;

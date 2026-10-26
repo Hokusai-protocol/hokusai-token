@@ -1513,6 +1513,69 @@
       "justification": "Pre-existing HokusaiAMMPoolDeployer.deployPool finding; ID changed after HOK-3285 constructor line shifts (drift of a7e1b3bc) without changing the accepted risk.",
       "reviewedBy": "claude",
       "followUp": "HOK-3285"
+    },
+    {
+      "id": "92be2822f5f9ad61b8740269b11269dd1e5df61e75b11bca5ba00800349caefe",
+      "check": "reentrancy-no-eth",
+      "justification": "Pre-existing UsageFeeRouter.batchDepositFees finding; ID changed after HOK-3289 line shifts (drift of 100f210a) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3289"
+    },
+    {
+      "id": "9adc74aa570171f8dba7284491a93204f93c892975aa7909e5303c8c67e2d87c",
+      "check": "unused-return",
+      "justification": "Pre-existing UsageFeeRouter.batchDepositFees finding; ID changed after HOK-3289 line shifts (drift of ad175688) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3289"
+    },
+    {
+      "id": "91079f16af7dd2cdf13b46998191c92f9fb03d4cf0cbbf190930a68d652acbd3",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing UsageFeeRouter.depositFee finding; ID changed after HOK-3289 line shifts (drift of 6cfde476) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3289"
+    },
+    {
+      "id": "c8959042650916b8ad306a11b07784907f724c520d6a109ebea60fee7c6b67dc",
+      "check": "reentrancy-benign",
+      "justification": "Pre-existing UsageFeeRouter.batchDepositFees finding; ID changed after HOK-3289 line shifts (drift of 440778eb) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3289"
+    },
+    {
+      "id": "42ccb0a4a31c8d718f5cfbf006a7a32c1900c78ec083a90ae9982cbc6198398d",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.unpausePool finding; ID changed after HOK-3289 line shifts (drift of f909748c) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3289"
+    },
+    {
+      "id": "791a8101f5c2a4378f7921d34fd9da33244290a47d7d1f5f939810ca8429ff8b",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.pausePool finding; ID changed after HOK-3289 line shifts (drift of f6b33e59) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3289"
+    },
+    {
+      "id": "9250a2666efaec6dea3c1398849242881ccd66d2f3adf80c82841e9b03a88409",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.pausePools finding; ID changed after HOK-3289 line shifts (drift of 9c0b13de) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3289"
+    },
+    {
+      "id": "97eeae5463a89232c667049d503e960194a376eb488b062f6a5e535124b91b23",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.pauseAllPools finding; ID changed after HOK-3289 line shifts (drift of d9e46204) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3289"
+    },
+    {
+      "id": "acf4e5c5a7a60269e7f5342fc76325e4548cc2ad4d2910c3299e2deedf9dfe69",
+      "check": "reentrancy-events",
+      "justification": "Pre-existing HokusaiAMMFactory.unpausePools finding; ID changed after HOK-3289 line shifts (drift of abef5b18) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3289"
     }
   ]
 }

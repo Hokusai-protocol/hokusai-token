@@ -119,7 +119,19 @@ function splitSupplierAllocation(supplierWei, vestingConfig) {
   };
 }
 
+// Load-balanced RPCs can answer a read from a node that has not seen the
+// block that created a contract yet (HOK-3290 Sepolia rehearsal), so wait for
+// its code before reading from it.
+async function waitForCode(address, { attempts = 20, delayMs = 3000 } = {}) {
+  for (let i = 0; i < attempts; i++) {
+    if ((await ethers.provider.getCode(address)) !== "0x") return;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw new Error(`No code at ${address} after ${attempts} attempts`);
+}
+
 async function verifyDeployedToken({ tokenManager, tokenAddress, expected }) {
+  await waitForCode(tokenAddress);
   const token = await ethers.getContractAt("HokusaiToken", tokenAddress);
   const paramsAddress = await token.params();
   const params = await ethers.getContractAt("HokusaiParams", paramsAddress);
@@ -415,6 +427,7 @@ async function runLaunchDeploy({
       if (!poolAddress) {
         throw new Error("Failed to extract pool address from PoolCreated event");
       }
+      await waitForCode(poolAddress);
 
       console.log(`   ✅ Pool created: ${poolAddress}`);
       console.log(`   🔗 View on Etherscan: ${etherscanBaseUrl}/address/${poolAddress}`);

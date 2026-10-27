@@ -24,8 +24,7 @@ async function getDeploySigner(hre) {
     return signer;
   }
 
-  const keyId = process.env.KMS_DEPLOYER_KEY_ID;
-  if (!keyId) {
+  if (!process.env.KMS_DEPLOYER_KEY_ID) {
     const [signer] = await ethers.getSigners();
     if (!signer) {
       throw new Error("No local deploy signer available");
@@ -33,16 +32,26 @@ async function getDeploySigner(hre) {
     return signer;
   }
 
-  const expectedAddress = process.env.KMS_DEPLOYER_EXPECTED_ADDRESS;
-  if (!expectedAddress) {
-    throw new Error("KMS_DEPLOYER_EXPECTED_ADDRESS is required when KMS_DEPLOYER_KEY_ID is set");
+  return getKmsSigner(hre, "DEPLOYER");
+}
+
+/**
+ * Signer for the KMS key KMS_<ROLE>_KEY_ID, pinned to KMS_<ROLE>_EXPECTED_ADDRESS
+ * (e.g. role "BACKEND" for the fee-depositor key).
+ */
+async function getKmsSigner(hre, role) {
+  const { ethers } = hre;
+  const keyId = process.env[`KMS_${role}_KEY_ID`];
+  const expectedAddress = process.env[`KMS_${role}_EXPECTED_ADDRESS`];
+  if (!keyId || !expectedAddress) {
+    throw new Error(`KMS_${role}_KEY_ID and KMS_${role}_EXPECTED_ADDRESS are required`);
   }
 
   const rpcUrl =
     process.env.RPC_URL ||
     process.env[hre.network.name === "mainnet" ? "MAINNET_RPC_URL" : "SEPOLIA_RPC_URL"];
   if (!rpcUrl) {
-    throw new Error("RPC_URL is required when KMS_DEPLOYER_KEY_ID is set");
+    throw new Error("RPC_URL is required for a KMS signer");
   }
 
   const provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -56,7 +65,7 @@ async function getDeploySigner(hre) {
   const expected = ethers.getAddress(expectedAddress);
   if (derivedAddress !== expected) {
     throw new Error(
-      `KMS deployer address pin mismatch: derived=${derivedAddress}, expected=${expected}, alias=${keyId}`,
+      `KMS ${role.toLowerCase()} address pin mismatch: derived=${derivedAddress}, expected=${expected}, alias=${keyId}`,
     );
   }
 
@@ -65,4 +74,5 @@ async function getDeploySigner(hre) {
 
 module.exports = {
   getDeploySigner,
+  getKmsSigner,
 };

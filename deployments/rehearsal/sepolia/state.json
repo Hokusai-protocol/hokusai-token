@@ -1,0 +1,120 @@
+{
+  "checks": [
+    {
+      "phase": "trade",
+      "name": "HMESS graduated by buys",
+      "ok": true,
+      "details": "reserve $27019.0"
+    },
+    {
+      "phase": "trade",
+      "name": "spot after graduation is at or above the flat price",
+      "ok": true,
+      "details": "$0.012661"
+    },
+    {
+      "phase": "trade",
+      "name": "HLEAD stays in the flat phase",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "trade",
+      "name": "sells blocked during the IBR",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "fees",
+      "name": "fee settlement conserves the deposit",
+      "ok": true,
+      "details": "pool $200.0 infra $800.0 treasury $0.0"
+    },
+    {
+      "phase": "fees",
+      "name": "router holds no USDC",
+      "ok": true,
+      "details": ""
+    }
+  ],
+  "txs": [
+    {
+      "label": "whitelist deployer",
+      "hash": "0x28b3efe50bcdceb1ec2b71e3f63cb6de3e5c50a19d1b41cc87bfbf4e1c1e0389",
+      "block": 12007266,
+      "gasUsed": "129617"
+    },
+    {
+      "label": "mint MockUSDC",
+      "hash": "0x1deb16b3323679ba386f8e5c03811a090c1aaa612e27ca700dc3306f5418fc17",
+      "block": 12007267,
+      "gasUsed": "42358"
+    },
+    {
+      "label": "approve HMESS pool",
+      "hash": "0xaa2cb4c3e6b8b1d3be60b380c3900e0823412bc4ce1531a5f0fc31b7885598ab",
+      "block": 12007268,
+      "gasUsed": "128251"
+    },
+    {
+      "label": "approve HLEAD pool",
+      "hash": "0x62012c07304c06971545144ec1eafdac2f6a17977d2e7d58e5475463fe38a67a",
+      "block": 12007269,
+      "gasUsed": "128251"
+    },
+    {
+      "label": "buy HMESS $9000 #1",
+      "hash": "0xa8be4972ad00c53944ea80c2f0edbd0119de113c17524a74fc31de4654bf78ce",
+      "block": 12007270,
+      "gasUsed": "510520"
+    },
+    {
+      "label": "buy HMESS $9000 #2",
+      "hash": "0xd19d024a3258a3a55d20cf3b320cffb555ce97d910480e9c4a3e59bf9caecb32",
+      "block": 12007272,
+      "gasUsed": "216760"
+    },
+    {
+      "label": "buy HMESS $9000 #3",
+      "hash": "0xd8e579584c27d4e5940be085376cbad973dc8b26e81ad0a47592fd4b6d2d9b30",
+      "block": 12007273,
+      "gasUsed": "571167"
+    },
+    {
+      "label": "buy HLEAD $1000",
+      "hash": "0x972ad68f10b1c3c7c5235973d5e93eb87f164797421ba9b9af5a3e1931d4ca30",
+      "block": 12007274,
+      "gasUsed": "412588"
+    },
+    {
+      "label": "mint MockUSDC to backend",
+      "hash": "0x88facfd9e7ab8744dcc4f8788ed052f914cb0c45607319d541e16cd8b7fe87a4",
+      "block": 12007322,
+      "gasUsed": "140266"
+    },
+    {
+      "label": "backend approves router",
+      "hash": "0x58e1eeb1c7a2d635d7e1e069c70a68d1eb44e9d07d869ff0941d62283dfd5674",
+      "block": 12007323,
+      "gasUsed": "127903"
+    },
+    {
+      "label": "router.depositFee HMESS $1000",
+      "hash": "0xd3177809b55223fd4a47ed10af47ab5a630684aa8efdf2929b9affbca7ba85f7",
+      "block": 12007324,
+      "gasUsed": "750658"
+    }
+  ],
+  "gas": {
+    "buy1": "510520",
+    "buy2": "216760",
+    "buy3": "571167",
+    "depositFee": "750658"
+  },
+  "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+  "timelock": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+  "phasesDone": [
+    "trade",
+    "fees"
+  ]
+}

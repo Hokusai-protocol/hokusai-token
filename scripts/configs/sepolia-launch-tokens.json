@@ -30,7 +30,7 @@
         "initialReserveUsdc": "100",
         "crr": 200000,
         "tradeFee": 30,
-        "ibrSeconds": 604800,
+        "ibrSeconds": 86400,
         "flatCurveThresholdUsdc": "25000",
         "flatCurvePriceUsdc": "0.01"
       }
@@ -62,7 +62,7 @@
         "initialReserveUsdc": "100",
         "crr": 200000,
         "tradeFee": 30,
-        "ibrSeconds": 604800,
+        "ibrSeconds": 86400,
         "flatCurveThresholdUsdc": "25000",
         "flatCurvePriceUsdc": "0.01"
       }
@@ -94,7 +94,7 @@
         "initialReserveUsdc": "100",
         "crr": 200000,
         "tradeFee": 30,
-        "ibrSeconds": 604800,
+        "ibrSeconds": 86400,
         "flatCurveThresholdUsdc": "25000",
         "flatCurvePriceUsdc": "0.01"
       }

@@ -20,6 +20,7 @@
  *   node scripts/launch-mainnet.js --plan                 # print the ordered plan, run nothing
  *   node scripts/launch-mainnet.js                        # run, pausing at every STOP/GATE
  *   node scripts/launch-mainnet.js --from create-pools    # resume from a phase
+ *   node scripts/launch-mainnet.js --to verify-posture-pre  # stop after a phase (e.g. to trade before handoff)
  *   node scripts/launch-mainnet.js --network sepolia      # REHEARSE the whole flow on Sepolia first
  *   node scripts/launch-mainnet.js --yes                  # don't pause for interactive confirms (CI/rehearsal)
  *
@@ -30,12 +31,13 @@ const { spawnSync } = require("child_process");
 const readline = require("readline");
 
 function parseArgs(argv) {
-  const args = { network: "mainnet", plan: false, yes: false, from: null };
+  const args = { network: "mainnet", plan: false, yes: false, from: null, to: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--plan") args.plan = true;
     else if (a === "--yes") args.yes = true;
     else if (a === "--from") args.from = argv[++i];
+    else if (a === "--to") args.to = argv[++i];
     else if (a === "--network") args.network = argv[++i];
   }
   return args;
@@ -190,6 +192,10 @@ async function main() {
     if (p.kind === "safe-bundle") {
       console.log(`\n⏸  STOP: ${p.stop}`);
       return; // hand control to the operator's Safe step
+    }
+    if (p.name === args.to) {
+      console.log(`\n⏸  Stopped after ${p.name} (--to). Resume with --from <next phase>.`);
+      return;
     }
   }
   console.log(`\n✅ Conductor complete through final gate. Record the verifier outputs as launch artifacts and tag the release.`);

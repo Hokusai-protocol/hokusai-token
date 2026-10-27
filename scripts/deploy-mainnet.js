@@ -78,8 +78,12 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error("Mainnet deployment failed:");
-  console.error(stringifyError(error));
-  process.exitCode = 1;
-});
+module.exports = { getMainnetConfig, MAINNET_USDC };
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("Mainnet deployment failed:");
+    console.error(stringifyError(error));
+    process.exitCode = 1;
+  });
+}

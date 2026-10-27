@@ -170,7 +170,10 @@ Working examples ready to use:
 #### Constant Reserve Ratio (CRR)
 
 Each pool starts at a flat launch price `p` (`FLAT_CURVE_PRICE`) until its
-reserve reaches `FLAT_CURVE_THRESHOLD`. It then graduates, permanently, and
+reserve reaches `FLAT_CURVE_THRESHOLD`. Flat-phase sells pay `p`; flat-phase
+buys pay max(`p`, R / S), so once fees have raised the reserve per token above
+`p` a new buyer pays for that backing rather than diluting it (HOK-3323). It
+then graduates, permanently, and
 records the redeemable supply at that point as the curve anchor `S_g`. From
 then on the reserve R backs the supply S along one curve shape (HOK-3317):
 
@@ -189,7 +192,8 @@ Where:
 - w = CRR (reserve ratio)
 
 The slopes match at S_g, so the price does not jump at graduation: without
-fees it continues from exactly `p`. Above S_g this is the Bancor curve on the
+fees it continues from exactly `p`, and with fees from the flat-phase buy
+price R / S. Above S_g this is the Bancor curve on the
 reserve above (1 - w) × k × S_g, so near graduation the curve is thin (its
 reserve starts at w × the threshold) and early post-graduation trades move the
 price more in percentage terms. Fee deposits raise k for every holder pro rata,

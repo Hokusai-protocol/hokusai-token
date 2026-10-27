@@ -58,8 +58,9 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
-      # One harness per job so the 5M testLimit (~90-120 min each) runs in parallel instead of
-      # serially blowing the job timeout. 15 harnesses = 15 parallel jobs.
+      # One harness per job so the 5M testLimit runs in parallel instead of serially blowing
+      # the job timeout. 15 harnesses = 15 parallel jobs. Echidna's own 150-min timeout
+      # (below) keeps each job inside timeout-minutes.
       matrix:
         harness:
           - EchidnaSanity
@@ -98,6 +99,11 @@ jobs:
         run: |
           cp echidna.config.yaml echidna.long.config.yaml
           perl -0pi -e 's/testLimit: 50000/testLimit: 5000000/' echidna.long.config.yaml
+          # HOK-3289: 8 of 15 harnesses were cancelled at the job timeout before reaching 5M
+          # tests, which reports nothing. Use all 4 runner cores and stop Echidna itself at
+          # 150 min (testLimit or timeout, whichever first) so every job ends with a verdict.
+          perl -0pi -e 's/workers: 1/workers: 4/' echidna.long.config.yaml
+          echo "timeout: 9000" >> echidna.long.config.yaml
 
       - name: Compile
         # crytic-compile inside the echidna image has no npx/node, so pre-build hardhat artifacts

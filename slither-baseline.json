@@ -1597,6 +1597,27 @@
       "justification": "HokusaiAMM.withdrawTreasury finding (drift of 7c983095); unchanged by HOK-3317 apart from line shifts. Only theoretical risk remains event ordering after a successful treasury transfer. Re-acceptance approved by @timogilvie 2026-10-26.",
       "reviewedBy": "claude",
       "followUp": "HOK-3317"
+    },
+    {
+      "id": "a4ae786f2244acf4f2773cd6d4ad1f77428ab2042e9e163f2dd7d0239abc4115",
+      "check": "reentrancy-no-eth",
+      "justification": "HokusaiAMM.buy finding (drift of a11df1ed); buy is nonReentrant and the reserve/graduation/anchor writes after the USDC transferFrom are unchanged. ID changed after HOK-3323 line shifts without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-27.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3323"
+    },
+    {
+      "id": "d6bb52789246549b353bf186882a384eda4df4609bdcc2aad669f80383bc614e",
+      "check": "reentrancy-benign",
+      "justification": "HokusaiAMM.depositFees finding (drift of 0a7fe9b9); nonReentrant, logic unchanged. ID changed after HOK-3323 line shifts without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-27.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3323"
+    },
+    {
+      "id": "8d53d7acf6198a4186054003f81428c92b932a45c309d09a32309959d17195fc",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMM.withdrawTreasury finding (drift of 6eabce26); owner-gated, logic unchanged; only event ordering after a successful treasury transfer. ID changed after HOK-3323 line shifts without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-27.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3323"
     }
   ]
 }

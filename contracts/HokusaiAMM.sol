@@ -18,8 +18,10 @@ import {ud} from "@prb/math/src/UD60x18.sol";
  * @dev Two-phase AMM for Hokusai tokens: Fixed price initial period, then CRR bonding curve
  *
  * Phase 1 (Flat Price): Simple pricing until threshold
- * - Price: Fixed (e.g., $0.01 per token)
- * - Formula: tokens = reserveIn / FLAT_CURVE_PRICE
+ * - Sells: fixed price (e.g., $0.01 per token)
+ * - Buys: the fixed price, or reserve per token if fees have raised the
+ *   reserve above it (HOK-3323), so a new buyer pays for the fee backing
+ *   instead of diluting the holders it belongs to
  * - No overflow issues, unlimited trade sizes
  *
  * Phase 2 (Bonding Curve): once the reserve reaches the threshold the pool
@@ -425,11 +427,12 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
      * @dev Get current spot price from redeemable circulating supply
      * @return Current price in USDC per token (6 decimals)
      *
-     * Flat price before graduation, k × f'(S) after (see contract docs).
+     * Flat-phase buy price before graduation, k × f'(S) after (see contract
+     * docs).
      */
     function spotPrice() public view returns (uint256) {
-        if (!hasGraduated) return FLAT_CURVE_PRICE;
         uint256 supply = _redeemableSupply();
+        if (!hasGraduated) return _flatBuyPrice(reserveBalance, supply);
         return _spotPriceAt(reserveBalance, supply, _anchorSupply(supply));
     }
 
@@ -525,8 +528,10 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
         uint256 supply;
         (tokensOut, anchorSupply, supply) = _buyQuote(reserveAfterFee);
 
+        // A flat-phase buy keeps the buy price: it adds reserve at the
+        // current price, or at p while reserve per token is at most p.
         newSpotPrice = anchorSupply == 0
-            ? FLAT_CURVE_PRICE
+            ? currentSpot
             : _spotPriceAt(reserveBalance + reserveAfterFee, supply + tokensOut, anchorSupply);
 
         // Price impact = (newPrice - oldPrice) / oldPrice * 10000
@@ -558,7 +563,9 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
 
         uint256 supply = _redeemableSupply();
         if (!hasGraduated) {
-            newSpotPrice = FLAT_CURVE_PRICE;
+            newSpotPrice = tokensIn < supply
+                ? _flatBuyPrice(reserveBalance - reserveOut, supply - tokensIn)
+                : FLAT_CURVE_PRICE;
         } else if (tokensIn < supply) {
             newSpotPrice = _spotPriceAt(reserveBalance - reserveOut, supply - tokensIn, _anchorSupply(supply));
         }
@@ -771,6 +778,32 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
     }
 
     /**
+     * @dev Tokens for a flat-phase buy: at the flat price, or at reserve per
+     * token if fees deposited before graduation have raised it above the flat
+     * price (HOK-3323). Pro-rata pricing keeps the reserve per token, so the
+     * fees stay with the holders they were paid to.
+     * @param reserveIn Amount of USDC after the trade fee (6 decimals)
+     * @param reserve Reserve before the buy
+     * @param supply Redeemable supply before the buy
+     */
+    function _flatBuyTokens(uint256 reserveIn, uint256 reserve, uint256 supply) internal view returns (uint256) {
+        if (_backedAboveFlatPrice(reserve, supply)) return Math.mulDiv(reserveIn, supply, reserve);
+        return _flatPriceTokens(reserveIn);
+    }
+
+    /**
+     * @dev Flat-phase buy price: max(FLAT_CURVE_PRICE, reserve / supply)
+     */
+    function _flatBuyPrice(uint256 reserve, uint256 supply) internal view returns (uint256) {
+        if (_backedAboveFlatPrice(reserve, supply)) return Math.mulDiv(reserve, 1e18, supply);
+        return FLAT_CURVE_PRICE;
+    }
+
+    function _backedAboveFlatPrice(uint256 reserve, uint256 supply) internal view returns (bool) {
+        return supply != 0 && reserve * 1e18 > supply * FLAT_CURVE_PRICE;
+    }
+
+    /**
      * @dev Tokens for a buy and the curve anchor in force after it
      * @param reserveIn Amount of USDC after the trade fee
      * @return tokensOut Tokens to mint
@@ -797,11 +830,11 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
         }
 
         uint256 flatPortion = reserveBalance < FLAT_CURVE_THRESHOLD ? FLAT_CURVE_THRESHOLD - reserveBalance : 0;
-        if (reserveIn < flatPortion) return (_flatPriceTokens(reserveIn), 0, supply);
+        if (reserveIn < flatPortion) return (_flatBuyTokens(reserveIn, reserveBalance, supply), 0, supply);
 
-        // This buy graduates the pool: flat price up to the threshold, then
-        // the curve anchored at the supply and reserve at that point.
-        uint256 flatTokens = _flatPriceTokens(flatPortion);
+        // This buy graduates the pool: flat-phase price up to the threshold,
+        // then the curve anchored at the supply and reserve at that point.
+        uint256 flatTokens = _flatBuyTokens(flatPortion, reserveBalance, supply);
         anchorSupply = supply + flatTokens;
         if (anchorSupply == 0) {
             tokensOut = _flatPriceTokens(reserveIn);

@@ -129,6 +129,72 @@ describe("HokusaiAMM continuous graduation (HOK-3317)", function () {
     expect(await ctx.amm.spotPrice()).to.equal((THRESHOLD * parseEther("1")) / aliceTokens);
   });
 
+  // HOK-3323 (HOK-3289 AMM-M2): before graduation, buys pay reserve per token
+  // once fees have raised it above the flat price, so a late buyer cannot
+  // take a pro-rata share of fees paid to earlier holders.
+  describe("fees deposited before graduation (HOK-3323)", function () {
+    async function withPreGraduationFees() {
+      const ctx = await deployPool();
+      await ctx.amm.connect(ctx.alice).buy(parseUnits("5000", 6), 0, ctx.alice.address, DEADLINE);
+      await ctx.amm.connect(ctx.owner).depositFees(parseUnits("5000", 6));
+      expect(await ctx.amm.hasGraduated()).to.equal(false);
+      return ctx;
+    }
+
+    it("prices flat-phase buys at reserve per token, with quotes matching execution", async function () {
+      const ctx = await withPreGraduationFees();
+      const reserve = await ctx.amm.reserveBalance();
+      const supply = await redeemable(ctx);
+      const backedPrice = (reserve * parseEther("1")) / supply;
+      expect(backedPrice).to.be.gt(PRICE);
+      expect(await ctx.amm.spotPrice()).to.equal(backedPrice);
+
+      const pay = parseUnits("1000", 6);
+      const net = pay - (pay * 30n) / 10000n;
+      const quoted = await ctx.amm.getBuyQuote(pay);
+      const [impactTokens, impact, impactSpot] = await ctx.amm.calculateBuyImpact(pay);
+      expect(quoted).to.equal((net * supply) / reserve);
+      expect(impactTokens).to.equal(quoted);
+      expect(impact).to.equal(0n);
+
+      await ctx.amm.connect(ctx.bob).buy(pay, 0, ctx.bob.address, DEADLINE);
+      expect(await ctx.token.balanceOf(ctx.bob.address)).to.equal(quoted);
+      // Pro rata: reserve per token (the buy price) holds within rounding.
+      expect(await ctx.amm.spotPrice()).to.be.closeTo(impactSpot, 1n);
+    });
+
+    it("leaves the graduating buyer no share of earlier holders' fees", async function () {
+      const ctx = await withPreGraduationFees();
+      const backedPrice = await ctx.amm.spotPrice();
+      const aliceTokens = await ctx.token.balanceOf(ctx.alice.address);
+      const aliceValueBefore = await ctx.amm.getSellQuote(aliceTokens);
+
+      const pay = parseUnits("15100", 6);
+      const bobStart = await ctx.usdc.balanceOf(ctx.bob.address);
+      await ctx.amm.connect(ctx.bob).buy(pay, 0, ctx.bob.address, DEADLINE);
+      expect(await ctx.amm.hasGraduated()).to.equal(true);
+      // Continuous at graduation: the curve starts at the flat-phase buy price.
+      expect(await ctx.amm.spotPrice()).to.be.gte(backedPrice);
+
+      // Was +$3,652 at 5fa7048 (Bob bought at $0.01 against $0.02 backing).
+      const bobTokens = await ctx.token.balanceOf(ctx.bob.address);
+      expect(await ctx.amm.getSellQuote(bobTokens)).to.be.lte(pay);
+      expect(await ctx.usdc.balanceOf(ctx.bob.address)).to.equal(bobStart - pay);
+      // Alice keeps the fee backing she held before Bob arrived.
+      const aliceValueAfter = await ctx.amm.getSellQuote(aliceTokens);
+      expect(aliceValueAfter).to.be.gte(aliceValueBefore);
+    });
+
+    it("keeps the flat price when reserve per token is at or below it", async function () {
+      const ctx = await deployPool();
+      await ctx.amm.connect(ctx.alice).buy(parseUnits("5000", 6), 0, ctx.alice.address, DEADLINE);
+      expect(await ctx.amm.spotPrice()).to.equal(PRICE);
+      const pay = parseUnits("1000", 6);
+      const net = pay - (pay * 30n) / 10000n;
+      expect(await ctx.amm.getBuyQuote(pay)).to.equal((net * parseEther("1")) / PRICE);
+    });
+  });
+
   it("lets the whole supply redeem the whole reserve after later fee deposits", async function () {
     const ctx = await deployPool();
     await ctx.amm.connect(ctx.alice).buy(parseUnits("20000", 6), 0, ctx.alice.address, DEADLINE);

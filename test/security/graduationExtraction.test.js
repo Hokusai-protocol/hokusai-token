@@ -10,7 +10,7 @@ const { deployAMMProxy, bindPool } = require("../helpers/ammDeployment");
 // then chunked sells nets the attacker +$13.3k and leaves the victim $3.1k;
 // without the HOK-3270 latch, repeated cross-and-dip drains the reserve to 0.
 // These assert the fixed behaviour and are enabled by HOK-3317.
-describe.skip("AMM graduation extraction (HOK-3317)", function () {
+describe("AMM graduation extraction (HOK-3317)", function () {
   const DEADLINE = 9999999999n;
   const VICTIM_BUY = parseUnits("16500", 6);
   const THRESHOLD = parseUnits("25000", 6);

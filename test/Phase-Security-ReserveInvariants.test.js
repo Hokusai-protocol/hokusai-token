@@ -3,6 +3,7 @@ const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
 const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
+const { curveModel, poolCurveState, near } = require("./helpers/curveModel");
 
 describe("Phase 5: Reserve Accounting Invariants", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -397,26 +398,23 @@ describe("Phase 5: Reserve Accounting Invariants", function () {
 
     describe("Bonding Curve Reserve Invariants", function () {
         it("Should maintain: reserve ratio matches bonding curve formula", async function () {
-            // After trades, the reserve-to-marketcap ratio should match CRR
+            // Above the graduation anchor the reserve above the
+            // (1 - w) × k × S_g floor is the Bancor reserve (HOK-3317), so it
+            // equals CRR × market cap.
             const deadline = (await ethers.provider.getBlock('latest')).timestamp + 300;
 
             await hokusaiAMM.connect(user1).buy(parseUnits("2000", 6), 0, user1.address, deadline);
 
-            const reserve = await hokusaiAMM.reserveBalance();
             const spotPrice = await hokusaiAMM.spotPrice();
             const tokenSupply = await hokusaiToken.totalSupply();
+            const { R, S, sg } = await poolCurveState(hokusaiAMM, tokenManager, modelId);
+            expect(S).to.be.gt(sg);
 
-            // Market cap = supply × price / 1e18 (price is in 1e18 precision)
-            const marketCap = (tokenSupply * spotPrice) / BigInt(1e18);
+            // Market cap = supply × price / 1e18 (price is per whole token)
+            const marketCap = Number((tokenSupply * spotPrice) / BigInt(1e18));
+            const curveReserve = curveModel(CRR).curveReserve(R, S, sg);
 
-            // Reserve ratio = (reserve × 1e6) / marketCap (both in USDC 6 decimals)
-            const actualRatio = (reserve * 1000000n) / marketCap;
-
-            // Should be close to CRR (10% = 100000 PPM)
-            const expectedRatio = BigInt(CRR);
-
-            // Allow 10% variance due to fees and rounding
-            expect(actualRatio).to.be.closeTo(expectedRatio, expectedRatio / 10n);
+            expect(curveReserve / marketCap).to.be.closeTo(CRR / 1e6, 1e-6);
         });
 
         it("Should maintain: price increases monotonically with reserve", async function () {

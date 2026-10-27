@@ -425,7 +425,6 @@ describe("Allocation accounting separation regression", function () {
       });
 
       await moveToCurvePhase(fixture);
-      const reserve = await fixture.amm.reserveBalance();
       const supplyBefore = await fixture.tokenManager.getRedeemableSupply(fixture.modelIdStr);
       const spotBefore = await fixture.amm.spotPrice();
 
@@ -434,10 +433,12 @@ describe("Allocation accounting separation regression", function () {
 
       const immediateAmount = (rewardAmount * 1000n) / 10000n;
       const supplyAfter = await fixture.tokenManager.getRedeemableSupply(fixture.modelIdStr);
-      const expectedSpot = (reserve * 1000000n * 10n ** 18n) / (100000n * supplyAfter);
+      // Supply outside the pool dilutes every holder evenly (HOK-3317 rescales
+      // the curve anchor with it), so spot scales by supplyBefore / supplyAfter.
+      const expectedSpot = (spotBefore * supplyBefore) / supplyAfter;
 
       expect(supplyAfter).to.equal(supplyBefore + immediateAmount);
-      expect(await fixture.amm.spotPrice()).to.equal(expectedSpot);
+      expect(await fixture.amm.spotPrice()).to.be.closeTo(expectedSpot, 2n);
       expect(await fixture.amm.spotPrice()).to.be.lt(spotBefore);
     });
   });

@@ -123,10 +123,15 @@ describe("Phase 2: Power Function Security Analysis", function () {
       // Large buy should yield fewer tokens (worse price) due to price impact
       expect(largeQuote).to.be.lt(totalSmallQuotes);
 
-      // The difference can be significant for large trades (bonding curve behavior)
-      // For a 100% of reserve deposit, 45% difference is reasonable
-      const difference = ((totalSmallQuotes - largeQuote) * BigInt(10000)) / largeQuote;
-      expect(difference).to.be.lt(5000); // < 50% (acceptable for large trades)
+      // The difference is the curve's convexity. The fee-seeded fixture sits
+      // at the curve anchor (HOK-3317) where the curve reserve is w × R ($1k),
+      // so a $5k buy is 5x it: 10 × quote($500) is about 2.1x quote($5k).
+      const w = CRR / 1e6;
+      const net = (x) => x * (1 - TRADE_FEE / 10000);
+      const curveR = w * Number(INITIAL_RESERVE) / 1e6;
+      const tokensFor = (usd) => Math.pow(1 + net(usd) / curveR, w) - 1;
+      const expectedRatio = (10 * tokensFor(500)) / tokensFor(5000);
+      expect(Number(totalSmallQuotes) / Number(largeQuote)).to.be.closeTo(expectedRatio, 1e-6);
     });
 
     it("Should measure round-trip loss (buy then sell)", async function () {

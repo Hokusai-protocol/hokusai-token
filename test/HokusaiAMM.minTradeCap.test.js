@@ -97,10 +97,11 @@ describe("HokusaiAMM absolute trade-size floor", function () {
       await amm.connect(trader).buy(THRESHOLD, 0, trader.address, DEADLINE);
       expect(await amm.hasGraduated()).to.equal(true);
 
-      // Sell half the supply in one trade (temporarily raised floor) to leave a
-      // small graduated reserve.
+      // Sell 82% of the supply in one trade (temporarily raised floor) to leave
+      // a small graduated reserve (below the anchor the price is reserve per
+      // token, so this leaves 18% of the reserve; HOK-3317).
       await amm.setMinTradeCap(await amm.MAX_MIN_TRADE_CAP());
-      await amm.connect(trader).sell((await token.balanceOf(trader.address)) / 2n, 0, trader.address, DEADLINE);
+      await amm.connect(trader).sell(((await token.balanceOf(trader.address)) * 82n) / 100n, 0, trader.address, DEADLINE);
       await amm.setMinTradeCap(DEFAULT_CAP);
       const reserve = await amm.reserveBalance();
       expect(reserve).to.be.lt(DEFAULT_CAP);

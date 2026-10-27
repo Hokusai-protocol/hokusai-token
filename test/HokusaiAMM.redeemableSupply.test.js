@@ -180,19 +180,20 @@ describe("HokusaiAMM redeemable supply pricing", function () {
     const rewardAmount = parseEther("1000");
     const immediateAmount = parseEther("250");
     const vestedAmount = rewardAmount - immediateAmount;
-    const reserve = await amm.reserveBalance();
     const supplyBefore = await tokenManager.getRedeemableSupply(MODEL_ID);
     const spotBefore = await amm.spotPrice();
 
     await tokenManager.mintReward(MODEL_ID, contributor.address, rewardAmount);
 
     const supplyAfter = await tokenManager.getRedeemableSupply(MODEL_ID);
-    const expectedSpot = (reserve * 1000000n * 10n ** 18n) / (BigInt(CRR) * supplyAfter);
+    // Supply outside the pool dilutes every holder evenly (HOK-3317 rescales
+    // the curve anchor with it), so spot scales by supplyBefore / supplyAfter.
+    const expectedSpot = (spotBefore * supplyBefore) / supplyAfter;
 
     expect(await token.balanceOf(contributor.address)).to.equal(immediateAmount);
     expect(await token.balanceOf(await vestingVault.getAddress())).to.equal(vestedAmount);
     expect(supplyAfter).to.equal(supplyBefore + immediateAmount);
-    expect(await amm.spotPrice()).to.equal(expectedSpot);
+    expect(await amm.spotPrice()).to.be.closeTo(expectedSpot, 2n);
     expect(await amm.spotPrice()).to.be.lt(spotBefore);
   });
 

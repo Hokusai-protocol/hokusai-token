@@ -1576,6 +1576,27 @@
       "justification": "Pre-existing HokusaiAMMFactory.unpausePools finding; ID changed after HOK-3289 line shifts (drift of abef5b18) without changing the accepted risk. Re-acceptance approved by @timogilvie 2026-10-26.",
       "reviewedBy": "claude",
       "followUp": "HOK-3289"
+    },
+    {
+      "id": "a11df1ed382b2e229e6804e734e3bcd23230ad4d27d3980deb67d7f046b4f0a0",
+      "check": "reentrancy-no-eth",
+      "justification": "HokusaiAMM.buy finding (drift of bda98084). HOK-3317 adds the curve-anchor write (graduationSupply/anchorBasisSupply) after the USDC transferFrom, alongside the existing reserve and graduation writes; buy is nonReentrant and USDC is a trusted token, so the accepted risk is unchanged. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3317"
+    },
+    {
+      "id": "0a7fe9b9ef09654d65d0eea4bc7d24058d16ca6cad20200dc09d1de76499383e",
+      "check": "reentrancy-benign",
+      "justification": "HokusaiAMM.depositFees finding (drift of dd03e85a). HOK-3317 records the curve anchor at fee-driven graduation after the USDC transferFrom, alongside the existing graduation write; depositFees is nonReentrant, so the accepted risk is unchanged. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3317"
+    },
+    {
+      "id": "6eabce26a7d484d7c2e54230b831b3351389f88a0937bbb5dc6c631272ec7bde",
+      "check": "reentrancy-events",
+      "justification": "HokusaiAMM.withdrawTreasury finding (drift of 7c983095); unchanged by HOK-3317 apart from line shifts. Only theoretical risk remains event ordering after a successful treasury transfer. Re-acceptance approved by @timogilvie 2026-10-26.",
+      "reviewedBy": "claude",
+      "followUp": "HOK-3317"
     }
   ]
 }

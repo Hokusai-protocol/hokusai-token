@@ -69,13 +69,14 @@ describe("HokusaiAMM upgradeability", function () {
     const ammAddress = await amm.getAddress();
     await usdc.connect(trader).approve(ammAddress, ethers.MaxUint256);
     await token.connect(trader).approve(ammAddress, ethers.MaxUint256);
+    // CRR is fixed once the pool graduates (HOK-3317), so set it first.
+    await amm.setParameters(250000, 50);
     await amm.connect(trader).buy(THRESHOLD, 0, trader.address, DEADLINE);
 
     await usdc.connect(owner).approve(ammAddress, parseUnits("1000", 6));
     await amm.depositFees(parseUnits("1000", 6));
     await amm.connect(trader).sell(parseEther("1000"), 0, trader.address, DEADLINE);
 
-    await amm.setParameters(250000, 50);
     await amm.setMaxTradeBps(1500);
     await amm.setMinTradeCap(parseUnits("7500", 6));
     const whitelist = await (await ethers.getContractFactory("PurchaserWhitelist")).deploy(owner.address);
@@ -108,6 +109,8 @@ describe("HokusaiAMM upgradeability", function () {
       threshold: await amm.FLAT_CURVE_THRESHOLD(),
       flatPrice: await amm.FLAT_CURVE_PRICE(),
       hasGraduated: await amm.hasGraduated(),
+      graduationSupply: await amm.graduationSupply(),
+      anchorBasisSupply: await amm.anchorBasisSupply(),
       phase: await amm.getCurrentPhase(),
       paused: await amm.paused(),
       spotPrice: await amm.spotPrice(),

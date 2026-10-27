@@ -3,6 +3,7 @@ const { ethers } = require("hardhat");
 const { parseUnits } = ethers;
 const { deployTestToken } = require("./helpers/tokenDeployment");
 const { deployAMMProxy, bindPool } = require("./helpers/ammDeployment");
+const { curveModel, poolCurveState, near } = require("./helpers/curveModel");
 
 describe("Phase 6: Price Manipulation Attack Security", function () {
     let hokusaiAMM, hokusaiToken, mockUSDC, tokenManager, modelRegistry;
@@ -92,12 +93,17 @@ describe("Phase 6: Price Manipulation Attack Security", function () {
 
             const priceAfterPump = await hokusaiAMM.spotPrice();
 
-            // Price should increase, but not by an extreme amount
-            const priceIncrease = priceAfterPump - initialPrice;
-            const priceIncreasePercent = (priceIncrease * 10000n) / initialPrice;
-
-            // With 50% of reserve, price shouldn't more than double
-            expect(priceIncreasePercent).to.be.lt(10000n); // < 100% increase
+            // The fixture is graduated by depositFees at its current supply, so
+            // it sits at the curve anchor (HOK-3317): the curve reserve is only
+            // w × reserve ($1k at CRR 10%), and the price moves exactly as
+            // (1 + net / (w × R))^(1 - w). With the $5k floor this trade is 5x
+            // the curve reserve, so the price rises about 5x. Trade size limits
+            // bound the dollars per trade, not the multiple near graduation.
+            const model = curveModel(CRR);
+            const net = Number(maxTrade - (maxTrade * BigInt(TRADE_FEE)) / 10000n);
+            const expected = Number(initialPrice) * Math.pow(1 + net / (model.w * Number(initialReserve)), 1 - model.w);
+            expect(priceAfterPump).to.be.closeTo(...near(expected, 1e-6));
+            expect(priceAfterPump).to.be.lt(initialPrice * 6n);
         });
 
         it("Should prevent attacker from profiting via pump and dump", async function () {
@@ -153,11 +159,14 @@ describe("Phase 6: Price Manipulation Attack Security", function () {
                 await hokusaiAMM.connect(attacker).buy(maxTrade, 0, attacker.address, deadline);
             }
 
+            // Path independence: five max trades land exactly where one buy of
+            // the same total would, (1 + X / (w × R0))^(1 - w) from the anchor.
+            const model = curveModel(CRR);
             const finalPrice = await hokusaiAMM.spotPrice();
-            const priceMultiple = finalPrice / initialPrice;
-
-            // Even after 5 max trades, price shouldn't increase by more than 10x
-            expect(priceMultiple).to.be.lt(10n);
+            const totalNet = Number((await hokusaiAMM.reserveBalance()) - INITIAL_RESERVE);
+            const expected = Number(initialPrice) *
+                Math.pow(1 + totalNet / (model.w * Number(INITIAL_RESERVE)), 1 - model.w);
+            expect(finalPrice).to.be.closeTo(...near(expected, 1e-6));
         });
     });
 
@@ -221,6 +230,9 @@ describe("Phase 6: Price Manipulation Attack Security", function () {
             const victimBuy = parseUnits("1000", 6);
 
             const initialVictimUSDC = await mockUSDC.balanceOf(victim.address);
+            const initialAttackerUSDC = await mockUSDC.balanceOf(attacker.address);
+            const initialTreasuryUSDC = await mockUSDC.balanceOf(treasury.address);
+            const initialReserve = await hokusaiAMM.reserveBalance();
 
             // Attacker front-runs
             await hokusaiAMM.connect(attacker).buy(parseUnits("3000", 6), 0, attacker.address, deadline);
@@ -240,12 +252,19 @@ describe("Phase 6: Price Manipulation Attack Security", function () {
 
             const finalVictimUSDC = await mockUSDC.balanceOf(victim.address);
             const victimLoss = initialVictimUSDC - finalVictimUSDC;
-            const lossPercent = (victimLoss * 10000n) / victimBuy;
+            const attackerGain = (await mockUSDC.balanceOf(attacker.address)) - initialAttackerUSDC;
+            expect(attackerGain).to.be.gt(0n);
+            const fees = (await mockUSDC.balanceOf(treasury.address)) - initialTreasuryUSDC;
 
-            // Key security property: victim's loss is bounded by trade size limits
-            // Loss comes from fees (0.5% on buy+sell) + sandwich price impact
-            // With 50% max trade limit, impact is bounded
-            expect(lossPercent).to.be.lt(3000n); // < 30% (includes fees + MEV extraction)
+            // Near the curve anchor (HOK-3317) a $1k victim buy behind a $3k
+            // front-run on a $1k curve reserve loses most of its value without
+            // slippage protection (see the slippage tests above). What must
+            // hold: the pool takes nothing, the victim never loses more than
+            // they paid, and the attacker gains exactly the victim's loss net
+            // of trade fees.
+            expect(victimLoss).to.be.lt(victimBuy);
+            expect(await hokusaiAMM.reserveBalance()).to.be.closeTo(initialReserve, 2n);
+            expect(victimLoss).to.be.closeTo(attackerGain + fees, 2n);
         });
     });
 
@@ -276,8 +295,13 @@ describe("Phase 6: Price Manipulation Attack Security", function () {
                 if (costToDouble > parseUnits("100000", 6)) break;
             }
 
-            // Cost to double price should be substantial (> $10k initial reserve)
-            expect(costToDouble).to.be.gt(INITIAL_RESERVE);
+            // At the curve anchor (HOK-3317) doubling the price takes
+            // w × R × (2^(1/(1-w)) - 1) of net reserve, about $1.16k at CRR 10%
+            // on $10k, not the whole reserve; max trades overshoot it, so the
+            // spend is at least that.
+            const model = curveModel(CRR);
+            const minNet = model.w * Number(INITIAL_RESERVE) * (Math.pow(2, 1 / (1 - model.w)) - 1);
+            expect(Number(costToDouble)).to.be.gte(minNet);
         });
 
         it("Should reflect price changes from depositFees operations", async function () {

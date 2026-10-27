@@ -10,7 +10,8 @@ import "./TokenManager.sol";
 import "./interfaces/IPurchaserWhitelist.sol";
 import "./libraries/ValidationLib.sol";
 import "./libraries/FeeLib.sol";
-import "./libraries/BondingCurveMath.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import {ud} from "@prb/math/src/UD60x18.sol";
 
 /**
  * @title HokusaiAMM
@@ -21,18 +22,30 @@ import "./libraries/BondingCurveMath.sol";
  * - Formula: tokens = reserveIn / FLAT_CURVE_PRICE
  * - No overflow issues, unlimited trade sizes
  *
- * Phase 2 (Bonding Curve): Exponential pricing after threshold
- * - Buy:  T = S × ((1 + E/R)^w - 1)
- * - Sell: F = R × (1 - (1 - T/S)^(1/w))
- * - Spot: P = R / (w × S)
+ * Phase 2 (Bonding Curve): once the reserve reaches the threshold the pool
+ * graduates (permanently) and records the graduation supply S_g. From then on
+ * the reserve R backs the redeemable supply S along a fixed curve shape f:
+ *
+ *   f(s) = s                                   for s <= S_g
+ *   f(s) = S_g × ((1 - w) + w × (s/S_g)^(1/w))  for s >  S_g
+ *
+ * scaled to the actual reserve, k = R / f(S). Spot is k × f'(S): constant
+ * (reserve per token) up to S_g, then the CRR curve, with the slope matching
+ * at S_g so the price does not jump at graduation (HOK-3317). Trades move
+ * along the curve with k fixed:
+ * - Buy E:  f(S') = f(S) × (R + E) / R
+ * - Sell T: F = R × (f(S) - f(S - T)) / f(S)
+ * Selling the whole supply returns the whole reserve, so fees deposited to
+ * the reserve (before or after graduation) raise every holder's value pro
+ * rata, and a buy followed by a sell cannot return more than was paid.
+ * Above S_g this is the Bancor curve on the reserve above (1 - w) × k × S_g.
+ * Supply that enters or leaves without a pool trade (reward and supplier
+ * unlocks, vesting claims, tokens sent to the vault) rescales S_g in
+ * proportion, so it dilutes or concentrates every holder evenly instead of
+ * moving the pool along the curve.
  *
  * Where:
- *   T = tokens to mint/burn
- *   S = current supply
- *   R = reserve balance (USDC)
- *   E = USDC deposited
- *   F = USDC returned
- *   w = CRR (reserve ratio)
+ *   S = redeemable supply, R = reserve balance (USDC), w = CRR
  *
  * Upgradeability: each pool is a TransparentUpgradeableProxy over a shared
  * implementation, so fixes keep the pool address and state. Configuration that
@@ -72,8 +85,16 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
     // take or release meaningful liquidity in one trade.
     uint256 public minTradeCap;
 
-    // Reserved slots for state added by future implementations (15 used above).
-    uint256[35] private __gap;
+    // Anchor S_g of the post-graduation curve (see contract docs): the
+    // redeemable supply at graduation, rescaled for supply changes outside the
+    // pool. 0 while graduated only by fees with no supply: the next buy sets it.
+    uint256 public graduationSupply;
+    // Redeemable supply when graduationSupply was last recorded; the anchor in
+    // force is graduationSupply × current supply / anchorBasisSupply.
+    uint256 public anchorBasisSupply;
+
+    // Reserved slots for state added by future implementations (17 used above).
+    uint256[33] private __gap;
 
     // Constants
     uint256 public constant PRECISION = 1e18; // Fixed-point precision
@@ -250,13 +271,15 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
             require(reserveIn <= maxTradeSize(), "Trade exceeds max size limit");
         }
 
-        // Calculate tokens to mint
-        tokensOut = getBuyQuote(reserveIn);
-        require(tokensOut >= minTokensOut, "Slippage exceeded");
-        require(tokensOut > 0, "Insufficient output");
-
         // Calculate and deduct trade fee using FeeLib
         (uint256 reserveAfterFee, uint256 feeAmount) = FeeLib.applyFee(reserveIn, tradeFee);
+
+        // Calculate tokens to mint
+        uint256 anchorSupply;
+        uint256 supplyBefore;
+        (tokensOut, anchorSupply, supplyBefore) = _buyQuote(reserveAfterFee);
+        require(tokensOut >= minTokensOut, "Slippage exceeded");
+        require(tokensOut > 0, "Insufficient output");
 
         // Transfer USDC from buyer
         require(
@@ -267,9 +290,10 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
         // Update reserve balance (excluding fee)
         reserveBalance += reserveAfterFee;
 
-        // Check for graduation to bonding curve phase (permanent)
-        if (!hasGraduated && reserveBalance >= FLAT_CURVE_THRESHOLD) {
-            hasGraduated = true;
+        // Graduation (permanent) and the curve anchor for the new supply
+        if (anchorSupply != 0) {
+            if (!hasGraduated) hasGraduated = true;
+            _recordAnchor(anchorSupply, supplyBefore + tokensOut);
         }
 
         // Transfer fee to treasury
@@ -313,8 +337,11 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
         require(to != address(0), "Invalid recipient");
 
         // Calculate USDC to return
-        reserveOut = getSellQuote(tokensIn);
+        uint256 anchorSupply;
+        uint256 supplyBefore;
+        (reserveOut, anchorSupply, supplyBefore) = _sellQuote(tokensIn);
         require(reserveOut >= minReserveOut, "Slippage exceeded");
+        require(reserveOut > 0, "Insufficient output");
 
         // Check trade size limit (prevents whale manipulation and flash loan attacks)
         require(reserveOut <= maxTradeSize(), "Trade exceeds max size limit");
@@ -327,6 +354,7 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
 
         // Update reserve balance (including fee which stays in reserve)
         reserveBalance -= reserveOut;
+        if (anchorSupply != 0) _recordAnchor(anchorSupply, supplyBefore - tokensIn);
 
         // Burn tokens via TokenManager (requires user approval to this contract)
         require(
@@ -369,117 +397,40 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
 
     /**
      * @dev Calculate tokens out for a given USDC deposit
-     * @param reserveIn Amount of USDC to deposit
+     * @param reserveIn Amount of USDC to deposit (before the trade fee)
      * @return tokensOut Tokens to be minted
      *
-     * Graduation is permanent: once hasGraduated is set, every buy is priced on
-     * the bonding curve from the actual reserve and supply, even if sells have
-     * taken the reserve back below the threshold. Before graduation there are
-     * three cases:
-     * 1. Entirely in flat price phase
-     * 2. Entirely in bonding curve phase
-     * 3. Trade crosses threshold (hybrid calculation)
+     * Before graduation buys are at the flat price; a buy that reaches the
+     * threshold buys the rest on the curve anchored at that point. After
+     * graduation every buy moves along the curve (see contract docs).
      */
     function getBuyQuote(uint256 reserveIn) public view returns (uint256 tokensOut) {
         if (reserveIn == 0) return 0;
-
-        uint256 supply = _redeemableSupply();
-
-        if (hasGraduated) {
-            return _calculateBondingCurveTokens(reserveIn, reserveBalance, supply);
-        }
-
-        uint256 futureReserve = reserveBalance + reserveIn;
-
-        // Case 1: Entirely in flat price phase
-        if (futureReserve <= FLAT_CURVE_THRESHOLD) {
-            return _calculateFlatPriceTokens(reserveIn);
-        }
-
-        // Case 2: Entirely in bonding curve phase
-        if (reserveBalance >= FLAT_CURVE_THRESHOLD) {
-            return _calculateBondingCurveTokens(reserveIn, reserveBalance, supply);
-        }
-
-        // Case 3: Trade crosses threshold (hybrid calculation)
-        uint256 flatPortion = FLAT_CURVE_THRESHOLD - reserveBalance;
-        uint256 curvePortion = reserveIn - flatPortion;
-
-        // Calculate tokens from flat price portion
-        uint256 tokensFromFlat = _calculateFlatPriceTokens(flatPortion);
-
-        // Calculate tokens from bonding curve portion
-        // Use threshold as starting reserve and adjusted supply
-        uint256 adjustedSupply = supply + tokensFromFlat;
-        uint256 tokensFromCurve = _calculateBondingCurveTokens(
-            curvePortion,
-            FLAT_CURVE_THRESHOLD,
-            adjustedSupply
-        );
-
-        return tokensFromFlat + tokensFromCurve;
+        (tokensOut, , ) = _buyQuote(reserveIn - FeeLib.calculateFee(reserveIn, tradeFee));
     }
 
     /**
      * @dev Calculate USDC out for a given token amount
      * @param tokensIn Amount of tokens to sell
-     * @return reserveOut USDC to be returned
+     * @return reserveOut USDC to be returned (before the trade fee)
      *
-     * Uses flat price before graduation, bonding curve formula once graduated
-     * (permanently, regardless of later reserve level)
+     * Flat price before graduation; after graduation the reserve released by
+     * moving the supply down the curve, R × (f(S) - f(S - T)) / f(S).
      */
     function getSellQuote(uint256 tokensIn) public view returns (uint256 reserveOut) {
-        if (tokensIn == 0) return 0;
-
-        uint256 supply = _redeemableSupply();
-        if (supply == 0 || tokensIn > supply) return 0;
-        if (reserveBalance == 0) return 0;
-
-        // If we're in flat price phase, use flat pricing
-        if (getCurrentPhase() == PricingPhase.FLAT_PRICE) {
-            // Selling at fixed price (fee applied in sell() function)
-            reserveOut = (tokensIn * FLAT_CURVE_PRICE) / 1e18;
-            return reserveOut;
-        }
-
-        // Use BondingCurveMath library for bonding curve sell calculation
-        reserveOut = BondingCurveMath.calculateSell(
-            supply,
-            reserveBalance,
-            tokensIn,
-            crr
-        );
+        (reserveOut, , ) = _sellQuote(tokensIn);
     }
 
     /**
      * @dev Get current spot price from redeemable circulating supply
      * @return Current price in USDC per token (6 decimals)
      *
-     * Returns flat price before graduation, bonding curve formula once graduated
-     * (permanently, regardless of later reserve level)
+     * Flat price before graduation, k × f'(S) after (see contract docs).
      */
     function spotPrice() public view returns (uint256) {
+        if (!hasGraduated) return FLAT_CURVE_PRICE;
         uint256 supply = _redeemableSupply();
-
-        // During flat price phase, return fixed price
-        if (getCurrentPhase() == PricingPhase.FLAT_PRICE) {
-            return FLAT_CURVE_PRICE;
-        }
-
-        // No curve price exists without supply (e.g. a pool graduated by
-        // depositFees before any redeemable tokens exist): report the launch
-        // price, matching _calculateBondingCurveTokens' bootstrap pricing.
-        if (supply == 0 || reserveBalance == 0) {
-            return FLAT_CURVE_PRICE;
-        }
-
-        // P = R / (w × S)
-        uint256 numerator = reserveBalance * PPM * 1e18;
-        uint256 denominator = crr * supply;
-
-        if (denominator == 0) return 0;
-
-        return numerator / denominator;
+        return _spotPriceAt(reserveBalance, supply, _anchorSupply(supply));
     }
 
     /**
@@ -569,26 +520,18 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
         require(reserveIn > 0, "Amount must be > 0");
 
         uint256 currentSpot = spotPrice();
-        tokensOut = getBuyQuote(reserveIn);
+        uint256 reserveAfterFee = reserveIn - FeeLib.calculateFee(reserveIn, tradeFee);
+        uint256 anchorSupply;
+        uint256 supply;
+        (tokensOut, anchorSupply, supply) = _buyQuote(reserveAfterFee);
 
-        // Calculate new spot price after trade
-        // New reserve = current + reserveIn (after fee)
-        uint256 feeAmount = (reserveIn * tradeFee) / 10000;
-        uint256 newReserve = reserveBalance + (reserveIn - feeAmount);
-        uint256 newSupply = _redeemableSupply() + tokensOut;
-
-        // P = (R * PPM * 1e18) / (crr * S)
-        newSpotPrice = (newReserve * PPM * 1e18) / (crr * newSupply);
+        newSpotPrice = anchorSupply == 0
+            ? FLAT_CURVE_PRICE
+            : _spotPriceAt(reserveBalance + reserveAfterFee, supply + tokensOut, anchorSupply);
 
         // Price impact = (newPrice - oldPrice) / oldPrice * 10000
-        if (currentSpot > 0) {
-            if (newSpotPrice > currentSpot) {
-                priceImpact = ((newSpotPrice - currentSpot) * 10000) / currentSpot;
-            } else {
-                priceImpact = 0; // Price decreased (shouldn't happen on buy)
-            }
-        } else {
-            priceImpact = 0;
+        if (currentSpot > 0 && newSpotPrice > currentSpot) {
+            priceImpact = ((newSpotPrice - currentSpot) * 10000) / currentSpot;
         }
     }
 
@@ -613,28 +556,16 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
         uint256 currentSpot = spotPrice();
         reserveOut = getSellQuote(tokensIn);
 
-        // Calculate new spot price after trade
-        // New supply = current - tokensIn
-        uint256 newSupply = _redeemableSupply() - tokensIn;
-        // New reserve = current - reserveOut
-        uint256 newReserve = reserveBalance - reserveOut;
-
-        if (newSupply > 0) {
-            // P = (R * PPM * 1e18) / (crr * S)
-            newSpotPrice = (newReserve * PPM * 1e18) / (crr * newSupply);
-        } else {
-            newSpotPrice = 0;
+        uint256 supply = _redeemableSupply();
+        if (!hasGraduated) {
+            newSpotPrice = FLAT_CURVE_PRICE;
+        } else if (tokensIn < supply) {
+            newSpotPrice = _spotPriceAt(reserveBalance - reserveOut, supply - tokensIn, _anchorSupply(supply));
         }
 
         // Price impact = (oldPrice - newPrice) / oldPrice * 10000
-        if (currentSpot > 0) {
-            if (currentSpot > newSpotPrice) {
-                priceImpact = ((currentSpot - newSpotPrice) * 10000) / currentSpot;
-            } else {
-                priceImpact = 0; // Price increased (shouldn't happen on sell)
-            }
-        } else {
-            priceImpact = 0;
+        if (currentSpot > newSpotPrice) {
+            priceImpact = ((currentSpot - newSpotPrice) * 10000) / currentSpot;
         }
     }
 
@@ -660,9 +591,13 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
         // Update reserve balance (increases spot price)
         reserveBalance += amount;
 
-        // Check for graduation to bonding curve phase (permanent)
+        // Graduation (permanent): anchor the curve at the current supply, so
+        // fees count toward each holder's backing like purchases do. With no
+        // supply yet the next buy anchors it.
         if (!hasGraduated && reserveBalance >= FLAT_CURVE_THRESHOLD) {
             hasGraduated = true;
+            uint256 supply = _redeemableSupply();
+            _recordAnchor(supply, supply);
         }
 
         emit FeesDeposited(msg.sender, amount, reserveBalance, spotPrice());
@@ -690,10 +625,8 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
     // GOVERNANCE
     // ============================================================
 
-    // Economic setters (setParameters, setMaxTradeBps, setMinTradeCap) are kept
-    // unchanged by the proxy refactor. Pools are owned by HokusaiAMMFactory,
-    // which forwards only whitelist and pause calls, so these remain unreachable
-    // in production until pool ownership is deliberately moved to governance.
+    // Pools are owned by HokusaiAMMFactory; every owner function here is
+    // reached through the timelocked factory.callPool.
 
     /**
      * @dev Update AMM parameters
@@ -706,6 +639,8 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
     ) external onlyOwner {
         require(newCrr >= MIN_CRR && newCrr <= MAX_CRR, "CRR out of bounds");
         require(newTradeFee <= MAX_TRADE_FEE, "Trade fee too high");
+        // Changing CRR reshapes the curve under existing holders.
+        require(!hasGraduated || newCrr == crr, "CRR fixed after graduation");
 
         crr = newCrr;
         tradeFee = newTradeFee;
@@ -827,61 +762,154 @@ contract HokusaiAMM is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrade
     // ============================================================
 
     /**
-     * @dev Calculate tokens received for USDC at flat price
-     * @param reserveIn Amount of USDC (6 decimals)
-     * @return tokensOut Amount of tokens (18 decimals)
+     * @dev Tokens for USDC at the flat price
+     * @param reserveIn Amount of USDC after the trade fee (6 decimals)
+     * @return Amount of tokens (18 decimals)
      */
-    function _calculateFlatPriceTokens(uint256 reserveIn) internal view returns (uint256) {
-        // Deduct trade fee using FeeLib
-        uint256 reserveAfterFee = reserveIn - FeeLib.calculateFee(reserveIn, tradeFee);
-
-        // Simple fixed price calculation
-        // USDC is 6 decimals, token is 18 decimals
-        // reserveAfterFee is in USDC units (6 decimals)
-        // FLAT_CURVE_PRICE is in USDC per token (6 decimals)
-        // Result should be in token units (18 decimals)
-
-        uint256 tokensOut = (reserveAfterFee * 1e18) / FLAT_CURVE_PRICE;
-        return tokensOut;
+    function _flatPriceTokens(uint256 reserveIn) internal view returns (uint256) {
+        return (reserveIn * 1e18) / FLAT_CURVE_PRICE;
     }
 
     /**
-     * @dev Calculate tokens received using bonding curve formula
-     * @param reserveIn Amount of USDC to spend (6 decimals)
-     * @param currentReserve Current reserve balance (6 decimals)
-     * @param currentSupply Current token supply (18 decimals)
-     * @return tokensOut Amount of tokens (18 decimals)
-     *
-     * Formula: T = S × ((1 + E/R)^w - 1)
+     * @dev Tokens for a buy and the curve anchor in force after it
+     * @param reserveIn Amount of USDC after the trade fee
+     * @return tokensOut Tokens to mint
+     * @return anchorSupply Curve anchor for this buy (0 = still flat)
+     * @return supply Redeemable supply before the buy
      */
-    function _calculateBondingCurveTokens(
-        uint256 reserveIn,
-        uint256 currentReserve,
-        uint256 currentSupply
-    ) internal view returns (uint256) {
-        if (currentReserve == 0 || currentSupply == 0) {
-            // Bootstrap: no curve price exists without supply, so the first
-            // tokens of a graduated pool with zero redeemable supply (seeded by
-            // depositFees) are sold at the launch price. This is the only way
-            // flat pricing applies after graduation; with any redeemable supply
-            // the curve is used regardless of reserve level.
-            return _calculateFlatPriceTokens(reserveIn);
+    function _buyQuote(uint256 reserveIn)
+        internal
+        view
+        returns (uint256 tokensOut, uint256 anchorSupply, uint256 supply)
+    {
+        supply = _redeemableSupply();
+        if (reserveIn == 0) return (0, 0, supply);
+
+        if (hasGraduated) {
+            anchorSupply = _anchorSupply(supply);
+            if (anchorSupply == 0) {
+                // Graduated with no supply (by fees, or every token sold back):
+                // the first buyer enters at the flat price and anchors the curve.
+                tokensOut = _flatPriceTokens(reserveIn);
+                return (tokensOut, tokensOut, supply);
+            }
+            return (_curveTokens(reserveIn, reserveBalance, supply, anchorSupply), anchorSupply, supply);
         }
 
-        // Deduct trade fee using FeeLib
-        uint256 reserveAfterFee = reserveIn - FeeLib.calculateFee(reserveIn, tradeFee);
+        uint256 flatPortion = reserveBalance < FLAT_CURVE_THRESHOLD ? FLAT_CURVE_THRESHOLD - reserveBalance : 0;
+        if (reserveIn < flatPortion) return (_flatPriceTokens(reserveIn), 0, supply);
 
-        // Use BondingCurveMath library for bonding curve calculation
-        return BondingCurveMath.calculateBuy(
-            currentSupply,
-            currentReserve,
-            reserveAfterFee,
-            crr
-        );
+        // This buy graduates the pool: flat price up to the threshold, then
+        // the curve anchored at the supply and reserve at that point.
+        uint256 flatTokens = _flatPriceTokens(flatPortion);
+        anchorSupply = supply + flatTokens;
+        if (anchorSupply == 0) {
+            tokensOut = _flatPriceTokens(reserveIn);
+            return (tokensOut, tokensOut, supply);
+        }
+        tokensOut = flatTokens +
+            _curveTokens(reserveIn - flatPortion, reserveBalance + flatPortion, anchorSupply, anchorSupply);
     }
 
-    // ============================================================
-    // NOTE: Mathematical functions (_pow, _ln, _exp) have been
-    // extracted to BondingCurveMath library for reusability
-    // ============================================================
+    /**
+     * @dev Tokens for a buy along the post-graduation curve: f(S') = f(S) × (R + E) / R
+     */
+    function _curveTokens(
+        uint256 reserveIn,
+        uint256 reserve,
+        uint256 supply,
+        uint256 anchor
+    ) internal view returns (uint256) {
+        if (reserveIn == 0) return 0;
+        // No backing to scale from (reserve drained, or no supply): flat price.
+        if (reserve == 0 || supply == 0) return _flatPriceTokens(reserveIn);
+
+        uint256 newShape = Math.mulDiv(_curveShape(supply, anchor), reserve + reserveIn, reserve);
+        uint256 newSupply = _curveShapeInverse(newShape, anchor);
+        return newSupply > supply ? newSupply - supply : 0;
+    }
+
+    /**
+     * @dev USDC for a sell, and for a graduated pool the curve anchor to record
+     * @return reserveOut USDC to be returned (before the trade fee)
+     * @return anchorSupply Curve anchor for this sell (0 before graduation)
+     * @return supply Redeemable supply before the sell
+     */
+    function _sellQuote(uint256 tokensIn)
+        internal
+        view
+        returns (uint256 reserveOut, uint256 anchorSupply, uint256 supply)
+    {
+        supply = _redeemableSupply();
+        if (tokensIn == 0 || supply == 0 || tokensIn > supply || reserveBalance == 0) return (0, 0, supply);
+
+        if (!hasGraduated) {
+            // Selling at fixed price (fee applied in sell() function)
+            return ((tokensIn * FLAT_CURVE_PRICE) / 1e18, 0, supply);
+        }
+
+        anchorSupply = _anchorSupply(supply);
+        uint256 shapeNow = _curveShape(supply, anchorSupply);
+        reserveOut = Math.mulDiv(reserveBalance, shapeNow - _curveShape(supply - tokensIn, anchorSupply), shapeNow);
+    }
+
+    /**
+     * @dev Curve anchor for the current supply: the recorded anchor rescaled by
+     * supply changes outside the pool since it was recorded. With no anchor yet
+     * (graduated by fees with no supply) or no supply when it was recorded, the
+     * current supply, which prices pro rata.
+     */
+    function _anchorSupply(uint256 supply) internal view returns (uint256) {
+        uint256 anchor = graduationSupply;
+        uint256 basis = anchorBasisSupply;
+        if (anchor == 0 || basis == 0) return supply;
+        return basis == supply ? anchor : Math.mulDiv(anchor, supply, basis);
+    }
+
+    /**
+     * @dev Record the curve anchor and the supply it applies to after a trade
+     */
+    function _recordAnchor(uint256 anchor, uint256 supply) internal {
+        if (graduationSupply != anchor) graduationSupply = anchor;
+        if (anchorBasisSupply != supply) anchorBasisSupply = supply;
+    }
+
+    /**
+     * @dev Spot price k × f'(S) for a graduated pool with reserve R and supply S
+     */
+    function _spotPriceAt(uint256 reserve, uint256 supply, uint256 anchor) internal view returns (uint256) {
+        // No curve price exists without supply or reserve: report the launch
+        // price, matching the flat-price bootstrap in _curveTokens.
+        if (supply == 0 || reserve == 0) return FLAT_CURVE_PRICE;
+        (uint256 shape, uint256 slope) = _curvePoint(supply, anchor);
+        return Math.mulDiv(reserve, slope, shape);
+    }
+
+    /**
+     * @dev Curve shape f(s) in token units (see contract docs)
+     */
+    function _curveShape(uint256 s, uint256 anchor) internal view returns (uint256 shape) {
+        (shape, ) = _curvePoint(s, anchor);
+    }
+
+    /**
+     * @dev Curve shape f(s) and slope f'(s) (PRECISION): the slope is 1 up to
+     * S_g and (s/S_g)^(1/w - 1) above, and f uses (s/S_g)^(1/w) = (s/S_g) × slope.
+     */
+    function _curvePoint(uint256 s, uint256 anchor) internal view returns (uint256 shape, uint256 slope) {
+        if (s <= anchor) return (s, PRECISION);
+        uint256 ratio = Math.mulDiv(s, PRECISION, anchor);
+        slope = ud(ratio).pow(ud(Math.mulDiv(PPM - crr, PRECISION, crr))).unwrap();
+        uint256 grown = Math.mulDiv(ratio, slope, PRECISION);
+        shape = grown <= PRECISION ? anchor : anchor + Math.mulDiv(anchor * crr, grown - PRECISION, PPM * PRECISION);
+    }
+
+    /**
+     * @dev Inverse of f: s = S_g × ((f/S_g - (1 - w)) / w)^w above S_g
+     */
+    function _curveShapeInverse(uint256 shape, uint256 anchor) internal view returns (uint256) {
+        if (shape <= anchor) return shape;
+        uint256 base = PRECISION + Math.mulDiv(shape - anchor, PPM * PRECISION, anchor * crr);
+        return Math.mulDiv(anchor, ud(base).pow(ud((crr * PRECISION) / PPM)).unwrap(), PRECISION);
+    }
 }

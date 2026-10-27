@@ -86,13 +86,18 @@ describe("Phase 6: Governance & Safety", function () {
     // ============================================================
 
     describe("Parameter Adjustment", function () {
-        it("Should update CRR within bounds", async function () {
-            await hokusaiAMM.setParameters(
-                150000, // 15% CRR
-                TRADE_FEE
-            );
+        // The fixture pool is graduated (seeded by depositFees), and CRR is
+        // fixed after graduation (HOK-3317): a CRR change would reshape the
+        // curve under existing holders.
+        it("Should reject a CRR change once graduated", async function () {
+            await expect(
+                hokusaiAMM.setParameters(
+                    150000, // 15% CRR
+                    TRADE_FEE
+                )
+            ).to.be.revertedWith("CRR fixed after graduation");
 
-            expect(await hokusaiAMM.crr()).to.equal(150000);
+            expect(await hokusaiAMM.crr()).to.equal(CRR);
         });
 
         it("Should update trade fee", async function () {
@@ -105,16 +110,16 @@ describe("Phase 6: Governance & Safety", function () {
         });
 
         it("Should update all parameters at once", async function () {
-            await hokusaiAMM.setParameters(200000, 100);
+            await hokusaiAMM.setParameters(CRR, 100);
 
-            expect(await hokusaiAMM.crr()).to.equal(200000);
+            expect(await hokusaiAMM.crr()).to.equal(CRR);
             expect(await hokusaiAMM.tradeFee()).to.equal(100);
         });
 
         it("Should emit ParametersUpdated event", async function () {
-            await expect(hokusaiAMM.setParameters(150000, 50))
+            await expect(hokusaiAMM.setParameters(CRR, 50))
                 .to.emit(hokusaiAMM, "ParametersUpdated")
-                .withArgs(150000, 50);
+                .withArgs(CRR, 50);
         });
 
         it("Should enforce CRR minimum bound (5%)", async function () {
@@ -144,14 +149,11 @@ describe("Phase 6: Governance & Safety", function () {
             ).to.be.revertedWith("Trade fee too high");
         });
 
-        it("Should allow setting CRR to minimum (5%)", async function () {
-            await hokusaiAMM.setParameters(50000, TRADE_FEE);
-            expect(await hokusaiAMM.crr()).to.equal(50000);
-        });
-
-        it("Should allow setting CRR to maximum (100%)", async function () {
-            await hokusaiAMM.setParameters(1000000, TRADE_FEE);
-            expect(await hokusaiAMM.crr()).to.equal(1000000);
+        it("Should reject in-bounds CRR at minimum (5%) and maximum (100%) once graduated", async function () {
+            await expect(hokusaiAMM.setParameters(50000, TRADE_FEE))
+                .to.be.revertedWith("CRR fixed after graduation");
+            await expect(hokusaiAMM.setParameters(1000000, TRADE_FEE))
+                .to.be.revertedWith("CRR fixed after graduation");
         });
 
         it("Should allow setting trade fee to zero", async function () {
@@ -179,16 +181,13 @@ describe("Phase 6: Governance & Safety", function () {
             expect(tokensOut2).to.be.lt(tokensOut1);
         });
 
-        it("Should affect spot price after CRR update", async function () {
+        it("Should not let governance move the spot price through CRR after graduation", async function () {
             const spotPriceBefore = await hokusaiAMM.spotPrice();
 
-            // Increase CRR (formula: P = R / (w × S), where w = crr/PPM)
-            await hokusaiAMM.setParameters(200000, TRADE_FEE); // 20% vs 10%
+            await expect(hokusaiAMM.setParameters(200000, TRADE_FEE))
+                .to.be.revertedWith("CRR fixed after graduation");
 
-            const spotPriceAfter = await hokusaiAMM.spotPrice();
-            // Higher CRR = lower spot price (w increases in denominator)
-            // P = (R * PPM) / (crr * S), so higher crr = lower P
-            expect(spotPriceAfter).to.be.lt(spotPriceBefore);
+            expect(await hokusaiAMM.spotPrice()).to.equal(spotPriceBefore);
         });
     });
 
@@ -504,8 +503,8 @@ describe("Phase 6: Governance & Safety", function () {
             await hokusaiAMM.pause();
 
             // Parameters can be updated while paused
-            await hokusaiAMM.setParameters(150000, 50);
-            expect(await hokusaiAMM.crr()).to.equal(150000);
+            await hokusaiAMM.setParameters(CRR, 50);
+            expect(await hokusaiAMM.tradeFee()).to.equal(50);
 
             // Resume with new parameters
             await hokusaiAMM.unpause();

@@ -59,6 +59,8 @@ function saveState(state) {
 
 function makeCheck(state, phase) {
   return (name, ok, details) => {
+    // A rerun of a phase replaces its earlier result for the same check.
+    state.checks = state.checks.filter((c) => c.phase !== phase || c.name !== name);
     state.checks.push({ phase, name, ok: Boolean(ok), details: details === undefined ? "" : String(details) });
     console.log(`  ${ok ? "PASS" : "FAIL"} ${name}${details === undefined ? "" : "  " + details}`);
     if (!ok) throw new Error(`Check failed: ${name}`);
@@ -225,8 +227,9 @@ const PHASES = {
     check("PoolProxyAdmin is owned by the timelock",
       (await (await ethers.getContractAt("HokusaiPoolProxyAdmin", ctx.proxyAdminAddress)).owner()) === ctx.timelockAddress);
     const pool = await ethers.getContractAt("HokusaiAMM", ctx.upgradeEntry.ammAddress);
-    check("HMESS exit is open (unpaused, IBR over)",
-      await (await ethers.getContractAt("HokusaiPoolProxyAdmin", ctx.proxyAdminAddress)).canExit(await pool.getAddress()));
+    const proxyAdmin = await ethers.getContractAt("HokusaiPoolProxyAdmin", ctx.proxyAdminAddress);
+    const pauseReader = await ethers.getContractAt("PoolPauseReader", await proxyAdmin.pauseReader());
+    check("HMESS exit is open (unpaused, IBR over)", await pauseReader.canExit(await pool.getAddress()));
     if (!state.v2Implementation) {
       const v2 = await (await ethers.getContractFactory("HokusaiAMMV2Mock", deployer)).deploy();
       await v2.waitForDeployment();
@@ -269,6 +272,13 @@ const PHASES = {
     const pool = await ethers.getContractAt("HokusaiAMM", ctx.upgradeEntry.ammAddress);
     const proxyAdmin = await ethers.getContractAt("HokusaiPoolProxyAdmin", ctx.proxyAdminAddress);
     check("HMESS paused by the Safe", await pool.paused());
+    if (!(await ctx.timelock.isOperationReady(tl.operationId(ethers, op3)))) {
+      const early = await simulateRevert({ from: state.adminSafe, ...tl.executeCall(ethers, ctx.timelockAddress, op3) });
+      check("timelock rejects execution before the delay", early.reverted && /not ready/i.test(early.reason), early.reason);
+      const readyAt = await ctx.timelock.getTimestamp(tl.operationId(ethers, op3));
+      console.log(`\n  Delay not over: ready at ${new Date(Number(readyAt) * 1000).toISOString()}. Rerun upgrade-4 then.`);
+      return;
+    }
     check("requeued upgrade is ready", await ctx.timelock.isOperationReady(tl.operationId(ethers, op2)));
     check("unpause is ready", await ctx.timelock.isOperationReady(tl.operationId(ethers, op3)));
     const upgradeData = proxyAdmin.interface.encodeFunctionData("upgrade", [ctx.upgradeEntry.ammAddress, state.v2Implementation]);

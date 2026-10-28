@@ -292,5 +292,10 @@
     "transferredAt": "2026-10-27T19:47:39.977Z",
     "dryRun": false,
     "actionCount": 53
+  },
+  "upgrades": {
+    "approvedPoolImplementations": [
+      "0x163D96C475F0CA9419BDc4663d4a88951e671333"
+    ]
   }
 }

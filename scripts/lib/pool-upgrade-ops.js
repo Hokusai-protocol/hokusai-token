@@ -13,8 +13,6 @@ const ADMIN_SLOT = "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b
 const PROXY_ADMIN_ABI = [
   "function upgrade(address proxy, address implementation)",
   "function freezeUpgrades(address proxy)",
-  "function canExit(address pool) view returns (bool)",
-  "function isPaused(address pool) view returns (bool)",
 ];
 const FACTORY_ABI = [
   "function callPool(string modelId, bytes data)",

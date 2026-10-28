@@ -15,7 +15,7 @@ The mainnet cutover itself is HOK-3291. No step here writes to mainnet.
 | --- | --- | --- |
 | Mainnet fork, block 26,285,984, 48h production timelock | **35/35** | `deployments/rehearsal/fork-26285984/` (`report.json`, `deployment.json`, `verify-governance*.json`, `posture-*.json`, `records.json`, `safe-bundles.json`, `handoff-actions.json`), `deployments/legacy-drain/dry-run-26285984.json` |
 | Sepolia, launch through fees | PASS | `deployments/sepolia-latest.json`, `deployments/governance-verification-sepolia-latest.json` (90/90), `deployments/launch-posture-sepolia-latest.json`, `deployments/rehearsal/sepolia/state.json` |
-| Sepolia, sell and Safe-signed upgrade flow | SEPOLIA_UPGRADE_RESULT | `deployments/rehearsal/sepolia/` (`state.json`, `safe-*.json`, `records.json`, `verify-governance-after-upgrade.json`) |
+| Sepolia, sell and Safe-signed upgrade flow | **31/31** | `deployments/rehearsal/sepolia/` (`state.json`, `safe-*.json`, `records.json`, `verify-governance-after-upgrade.json`) |
 
 ## Prerequisites
 
@@ -150,7 +150,32 @@ HARDHAT_NETWORK=sepolia node scripts/rehearsal/sepolia-redeploy.js final       #
 
 **Fees.** A $1,000 deposit went to the pool ($200) and infra ($800), and the router kept nothing.
 
-**Sell and upgrade flow:** SEPOLIA_UPGRADE_DETAIL
+### Sepolia sell and upgrade flow (2026-10-28)
+
+**Sell.** Sells opened when the IBR ended. One HMESS sell took the graduated pool back below the threshold (reserve $23,705).
+
+**Upgrade flow.** The V2 test implementation is `HokusaiAMMV2Mock` at `0x163D…1333`. Each bundle was signed 2-of-3 by people on the admin Safe and executed from it:
+
+| Bundle | What it did | Safe transaction |
+| --- | --- | --- |
+| 01 | Schedule `ProxyAdmin.upgrade` + `factory.callPool(initializeV2)`; operation ID matches `hashOperationBatch` | `0xeaea233c…bb4b` |
+| 02 | Cancel it | `0xb97cd429…d5c3` |
+| 03 | Pause HMESS (immediate), requeue the upgrade, queue an unpause | `0x2d11837d…0af9` |
+| 04 | Execute the unpause, then the upgrade | `0xe63a58e1…e659` |
+| 05 | Schedule `freezeUpgrades(HMESS)` | `0xe7a629b0…8945` |
+| 06 | Execute the freeze | `0x5320f663…a9fb` |
+
+Between bundles, `sepolia-redeploy.js` checked on-chain and by simulation that:
+- executing before the 300s delay reverts ("operation is not ready");
+- `ProxyAdmin.upgrade` from the timelock reverts on a paused pool ("Pool exit is closed"), so the queued upgrade fails while paused;
+- the admin Safe calling `ProxyAdmin.upgrade` directly reverts ("Ownable: caller is not the owner");
+- after bundle 04, HMESS points at V2, emitted `Upgraded(V2)`, ran `initializeV2`, kept its reserve, graduation and anchor supplies, treasury and owner, and took a $500 buy; HLEAD kept the original implementation;
+- after bundle 06, `UpgradesFrozen(HMESS)` was emitted and a further upgrade reverts ("Upgrades frozen");
+- with V2 added to `upgrades.approvedPoolImplementations` in `deployments/sepolia-latest.json`, `verify-governance` passes 90/90.
+
+**Operator notes.**
+- Run each phase only after the previous bundle is executed. `upgrade-4` and `upgrade-6` need the 300s delay to have passed; `upgrade-4` run early records the early-execution rejection and exits.
+- A batch that unpauses and then upgrades must keep both calls, in that order, in one Safe transaction. The upgrade alone cannot be simulated while the pool is paused.
 
 ## 3. What the rehearsal found
 

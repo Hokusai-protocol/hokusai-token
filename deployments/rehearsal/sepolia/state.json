@@ -35,6 +35,156 @@
       "name": "router holds no USDC",
       "ok": true,
       "details": ""
+    },
+    {
+      "phase": "sell",
+      "name": "sells enabled after the IBR",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "sell",
+      "name": "graduated pool sells back below the threshold",
+      "ok": true,
+      "details": "1 sells, reserve $23705.252854"
+    },
+    {
+      "phase": "upgrade-1",
+      "name": "PoolProxyAdmin is owned by the timelock",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-1",
+      "name": "HMESS exit is open (unpaused, IBR over)",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-2",
+      "name": "upgrade queued by the Safe",
+      "ok": true,
+      "details": "0x07a9b962703fb51752ca63cd80b4a821f25dadaeb5939e411165b1fc28a21b5c"
+    },
+    {
+      "phase": "upgrade-3",
+      "name": "upgrade cancelled",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-4",
+      "name": "timelock rejects execution before the delay",
+      "ok": true,
+      "details": "execution reverted: TimelockController: operation is not ready"
+    },
+    {
+      "phase": "upgrade-4",
+      "name": "HMESS paused by the Safe",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-4",
+      "name": "requeued upgrade is ready",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-4",
+      "name": "unpause is ready",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-4",
+      "name": "ProxyAdmin refuses to upgrade a paused pool",
+      "ok": true,
+      "details": "execution reverted: Pool exit is closed"
+    },
+    {
+      "phase": "upgrade-4",
+      "name": "timelock execution of the upgrade fails while paused",
+      "ok": true,
+      "details": "execution reverted: TimelockController: underlying transaction reverted"
+    },
+    {
+      "phase": "upgrade-4",
+      "name": "admin Safe cannot upgrade directly",
+      "ok": true,
+      "details": "execution reverted: Ownable: caller is not the owner"
+    },
+    {
+      "phase": "upgrade-5",
+      "name": "HMESS unpaused by the timelock",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-5",
+      "name": "HMESS points at V2",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-5",
+      "name": "V2 reinitializer ran through factory.callPool",
+      "ok": true,
+      "details": "v2"
+    },
+    {
+      "phase": "upgrade-5",
+      "name": "proxy emitted Upgraded(V2)",
+      "ok": true,
+      "details": "0x55973e20D272ED93c4D9458b25125dA0359aCAFa,0x163D96C475F0CA9419BDc4663d4a88951e671333"
+    },
+    {
+      "phase": "upgrade-5",
+      "name": "pool state preserved across the upgrade",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-5",
+      "name": "HLEAD keeps its implementation",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-5",
+      "name": "upgraded pool still trades",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "upgrade-6",
+      "name": "freeze is ready",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "final",
+      "name": "freeze executed",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "final",
+      "name": "ProxyAdmin emitted UpgradesFrozen(HMESS)",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "phase": "final",
+      "name": "ProxyAdmin refuses to upgrade a frozen pool",
+      "ok": true,
+      "details": "execution reverted: Upgrades frozen"
+    },
+    {
+      "phase": "final",
+      "name": "verify-governance after the upgrade (V2 approved)",
+      "ok": true,
+      "details": "90/90"
     }
   ],
   "txs": [
@@ -103,18 +253,61 @@
       "hash": "0xd3177809b55223fd4a47ed10af47ab5a630684aa8efdf2929b9affbca7ba85f7",
       "block": 12007324,
       "gasUsed": "750658"
+    },
+    {
+      "label": "approve HMESS tokens",
+      "hash": "0x279d0c2244006c4da5facfcac4d617704d0cff679987480148fa0ff6ab445898",
+      "block": 12014597,
+      "gasUsed": "128251"
+    },
+    {
+      "label": "sell HMESS #1",
+      "hash": "0x575258cb7668af06aba0a01e1f11372e097ad7ef8d74e11703f891b7f36b1f71",
+      "block": 12014598,
+      "gasUsed": "346215"
+    },
+    {
+      "label": "deploy HokusaiAMMV2Mock",
+      "hash": "0xed0b7ad11df54f3539613a9c534fa0bf80e4990781a19d0a52518870bbc9c33d"
+    },
+    {
+      "label": "buy HMESS $500 after upgrade",
+      "hash": "0x5c0b343ce5682cc69371aeb58567ceae79b19d7de327fcdb9e65401ac997cb54",
+      "block": 12015041,
+      "gasUsed": "231789"
     }
   ],
   "gas": {
     "buy1": "510520",
     "buy2": "216760",
     "buy3": "571167",
-    "depositFee": "750658"
+    "depositFee": "750658",
+    "sell": "346215"
   },
   "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
   "timelock": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
   "phasesDone": [
     "trade",
-    "fees"
-  ]
+    "fees",
+    "sell",
+    "upgrade-1",
+    "upgrade-2",
+    "upgrade-3",
+    "upgrade-4",
+    "upgrade-5",
+    "upgrade-6",
+    "final"
+  ],
+  "v2Implementation": "0x163D96C475F0CA9419BDc4663d4a88951e671333",
+  "saltPrefix": "HOK-3290 sepolia 2026-10-28T20:06:51.863Z",
+  "originalImplementation": "0x55973e20d272ed93c4d9458b25125da0359acafa",
+  "untouchedImplementation": "0x55973e20d272ed93c4d9458b25125da0359acafa",
+  "stateBeforeUpgrade": {
+    "reserve": "23705252854",
+    "graduationSupply": "2590000000000000000000000",
+    "anchorBasisSupply": "2437818975795387700551250",
+    "treasury": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+    "owner": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA"
+  },
+  "completedAt": "2026-10-28T21:47:37.279Z"
 }

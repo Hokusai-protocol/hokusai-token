@@ -1,0 +1,112 @@
+{
+  "codeHashes": {
+    "ModelRegistry": {
+      "address": "0x397Ce07C6f3E828995E34D6198C5dbD9cd047542",
+      "codeHash": "0x49e63bddbb37f21e7a9e56910672a36848a4d4d038dc81ea74c600c1f84f9fb8",
+      "bytes": 10794
+    },
+    "TokenDeploymentFactory": {
+      "address": "0x96d44F3abBc8D955F8362d3726A594167786f72E",
+      "codeHash": "0x7a9bd3c9a4fc6f5a8f35aaf66288b34bb6bd253b7dedcccdb1076ad262043bc2",
+      "bytes": 24464
+    },
+    "TokenManager": {
+      "address": "0x0cB833eCFCbbc32D8B49F25B332bD08578d12c22",
+      "codeHash": "0x2491477cfa807fbd330cfbe5ae37d92c5749a69f04629758155f895abebe1e4d",
+      "bytes": 16902
+    },
+    "RewardVestingVault": {
+      "address": "0x25126297EBaa1B68579C38Af51c698E72233C3A5",
+      "codeHash": "0xc891b3211cda757f0b2e57ba19098108850b92548147352a53037f6dbdb5a0fd",
+      "bytes": 4614
+    },
+    "DataContributionRegistry": {
+      "address": "0x19a116EA7DF967333A2F78daa0109d5068507495",
+      "codeHash": "0xf78b9d2ad1db89d0514dfc705e7f3c7ddb99c6a1711920a73468e54f79bf6542",
+      "bytes": 9509
+    },
+    "MockUSDC": {
+      "address": "0x024035a536f9FFe8703c3618C0604ec0f76Ab48B",
+      "codeHash": "0x3ec0e15eaff2cddbb148ba8065632e4b221812fb3546acf21898b554f2b789d5",
+      "bytes": 2731
+    },
+    "HokusaiAMMFactory": {
+      "address": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA",
+      "codeHash": "0x81da0ca2c00e6d3c58bbf087d3564e79323fe202d3085bd81e439fc6e3c7f145",
+      "bytes": 14701
+    },
+    "HokusaiAMMPoolDeployer": {
+      "address": "0x87FB98062ff0D1e3cbF7795e1b98405a3be2eaf6",
+      "codeHash": "0x90b26cf57172b239d91c71ece51a96c516e93a98758c034ff878842c57a0dc21",
+      "bytes": 4372
+    },
+    "HokusaiAMMImplementation": {
+      "address": "0x55973e20D272ED93c4D9458b25125dA0359aCAFa",
+      "codeHash": "0x37c1c51dd1cc8c59ad5ce5d4a5e23edef845f878abe61b5decd18ea5c062275e",
+      "bytes": 15306
+    },
+    "PoolProxyAdmin": {
+      "address": "0x29455248c03CE46A044c273a91b726671B75CCB2",
+      "codeHash": "0xedd4ff886931047ff9576176683fc79d76797723f7fa4a2eb5b4ddbe1f89268e",
+      "bytes": 2367
+    },
+    "PurchaserWhitelist": {
+      "address": "0xAec7E15Dfdb820c32a8781EEd243CBE5ca392C03",
+      "codeHash": "0x352b8419d0dbe24b24bb7269b141977757d4d75ff8ddec94de90374d332910b2",
+      "bytes": 3254
+    },
+    "InfrastructureReserve": {
+      "address": "0x2FDf1072b69768Aa380809C5D2E85729a5D65128",
+      "codeHash": "0x6840fea4c30fcf7eda85fda7e70136dbbde59d80d0b18da5a4e194ea319dcb8b",
+      "bytes": 13909
+    },
+    "InfrastructureCostOracle": {
+      "address": "0x359dB47548F365f27D3F3011b7EB63c63111fcC0",
+      "codeHash": "0x8b6c5e8b53241b307e1c121d3eb7556d3530b8daf0e114f944e3e6f4ca8f2f4d",
+      "bytes": 5132
+    },
+    "UsageFeeRouter": {
+      "address": "0x87cCa289A78008d49ABD24B536021E2EE3168699",
+      "codeHash": "0xc8aa0ceec9857e34693affed9e65959772dfcc58a4709d515885ad5a17b765d2",
+      "bytes": 10507
+    },
+    "DeltaVerifier": {
+      "address": "0xeaBc31Bc7010B6a426D00b16F0f1816122877769",
+      "codeHash": "0x66382845de1da06145157b85b053d2c7c35066b61c32889a63927ffa6cb8bf28",
+      "bytes": 20100
+    }
+  },
+  "pools": [
+    {
+      "modelId": "28",
+      "configKey": "hmess",
+      "proxy": "0x613F32091a88ff67dAb371C27C4252f5d4AFf7DA",
+      "proxyCodeHash": "0x67f851eb5c8d8bdbff4d3dd09ceb3374c801b597efe388b0d12e7562e0c7bc2c",
+      "implementation": "0x163d96c475f0ca9419bdc4663d4a88951e671333",
+      "admin": "0x29455248c03ce46a044c273a91b726671b75ccb2",
+      "implementationCodeHash": "0xd99b5a9ef743b66603f0c85d58a79b5f5c09f5d09022c1e1f4502fe7d73ff152"
+    },
+    {
+      "modelId": "27",
+      "configKey": "hlead",
+      "proxy": "0x5302Bb7da6C1Dd8925D53222f0bCbba2c2Fc6154",
+      "proxyCodeHash": "0x67f851eb5c8d8bdbff4d3dd09ceb3374c801b597efe388b0d12e7562e0c7bc2c",
+      "implementation": "0x55973e20d272ed93c4d9458b25125da0359acafa",
+      "admin": "0x29455248c03ce46a044c273a91b726671b75ccb2",
+      "implementationCodeHash": "0x37c1c51dd1cc8c59ad5ce5d4a5e23edef845f878abe61b5decd18ea5c062275e"
+    },
+    {
+      "modelId": "30",
+      "configKey": "hrout",
+      "proxy": "0x89d527387555946619c777856166bCEBe1A760E4",
+      "proxyCodeHash": "0x67f851eb5c8d8bdbff4d3dd09ceb3374c801b597efe388b0d12e7562e0c7bc2c",
+      "implementation": "0x55973e20d272ed93c4d9458b25125da0359acafa",
+      "admin": "0x29455248c03ce46a044c273a91b726671b75ccb2",
+      "implementationCodeHash": "0x37c1c51dd1cc8c59ad5ce5d4a5e23edef845f878abe61b5decd18ea5c062275e"
+    }
+  ],
+  "v2Implementation": {
+    "address": "0x163D96C475F0CA9419BDc4663d4a88951e671333",
+    "codeHash": "0xd99b5a9ef743b66603f0c85d58a79b5f5c09f5d09022c1e1f4502fe7d73ff152"
+  }
+}

@@ -1,14 +1,14 @@
 {
   "mode": "execute",
-  "generatedAt": "2026-06-27T13:31:20.265Z",
+  "generatedAt": "2026-10-27T19:35:31.103Z",
   "network": "sepolia",
-  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/scripts/configs/sepolia-launch-posture.json",
-  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/deployments/sepolia-latest.json",
+  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/.claude/worktrees/hok-3290/scripts/configs/sepolia-launch-posture.json",
+  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/.claude/worktrees/hok-3290/deployments/sepolia-latest.json",
   "plan": [
     {
       "name": "addAttester:0x07bf9b22f516d2d464511219488f019c5dff5335",
       "contractName": "DeltaVerifier",
-      "to": "0x7C597B97d00F490a4A4731E027288F4cB680cFF3",
+      "to": "0xeaBc31Bc7010B6a426D00b16F0f1816122877769",
       "method": "addAttester",
       "args": [
         "0x07bf9b22f516d2d464511219488f019c5dff5335"
@@ -19,7 +19,7 @@
     {
       "name": "setAttesterThreshold",
       "contractName": "DeltaVerifier",
-      "to": "0x7C597B97d00F490a4A4731E027288F4cB680cFF3",
+      "to": "0xeaBc31Bc7010B6a426D00b16F0f1816122877769",
       "method": "setAttesterThreshold",
       "args": [
         "1"
@@ -30,7 +30,7 @@
     {
       "name": "setMintBudget:30",
       "contractName": "DeltaVerifier",
-      "to": "0x7C597B97d00F490a4A4731E027288F4cB680cFF3",
+      "to": "0xeaBc31Bc7010B6a426D00b16F0f1816122877769",
       "method": "setMintBudget",
       "args": [
         "30",
@@ -42,7 +42,7 @@
     {
       "name": "setWeightGenesis:30",
       "contractName": "ModelRegistry",
-      "to": "0xB5130089dF2E1DF3DfC475C72D654aE9568b5531",
+      "to": "0x397Ce07C6f3E828995E34D6198C5dbD9cd047542",
       "method": "setWeightGenesis",
       "args": [
         "30",
@@ -54,7 +54,7 @@
     {
       "name": "disableLegacyMints",
       "contractName": "DeltaVerifier",
-      "to": "0x7C597B97d00F490a4A4731E027288F4cB680cFF3",
+      "to": "0xeaBc31Bc7010B6a426D00b16F0f1816122877769",
       "method": "disableLegacyMints",
       "args": [],
       "reason": "Legacy SUBMITTER-only mint entrypoints must be disabled",

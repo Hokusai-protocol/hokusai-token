@@ -1,0 +1,637 @@
+{
+  "network": "sepolia",
+  "timestamp": "2026-10-28T21:47:35.444Z",
+  "overall": "pass",
+  "checks": [
+    {
+      "contract": "Timelock",
+      "check": "PROPOSER_ROLE",
+      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "Timelock",
+      "check": "EXECUTOR_ROLE",
+      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "Timelock",
+      "check": "CANCELLER_ROLE",
+      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "Timelock",
+      "check": "TIMELOCK_ADMIN_ROLE",
+      "expected": "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "actual": "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "status": "pass"
+    },
+    {
+      "contract": "Timelock",
+      "check": "deployer-proposer/executor/canceller-revoked",
+      "expected": "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "actual": "0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "status": "pass"
+    },
+    {
+      "contract": "Timelock",
+      "check": "minDelay",
+      "expected": ">= 300",
+      "actual": "300",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMFactory",
+      "check": "poolCount matches deployment.pools",
+      "expected": "3",
+      "actual": "3",
+      "status": "pass"
+    },
+    {
+      "contract": "ModelRegistry",
+      "check": "owner",
+      "expected": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "actual": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "status": "pass"
+    },
+    {
+      "contract": "ModelRegistry",
+      "check": "stringModelTokenManager",
+      "expected": "0x0cB833eCFCbbc32D8B49F25B332bD08578d12c22",
+      "actual": "0x0cB833eCFCbbc32D8B49F25B332bD08578d12c22",
+      "status": "pass"
+    },
+    {
+      "contract": "ModelRegistry",
+      "check": "poolRegistrars(0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA)",
+      "expected": "true",
+      "actual": "true",
+      "status": "pass"
+    },
+    {
+      "contract": "ModelRegistry",
+      "check": "deployer-owner-revoked",
+      "expected": "not 0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "actual": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "status": "pass"
+    },
+    {
+      "contract": "TokenManager",
+      "check": "owner",
+      "expected": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "actual": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "status": "pass"
+    },
+    {
+      "contract": "TokenManager",
+      "check": "DEFAULT_ADMIN_ROLE",
+      "expected": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "actual": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "status": "pass"
+    },
+    {
+      "contract": "TokenManager",
+      "check": "registry",
+      "expected": "0x397Ce07C6f3E828995E34D6198C5dbD9cd047542",
+      "actual": "0x397Ce07C6f3E828995E34D6198C5dbD9cd047542",
+      "status": "pass"
+    },
+    {
+      "contract": "TokenManager",
+      "check": "deltaVerifier",
+      "expected": "0xeaBc31Bc7010B6a426D00b16F0f1816122877769",
+      "actual": "0xeaBc31Bc7010B6a426D00b16F0f1816122877769",
+      "status": "pass"
+    },
+    {
+      "contract": "TokenManager",
+      "check": "vestingVault",
+      "expected": "0x25126297EBaa1B68579C38Af51c698E72233C3A5",
+      "actual": "0x25126297EBaa1B68579C38Af51c698E72233C3A5",
+      "status": "pass"
+    },
+    {
+      "contract": "TokenManager",
+      "check": "deployer-owner-revoked",
+      "expected": "not 0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "actual": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "status": "pass"
+    },
+    {
+      "contract": "TokenManager",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "TokenManager",
+      "check": "deployer-MINTER_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "TokenManager",
+      "check": "deployer-DEPLOYER_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMFactory",
+      "check": "owner",
+      "expected": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "actual": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMFactory",
+      "check": "pauser",
+      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMFactory",
+      "check": "poolDeployer",
+      "expected": "0x87FB98062ff0D1e3cbF7795e1b98405a3be2eaf6",
+      "actual": "0x87FB98062ff0D1e3cbF7795e1b98405a3be2eaf6",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMFactory",
+      "check": "poolImplementation",
+      "expected": "0x55973e20D272ED93c4D9458b25125dA0359aCAFa | 0x163D96C475F0CA9419BDc4663d4a88951e671333",
+      "actual": "0x55973e20D272ED93c4D9458b25125dA0359aCAFa",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMFactory",
+      "check": "modelRegistry",
+      "expected": "0x397Ce07C6f3E828995E34D6198C5dbD9cd047542",
+      "actual": "0x397Ce07C6f3E828995E34D6198C5dbD9cd047542",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMFactory",
+      "check": "tokenManager",
+      "expected": "0x0cB833eCFCbbc32D8B49F25B332bD08578d12c22",
+      "actual": "0x0cB833eCFCbbc32D8B49F25B332bD08578d12c22",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMFactory",
+      "check": "deployer-owner-revoked",
+      "expected": "not 0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "actual": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMPoolDeployer",
+      "check": "factory",
+      "expected": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA",
+      "actual": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMMPoolDeployer",
+      "check": "proxyAdmin",
+      "expected": "0x29455248c03CE46A044c273a91b726671B75CCB2",
+      "actual": "0x29455248c03CE46A044c273a91b726671B75CCB2",
+      "status": "pass"
+    },
+    {
+      "contract": "PoolProxyAdmin",
+      "check": "owner",
+      "expected": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "actual": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "status": "pass"
+    },
+    {
+      "contract": "PoolProxyAdmin",
+      "check": "deployer-owner-revoked",
+      "expected": "not 0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "actual": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[0]",
+      "check": "owner",
+      "expected": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA",
+      "actual": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[0]",
+      "check": "proxyImplementation",
+      "expected": "0x55973e20D272ED93c4D9458b25125dA0359aCAFa | 0x163D96C475F0CA9419BDc4663d4a88951e671333",
+      "actual": "0x163d96c475f0ca9419bdc4663d4a88951e671333",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[0]",
+      "check": "proxyAdmin",
+      "expected": "0x29455248c03CE46A044c273a91b726671B75CCB2",
+      "actual": "0x29455248c03ce46a044c273a91b726671b75ccb2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[0]",
+      "check": "ModelRegistry.getPool(28)",
+      "expected": "0x613F32091a88ff67dAb371C27C4252f5d4AFf7DA",
+      "actual": "0x613F32091a88ff67dAb371C27C4252f5d4AFf7DA",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[0]",
+      "check": "TokenManager.MINTER_ROLE not held",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[1]",
+      "check": "owner",
+      "expected": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA",
+      "actual": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[1]",
+      "check": "proxyImplementation",
+      "expected": "0x55973e20D272ED93c4D9458b25125dA0359aCAFa | 0x163D96C475F0CA9419BDc4663d4a88951e671333",
+      "actual": "0x55973e20d272ed93c4d9458b25125da0359acafa",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[1]",
+      "check": "proxyAdmin",
+      "expected": "0x29455248c03CE46A044c273a91b726671B75CCB2",
+      "actual": "0x29455248c03ce46a044c273a91b726671b75ccb2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[1]",
+      "check": "ModelRegistry.getPool(27)",
+      "expected": "0x5302Bb7da6C1Dd8925D53222f0bCbba2c2Fc6154",
+      "actual": "0x5302Bb7da6C1Dd8925D53222f0bCbba2c2Fc6154",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[1]",
+      "check": "TokenManager.MINTER_ROLE not held",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[2]",
+      "check": "owner",
+      "expected": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA",
+      "actual": "0x1C5ac735b325c0264E41BC2075E60Cb813fb9ABA",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[2]",
+      "check": "proxyImplementation",
+      "expected": "0x55973e20D272ED93c4D9458b25125dA0359aCAFa | 0x163D96C475F0CA9419BDc4663d4a88951e671333",
+      "actual": "0x55973e20d272ed93c4d9458b25125da0359acafa",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[2]",
+      "check": "proxyAdmin",
+      "expected": "0x29455248c03CE46A044c273a91b726671B75CCB2",
+      "actual": "0x29455248c03ce46a044c273a91b726671b75ccb2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[2]",
+      "check": "ModelRegistry.getPool(30)",
+      "expected": "0x89d527387555946619c777856166bCEBe1A760E4",
+      "actual": "0x89d527387555946619c777856166bCEBe1A760E4",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiAMM[2]",
+      "check": "TokenManager.MINTER_ROLE not held",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "DeltaVerifier",
+      "check": "DEFAULT_ADMIN_ROLE",
+      "expected": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "actual": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "status": "pass"
+    },
+    {
+      "contract": "DeltaVerifier",
+      "check": "SUBMITTER_ROLE",
+      "expected": "0xbe2640bb22ae79f0d611ac727036febcfb7acf0c",
+      "actual": "0xbe2640bb22ae79f0d611ac727036febcfb7acf0c",
+      "status": "pass"
+    },
+    {
+      "contract": "DeltaVerifier",
+      "check": "PAUSER_ROLE",
+      "expected": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "actual": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "status": "pass"
+    },
+    {
+      "contract": "DeltaVerifier",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "DeltaVerifier",
+      "check": "deployer-SUBMITTER_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "DeltaVerifier",
+      "check": "deployer-PAUSER_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureReserve",
+      "check": "DEFAULT_ADMIN_ROLE",
+      "expected": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "actual": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureReserve",
+      "check": "DEPOSITOR_ROLE",
+      "expected": "0x87cca289a78008d49abd24b536021e2ee3168699",
+      "actual": "0x87cca289a78008d49abd24b536021e2ee3168699",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureReserve",
+      "check": "PAYER_ROLE",
+      "expected": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "actual": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureReserve",
+      "check": "PAUSER_ROLE",
+      "expected": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "actual": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureReserve",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureReserve",
+      "check": "deployer-DEPOSITOR_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureReserve",
+      "check": "deployer-PAYER_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureReserve",
+      "check": "deployer-PAUSER_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureCostOracle",
+      "check": "DEFAULT_ADMIN_ROLE",
+      "expected": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "actual": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureCostOracle",
+      "check": "GOV_ROLE",
+      "expected": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "actual": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureCostOracle",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "InfrastructureCostOracle",
+      "check": "deployer-GOV_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "UsageFeeRouter",
+      "check": "DEFAULT_ADMIN_ROLE",
+      "expected": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "actual": "0x7c5938f4f34eab427fd8bbd5affc78a0e5743efe",
+      "status": "pass"
+    },
+    {
+      "contract": "UsageFeeRouter",
+      "check": "FEE_DEPOSITOR_ROLE",
+      "expected": "0xbe2640bb22ae79f0d611ac727036febcfb7acf0c",
+      "actual": "0xbe2640bb22ae79f0d611ac727036febcfb7acf0c",
+      "status": "pass"
+    },
+    {
+      "contract": "UsageFeeRouter",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "UsageFeeRouter",
+      "check": "deployer-FEE_DEPOSITOR_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "DataContributionRegistry",
+      "check": "DEFAULT_ADMIN_ROLE",
+      "expected": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "actual": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "status": "pass"
+    },
+    {
+      "contract": "DataContributionRegistry",
+      "check": "RECORDER_ROLE",
+      "expected": "0xeabc31bc7010b6a426d00b16f0f1816122877769",
+      "actual": "0xeabc31bc7010b6a426d00b16f0f1816122877769",
+      "status": "pass"
+    },
+    {
+      "contract": "DataContributionRegistry",
+      "check": "VERIFIER_ROLE",
+      "expected": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "actual": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "status": "pass"
+    },
+    {
+      "contract": "DataContributionRegistry",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "DataContributionRegistry",
+      "check": "deployer-RECORDER_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "DataContributionRegistry",
+      "check": "deployer-VERIFIER_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "PurchaserWhitelist",
+      "check": "DEFAULT_ADMIN_ROLE",
+      "expected": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "actual": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "status": "pass"
+    },
+    {
+      "contract": "PurchaserWhitelist",
+      "check": "WHITELIST_ADMIN_ROLE",
+      "expected": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "actual": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+      "status": "pass"
+    },
+    {
+      "contract": "PurchaserWhitelist",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "PurchaserWhitelist",
+      "check": "deployer-WHITELIST_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiToken[0]",
+      "check": "owner",
+      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiToken[0]",
+      "check": "deployer-owner-revoked",
+      "expected": "not 0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiToken[1]",
+      "check": "owner",
+      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiToken[1]",
+      "check": "deployer-owner-revoked",
+      "expected": "not 0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiToken[2]",
+      "check": "owner",
+      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiToken[2]",
+      "check": "deployer-owner-revoked",
+      "expected": "not 0xAfA95114441e1E13f67E2E6De5Cd6cF03D57B4Da",
+      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiParams[0]",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiParams[0]",
+      "check": "deployer-GOV_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiParams[1]",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiParams[1]",
+      "check": "deployer-GOV_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiParams[2]",
+      "check": "deployer-DEFAULT_ADMIN_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    },
+    {
+      "contract": "HokusaiParams[2]",
+      "check": "deployer-GOV_ROLE-revoked",
+      "expected": "false",
+      "actual": "false",
+      "status": "pass"
+    }
+  ]
+}

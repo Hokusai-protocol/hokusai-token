@@ -1,0 +1,413 @@
+{
+  "generatedAt": "2026-10-27T19:08:50.351Z",
+  "forkBlock": 26285984,
+  "stopAtUsdc": "1000000",
+  "results": [
+    {
+      "symbol": "HROUT",
+      "modelId": "30",
+      "pool": "0x6C40EF10da0c0Fc87352b0026A49a6769af12816",
+      "seller": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+      "maxTradeBps": "2000",
+      "before": {
+        "poolUsdc": "874420",
+        "reserve": "874420",
+        "sellerUsdc": "26094205131",
+        "treasuryUsdc": "170760913",
+        "sellerTokens": "623188009246107941649278",
+        "totalSupply": "2873188009246107941649278",
+        "investorMinted": "373188009246107941649278",
+        "rewardMinted": "0",
+        "graduated": true
+      },
+      "after": {
+        "poolUsdc": "874420",
+        "reserve": "874420",
+        "sellerUsdc": "26094205131",
+        "treasuryUsdc": "170760913",
+        "sellerTokens": "623188009246107941649278",
+        "totalSupply": "2873188009246107941649278",
+        "investorMinted": "373188009246107941649278",
+        "rewardMinted": "0",
+        "graduated": true
+      },
+      "totals": {
+        "sells": 0,
+        "curveSells": 0,
+        "usdcToSeller": "0",
+        "usdcToTreasury": "0",
+        "usdcStranded": "874420",
+        "tokensSold": "0",
+        "tokensLeftUnbacked": "623188009246107941649278",
+        "investorMintedDelta": "0",
+        "rewardMintedDelta": "0",
+        "gasUsed": "26167",
+        "gasPriceWei": "50000000000",
+        "gasCostWei": "1308350000000000"
+      },
+      "steps": []
+    },
+    {
+      "symbol": "HMESS",
+      "modelId": "28",
+      "pool": "0xC187ffc6a465247f228a63f00C2515041792A0fA",
+      "seller": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+      "maxTradeBps": "2000",
+      "before": {
+        "poolUsdc": "10000000",
+        "reserve": "10000000",
+        "sellerUsdc": "26094205131",
+        "treasuryUsdc": "170760913",
+        "sellerTokens": "250000000000000000000000",
+        "totalSupply": "2500000000000000000000000",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "graduated": false
+      },
+      "after": {
+        "poolUsdc": "858995",
+        "reserve": "858995",
+        "sellerUsdc": "26103318716",
+        "treasuryUsdc": "170788333",
+        "sellerTokens": "249085898400000000000011",
+        "totalSupply": "2499085898400000000000011",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "graduated": false
+      },
+      "totals": {
+        "sells": 11,
+        "curveSells": 0,
+        "usdcToSeller": "9113585",
+        "usdcToTreasury": "27420",
+        "usdcStranded": "858995",
+        "tokensSold": "914101599999999999989",
+        "tokensLeftUnbacked": "249085898400000000000011",
+        "investorMintedDelta": "0",
+        "rewardMintedDelta": "0",
+        "gasUsed": "1787473",
+        "gasPriceWei": "50000000000",
+        "gasCostWei": "89373650000000000"
+      },
+      "steps": [
+        {
+          "step": 1,
+          "pricing": "flat",
+          "reserveBefore": "10000000",
+          "tokensIn": "200000099999999999999",
+          "reserveOut": "2000000",
+          "gasUsed": "173866"
+        },
+        {
+          "step": 2,
+          "pricing": "flat",
+          "reserveBefore": "8000000",
+          "tokensIn": "160000099999999999999",
+          "reserveOut": "1600000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 3,
+          "pricing": "flat",
+          "reserveBefore": "6400000",
+          "tokensIn": "128000099999999999999",
+          "reserveOut": "1280000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 4,
+          "pricing": "flat",
+          "reserveBefore": "5120000",
+          "tokensIn": "102400099999999999999",
+          "reserveOut": "1024000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 5,
+          "pricing": "flat",
+          "reserveBefore": "4096000",
+          "tokensIn": "81920099999999999999",
+          "reserveOut": "819200",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 6,
+          "pricing": "flat",
+          "reserveBefore": "3276800",
+          "tokensIn": "65536099999999999999",
+          "reserveOut": "655360",
+          "gasUsed": "156742"
+        },
+        {
+          "step": 7,
+          "pricing": "flat",
+          "reserveBefore": "2621440",
+          "tokensIn": "52428899999999999999",
+          "reserveOut": "524288",
+          "gasUsed": "156742"
+        },
+        {
+          "step": 8,
+          "pricing": "flat",
+          "reserveBefore": "2097152",
+          "tokensIn": "41943099999999999999",
+          "reserveOut": "419430",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 9,
+          "pricing": "flat",
+          "reserveBefore": "1677722",
+          "tokensIn": "33554499999999999999",
+          "reserveOut": "335544",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 10,
+          "pricing": "flat",
+          "reserveBefore": "1342178",
+          "tokensIn": "26843599999999999999",
+          "reserveOut": "268435",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 11,
+          "pricing": "flat",
+          "reserveBefore": "1073743",
+          "tokensIn": "21474899999999999999",
+          "reserveOut": "214748",
+          "gasUsed": "156766"
+        }
+      ]
+    },
+    {
+      "symbol": "HLEAD",
+      "modelId": "27",
+      "pool": "0xa6D4a50496ce6808508e6DCaB19D57845D4e30e4",
+      "seller": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+      "maxTradeBps": "2000",
+      "before": {
+        "poolUsdc": "10000000",
+        "reserve": "10000000",
+        "sellerUsdc": "26103318716",
+        "treasuryUsdc": "170788333",
+        "sellerTokens": "125000000000000000000000",
+        "totalSupply": "1250000000000000000000000",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "graduated": false
+      },
+      "after": {
+        "poolUsdc": "858995",
+        "reserve": "858995",
+        "sellerUsdc": "26112432301",
+        "treasuryUsdc": "170815753",
+        "sellerTokens": "124085898400000000000011",
+        "totalSupply": "1249085898400000000000011",
+        "investorMinted": "0",
+        "rewardMinted": "0",
+        "graduated": false
+      },
+      "totals": {
+        "sells": 11,
+        "curveSells": 0,
+        "usdcToSeller": "9113585",
+        "usdcToTreasury": "27420",
+        "usdcStranded": "858995",
+        "tokensSold": "914101599999999999989",
+        "tokensLeftUnbacked": "124085898400000000000011",
+        "investorMintedDelta": "0",
+        "rewardMintedDelta": "0",
+        "gasUsed": "1787473",
+        "gasPriceWei": "50000000000",
+        "gasCostWei": "89373650000000000"
+      },
+      "steps": [
+        {
+          "step": 1,
+          "pricing": "flat",
+          "reserveBefore": "10000000",
+          "tokensIn": "200000099999999999999",
+          "reserveOut": "2000000",
+          "gasUsed": "173866"
+        },
+        {
+          "step": 2,
+          "pricing": "flat",
+          "reserveBefore": "8000000",
+          "tokensIn": "160000099999999999999",
+          "reserveOut": "1600000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 3,
+          "pricing": "flat",
+          "reserveBefore": "6400000",
+          "tokensIn": "128000099999999999999",
+          "reserveOut": "1280000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 4,
+          "pricing": "flat",
+          "reserveBefore": "5120000",
+          "tokensIn": "102400099999999999999",
+          "reserveOut": "1024000",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 5,
+          "pricing": "flat",
+          "reserveBefore": "4096000",
+          "tokensIn": "81920099999999999999",
+          "reserveOut": "819200",
+          "gasUsed": "156754"
+        },
+        {
+          "step": 6,
+          "pricing": "flat",
+          "reserveBefore": "3276800",
+          "tokensIn": "65536099999999999999",
+          "reserveOut": "655360",
+          "gasUsed": "156742"
+        },
+        {
+          "step": 7,
+          "pricing": "flat",
+          "reserveBefore": "2621440",
+          "tokensIn": "52428899999999999999",
+          "reserveOut": "524288",
+          "gasUsed": "156742"
+        },
+        {
+          "step": 8,
+          "pricing": "flat",
+          "reserveBefore": "2097152",
+          "tokensIn": "41943099999999999999",
+          "reserveOut": "419430",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 9,
+          "pricing": "flat",
+          "reserveBefore": "1677722",
+          "tokensIn": "33554499999999999999",
+          "reserveOut": "335544",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 10,
+          "pricing": "flat",
+          "reserveBefore": "1342178",
+          "tokensIn": "26843599999999999999",
+          "reserveOut": "268435",
+          "gasUsed": "156766"
+        },
+        {
+          "step": 11,
+          "pricing": "flat",
+          "reserveBefore": "1073743",
+          "tokensIn": "21474899999999999999",
+          "reserveOut": "214748",
+          "gasUsed": "156766"
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "HROUT: pool not paused",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: sells enabled",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: USDC conserved (pool out == seller + treasury in)",
+      "ok": true,
+      "details": "0.0 == 0.0 + 0.0"
+    },
+    {
+      "name": "HROUT: tracked reserve still equals pool balance",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: burned supply equals tokens sold",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HROUT: drained to stop threshold",
+      "ok": true,
+      "details": "reserve 0.87442 stop 1.0"
+    },
+    {
+      "name": "HMESS: pool not paused",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: sells enabled",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: USDC conserved (pool out == seller + treasury in)",
+      "ok": true,
+      "details": "9.141005 == 9.113585 + 0.02742"
+    },
+    {
+      "name": "HMESS: tracked reserve still equals pool balance",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: burned supply equals tokens sold",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HMESS: drained to stop threshold",
+      "ok": true,
+      "details": "reserve 0.858995 stop 1.0"
+    },
+    {
+      "name": "HLEAD: pool not paused",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: sells enabled",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: USDC conserved (pool out == seller + treasury in)",
+      "ok": true,
+      "details": "9.141005 == 9.113585 + 0.02742"
+    },
+    {
+      "name": "HLEAD: tracked reserve still equals pool balance",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: burned supply equals tokens sold",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "HLEAD: drained to stop threshold",
+      "ok": true,
+      "details": "reserve 0.858995 stop 1.0"
+    }
+  ],
+  "ok": true
+}

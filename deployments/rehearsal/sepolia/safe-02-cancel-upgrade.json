@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "chainId": "11155111",
+  "createdAt": 1793221214438,
+  "meta": {
+    "name": "HOK-3290 02-cancel-upgrade",
+    "description": "cancel(0x07a9b962703fb51752ca63cd80b4a821f25dadaeb5939e411165b1fc28a21b5c)"
+  },
+  "transactions": [
+    {
+      "to": "0x7c5938F4f34EaB427fD8bbD5AfFc78A0E5743eFe",
+      "value": "0",
+      "data": "0xc4d252f507a9b962703fb51752ca63cd80b4a821f25dadaeb5939e411165b1fc28a21b5c",
+      "contractMethod": null,
+      "contractInputsValues": null
+    }
+  ],
+  "safe": "0x158B985CC667b4E022AD05B99E89007790da66E2"
+}

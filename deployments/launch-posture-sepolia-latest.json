@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-06-27T13:32:30.055Z",
+  "timestamp": "2026-10-27T19:47:53.490Z",
   "network": "sepolia",
-  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/scripts/configs/sepolia-launch-posture.json",
-  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/deployments/sepolia-latest.json",
+  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/.claude/worktrees/hok-3290/scripts/configs/sepolia-launch-posture.json",
+  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/.claude/worktrees/hok-3290/deployments/sepolia-latest.json",
   "overall": "pass",
   "assertions": [
     {
@@ -95,36 +95,36 @@
     {
       "name": "wiring.DeltaVerifier.modelRegistry",
       "passed": true,
-      "expected": "0xB5130089dF2E1DF3DfC475C72D654aE9568b5531",
-      "actual": "0xB5130089dF2E1DF3DfC475C72D654aE9568b5531",
+      "expected": "0x397Ce07C6f3E828995E34D6198C5dbD9cd047542",
+      "actual": "0x397Ce07C6f3E828995E34D6198C5dbD9cd047542",
       "message": "wiring matches"
     },
     {
       "name": "wiring.DeltaVerifier.tokenManager",
       "passed": true,
-      "expected": "0xF3ADF676dF4ceeD6e003e9Da49363259e29afb90",
-      "actual": "0xF3ADF676dF4ceeD6e003e9Da49363259e29afb90",
+      "expected": "0x0cB833eCFCbbc32D8B49F25B332bD08578d12c22",
+      "actual": "0x0cB833eCFCbbc32D8B49F25B332bD08578d12c22",
       "message": "wiring matches"
     },
     {
       "name": "wiring.DeltaVerifier.contributionRegistry",
       "passed": true,
-      "expected": "0x1d9Dcb3BD205490981fE26A15ef9534239019DB7",
-      "actual": "0x1d9Dcb3BD205490981fE26A15ef9534239019DB7",
+      "expected": "0x19a116EA7DF967333A2F78daa0109d5068507495",
+      "actual": "0x19a116EA7DF967333A2F78daa0109d5068507495",
       "message": "wiring matches"
     },
     {
       "name": "wiring.TokenManager.deltaVerifier",
       "passed": true,
-      "expected": "0x7C597B97d00F490a4A4731E027288F4cB680cFF3",
-      "actual": "0x7C597B97d00F490a4A4731E027288F4cB680cFF3",
+      "expected": "0xeaBc31Bc7010B6a426D00b16F0f1816122877769",
+      "actual": "0xeaBc31Bc7010B6a426D00b16F0f1816122877769",
       "message": "wiring matches"
     },
     {
       "name": "wiring.ModelRegistry.stringModelTokenManager",
       "passed": true,
-      "expected": "0xF3ADF676dF4ceeD6e003e9Da49363259e29afb90",
-      "actual": "0xF3ADF676dF4ceeD6e003e9Da49363259e29afb90",
+      "expected": "0x0cB833eCFCbbc32D8B49F25B332bD08578d12c22",
+      "actual": "0x0cB833eCFCbbc32D8B49F25B332bD08578d12c22",
       "message": "wiring matches"
     }
   ],

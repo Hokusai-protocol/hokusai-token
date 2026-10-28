@@ -84,7 +84,10 @@ async function drainPool(entry, seller, gasPrice) {
   };
   console.log(`  reserve ${usd(before.reserve)} USDC, seller holds ${tok(before.sellerTokens)} tokens, graduated=${before.graduated}`);
 
-  const approveTx = await token.connect(seller).approve(entry.ammPool, before.sellerTokens);
+  // Pin the fee cap to the costing gas price: ethers' estimate trails the
+  // fork's base fee once a long run has mined many blocks.
+  const fees = { maxFeePerGas: gasPrice, maxPriorityFeePerGas: 0n };
+  const approveTx = await token.connect(seller).approve(entry.ammPool, before.sellerTokens, fees);
   let gasUsed = (await approveTx.wait()).gasUsed;
 
   const steps = [];
@@ -102,7 +105,7 @@ async function drainPool(entry, seller, gasPrice) {
     if (quote === 0n) break;
     const phase = reserve < (await pool.FLAT_CURVE_THRESHOLD()) ? "flat" : "curve";
 
-    const receipt = await (await pool.connect(seller).sell(tokensIn, quote, seller.address, deadline)).wait();
+    const receipt = await (await pool.connect(seller).sell(tokensIn, quote, seller.address, deadline, fees)).wait();
     gasUsed += receipt.gasUsed;
     sellerTokens -= tokensIn;
     steps.push({
@@ -173,7 +176,9 @@ async function drainPool(entry, seller, gasPrice) {
   };
 }
 
-async function main() {
+// Exported for the HOK-3290 fork rehearsal, which drains the legacy pools and
+// then deploys the new stack in the same forked process.
+async function runDrainDryRun() {
   const net = await ethers.provider.getNetwork();
   if (net.chainId !== 1n) {
     throw new Error(`Not on a mainnet fork (chainId ${net.chainId}). Run with FORK_MAINNET=1.`);
@@ -210,10 +215,18 @@ async function main() {
   console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`);
   console.log(`Wrote ${path.relative(ROOT, outPath)}`);
   console.log("(mainnet fork — no real funds moved, live deployment untouched)");
-  if (failed.length) process.exitCode = 1;
+  return { report, outPath };
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.stack || err.message : err);
-  process.exit(1);
-});
+module.exports = { runDrainDryRun };
+
+if (require.main === module) {
+  runDrainDryRun()
+    .then(({ report }) => {
+      if (!report.ok) process.exitCode = 1;
+    })
+    .catch((err) => {
+      console.error(err instanceof Error ? err.stack || err.message : err);
+      process.exit(1);
+    });
+}

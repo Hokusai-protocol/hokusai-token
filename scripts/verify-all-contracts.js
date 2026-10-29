@@ -248,16 +248,18 @@ async function main() {
     else results.failed.push("HokusaiAMMFactory");
   }
 
-  // 6. UsageFeeRouter (constructor: _factory, _reserveToken, _infraReserve, _costOracle)
+  // 6. UsageFeeRouter (constructor: _modelRegistry, _tokenManager, _reserveToken, _infraReserve, _costOracle)
   if (deployment.contracts.UsageFeeRouter &&
-      deployment.contracts.HokusaiAMMFactory &&
+      deployment.contracts.ModelRegistry &&
+      deployment.contracts.TokenManager &&
       reserveToken &&
       deployment.contracts.InfrastructureReserve &&
       deployment.contracts.InfrastructureCostOracle) {
     const success = await verifyContract(
       deployment.contracts.UsageFeeRouter,
       [
-        deployment.contracts.HokusaiAMMFactory,
+        deployment.contracts.ModelRegistry,
+        deployment.contracts.TokenManager,
         reserveToken,
         deployment.contracts.InfrastructureReserve,
         deployment.contracts.InfrastructureCostOracle
@@ -420,11 +422,26 @@ async function main() {
         flatCurvePrice                          // _flatCurvePrice (6-decimal integer)
       ];
 
-      const success = await verifyContract(
-        pool.ammAddress,
-        constructorArgs,
-        `${pool.modelId} AMM Pool`
-      );
+      // Upgradeable-AMM deployments (PoolProxyAdmin recorded) create each pool as an
+      // OZ 4.x TransparentUpgradeableProxy(implementation, PoolProxyAdmin, initData),
+      // where initData is HokusaiAMM.initialize with the same arguments.
+      const proxied = Boolean(deployment.contracts.PoolProxyAdmin);
+      const success = proxied
+        ? await verifyContract(
+            pool.ammAddress,
+            [
+              deployment.contracts.HokusaiAMMImplementation,
+              deployment.contracts.PoolProxyAdmin,
+              (await hre.ethers.getContractFactory("HokusaiAMM")).interface.encodeFunctionData("initialize", constructorArgs)
+            ],
+            `${pool.modelId} AMM Pool`,
+            "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy"
+          )
+        : await verifyContract(
+            pool.ammAddress,
+            constructorArgs,
+            `${pool.modelId} AMM Pool`
+          );
       if (success) results.success.push(`${pool.modelId} Pool`);
       else results.failed.push(`${pool.modelId} Pool`);
     }

@@ -1,0 +1,107 @@
+{
+  "codeHashes": {
+    "ModelRegistry": {
+      "address": "0x98E46E7A6Eb3608461294Ab396AD4A49Ffd83186",
+      "codeHash": "0x49e63bddbb37f21e7a9e56910672a36848a4d4d038dc81ea74c600c1f84f9fb8",
+      "bytes": 10794
+    },
+    "TokenDeploymentFactory": {
+      "address": "0x05a2E5965d537F74E71e962c79E3498F9cD81133",
+      "codeHash": "0x7a9bd3c9a4fc6f5a8f35aaf66288b34bb6bd253b7dedcccdb1076ad262043bc2",
+      "bytes": 24464
+    },
+    "TokenManager": {
+      "address": "0xe89Dc5c4E2c3DbB727C7380b10cE6291Cb166B3c",
+      "codeHash": "0x2491477cfa807fbd330cfbe5ae37d92c5749a69f04629758155f895abebe1e4d",
+      "bytes": 16902
+    },
+    "RewardVestingVault": {
+      "address": "0xc3C4968e506b0dBcEa3522958161434BF4c401Ce",
+      "codeHash": "0x2b4a0b832b3b8404fa8a2a4295ab4bee512e7173545b89ab9bd51434e2e73aa4",
+      "bytes": 4614
+    },
+    "DataContributionRegistry": {
+      "address": "0x8456B26323214F263AB269B673fd2a110A0f4A98",
+      "codeHash": "0xf78b9d2ad1db89d0514dfc705e7f3c7ddb99c6a1711920a73468e54f79bf6542",
+      "bytes": 9509
+    },
+    "HokusaiAMMFactory": {
+      "address": "0xDA79e02a18aC98a04c6192d933B704c8Ff829374",
+      "codeHash": "0x960d8d0b16f134753d0fc78cbf3a5f0ed9c654075e266d81a6342b703a134f3d",
+      "bytes": 14701
+    },
+    "HokusaiAMMPoolDeployer": {
+      "address": "0x5519CC140cA6d42734e8F8eEDF1cbA32ddaFA1a7",
+      "codeHash": "0x12d730f56d645e4e9302722b968ac1a3a50cd0268fb9c784b7890cc519556bb7",
+      "bytes": 4372
+    },
+    "HokusaiAMMImplementation": {
+      "address": "0x5Ce154B0099C9Cc73E028DB120342cbbD0fbc5aa",
+      "codeHash": "0x37c1c51dd1cc8c59ad5ce5d4a5e23edef845f878abe61b5decd18ea5c062275e",
+      "bytes": 15306
+    },
+    "PoolProxyAdmin": {
+      "address": "0x7bE9794233725031e613cDc175fC3c710C41d1D6",
+      "codeHash": "0xda819e0d838eeb95accf09f6c1173f1b97f0728d414d47ebaebb2c6e0fefd5b8",
+      "bytes": 2367
+    },
+    "PurchaserWhitelist": {
+      "address": "0x4d1886Ef4bE8d318c9B42Eb6770251975b978839",
+      "codeHash": "0x352b8419d0dbe24b24bb7269b141977757d4d75ff8ddec94de90374d332910b2",
+      "bytes": 3254
+    },
+    "InfrastructureReserve": {
+      "address": "0x8Cc956EA280Ffd2f6D9D469Afc7eF73DD8715F88",
+      "codeHash": "0xb73ccf0f337c1eaab9932017678b52f4ff4938806cd74436af78f8e8e9ecc880",
+      "bytes": 13909
+    },
+    "InfrastructureCostOracle": {
+      "address": "0x8986Aa67F920A8CEE4ffEc30634EBEc00B7D3dEC",
+      "codeHash": "0x8b6c5e8b53241b307e1c121d3eb7556d3530b8daf0e114f944e3e6f4ca8f2f4d",
+      "bytes": 5132
+    },
+    "UsageFeeRouter": {
+      "address": "0x806bb87fb6033652761b1f158806A8ad108B14cE",
+      "codeHash": "0xe3a9223f7ac5ee8e456b20bb3a2be674cacf3f4a578afbd982a62fc7e2ed07a2",
+      "bytes": 10507
+    },
+    "DeltaVerifier": {
+      "address": "0x10017a59946FE646940bb62db88659BbA47465c8",
+      "codeHash": "0x62e1b46f5b9e183955cf48e0dd7c109d6fe23e8d08744197657f587b14a107c5",
+      "bytes": 20100
+    }
+  },
+  "pools": [
+    {
+      "modelId": "28",
+      "configKey": "hmess",
+      "proxy": "0x3F96ef5B401e002BC2F1cad922E26A33F57Cf60B",
+      "proxyCodeHash": "0x67f851eb5c8d8bdbff4d3dd09ceb3374c801b597efe388b0d12e7562e0c7bc2c",
+      "implementation": "0x6c03cb026fcb4e7608df7d101c3ac7d70fe6e44d",
+      "admin": "0x7be9794233725031e613cdc175fc3c710c41d1d6",
+      "implementationCodeHash": "0xd99b5a9ef743b66603f0c85d58a79b5f5c09f5d09022c1e1f4502fe7d73ff152"
+    },
+    {
+      "modelId": "27",
+      "configKey": "hlead",
+      "proxy": "0x181cCBE0B12cD01389Aa92A1e43F3B02a41AD730",
+      "proxyCodeHash": "0x67f851eb5c8d8bdbff4d3dd09ceb3374c801b597efe388b0d12e7562e0c7bc2c",
+      "implementation": "0x5ce154b0099c9cc73e028db120342cbbd0fbc5aa",
+      "admin": "0x7be9794233725031e613cdc175fc3c710c41d1d6",
+      "implementationCodeHash": "0x37c1c51dd1cc8c59ad5ce5d4a5e23edef845f878abe61b5decd18ea5c062275e"
+    },
+    {
+      "modelId": "30",
+      "configKey": "hrout",
+      "proxy": "0xEBF09426F3139b51EC6edea2ad44B9f2D1836869",
+      "proxyCodeHash": "0x67f851eb5c8d8bdbff4d3dd09ceb3374c801b597efe388b0d12e7562e0c7bc2c",
+      "implementation": "0x5ce154b0099c9cc73e028db120342cbbd0fbc5aa",
+      "admin": "0x7be9794233725031e613cdc175fc3c710c41d1d6",
+      "implementationCodeHash": "0x37c1c51dd1cc8c59ad5ce5d4a5e23edef845f878abe61b5decd18ea5c062275e"
+    }
+  ],
+  "v2Implementation": {
+    "address": "0x6c03CB026FCB4E7608DF7D101C3ac7D70Fe6E44d",
+    "codeHash": "0xd99b5a9ef743b66603f0c85d58a79b5f5c09f5d09022c1e1f4502fe7d73ff152"
+  }
+}

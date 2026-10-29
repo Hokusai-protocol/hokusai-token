@@ -1,0 +1,285 @@
+[
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "holder": "0xcd8076d7a15e97946fad0baa32bf358be3d927c8",
+    "status": "sent"
+  },
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "MINTER_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEPLOYER_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "setter",
+    "field": "pauser",
+    "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+    "status": "sent"
+  },
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+    "status": "sent"
+  },
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+    "status": "sent"
+  },
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xDA79e02a18aC98a04c6192d933B704c8Ff829374",
+    "status": "already-set"
+  },
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xDA79e02a18aC98a04c6192d933B704c8Ff829374",
+    "status": "already-set"
+  },
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xDA79e02a18aC98a04c6192d933B704c8Ff829374",
+    "status": "already-set"
+  },
+  {
+    "type": "grantRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "holder": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "SUBMITTER_ROLE",
+    "holder": "0xc18d0b6ee049b2b113ee4671cb9c8109192e29e2",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "PAUSER_ROLE",
+    "holder": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "SUBMITTER_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "PAUSER_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "holder": "0xcd8076d7a15e97946fad0baa32bf358be3d927c8",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "DEPOSITOR_ROLE",
+    "holder": "0x806bb87fb6033652761b1f158806a8ad108b14ce",
+    "status": "already-set"
+  },
+  {
+    "type": "grantRole",
+    "role": "PAYER_ROLE",
+    "holder": "0x56ca22006d67e14aa1b7820ce02c6b6205df0c9e",
+    "status": "already-set"
+  },
+  {
+    "type": "grantRole",
+    "role": "PAUSER_ROLE",
+    "holder": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEPOSITOR_ROLE",
+    "status": "not-held"
+  },
+  {
+    "type": "renounceRole",
+    "role": "PAYER_ROLE",
+    "status": "not-held"
+  },
+  {
+    "type": "renounceRole",
+    "role": "PAUSER_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "holder": "0xcd8076d7a15e97946fad0baa32bf358be3d927c8",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "GOV_ROLE",
+    "holder": "0xcd8076d7a15e97946fad0baa32bf358be3d927c8",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "GOV_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "holder": "0xcd8076d7a15e97946fad0baa32bf358be3d927c8",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "FEE_DEPOSITOR_ROLE",
+    "holder": "0xc18d0b6ee049b2b113ee4671cb9c8109192e29e2",
+    "status": "already-set"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "FEE_DEPOSITOR_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "holder": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "RECORDER_ROLE",
+    "holder": "0x10017a59946fe646940bb62db88659bba47465c8",
+    "status": "already-set"
+  },
+  {
+    "type": "grantRole",
+    "role": "VERIFIER_ROLE",
+    "holder": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "RECORDER_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "VERIFIER_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "holder": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+    "status": "sent"
+  },
+  {
+    "type": "grantRole",
+    "role": "WHITELIST_ADMIN_ROLE",
+    "holder": "0x158b985cc667b4e022ad05b99e89007790da66e2",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "renounceRole",
+    "role": "WHITELIST_ADMIN_ROLE",
+    "status": "sent"
+  },
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+    "status": "already-set"
+  },
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+    "status": "already-set"
+  },
+  {
+    "type": "transferOwnership",
+    "targetOwner": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+    "status": "already-set"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "not-held"
+  },
+  {
+    "type": "renounceRole",
+    "role": "GOV_ROLE",
+    "status": "not-held"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "not-held"
+  },
+  {
+    "type": "renounceRole",
+    "role": "GOV_ROLE",
+    "status": "not-held"
+  },
+  {
+    "type": "renounceRole",
+    "role": "DEFAULT_ADMIN_ROLE",
+    "status": "not-held"
+  },
+  {
+    "type": "renounceRole",
+    "role": "GOV_ROLE",
+    "status": "not-held"
+  }
+]

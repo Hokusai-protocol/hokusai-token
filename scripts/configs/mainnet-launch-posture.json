@@ -17,7 +17,7 @@
     "InfrastructureReserve": { "type": "accesscontrol", "admin": "TIMELOCK" },
     "UsageFeeRouter": { "type": "accesscontrol", "admin": "TIMELOCK" },
     "InfrastructureCostOracle": { "type": "accesscontrol", "admin": "TIMELOCK" },
-    "PoolProxyAdmin": { "type": "ownable", "owner": "TIMELOCK" }
+    "PoolProxyAdmin": { "type": "ownable", "owner": "TIMELOCK", "abi": "HokusaiPoolProxyAdmin" }
   },
   "deltaVerifier": {
     "legacyMintsDisabled": true,

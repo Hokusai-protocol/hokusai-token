@@ -482,7 +482,7 @@ async function assertLaunchPosture({ hre, config, deployment }) {
   // `ownershipAudit` config block (absent in test/sepolia configs, so they are unaffected).
   const ownershipDeployer = resolveExpectedValue("DEPLOYER", context);
   for (const [contractName, spec] of Object.entries(config.ownershipAudit || {})) {
-    const abiName = spec.abiFrom ? deployment.contracts[spec.abiFrom] || contractName : contractName;
+    const abiName = spec.abi || (spec.abiFrom ? deployment.contracts[spec.abiFrom] || contractName : contractName);
     const address = deployment.contracts[contractName];
     const contract = await hre.ethers.getContractAt(abiName, address);
 

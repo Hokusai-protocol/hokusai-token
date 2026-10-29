@@ -23,7 +23,7 @@ const hre = require("hardhat");
 const { ethers } = hre;
 
 const ROOT = path.resolve(__dirname, "..", "..");
-const addresses = require(path.join(ROOT, "deployments", "mainnet.addresses.json"));
+const addresses = require(path.join(ROOT, "deployments", "legacy-2026-07", "mainnet.addresses.json"));
 const OUT_DIR = path.join(ROOT, "deployments", "legacy-drain");
 
 const DRAIN_MODELS = (process.env.DRAIN_MODELS || "30,28,27").split(",");

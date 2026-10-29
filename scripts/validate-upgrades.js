@@ -1,11 +1,16 @@
 // Storage-layout and upgrade-safety gate for proxied contracts (HOK-3281).
 // Fails if HokusaiAMM is unsafe as a transparent-proxy implementation (e.g. a
-// constructor that writes state, selfdestruct, delegatecall, immutables) or if
-// the reference V2 can no longer be laid over it.
+// constructor that writes state, selfdestruct, delegatecall, immutables), if it
+// is no longer a storage-compatible upgrade of the implementation released to
+// mainnet (contracts/released, PROXY-M1), or if the reference V2 can no longer
+// be laid over it.
 const { ethers, upgrades } = require("hardhat");
 
 const IMPLEMENTATIONS = ["HokusaiAMM"];
-const UPGRADE_PAIRS = [["HokusaiAMM", "HokusaiAMMV2Mock"]];
+const UPGRADE_PAIRS = [
+  ["HokusaiAMMReleasedV1", "HokusaiAMM"],
+  ["HokusaiAMM", "HokusaiAMMV2Mock"],
+];
 
 async function main() {
   for (const name of IMPLEMENTATIONS) {

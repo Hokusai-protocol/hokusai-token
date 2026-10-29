@@ -1,4 +1,4 @@
 {
-  "filter_paths": "node_modules|contracts/mocks|contracts/echidna",
+  "filter_paths": "node_modules|contracts/mocks|contracts/echidna|contracts/released",
   "exclude_dependencies": true
 }

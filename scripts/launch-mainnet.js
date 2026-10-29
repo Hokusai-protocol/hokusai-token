@@ -62,13 +62,15 @@ const DEPLOY_CMD = IS_MAINNET
 const POOLS_CMD = IS_MAINNET
   ? `LAUNCH_TOKEN_KEYS=${TOKEN_KEYS} npx hardhat run scripts/create-mainnet-pools.js --network ${NET}`
   : `npx hardhat run scripts/create-sepolia-test-tokens.js --network ${NET}`;
+// Pre-handoff the DEPLOYER holds DeltaVerifier DEFAULT_ADMIN and ModelRegistry ownership, so
+// the mainnet posture is generated as a bundle (decoded + reviewable) and executed by the
+// deployer, as at the July 2026 launch. The Safe could not execute it before the handoff.
 const POSTURE_PHASE = IS_MAINNET
   ? {
-      name: "posture-safe-bundle",
-      kind: "safe-bundle",
-      desc: "Generate the Safe bundle for mint posture: disableLegacyMints (G-2) + attester registry + per-model mint budget + weight-genesis. Submit via the admin Safe.",
-      cmd: `HARDHAT_NETWORK=${NET} node scripts/init-launch-posture.js --safe-txs ${SAFE_BUNDLE}`,
-      stop: `Submit ${SAFE_BUNDLE} via the admin Safe (Transaction Builder), wait for execution, THEN resume:\n      node scripts/launch-mainnet.js --network ${NET} --from verify-posture-pre`,
+      name: "posture-execute",
+      kind: "deployer",
+      desc: "Generate the mint-posture bundle (disableLegacyMints (G-2) + attester registry + per-model mint budget + weight-genesis) and execute it with the deployer key.",
+      cmd: `HARDHAT_NETWORK=${NET} node scripts/init-launch-posture.js --safe-txs ${SAFE_BUNDLE} && HARDHAT_NETWORK=${NET} node scripts/execute-posture-mainnet.js`,
     }
   : {
       name: "posture-execute",
@@ -105,6 +107,19 @@ const PHASES = [
     kind: "gate",
     desc: "GATE: mint posture green (legacyMintsDisabled, attesters, budgets, genesis) before handoff. Ownership audit is deferred to verify-posture-post (ownership hasn't been handed off yet).",
     cmd: `HARDHAT_NETWORK=${NET} node scripts/verify-launch-posture.js --skip-ownership`,
+  },
+  {
+    name: "token-ownership-safe-bundle",
+    kind: "safe-bundle",
+    desc: "HOK-3318: generate the admin Safe batch moving every launch token's ownership (setController) to the timelock.",
+    cmd: `HARDHAT_NETWORK=${NET} node scripts/governance/token-ownership-safe-bundle.js bundle`,
+    stop: `Submit deployments/${NET}-token-ownership-safe.json via the admin Safe (Transaction Builder), wait for execution, THEN resume:\n      node scripts/launch-mainnet.js --network ${NET} --from verify-token-ownership`,
+  },
+  {
+    name: "verify-token-ownership",
+    kind: "gate",
+    desc: "GATE: every launch token is owned by the timelock before the handoff.",
+    cmd: `HARDHAT_NETWORK=${NET} node scripts/governance/token-ownership-safe-bundle.js check`,
   },
   {
     name: "confirm-handoff",

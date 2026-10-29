@@ -1,0 +1,284 @@
+{
+  "network": "mainnet",
+  "chainId": "1",
+  "dryRun": false,
+  "timestamp": "2026-10-29T14:12:41.459Z",
+  "git": {
+    "sha": "b25566090d32e392520f9c0ebd7814e87c60f961",
+    "dirty": false
+  },
+  "scriptSha": "dabe2ee6542feeae82464c4651b9e230b5e5caa5a8116eb106728f6907ea273a",
+  "deployer": "0xa95082413ce1F28FA67c94484152e88634d8dc88",
+  "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+  "backendService": "0xc18D0B6eE049B2B113eE4671cB9C8109192e29E2",
+  "contracts": {
+    "ModelRegistry": "0x2B8aA4BC2d2697320EAEA52D0CB5e10d64b4092B",
+    "TokenDeploymentFactory": "0xB45f025020aFe76c4fad5F5e728483EC0D9aa5fb",
+    "TokenManager": "0x160fB59d80492c3867890b71e4328178Dfa15Fe6",
+    "_tokenManagerImpl": "DeployableTokenManager",
+    "RewardVestingVault": "0x9A4eB33E514A3467DAC18eE2dfd22C252CE00723",
+    "DataContributionRegistry": "0xbAeFbD373f95c17F7e8DDf54Afb460f1E34C7991",
+    "HokusaiAMMFactory": "0x60d6ff0C55d9ED13Ba681AD1549f19A3071B55C5",
+    "HokusaiAMMPoolDeployer": "0x6000df3c4ed51517Ce5d8E464210C0a90b7A2AC0",
+    "HokusaiAMMImplementation": "0xeD84be69eF58e75c477047916Cdf2B5f14064cD9",
+    "PoolProxyAdmin": "0x345e7FaBC8Ae2160ba2a36B7E3FBD72D3890e834",
+    "PurchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
+    "InfrastructureReserve": "0x57dbb1f8C980222E98871425f0e7Ddd8C8d8F2f4",
+    "InfrastructureCostOracle": "0x6475c5df7CF361F33DE786568F386054F0efFE25",
+    "UsageFeeRouter": "0x13eC591CA4a2D9E70C64434c6E8d11543bE77fD5",
+    "DeltaVerifier": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853"
+  },
+  "deploymentBlocks": {
+    "ModelRegistry": 26298878,
+    "TokenDeploymentFactory": 26298880,
+    "TokenManager": 26298881,
+    "RewardVestingVault": 26298884,
+    "DataContributionRegistry": 26298887,
+    "HokusaiAMMFactory": 26298890,
+    "HokusaiAMMPoolDeployer": 26298892,
+    "PurchaserWhitelist": 26298898,
+    "InfrastructureReserve": 26298899,
+    "InfrastructureCostOracle": 26298901,
+    "UsageFeeRouter": 26298903,
+    "DeltaVerifier": 26298910
+  },
+  "roles": {
+    "ModelRegistry": {
+      "owner": "0xa95082413ce1F28FA67c94484152e88634d8dc88",
+      "stringModelTokenManager": "0x160fB59d80492c3867890b71e4328178Dfa15Fe6",
+      "poolRegistrar": "0x60d6ff0C55d9ED13Ba681AD1549f19A3071B55C5"
+    },
+    "TokenManager": {
+      "owner": "0xa95082413ce1F28FA67c94484152e88634d8dc88",
+      "deltaVerifier": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
+      "vestingVault": "0x9A4eB33E514A3467DAC18eE2dfd22C252CE00723"
+    },
+    "PurchaserWhitelist": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ],
+      "WHITELIST_ADMIN_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ]
+    },
+    "DataContributionRegistry": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ],
+      "RECORDER_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88",
+        "0x645bfdFD78BEA0eC8D3e783E4993c70035761853"
+      ],
+      "VERIFIER_ROLE": [
+        "0xc18D0B6eE049B2B113eE4671cB9C8109192e29E2"
+      ]
+    },
+    "InfrastructureReserve": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ],
+      "DEPOSITOR_ROLE": [
+        "0x13eC591CA4a2D9E70C64434c6E8d11543bE77fD5"
+      ],
+      "PAYER_ROLE": [
+        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+      ]
+    },
+    "UsageFeeRouter": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ],
+      "FEE_DEPOSITOR_ROLE": [
+        "0xa95082413ce1f28fa67c94484152e88634d8dc88",
+        "0xc18d0b6ee049b2b113ee4671cb9c8109192e29e2"
+      ]
+    },
+    "DeltaVerifier": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ],
+      "PAUSER_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ],
+      "SUBMITTER_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ]
+    },
+    "InfrastructureCostOracle": {
+      "DEFAULT_ADMIN_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ],
+      "GOV_ROLE": [
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
+      ]
+    }
+  },
+  "config": {
+    "reserveToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "purchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
+    "factoryDefaults": {
+      "crr": 200000,
+      "tradeFee": 30,
+      "ibrDuration": 604800,
+      "flatCurveThreshold": "25000000000",
+      "flatCurvePrice": 10000
+    },
+    "deltaVerifierParams": {
+      "baseRewardRate": 1000,
+      "minImprovementBps": 100,
+      "maxReward": "2500000000000000000000000"
+    },
+    "infrastructureCostOracleParams": {
+      "initialGrossMarginBps": 1500
+    },
+    "expectedChainId": "1"
+  },
+  "gasUsed": {
+    "wiring": {
+      "setVestingVault": "47897",
+      "setStringModelTokenManager": "47543",
+      "factorySetPoolDeployer": "77683",
+      "factorySetDefaults": "33051",
+      "factoryPoolRegistrar": "47727",
+      "infraDepositorRole": "51235",
+      "infraPayerRole": "51211",
+      "feeRouterDepositorRole": "51304",
+      "contributionRegistryRecorderRole": "51239",
+      "contributionRegistryVerifierRole": "51251",
+      "setDeltaVerifier": "47910"
+    },
+    "ModelRegistry": "2433273",
+    "TokenDeploymentFactory": "5330390",
+    "TokenManager": "3913339",
+    "RewardVestingVault": "1074256",
+    "DataContributionRegistry": "2209245",
+    "HokusaiAMMFactory": "3392834",
+    "HokusaiAMMPoolDeployer": "5103183",
+    "PurchaserWhitelist": "812844",
+    "InfrastructureReserve": "3186780",
+    "InfrastructureCostOracle": "1265384",
+    "UsageFeeRouter": "2430997",
+    "DeltaVerifier": "4592200",
+    "totalGas": "36302776",
+    "totalCostWei": "5083089401543109",
+    "totalCostEth": "0.005083089401543109"
+  },
+  "notes": {
+    "purchaserWhitelistGatingDefault": true,
+    "rewardVestingVaultWired": true
+  },
+  "tokens": [
+    {
+      "configKey": "hmess",
+      "modelId": "28",
+      "name": "Hokusai Messaging",
+      "symbol": "HMESS",
+      "address": "0x2f3216DC669A7981bC0873214ba62Cf3527ebD66",
+      "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "supplierAllocation": "2500000000000000000000000",
+      "investorAllocation": "10000000000000000000000000",
+      "maxSupply": "12500000000000000000000000",
+      "distributionTiming": "post-verification",
+      "paramsAddress": "0x85CCF89A5C1122fbd5b5043486618fBD8d125B64",
+      "vestingConfig": {
+        "enabled": true,
+        "immediateUnlockBps": 1000,
+        "vestingDurationSeconds": 31536000,
+        "cliffSeconds": 0
+      },
+      "modelSupplierDistributed": false,
+      "supplierImmediateAmount": "250000000000000000000000",
+      "supplierVestedAmount": "2250000000000000000000000"
+    },
+    {
+      "configKey": "hlead",
+      "modelId": "27",
+      "name": "Hokusai Sales Lead Scoring",
+      "symbol": "HLEAD",
+      "address": "0x81c7C304FAAbB29436DACdc9efca6629dEBEE3A4",
+      "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "supplierAllocation": "1250000000000000000000000",
+      "investorAllocation": "10000000000000000000000000",
+      "maxSupply": "11250000000000000000000000",
+      "distributionTiming": "post-verification",
+      "paramsAddress": "0x98A04C34fe2BE9d5D98A9a360fC9799F475a15A2",
+      "vestingConfig": {
+        "enabled": true,
+        "immediateUnlockBps": 1000,
+        "vestingDurationSeconds": 31536000,
+        "cliffSeconds": 0
+      },
+      "modelSupplierDistributed": false,
+      "supplierImmediateAmount": "125000000000000000000000",
+      "supplierVestedAmount": "1125000000000000000000000"
+    },
+    {
+      "configKey": "hrout",
+      "modelId": "30",
+      "name": "Hokusai Task Routing",
+      "symbol": "HROUT",
+      "address": "0xfC35fDb18bb015D4DC05B5f60d77753A4B6d3799",
+      "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "supplierAllocation": "2500000000000000000000000",
+      "investorAllocation": "10000000000000000000000000",
+      "maxSupply": "12500000000000000000000000",
+      "distributionTiming": "post-verification",
+      "paramsAddress": "0xFA6aF8bF2F2266281e34A10c014b5234ff849309",
+      "vestingConfig": {
+        "enabled": true,
+        "immediateUnlockBps": 1000,
+        "vestingDurationSeconds": 31536000,
+        "cliffSeconds": 0
+      },
+      "modelSupplierDistributed": false,
+      "supplierImmediateAmount": "250000000000000000000000",
+      "supplierVestedAmount": "2250000000000000000000000"
+    }
+  ],
+  "pools": [
+    {
+      "configKey": "hmess",
+      "modelId": "28",
+      "tokenAddress": "0x2f3216DC669A7981bC0873214ba62Cf3527ebD66",
+      "ammAddress": "0x0da186a5608Fc08B3bC1200953F495baC0F5AC84",
+      "purchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
+      "initialReserve": "10000000",
+      "crr": 200000,
+      "tradeFee": 30,
+      "ibrDuration": 604800,
+      "ibrEndsAt": "2026-11-05T15:46:26.709Z",
+      "flatCurveThreshold": "25000.0",
+      "flatCurvePrice": "0.01"
+    },
+    {
+      "configKey": "hlead",
+      "modelId": "27",
+      "tokenAddress": "0x81c7C304FAAbB29436DACdc9efca6629dEBEE3A4",
+      "ammAddress": "0x287f2E95ea02e22A719273Ad298e9cCB7F907ceC",
+      "purchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
+      "initialReserve": "10000000",
+      "crr": 200000,
+      "tradeFee": 30,
+      "ibrDuration": 604800,
+      "ibrEndsAt": "2026-11-05T15:48:15.212Z",
+      "flatCurveThreshold": "25000.0",
+      "flatCurvePrice": "0.01"
+    },
+    {
+      "configKey": "hrout",
+      "modelId": "30",
+      "tokenAddress": "0xfC35fDb18bb015D4DC05B5f60d77753A4B6d3799",
+      "ammAddress": "0x026DdABc0dF1010c871BAf19d9F2ED8DF148b400",
+      "purchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
+      "initialReserve": "10000000",
+      "crr": 200000,
+      "tradeFee": 30,
+      "ibrDuration": 604800,
+      "ibrEndsAt": "2026-11-05T15:49:51.596Z",
+      "flatCurveThreshold": "25000.0",
+      "flatCurvePrice": "0.01"
+    }
+  ],
+  "poolsCreatedAt": "2026-10-29T15:49:51.596Z",
+  "pendingActionsPath": "deployments/mainnet-pending-actions-2026-10-29T15-49-51-596Z.json"
+}

@@ -1,0 +1,29 @@
+{
+  "createdAt": "2026-10-29T13:56:12.560Z",
+  "actions": [
+    {
+      "modelId": "28",
+      "tokenAddress": "0xFEFB5B86e56cF48D862A0bE09f1b1C9378620DcC",
+      "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "amount": "2500000000000000000000000",
+      "signer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "reason": "post-verification supplier mint"
+    },
+    {
+      "modelId": "27",
+      "tokenAddress": "0xd641Cb9E78c81e577F8e7f0FBFC6e5557CDB2FdF",
+      "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "amount": "1250000000000000000000000",
+      "signer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "reason": "post-verification supplier mint"
+    },
+    {
+      "modelId": "30",
+      "tokenAddress": "0xEE36091db26E92191343ACbca2Ca2452dAaBA884",
+      "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
+      "amount": "2500000000000000000000000",
+      "signer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "reason": "post-verification supplier mint"
+    }
+  ]
+}

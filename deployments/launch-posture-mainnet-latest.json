@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-07-02T00:49:16.824Z",
+  "timestamp": "2026-10-29T16:14:25.621Z",
   "network": "mainnet",
-  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/scripts/configs/mainnet-launch-posture.json",
-  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/deployments/mainnet-latest.json",
+  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/.claude/worktrees/hok-3291/scripts/configs/mainnet-launch-posture.json",
+  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/.claude/worktrees/hok-3291/deployments/mainnet-latest.json",
   "overall": "pass",
   "assertions": [
     {
@@ -95,8 +95,8 @@
     {
       "name": "model.27.tokenOwner",
       "passed": true,
-      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
-      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "expected": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+      "actual": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
       "message": "token owner is the expected authority (governor cannot hijack controller)"
     },
     {
@@ -123,8 +123,8 @@
     {
       "name": "model.28.tokenOwner",
       "passed": true,
-      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
-      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "expected": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+      "actual": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
       "message": "token owner is the expected authority (governor cannot hijack controller)"
     },
     {
@@ -151,43 +151,43 @@
     {
       "name": "model.30.tokenOwner",
       "passed": true,
-      "expected": "0x158B985CC667b4E022AD05B99E89007790da66E2",
-      "actual": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+      "expected": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+      "actual": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
       "message": "token owner is the expected authority (governor cannot hijack controller)"
     },
     {
       "name": "wiring.DeltaVerifier.modelRegistry",
       "passed": true,
-      "expected": "0x0a09B52fE6b55dE42676b3F68BED76793FB9FEe9",
-      "actual": "0x0a09B52fE6b55dE42676b3F68BED76793FB9FEe9",
+      "expected": "0x2B8aA4BC2d2697320EAEA52D0CB5e10d64b4092B",
+      "actual": "0x2B8aA4BC2d2697320EAEA52D0CB5e10d64b4092B",
       "message": "wiring matches"
     },
     {
       "name": "wiring.DeltaVerifier.tokenManager",
       "passed": true,
-      "expected": "0xBD0A038C211A7694893506483EC458Bb7c8F473c",
-      "actual": "0xBD0A038C211A7694893506483EC458Bb7c8F473c",
+      "expected": "0x160fB59d80492c3867890b71e4328178Dfa15Fe6",
+      "actual": "0x160fB59d80492c3867890b71e4328178Dfa15Fe6",
       "message": "wiring matches"
     },
     {
       "name": "wiring.DeltaVerifier.contributionRegistry",
       "passed": true,
-      "expected": "0x7eeC766aF367a4F7B8C38FD2a4bAFDA81df123d3",
-      "actual": "0x7eeC766aF367a4F7B8C38FD2a4bAFDA81df123d3",
+      "expected": "0xbAeFbD373f95c17F7e8DDf54Afb460f1E34C7991",
+      "actual": "0xbAeFbD373f95c17F7e8DDf54Afb460f1E34C7991",
       "message": "wiring matches"
     },
     {
       "name": "wiring.TokenManager.deltaVerifier",
       "passed": true,
-      "expected": "0xE9D40B96703391464bc6b0ea0b4F0404399AaCE7",
-      "actual": "0xE9D40B96703391464bc6b0ea0b4F0404399AaCE7",
+      "expected": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
+      "actual": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
       "message": "wiring matches"
     },
     {
       "name": "wiring.ModelRegistry.stringModelTokenManager",
       "passed": true,
-      "expected": "0xBD0A038C211A7694893506483EC458Bb7c8F473c",
-      "actual": "0xBD0A038C211A7694893506483EC458Bb7c8F473c",
+      "expected": "0x160fB59d80492c3867890b71e4328178Dfa15Fe6",
+      "actual": "0x160fB59d80492c3867890b71e4328178Dfa15Fe6",
       "message": "wiring matches"
     },
     {
@@ -282,11 +282,11 @@
       "name": "roleAudit.DataContributionRegistry.RECORDER_ROLE.expected",
       "passed": true,
       "expected": [
-        "0xe9d40b96703391464bc6b0ea0b4f0404399aace7"
+        "0x645bfdfd78bea0ec8d3e783e4993c70035761853"
       ],
       "actual": {
         "actual": [
-          "0xe9d40b96703391464bc6b0ea0b4f0404399aace7"
+          "0x645bfdfd78bea0ec8d3e783e4993c70035761853"
         ],
         "missing": [],
         "unexpected": []
@@ -350,6 +350,13 @@
         "deployerHeld": false
       },
       "message": "admin held by expected authority, deployer revoked"
+    },
+    {
+      "name": "ownershipAudit.PoolProxyAdmin.owner",
+      "passed": true,
+      "expected": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+      "actual": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+      "message": "owner is the expected authority, deployer not owner"
     }
   ],
   "failures": []

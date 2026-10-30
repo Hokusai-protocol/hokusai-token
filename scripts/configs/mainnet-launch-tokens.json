@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "_governorNote": "H-1 mitigation: every token governor MUST equal requiredGovernor (the admin Safe). Because the factory transfers token Ownable ownership to the governor, and owner can call setController, a non-Safe governor could repoint the controller and bypass DeltaVerifier mint controls. loadLaunchTokensConfig enforces governor == requiredGovernor; the launch-posture verifier additionally asserts on-chain token.owner() == adminSafe.",
+  "_governorNote": "H-1 mitigation: every token governor MUST equal requiredGovernor (the admin Safe). Because the factory transfers token Ownable ownership to the governor, and owner can call setController, a non-Safe governor could repoint the controller and bypass DeltaVerifier mint controls. loadLaunchTokensConfig enforces governor == requiredGovernor; the launch-posture verifier additionally asserts on-chain token.owner() == adminSafe. HOK-3318: after creation the Safe transfers each token's ownership to the 48h timelock (scripts/governance/token-ownership-safe-bundle.js), and posture asserts token.owner() == timelock.",
   "requiredGovernor": "0x158B985CC667b4E022AD05B99E89007790da66E2",
   "tokens": [
     {
@@ -28,7 +28,7 @@
         "name": "HMESS Pool",
         "performanceMetric": "accuracy",
         "initialReserveUsdc": "10",
-        "crr": 300000,
+        "crr": 200000,
         "tradeFee": 30,
         "ibrSeconds": 604800,
         "flatCurveThresholdUsdc": "25000",
@@ -60,7 +60,7 @@
         "name": "HLEAD Pool",
         "performanceMetric": "accuracy",
         "initialReserveUsdc": "10",
-        "crr": 100000,
+        "crr": 200000,
         "tradeFee": 30,
         "ibrSeconds": 604800,
         "flatCurveThresholdUsdc": "25000",

@@ -18,7 +18,7 @@ const path = require("path");
 const { ethers } = require("ethers");
 
 const ROOT = path.resolve(__dirname, "..", "..");
-const addresses = require(path.join(ROOT, "deployments", "mainnet.addresses.json"));
+const addresses = require(path.join(ROOT, "deployments", "legacy-2026-07", "mainnet.addresses.json"));
 const abi = (name) =>
   require(path.join(ROOT, "artifacts", "contracts", `${name}.sol`, `${name}.json`)).abi;
 

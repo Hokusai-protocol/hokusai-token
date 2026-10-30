@@ -2,81 +2,83 @@
   "network": "mainnet",
   "chainId": "1",
   "dryRun": false,
-  "timestamp": "2026-07-01T21:16:41.832Z",
+  "timestamp": "2026-10-29T14:12:41.459Z",
   "git": {
-    "sha": "ae33b842b2438b15a085eb4597518a60bdcfe975",
-    "dirty": true
+    "sha": "b25566090d32e392520f9c0ebd7814e87c60f961",
+    "dirty": false
   },
-  "scriptSha": "7ac13bce54e925198a0ca027f573ab8a1020ab90d87489705f849645853e07aa",
-  "deployer": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+  "scriptSha": "dabe2ee6542feeae82464c4651b9e230b5e5caa5a8116eb106728f6907ea273a",
+  "deployer": "0xa95082413ce1F28FA67c94484152e88634d8dc88",
   "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
-  "backendService": null,
+  "backendService": "0xc18D0B6eE049B2B113eE4671cB9C8109192e29E2",
   "contracts": {
-    "ModelRegistry": "0x0a09B52fE6b55dE42676b3F68BED76793FB9FEe9",
-    "TokenDeploymentFactory": "0x9C1cAeE153bd96b437CDE97B3a535893c3b4cfcf",
-    "TokenManager": "0xBD0A038C211A7694893506483EC458Bb7c8F473c",
+    "ModelRegistry": "0x2B8aA4BC2d2697320EAEA52D0CB5e10d64b4092B",
+    "TokenDeploymentFactory": "0xB45f025020aFe76c4fad5F5e728483EC0D9aa5fb",
+    "TokenManager": "0x160fB59d80492c3867890b71e4328178Dfa15Fe6",
     "_tokenManagerImpl": "DeployableTokenManager",
-    "RewardVestingVault": "0x69a1A7fF6b765B27a4436EB7AC343b13abE523a5",
-    "DataContributionRegistry": "0x7eeC766aF367a4F7B8C38FD2a4bAFDA81df123d3",
-    "HokusaiAMMFactory": "0xC0d2958E54A8FBAf7E0ed054Ff885227804FE3B4",
-    "HokusaiAMMPoolDeployer": "0x920cFfF8276a3E422690138410b60a70C8243269",
-    "PurchaserWhitelist": "0x7304dC498D5d7Ef0674891D7260d00Ea3ff37569",
-    "InfrastructureReserve": "0x2A15930649801398896e9b61BF36E555FA942c9D",
-    "InfrastructureCostOracle": "0x75c6Ae951b734cd0abf89e5C16941F77576239DC",
-    "UsageFeeRouter": "0xa0f3461d594D181E817754eE57d618A95207185F",
-    "DeltaVerifier": "0xE9D40B96703391464bc6b0ea0b4F0404399AaCE7"
+    "RewardVestingVault": "0x9A4eB33E514A3467DAC18eE2dfd22C252CE00723",
+    "DataContributionRegistry": "0xbAeFbD373f95c17F7e8DDf54Afb460f1E34C7991",
+    "HokusaiAMMFactory": "0x60d6ff0C55d9ED13Ba681AD1549f19A3071B55C5",
+    "HokusaiAMMPoolDeployer": "0x6000df3c4ed51517Ce5d8E464210C0a90b7A2AC0",
+    "HokusaiAMMImplementation": "0xeD84be69eF58e75c477047916Cdf2B5f14064cD9",
+    "PoolProxyAdmin": "0x345e7FaBC8Ae2160ba2a36B7E3FBD72D3890e834",
+    "PurchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
+    "InfrastructureReserve": "0x57dbb1f8C980222E98871425f0e7Ddd8C8d8F2f4",
+    "InfrastructureCostOracle": "0x6475c5df7CF361F33DE786568F386054F0efFE25",
+    "UsageFeeRouter": "0x13eC591CA4a2D9E70C64434c6E8d11543bE77fD5",
+    "DeltaVerifier": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853"
   },
   "deploymentBlocks": {
-    "ModelRegistry": 25440259,
-    "TokenDeploymentFactory": 25440260,
-    "TokenManager": 25440261,
-    "RewardVestingVault": 25440263,
-    "DataContributionRegistry": 25440265,
-    "HokusaiAMMFactory": 25440268,
-    "HokusaiAMMPoolDeployer": 25440270,
-    "PurchaserWhitelist": 25440282,
-    "InfrastructureReserve": 25440284,
-    "InfrastructureCostOracle": 25440285,
-    "UsageFeeRouter": 25440286,
-    "DeltaVerifier": 25440289
+    "ModelRegistry": 26298878,
+    "TokenDeploymentFactory": 26298880,
+    "TokenManager": 26298881,
+    "RewardVestingVault": 26298884,
+    "DataContributionRegistry": 26298887,
+    "HokusaiAMMFactory": 26298890,
+    "HokusaiAMMPoolDeployer": 26298892,
+    "PurchaserWhitelist": 26298898,
+    "InfrastructureReserve": 26298899,
+    "InfrastructureCostOracle": 26298901,
+    "UsageFeeRouter": 26298903,
+    "DeltaVerifier": 26298910
   },
   "roles": {
     "ModelRegistry": {
-      "owner": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
-      "stringModelTokenManager": "0xBD0A038C211A7694893506483EC458Bb7c8F473c",
-      "poolRegistrar": "0xC0d2958E54A8FBAf7E0ed054Ff885227804FE3B4"
+      "owner": "0xa95082413ce1F28FA67c94484152e88634d8dc88",
+      "stringModelTokenManager": "0x160fB59d80492c3867890b71e4328178Dfa15Fe6",
+      "poolRegistrar": "0x60d6ff0C55d9ED13Ba681AD1549f19A3071B55C5"
     },
     "TokenManager": {
-      "owner": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
-      "deltaVerifier": "0xE9D40B96703391464bc6b0ea0b4F0404399AaCE7",
-      "vestingVault": "0x69a1A7fF6b765B27a4436EB7AC343b13abE523a5"
+      "owner": "0xa95082413ce1F28FA67c94484152e88634d8dc88",
+      "deltaVerifier": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
+      "vestingVault": "0x9A4eB33E514A3467DAC18eE2dfd22C252CE00723"
     },
     "PurchaserWhitelist": {
       "DEFAULT_ADMIN_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ],
       "WHITELIST_ADMIN_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ]
     },
     "DataContributionRegistry": {
       "DEFAULT_ADMIN_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ],
       "RECORDER_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
-        "0xE9D40B96703391464bc6b0ea0b4F0404399AaCE7"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88",
+        "0x645bfdFD78BEA0eC8D3e783E4993c70035761853"
       ],
       "VERIFIER_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xc18D0B6eE049B2B113eE4671cB9C8109192e29E2"
       ]
     },
     "InfrastructureReserve": {
       "DEFAULT_ADMIN_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ],
       "DEPOSITOR_ROLE": [
-        "0xa0f3461d594D181E817754eE57d618A95207185F"
+        "0x13eC591CA4a2D9E70C64434c6E8d11543bE77fD5"
       ],
       "PAYER_ROLE": [
         "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
@@ -84,35 +86,36 @@
     },
     "UsageFeeRouter": {
       "DEFAULT_ADMIN_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ],
       "FEE_DEPOSITOR_ROLE": [
-        "0x56ca22006d67e14aa1b7820ce02c6b6205df0c9e"
+        "0xa95082413ce1f28fa67c94484152e88634d8dc88",
+        "0xc18d0b6ee049b2b113ee4671cb9c8109192e29e2"
       ]
     },
     "DeltaVerifier": {
       "DEFAULT_ADMIN_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ],
       "PAUSER_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ],
       "SUBMITTER_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ]
     },
     "InfrastructureCostOracle": {
       "DEFAULT_ADMIN_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ],
       "GOV_ROLE": [
-        "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e"
+        "0xa95082413ce1F28FA67c94484152e88634d8dc88"
       ]
     }
   },
   "config": {
     "reserveToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    "purchaserWhitelist": "0x7304dC498D5d7Ef0674891D7260d00Ea3ff37569",
+    "purchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
     "factoryDefaults": {
       "crr": 200000,
       "tradeFee": 30,
@@ -132,45 +135,37 @@
   },
   "gasUsed": {
     "wiring": {
-      "setVestingVault": "47941",
+      "setVestingVault": "47897",
       "setStringModelTokenManager": "47543",
-      "factorySetPoolDeployer": "47449",
-      "factorySetDefaults": "33050",
+      "factorySetPoolDeployer": "77683",
+      "factorySetDefaults": "33051",
       "factoryPoolRegistrar": "47727",
-      "infraDepositorRole": "51213",
-      "infraPayerRole": "51189",
-      "contributionRegistryRecorderRole": "51251",
-      "setDeltaVerifier": "47966"
+      "infraDepositorRole": "51235",
+      "infraPayerRole": "51211",
+      "feeRouterDepositorRole": "51304",
+      "contributionRegistryRecorderRole": "51239",
+      "contributionRegistryVerifierRole": "51251",
+      "setDeltaVerifier": "47910"
     },
-    "ModelRegistry": "2392429",
+    "ModelRegistry": "2433273",
     "TokenDeploymentFactory": "5330390",
-    "TokenManager": "3949630",
+    "TokenManager": "3913339",
     "RewardVestingVault": "1074256",
     "DataContributionRegistry": "2209245",
-    "HokusaiAMMFactory": "2368840",
-    "HokusaiAMMPoolDeployer": "2999422",
-    "PurchaserWhitelist": "812832",
-    "InfrastructureReserve": "3186680",
-    "InfrastructureCostOracle": "1265372",
-    "UsageFeeRouter": "2425036",
+    "HokusaiAMMFactory": "3392834",
+    "HokusaiAMMPoolDeployer": "5103183",
+    "PurchaserWhitelist": "812844",
+    "InfrastructureReserve": "3186780",
+    "InfrastructureCostOracle": "1265384",
+    "UsageFeeRouter": "2430997",
     "DeltaVerifier": "4592200",
-    "totalGas": "33031661",
-    "totalCostWei": "6756891078974688",
-    "totalCostEth": "0.006756891078974688"
+    "totalGas": "36302776",
+    "totalCostWei": "5083089401543109",
+    "totalCostEth": "0.005083089401543109"
   },
   "notes": {
     "purchaserWhitelistGatingDefault": true,
     "rewardVestingVaultWired": true
-  },
-  "governance": {
-    "timelock": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
-    "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
-    "emergencySafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
-    "minDelay": 172800,
-    "deployedAt": "2026-07-01T21:17:16.884Z",
-    "transferredAt": "2026-07-01T22:04:04.112Z",
-    "dryRun": false,
-    "actionCount": 41
   },
   "tokens": [
     {
@@ -178,20 +173,20 @@
       "modelId": "28",
       "name": "Hokusai Messaging",
       "symbol": "HMESS",
-      "address": "0x559028b237ff7d4b019d90250D70c604f4894379",
+      "address": "0x2f3216DC669A7981bC0873214ba62Cf3527ebD66",
       "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
       "supplierAllocation": "2500000000000000000000000",
       "investorAllocation": "10000000000000000000000000",
       "maxSupply": "12500000000000000000000000",
       "distributionTiming": "post-verification",
-      "paramsAddress": "0xDd1A79F0B587fA6d2335ce5bF84E9D2c0Dd445D3",
+      "paramsAddress": "0x85CCF89A5C1122fbd5b5043486618fBD8d125B64",
       "vestingConfig": {
         "enabled": true,
         "immediateUnlockBps": 1000,
         "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
-      "modelSupplierDistributed": true,
+      "modelSupplierDistributed": false,
       "supplierImmediateAmount": "250000000000000000000000",
       "supplierVestedAmount": "2250000000000000000000000"
     },
@@ -200,20 +195,20 @@
       "modelId": "27",
       "name": "Hokusai Sales Lead Scoring",
       "symbol": "HLEAD",
-      "address": "0x25618B023c0e65E4daDb21ee04dc010AaE84B1F5",
+      "address": "0x81c7C304FAAbB29436DACdc9efca6629dEBEE3A4",
       "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
       "supplierAllocation": "1250000000000000000000000",
       "investorAllocation": "10000000000000000000000000",
       "maxSupply": "11250000000000000000000000",
       "distributionTiming": "post-verification",
-      "paramsAddress": "0x4Bc46f0553cB5f8bDeCb7157f5488388eD31Fd7f",
+      "paramsAddress": "0x98A04C34fe2BE9d5D98A9a360fC9799F475a15A2",
       "vestingConfig": {
         "enabled": true,
         "immediateUnlockBps": 1000,
         "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
-      "modelSupplierDistributed": true,
+      "modelSupplierDistributed": false,
       "supplierImmediateAmount": "125000000000000000000000",
       "supplierVestedAmount": "1125000000000000000000000"
     },
@@ -222,20 +217,20 @@
       "modelId": "30",
       "name": "Hokusai Task Routing",
       "symbol": "HROUT",
-      "address": "0x8866f3262621daBCC973f6D3A4953E7ad9F56D39",
+      "address": "0xfC35fDb18bb015D4DC05B5f60d77753A4B6d3799",
       "supplierRecipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
       "supplierAllocation": "2500000000000000000000000",
       "investorAllocation": "10000000000000000000000000",
       "maxSupply": "12500000000000000000000000",
       "distributionTiming": "post-verification",
-      "paramsAddress": "0x61E0B132b57f512Ec7384b9cBA0fA73bc940DeF0",
+      "paramsAddress": "0xFA6aF8bF2F2266281e34A10c014b5234ff849309",
       "vestingConfig": {
         "enabled": true,
         "immediateUnlockBps": 1000,
         "vestingDurationSeconds": 31536000,
         "cliffSeconds": 0
       },
-      "modelSupplierDistributed": true,
+      "modelSupplierDistributed": false,
       "supplierImmediateAmount": "250000000000000000000000",
       "supplierVestedAmount": "2250000000000000000000000"
     }
@@ -244,52 +239,55 @@
     {
       "configKey": "hmess",
       "modelId": "28",
-      "tokenAddress": "0x559028b237ff7d4b019d90250D70c604f4894379",
-      "ammAddress": "0xC187ffc6a465247f228a63f00C2515041792A0fA",
-      "purchaserWhitelist": "0x7304dC498D5d7Ef0674891D7260d00Ea3ff37569",
+      "tokenAddress": "0x2f3216DC669A7981bC0873214ba62Cf3527ebD66",
+      "ammAddress": "0x0da186a5608Fc08B3bC1200953F495baC0F5AC84",
+      "purchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
       "initialReserve": "10000000",
-      "crr": 300000,
+      "crr": 200000,
       "tradeFee": 30,
       "ibrDuration": 604800,
-      "ibrEndsAt": "2026-07-08T21:25:53.441Z",
+      "ibrEndsAt": "2026-11-05T15:46:26.709Z",
       "flatCurveThreshold": "25000.0",
       "flatCurvePrice": "0.01"
     },
     {
       "configKey": "hlead",
       "modelId": "27",
-      "tokenAddress": "0x25618B023c0e65E4daDb21ee04dc010AaE84B1F5",
-      "ammAddress": "0xa6D4a50496ce6808508e6DCaB19D57845D4e30e4",
-      "purchaserWhitelist": "0x7304dC498D5d7Ef0674891D7260d00Ea3ff37569",
+      "tokenAddress": "0x81c7C304FAAbB29436DACdc9efca6629dEBEE3A4",
+      "ammAddress": "0x287f2E95ea02e22A719273Ad298e9cCB7F907ceC",
+      "purchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
       "initialReserve": "10000000",
-      "crr": 100000,
+      "crr": 200000,
       "tradeFee": 30,
       "ibrDuration": 604800,
-      "ibrEndsAt": "2026-07-08T21:27:15.227Z",
+      "ibrEndsAt": "2026-11-05T15:48:15.212Z",
       "flatCurveThreshold": "25000.0",
       "flatCurvePrice": "0.01"
     },
     {
       "configKey": "hrout",
       "modelId": "30",
-      "tokenAddress": "0x8866f3262621daBCC973f6D3A4953E7ad9F56D39",
-      "ammAddress": "0x6C40EF10da0c0Fc87352b0026A49a6769af12816",
-      "purchaserWhitelist": "0x7304dC498D5d7Ef0674891D7260d00Ea3ff37569",
+      "tokenAddress": "0xfC35fDb18bb015D4DC05B5f60d77753A4B6d3799",
+      "ammAddress": "0x026DdABc0dF1010c871BAf19d9F2ED8DF148b400",
+      "purchaserWhitelist": "0xd4efF2C5094bE6150bA48C6590aDb7142Af7DA87",
       "initialReserve": "10000000",
       "crr": 200000,
       "tradeFee": 30,
       "ibrDuration": 604800,
-      "ibrEndsAt": "2026-07-08T21:28:40.794Z",
+      "ibrEndsAt": "2026-11-05T15:49:51.596Z",
       "flatCurveThreshold": "25000.0",
       "flatCurvePrice": "0.01"
     }
   ],
-  "poolsCreatedAt": "2026-07-01T21:28:40.795Z",
-  "pendingActionsPath": "deployments/mainnet-pending-actions.json",
-  "supplierDistribution": {
-    "status": "completed",
-    "note": "Post-verification supplier mints executed via the admin Safe (schedule -> 48h timelock -> executeBatch). Verified on-chain 2026-07-08: supplier recipient 0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136 holds the 10% immediate unlock; RewardVestingVault holds the 90% vested remainder; token totalSupply equals the full supplier allocation. The per-token modelSupplierDistributed flags were backfilled to true; mainnet-pending-actions.json is retained as an executed historical record.",
-    "recipient": "0xD1Eb2fEeFDA99a0c096DD211a27406FD167D8136",
-    "verifiedAtBlock": 25488836
+  "poolsCreatedAt": "2026-10-29T15:49:51.596Z",
+  "pendingActionsPath": "deployments/mainnet-pending-actions-2026-10-29T15-49-51-596Z.json",
+  "governance": {
+    "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+    "emergencySafe": "0x158B985CC667b4E022AD05B99E89007790da66E2",
+    "timelock": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+    "minDelay": 172800,
+    "transferredAt": "2026-10-29T16:14:05.378Z",
+    "dryRun": false,
+    "actionCount": 53
   }
 }

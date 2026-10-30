@@ -1,0 +1,246 @@
+{
+  "issue": "HOK-3290",
+  "kind": "mainnet-fork rehearsal",
+  "generatedAt": "2026-10-29T13:56:37.009Z",
+  "forkBlock": 26298803,
+  "git": {
+    "sha": "a75e22b035ccc3102732b5d3c277f0b6b8a6efe9",
+    "dirty": true
+  },
+  "timelock": {
+    "address": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8",
+    "minDelay": "172800"
+  },
+  "inputs": {
+    "treasury": "0x56cA22006d67e14AA1b7820cE02c6B6205Df0c9e",
+    "verifier": "0xc18D0B6eE049B2B113eE4671cB9C8109192e29E2",
+    "backendService": "0xc18D0B6eE049B2B113eE4671cB9C8109192e29E2",
+    "adminSafe": "0x158B985CC667b4E022AD05B99E89007790da66E2"
+  },
+  "gas": {
+    "deploy": {
+      "wiring": {
+        "setVestingVault": "47897",
+        "setStringModelTokenManager": "47543",
+        "factorySetPoolDeployer": "77695",
+        "factorySetDefaults": "33051",
+        "factoryPoolRegistrar": "47727",
+        "infraDepositorRole": "51235",
+        "infraPayerRole": "51211",
+        "feeRouterDepositorRole": "51304",
+        "contributionRegistryRecorderRole": "51251",
+        "contributionRegistryVerifierRole": "51251",
+        "setDeltaVerifier": "47922"
+      },
+      "ModelRegistry": "2433273",
+      "TokenDeploymentFactory": "5330390",
+      "TokenManager": "3913339",
+      "RewardVestingVault": "1074256",
+      "DataContributionRegistry": "2209245",
+      "HokusaiAMMFactory": "3392834",
+      "HokusaiAMMPoolDeployer": "5103183",
+      "PurchaserWhitelist": "812844",
+      "InfrastructureReserve": "3186780",
+      "InfrastructureCostOracle": "1265384",
+      "UsageFeeRouter": "2430997",
+      "DeltaVerifier": "4592200",
+      "totalGas": "36302812",
+      "totalCostWei": "36382323895438803",
+      "totalCostEth": "0.036382323895438803"
+    },
+    "buy1": "237919",
+    "buy2": "203952",
+    "buy3": "293336",
+    "sell": "217462",
+    "depositFee": "302134",
+    "upgradeExecute": "129022"
+  },
+  "checks": [
+    {
+      "name": "legacy drain dry run passes",
+      "ok": true,
+      "details": "deployments/legacy-drain/dry-run-26298803.json"
+    },
+    {
+      "name": "PoolProxyAdmin owned by deployer before handoff",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "reused timelock has the 48h production delay",
+      "ok": true,
+      "details": "172800s"
+    },
+    {
+      "name": "all launch pools created",
+      "ok": true,
+      "details": "hmess:0x3F96ef5B401e002BC2F1cad922E26A33F57Cf60B hlead:0x181cCBE0B12cD01389Aa92A1e43F3B02a41AD730 hrout:0xEBF09426F3139b51EC6edea2ad44B9f2D1836869"
+    },
+    {
+      "name": "posture gate (pre-handoff)",
+      "ok": true,
+      "details": "PASS: launch posture matches expected config"
+    },
+    {
+      "name": "launch tokens owned by the timelock (HOK-3318)",
+      "ok": true,
+      "details": "0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8 0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8 0xcd8076D7a15E97946fAD0baA32Bf358be3D927C8"
+    },
+    {
+      "name": "verify-governance",
+      "ok": true,
+      "details": "90/90"
+    },
+    {
+      "name": "posture gate (post-handoff)",
+      "ok": true,
+      "details": "PASS: launch posture matches expected config"
+    },
+    {
+      "name": "admin Safe whitelists buyers after handoff",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "pool graduated by buys",
+      "ok": true,
+      "details": "reserve $26929.0"
+    },
+    {
+      "name": "spot after graduation is at or above the flat price",
+      "ok": true,
+      "details": "$0.012997"
+    },
+    {
+      "name": "sells blocked during IBR",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "sells enabled after IBR",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "threshold-crossing buyer exits without profit",
+      "ok": true,
+      "details": "paid $9000.0, got $8946.081 in 2 sells"
+    },
+    {
+      "name": "graduated pool sells back below the threshold",
+      "ok": true,
+      "details": "reserve $8973.000001"
+    },
+    {
+      "name": "fee settlement conserves the deposit (pool + infra + treasury)",
+      "ok": true,
+      "details": "pool $200.0 infra $800.0 treasury $0.0"
+    },
+    {
+      "name": "router holds no USDC after settlement",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "PoolProxyAdmin owned by the timelock",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "upgrade queued",
+      "ok": true,
+      "details": "0x2f33259f1374c3d2b96e695a07fa9a883a1a90d8d28a8ebe284f8b96a75c8805"
+    },
+    {
+      "name": "queued upgrade id matches the timelock's hash",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "upgrade cancelled",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "emergency Safe pauses the pool without delay",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "execute before the 48h delay is rejected",
+      "ok": true,
+      "details": "VM Exception while processing transaction: reverted with reason string 'TimelockController: operation is not ready'"
+    },
+    {
+      "name": "ProxyAdmin refuses to upgrade a paused pool",
+      "ok": true,
+      "details": "VM Exception while processing transaction: reverted with reason string 'Pool exit is closed'"
+    },
+    {
+      "name": "timelock execution of the upgrade fails while paused",
+      "ok": true,
+      "details": "VM Exception while processing transaction: reverted with reason string 'TimelockController: underlying transaction reverted'"
+    },
+    {
+      "name": "admin Safe cannot upgrade directly (bypassing the timelock)",
+      "ok": true,
+      "details": "VM Exception while processing transaction: reverted with reason string 'Ownable: caller is not the owner'"
+    },
+    {
+      "name": "timelock unpauses the pool",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "proxy emitted Upgraded(V2)",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "upgraded pool points at V2",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "V2 reinitializer ran through factory.callPool",
+      "ok": true,
+      "details": "v2"
+    },
+    {
+      "name": "pool state preserved across the upgrade",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "untouched pool keeps its implementation",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "upgraded pool still trades",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "freeze executed (UpgradesFrozen)",
+      "ok": true,
+      "details": ""
+    },
+    {
+      "name": "ProxyAdmin refuses to upgrade a frozen pool",
+      "ok": true,
+      "details": "VM Exception while processing transaction: reverted with reason string 'Upgrades frozen'"
+    },
+    {
+      "name": "timelock execution of an upgrade fails after freeze",
+      "ok": true,
+      "details": "VM Exception while processing transaction: reverted with reason string 'TimelockController: underlying transaction reverted'"
+    },
+    {
+      "name": "verify-governance after the upgrade (V2 approved)",
+      "ok": true,
+      "details": "90/90"
+    }
+  ],
+  "ok": true
+}

@@ -1,8 +1,112 @@
 {
-  "mode": "dry-run",
-  "generatedAt": "2026-07-01T21:48:53.407Z",
+  "mode": "safe-txs",
+  "generatedAt": "2026-10-29T15:49:53.716Z",
   "network": "mainnet",
-  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/scripts/configs/mainnet-launch-posture.json",
-  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/deployments/mainnet-latest.json",
-  "plan": []
+  "configPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/.claude/worktrees/hok-3291/scripts/configs/mainnet-launch-posture.json",
+  "deploymentPath": "/Users/timothyogilvie/Dropbox/Hokusai/hokusai-token/.claude/worktrees/hok-3291/deployments/mainnet-latest.json",
+  "plan": [
+    {
+      "name": "addAttester:0x07bf9b22f516d2d464511219488f019c5dff5335",
+      "contractName": "DeltaVerifier",
+      "to": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
+      "method": "addAttester",
+      "args": [
+        "0x07bf9b22f516d2d464511219488f019c5dff5335"
+      ],
+      "reason": "Expected attester missing",
+      "data": "0x02bef84700000000000000000000000007bf9b22f516d2d464511219488f019c5dff5335"
+    },
+    {
+      "name": "setAttesterThreshold",
+      "contractName": "DeltaVerifier",
+      "to": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
+      "method": "setAttesterThreshold",
+      "args": [
+        "1"
+      ],
+      "reason": "Attester threshold mismatch",
+      "data": "0xae18ba2f0000000000000000000000000000000000000000000000000000000000000001"
+    },
+    {
+      "name": "setMintBudget:27",
+      "contractName": "DeltaVerifier",
+      "to": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
+      "method": "setMintBudget",
+      "args": [
+        "27",
+        "1500000000000000000000000"
+      ],
+      "reason": "Mint budget mismatch",
+      "data": "0x4970679a000000000000000000000000000000000000000000000000000000000000001b000000000000000000000000000000000000000000013da329b6336471800000"
+    },
+    {
+      "name": "setWeightGenesis:27",
+      "contractName": "ModelRegistry",
+      "to": "0x2B8aA4BC2d2697320EAEA52D0CB5e10d64b4092B",
+      "method": "setWeightGenesis",
+      "args": [
+        "27",
+        "0xc4e28d427a5d8df44fe41f8d935b0e9fbf0967ffcddbc655792b7fa836381883"
+      ],
+      "reason": "Weight genesis not seeded",
+      "data": "0xb0f65f61000000000000000000000000000000000000000000000000000000000000001bc4e28d427a5d8df44fe41f8d935b0e9fbf0967ffcddbc655792b7fa836381883"
+    },
+    {
+      "name": "setMintBudget:28",
+      "contractName": "DeltaVerifier",
+      "to": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
+      "method": "setMintBudget",
+      "args": [
+        "28",
+        "1500000000000000000000000"
+      ],
+      "reason": "Mint budget mismatch",
+      "data": "0x4970679a000000000000000000000000000000000000000000000000000000000000001c000000000000000000000000000000000000000000013da329b6336471800000"
+    },
+    {
+      "name": "setWeightGenesis:28",
+      "contractName": "ModelRegistry",
+      "to": "0x2B8aA4BC2d2697320EAEA52D0CB5e10d64b4092B",
+      "method": "setWeightGenesis",
+      "args": [
+        "28",
+        "0xebdae89e4af29e80ffb0c02e3fdfbc4614658c3b3ff9ff5922e1c746bf0476c4"
+      ],
+      "reason": "Weight genesis not seeded",
+      "data": "0xb0f65f61000000000000000000000000000000000000000000000000000000000000001cebdae89e4af29e80ffb0c02e3fdfbc4614658c3b3ff9ff5922e1c746bf0476c4"
+    },
+    {
+      "name": "setMintBudget:30",
+      "contractName": "DeltaVerifier",
+      "to": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
+      "method": "setMintBudget",
+      "args": [
+        "30",
+        "1500000000000000000000000"
+      ],
+      "reason": "Mint budget mismatch",
+      "data": "0x4970679a000000000000000000000000000000000000000000000000000000000000001e000000000000000000000000000000000000000000013da329b6336471800000"
+    },
+    {
+      "name": "setWeightGenesis:30",
+      "contractName": "ModelRegistry",
+      "to": "0x2B8aA4BC2d2697320EAEA52D0CB5e10d64b4092B",
+      "method": "setWeightGenesis",
+      "args": [
+        "30",
+        "0xce7fc97f349f86a534d929e49738ba61e0043bed9afbc4dc7ad03754f106554c"
+      ],
+      "reason": "Weight genesis not seeded",
+      "data": "0xb0f65f61000000000000000000000000000000000000000000000000000000000000001ece7fc97f349f86a534d929e49738ba61e0043bed9afbc4dc7ad03754f106554c"
+    },
+    {
+      "name": "disableLegacyMints",
+      "contractName": "DeltaVerifier",
+      "to": "0x645bfdFD78BEA0eC8D3e783E4993c70035761853",
+      "method": "disableLegacyMints",
+      "args": [],
+      "reason": "Legacy SUBMITTER-only mint entrypoints must be disabled",
+      "data": "0x65defa0f"
+    }
+  ]
 }

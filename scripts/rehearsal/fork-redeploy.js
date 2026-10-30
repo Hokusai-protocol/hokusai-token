@@ -173,6 +173,16 @@ async function main() {
   save(outDir, "posture-pre.json", postureReportPre);
   check("posture gate (pre-handoff)", postureReportPre.failures.length === 0, formatDiff(postureReportPre).split("\n")[0]);
 
+  // HOK-3318: the Safe owns each token from creation and moves it to the timelock before the handoff.
+  const safeOwner = await tl.impersonate(hre, ADMIN_SAFE);
+  for (const pool of deployment.pools) {
+    const token = await ethers.getContractAt("HokusaiToken", pool.tokenAddress);
+    await (await token.connect(safeOwner).transferOwnership(MAINNET_TIMELOCK)).wait();
+  }
+  const tokenOwners = await Promise.all(deployment.pools.map(async (p) =>
+    (await ethers.getContractAt("HokusaiToken", p.tokenAddress)).owner()));
+  check("launch tokens owned by the timelock (HOK-3318)", tokenOwners.every((o) => o === MAINNET_TIMELOCK), tokenOwners.join(" "));
+
   // 6. Handoff ------------------------------------------------------------
   console.log("\n== 6. Governance handoff ==");
   const policy = loadPolicy();
@@ -189,9 +199,7 @@ async function main() {
   const post = loadPosture();
   const postureReportPost = await assertLaunchPosture({ hre, config: post.config, deployment });
   save(outDir, "posture-post.json", postureReportPost);
-  // Known gap (HOK-3291): the July posture config predates PoolProxyAdmin
-  // and hard-codes the July deployer, so this is recorded, not gated.
-  console.log(`  posture post-handoff (July config, informational): ${postureReportPost.failures.length} failure(s)`);
+  check("posture gate (post-handoff)", postureReportPost.failures.length === 0, formatDiff(postureReportPost).split("\n")[0]);
 
   // 7. Trading and fees --------------------------------------------------
   console.log("\n== 7. Trading and fee settlement ==");

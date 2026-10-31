@@ -1,4 +1,6 @@
 import { ethers } from 'ethers';
+import { IncidentStore } from './incident-store';
+import { normalizePhase, reserveRatio, anchoredReserveRatio } from './curve-invariant';
 import { logger } from '../utils/logger';
 import { PoolConfig, AlertThresholds } from '../config/monitoring-config';
 
@@ -28,6 +30,8 @@ export interface PoolState {
   // Core state
   reserveBalance: bigint; // USDC in pool (6 decimals)
   spotPrice: bigint; // Current price (6 decimals)
+  curveSupply?: bigint;
+  expectedReserveRatio?: number;
   tokenSupply: bigint; // Total token supply (18 decimals)
   paused: boolean; // Emergency pause state
 
@@ -55,13 +59,14 @@ export interface StateAlert {
     | 'supply_anomaly'
     | 'true_supply_mismatch'
     | 'paused'
+    | 'condition_recovered'
     | 'low_reserve'
     | 'high_fees'
     // HOK-1698: monitor-level ingestion health (not pool-specific; carries no currentState).
     | 'stale_ingestion'
     | 'ingestion_recovered'
     | 'rpc_primary_recovered';
-  priority: 'critical' | 'high' | 'medium';
+  priority: 'critical' | 'high' | 'medium' | 'info';
   poolAddress: string;
   modelId: string;
   message: string;
@@ -100,9 +105,16 @@ export class StateTracker {
   // Track active alert conditions to prevent duplicate alerts
   // Key: poolAddress:alertType, Value: timestamp when alert became active
   private activeAlerts: Map<string, number> = new Map();
+  private hydrated = new Set<string>();
+  private inFlight = new Set<string>();
+  private pauseFirstObserved = new Map<string, number>();
+  private recoveries: Array<{ poolAddress: string; condition: string }> = [];
 
   // AMM Pool ABI
   private static readonly POOL_ABI = [
+    'function getReserves() view returns (uint256 reserve, uint256 supply)',
+    'function graduationSupply() view returns (uint256)',
+    'function anchorBasisSupply() view returns (uint256)',
     'function reserveBalance() view returns (uint256)',
     'function spotPrice() view returns (uint256)',
     'function hokusaiToken() view returns (address)',
@@ -134,6 +146,9 @@ export class StateTracker {
     provider: ethers.Provider,
     thresholds: AlertThresholds,
     callbacks: StateTrackerCallbacks = {},
+    private store = new IncidentStore('local'),
+    private confirmations = 2,
+    private requireAnchoredCurve = false,
   ) {
     this.provider = provider;
     this.thresholds = thresholds;
@@ -261,12 +276,35 @@ export class StateTracker {
    * Poll pool state
    */
   private async pollPoolState(poolConfig: PoolConfig): Promise<void> {
-    const { ammAddress, modelId, crr } = poolConfig;
-
+    const { ammAddress, modelId } = poolConfig;
+    if (this.inFlight.has(ammAddress)) {
+      return;
+    }
+    this.inFlight.add(ammAddress);
     try {
+      if (!this.hydrated.has(ammAddress)) {
+        const saved = await this.store.get<{ active: Array<[string, number]>; pause?: number }>(
+          `state:${ammAddress}`,
+        );
+        for (const [key, value] of saved?.active || []) {
+          this.activeAlerts.set(key, value);
+        }
+        if (saved?.pause) {
+          this.pauseFirstObserved.set(ammAddress, saved.pause);
+        }
+        this.hydrated.add(ammAddress);
+      }
       // Get current block
-      const blockNumber = await this.provider.getBlockNumber();
-      const timestamp = Math.floor(Date.now() / 1000);
+      const blockNumber = Math.max(
+        0,
+        (await this.provider.getBlockNumber()) - this.confirmations + 1,
+      );
+      const blockTag = { blockTag: blockNumber };
+      const sampledBlock = await this.provider.getBlock(blockNumber);
+      if (!sampledBlock) {
+        throw new Error('State block unavailable');
+      }
+      const timestamp = sampledBlock.timestamp;
 
       // Create contract instances
       const pool = new ethers.Contract(ammAddress, StateTracker.POOL_ABI, this.provider);
@@ -339,14 +377,14 @@ export class StateTracker {
         fetchedThreshold,
         fetchedPrice,
       ] = await Promise.all([
-        reserveBalanceFn(),
-        spotPriceFn(),
-        pausedFn(),
-        totalSupplyFn(),
-        balanceOfFn(ammAddress),
-        getCurrentPhaseFn(),
-        flatCurveThreshold ? Promise.resolve(flatCurveThreshold) : getThresholdFn(),
-        flatCurvePrice ? Promise.resolve(flatCurvePrice) : getPriceFn(),
+        reserveBalanceFn(blockTag),
+        spotPriceFn(blockTag),
+        pausedFn(blockTag),
+        totalSupplyFn(blockTag),
+        balanceOfFn(ammAddress, blockTag),
+        getCurrentPhaseFn(blockTag),
+        flatCurveThreshold ? Promise.resolve(flatCurveThreshold) : getThresholdFn(blockTag),
+        flatCurvePrice ? Promise.resolve(flatCurvePrice) : getPriceFn(blockTag),
       ]);
 
       // Cache immutable phase parameters
@@ -365,23 +403,41 @@ export class StateTracker {
         );
       }
 
-      // Calculate derived metrics
+      const reserves = await pool.getFunction('getReserves')(blockTag);
+      const curveSupply = BigInt(reserves[1]);
+      // getPhaseInfo and getReserves use the manager's redeemable supply, excluding locked allocations.
+      const anchorResults = await Promise.allSettled([
+        pool.getFunction('graduationSupply')(blockTag),
+        pool.getFunction('anchorBasisSupply')(blockTag),
+      ]);
+      for (const result of anchorResults) {
+        if (
+          result.status === 'rejected' &&
+          (this.requireAnchoredCurve || !ethers.isError(result.reason, 'CALL_EXCEPTION'))
+        ) {
+          throw result.reason;
+        }
+      }
+      const anchorsPresent = anchorResults.every((r) => r.status === 'fulfilled');
+      const phase = normalizePhase(currentPhase);
+      const liveCrr = Number(await pool.getFunction('crr')(blockTag));
+      const expectedReserveRatio = anchorsPresent
+        ? anchoredReserveRatio(
+            curveSupply,
+            BigInt((anchorResults[0] as PromiseFulfilledResult<bigint>).value),
+            BigInt((anchorResults[1] as PromiseFulfilledResult<bigint>).value),
+            liveCrr,
+          )
+        : liveCrr / 1_000_000;
       const reserveUSD = Number(ethers.formatUnits(reserveBalance, 6));
       const priceUSD = Number(ethers.formatUnits(spotPrice, 6));
       const supplyFormatted = Number(ethers.formatEther(tokenSupply));
-
-      // Market cap approximation: reserve / (CRR / 1000000)
-      const marketCapUSD = reserveUSD / (crr / 1000000);
-
-      // Reserve ratio: (reserve / price) / supply
-      // Accounting for decimals: reserve (6), price (6), supply (18)
-      // Formula: (reserve * 1e18) / (price * supply * 1e6)
-      // This should match CRR if bonding curve is working correctly
-      let reserveRatio = 0;
-      if (spotPrice > 0n && tokenSupply > 0n) {
-        reserveRatio =
-          (Number(reserveBalance) * 1e18) / (Number(spotPrice) * Number(tokenSupply) * 1e6);
-      }
+      const marketCapUSD = priceUSD * supplyFormatted;
+      const actualReserveRatio = reserveRatio(
+        BigInt(reserveBalance),
+        BigInt(spotPrice),
+        curveSupply,
+      );
 
       // Treasury fees = contract balance - tracked reserve
       const treasuryFees = BigInt(contractUSDCBalance) - BigInt(reserveBalance);
@@ -396,14 +452,16 @@ export class StateTracker {
         spotPrice,
         tokenSupply,
         paused,
-        pricingPhase: currentPhase as 0 | 1,
+        pricingPhase: phase,
+        curveSupply,
+        expectedReserveRatio,
         flatCurveThreshold: flatCurveThreshold!,
         flatCurvePrice: flatCurvePrice!,
         reserveUSD,
         priceUSD,
         supplyFormatted,
         marketCapUSD,
-        reserveRatio,
+        reserveRatio: actualReserveRatio,
         contractUSDCBalance,
         treasuryFees,
       };
@@ -411,9 +469,19 @@ export class StateTracker {
       // Store state
       this.addStateToHistory(ammAddress, state);
 
-      // Check for anomalies
-      await this.checkAnomalies(state, poolConfig);
+      // Roll back transition state when notification delivery fails, so the next sample retries.
+      const activeBefore = new Map(this.activeAlerts);
+      try {
+        await this.checkAnomalies(state, poolConfig);
+      } catch (error) {
+        this.activeAlerts = activeBefore;
+        throw error;
+      }
 
+      await this.store.put(`state:${ammAddress}`, {
+        active: [...this.activeAlerts].filter(([key]) => key.startsWith(`${ammAddress}:`)),
+        pause: this.pauseFirstObserved.get(ammAddress),
+      });
       // Notify callback
       if (this.callbacks.onStateUpdate) {
         await this.callbacks.onStateUpdate(state);
@@ -421,6 +489,8 @@ export class StateTracker {
     } catch (error) {
       logger.error(`Failed to poll state for ${modelId} at ${ammAddress}:`, error);
       throw error;
+    } finally {
+      this.inFlight.delete(ammAddress);
     }
   }
 
@@ -447,7 +517,8 @@ export class StateTracker {
    */
   private isAlertActive(poolAddress: string, alertType: string): boolean {
     const key = `${poolAddress}:${alertType}`;
-    return this.activeAlerts.has(key);
+    const last = this.activeAlerts.get(key);
+    return last !== undefined && Date.now() - last < 6 * 3600_000;
   }
 
   /**
@@ -463,7 +534,9 @@ export class StateTracker {
    */
   private clearAlert(poolAddress: string, alertType: string): void {
     const key = `${poolAddress}:${alertType}`;
-    this.activeAlerts.delete(key);
+    if (this.activeAlerts.delete(key)) {
+      this.recoveries.push({ poolAddress, condition: alertType });
+    }
   }
 
   /**
@@ -471,8 +544,8 @@ export class StateTracker {
    */
   private async checkAnomalies(currentState: PoolState, poolConfig: PoolConfig): Promise<void> {
     const history = this.poolStates.get(currentState.poolAddress);
-    if (!history || history.length < 2) {
-      return; // Need at least 2 states to compare
+    if (!history) {
+      return;
     }
 
     const alerts: StateAlert[] = [];
@@ -490,8 +563,16 @@ export class StateTracker {
     // Check if paused
     const pausedAlertType = 'paused';
     if (currentState.paused) {
-      const pausedDuration = this.getPausedDuration(currentState.poolAddress);
+      if (!this.pauseFirstObserved.has(currentState.poolAddress)) {
+        this.pauseFirstObserved.set(currentState.poolAddress, Date.now());
+      }
+      const firstObserved = this.pauseFirstObserved.get(currentState.poolAddress)!;
+      const pausedDuration = Date.now() - firstObserved;
+      const maintenanceUntil = await this.store.get<number>(
+        `maintenance:${currentState.poolAddress}`,
+      );
       const isPausedConditionMet =
+        (!maintenanceUntil || maintenanceUntil <= Date.now()) &&
         pausedDuration > this.thresholds.pausedDurationHours * 60 * 60 * 1000;
 
       if (isPausedConditionMet && !this.isAlertActive(currentState.poolAddress, pausedAlertType)) {
@@ -501,12 +582,13 @@ export class StateTracker {
           priority: 'critical',
           poolAddress: currentState.poolAddress,
           modelId: currentState.modelId,
-          message: `Pool has been paused for ${(pausedDuration / (60 * 60 * 1000)).toFixed(1)} hours`,
+          message: `Pool observed paused for ${(pausedDuration / 3600_000).toFixed(1)} hours (first observed ${new Date(firstObserved).toISOString()})`,
           currentState,
-          metadata: { pausedDurationMs: pausedDuration },
+          metadata: { pausedDurationMs: pausedDuration, firstObservedAt: firstObserved },
         });
       }
     } else {
+      this.pauseFirstObserved.delete(currentState.poolAddress);
       // No longer paused, clear alert
       this.clearAlert(currentState.poolAddress, pausedAlertType);
     }
@@ -517,15 +599,13 @@ export class StateTracker {
       alerts.push(supplyInvariantAlert);
     }
 
+    const reserveDropAlert = this.checkReserveDrop(currentState, history);
+    if (reserveDropAlert) {
+      alerts.push(reserveDropAlert);
+    }
     // PHASE-AWARE: Only check percentage-based alerts in bonding curve phase
     if (!isBootstrapPhase) {
       logger.debug(`Running bonding curve phase alerts for ${currentState.modelId}`);
-
-      // Check reserve drop
-      const reserveDropAlert = this.checkReserveDrop(currentState, history);
-      if (reserveDropAlert) {
-        alerts.push(reserveDropAlert);
-      }
 
       // Check low reserve (absolute minimum)
       const lowReserveAlertType = 'low_reserve';
@@ -564,7 +644,7 @@ export class StateTracker {
       // Bootstrap phase: Count which alerts were suppressed
       logger.debug(`Suppressing percentage-based alerts for ${currentState.modelId} (flat phase)`);
 
-      const potentialAlerts = ['reserve_drop', 'price_spike', 'supply_anomaly', 'low_reserve'];
+      const potentialAlerts = ['price_spike', 'supply_anomaly', 'low_reserve'];
       for (const alertType of potentialAlerts) {
         this.suppressedAlertCount++;
         this.suppressedAlertsByType.set(
@@ -596,8 +676,26 @@ export class StateTracker {
       this.clearAlert(currentState.poolAddress, highFeesAlertType);
     }
 
+    const resolved = this.recoveries.filter((r) => r.poolAddress === currentState.poolAddress);
+    this.recoveries = this.recoveries.filter((r) => r.poolAddress !== currentState.poolAddress);
+    for (const recovery of resolved) {
+      alerts.push({
+        type: 'condition_recovered',
+        priority: 'info',
+        poolAddress: currentState.poolAddress,
+        modelId: currentState.modelId,
+        currentState,
+        message: `Recovered: ${recovery.condition} on model ${currentState.modelId}`,
+        metadata: { condition: recovery.condition },
+      });
+    }
     // Send alerts
     for (const alert of alerts) {
+      alert.metadata = {
+        ...alert.metadata,
+        incidentStartedAt:
+          this.activeAlerts.get(`${alert.poolAddress}:${alert.type}`) ?? Date.now(),
+      };
       if (this.callbacks.onAlert) {
         await this.callbacks.onAlert(alert);
       }
@@ -777,39 +875,11 @@ export class StateTracker {
       return null;
     }
 
-    // In flat phase, supply invariant is complex due to fixed pricing
-    // For MVP, only validate in bonding curve phase where math is well-defined
-    if (pricingPhase === 0) {
-      logger.debug(
-        `Skipping supply invariant check for ${currentState.modelId} (flat phase - complex validation)`,
-      );
+    if (pricingPhase === 0 || !currentState.curveSupply) {
       this.clearAlert(currentState.poolAddress, alertType);
       return null;
     }
-
-    // BONDING CURVE PHASE: Validate reserve ratio
-    // However, pools that graduated from flat price phase have an initial reserve/supply ratio
-    // that doesn't match the bonding curve invariant (tokens were minted at fixed price).
-    // Skip validation for recently graduated pools (reserve near initial reserve).
-
-    // Check if pool appears to be freshly deployed/graduated with minimal trading
-    // Heuristic: If reserve is close to flatCurveThreshold, likely just graduated
-    const thresholdUSD = Number(currentState.flatCurveThreshold) / 1e6;
-    const marginPercent = 0.15; // 15% margin below threshold
-    const minReserveForValidation = thresholdUSD * (1 + marginPercent);
-
-    if (currentState.reserveUSD < minReserveForValidation) {
-      logger.debug(
-        `Skipping supply invariant check for ${currentState.modelId} (recently graduated, reserve ${currentState.reserveUSD} < ${minReserveForValidation.toFixed(0)} validation threshold)`,
-      );
-      this.clearAlert(currentState.poolAddress, alertType);
-      return null;
-    }
-
-    // The reserve ratio should match CRR: R / (P * S) = w
-    // Where w = CRR in decimal form (e.g., 0.1 for 10%)
-
-    const expectedRatio = crr / 1000000; // CRR in decimal form (ppm to decimal)
+    const expectedRatio = currentState.expectedReserveRatio ?? crr / 1_000_000;
     const actualRatio = currentState.reserveRatio; // Already calculated in PoolState
 
     // Tolerance: 5% deviation allowed
@@ -817,7 +887,7 @@ export class StateTracker {
     // - Rounding in power function calculations
     // - Small precision losses in fixed-point math
     // - Fee accumulation edge cases
-    const tolerance = 0.05;
+    const tolerance = Math.max(0.05, 1 / Number(spotPrice));
 
     const deviation = Math.abs(actualRatio - expectedRatio) / expectedRatio;
 
@@ -839,7 +909,7 @@ export class StateTracker {
           priority: 'critical',
           poolAddress: currentState.poolAddress,
           modelId: currentState.modelId,
-          message: `Supply/reserve ratio deviates from bonding curve: actual ${actualRatio.toFixed(4)} vs expected ${expectedRatio.toFixed(4)} (${(deviation * 100).toFixed(1)}% deviation). Possible unauthorized minting/burning detected.`,
+          message: `Supply/reserve ratio deviates from bonding curve: actual ${actualRatio.toFixed(4)} vs expected ${expectedRatio.toFixed(4)} (${(deviation * 100).toFixed(1)}% deviation). Curve pricing/accounting inconsistency detected.`,
           currentState,
           metadata: {
             expectedRatio,
@@ -865,33 +935,6 @@ export class StateTracker {
     });
 
     return null;
-  }
-
-  /**
-   * Get paused duration in milliseconds
-   */
-  private getPausedDuration(poolAddress: string): number {
-    const history = this.poolStates.get(poolAddress) || [];
-
-    // Find when pool was first paused
-    for (let i = history.length - 1; i >= 0; i--) {
-      const currentState = history[i];
-      if (currentState && !currentState.paused) {
-        // Found first non-paused state, calculate duration since then
-        const pausedSince = history[i + 1];
-        if (pausedSince) {
-          return Date.now() - pausedSince.timestamp * 1000;
-        }
-      }
-    }
-
-    // If all history is paused, use oldest timestamp
-    const firstState = history[0];
-    if (history.length > 0 && firstState?.paused) {
-      return Date.now() - firstState.timestamp * 1000;
-    }
-
-    return 0;
   }
 
   /**

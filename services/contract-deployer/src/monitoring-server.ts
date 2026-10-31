@@ -121,7 +121,10 @@ async function main(): Promise<void> {
     const { createMonitoringConfig } = await import('./config/monitoring-config');
     const monitoringConfig = createMonitoringConfig();
 
-    const ammMonitor = new AMMMonitor(monitoringConfig);
+    if (monitoringConfig.network === 'mainnet' && (!redis || !redis.isReady)) {
+      throw new Error('Mainnet monitoring requires Redis for durable incident state');
+    }
+    const ammMonitor = new AMMMonitor(monitoringConfig, redis || undefined);
 
     // Start monitoring
     logger.info('[MONITORING-SERVER] Starting AMM monitoring...');

@@ -1,3 +1,4 @@
+import { IncidentStore } from './incident-store';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { logger } from '../utils/logger';
@@ -26,6 +27,9 @@ export interface AlertManagerConfig {
   cloudWatchEnabled: boolean;
   metricsNamespace: string; // e.g. "Hokusai/ContractMonitoring"
   environment: string; // dimension value, e.g. "sepolia" | "mainnet"
+  chainId?: number;
+  deployment?: string;
+  network?: string;
   metricsRegion?: string; // defaults to AWS_REGION / awsSesRegion
 
   // Rate limiting (per alert type)
@@ -51,7 +55,6 @@ export class AlertManager {
 
   // Alert tracking for rate limiting
   private alertHistory: Map<string, AlertRecord[]> = new Map();
-  private recentAlerts: Set<string> = new Set(); // For deduplication
 
   // Statistics
   private stats = {
@@ -62,7 +65,12 @@ export class AlertManager {
     alertsByPriority: new Map<string, number>(),
   };
 
-  constructor(config: AlertManagerConfig) {
+  constructor(
+    config: AlertManagerConfig,
+    private store = new IncidentStore(
+      `${config.environment}:${config.chainId ?? 'unknown'}:${config.deployment ?? 'unknown'}`,
+    ),
+  ) {
     this.config = config;
 
     // Initialize SES client
@@ -120,6 +128,21 @@ export class AlertManager {
               Timestamp: new Date(),
               Dimensions: dimensions,
             },
+            ...(this.config.chainId && this.config.deployment
+              ? [
+                  {
+                    MetricName: metricName,
+                    Value: value,
+                    Unit: unit,
+                    Timestamp: new Date(),
+                    Dimensions: [
+                      ...dimensions,
+                      { Name: 'ChainId', Value: String(this.config.chainId) },
+                      { Name: 'Deployment', Value: this.config.deployment.toLowerCase() },
+                    ],
+                  },
+                ]
+              : []),
           ],
         }),
       );
@@ -166,7 +189,7 @@ export class AlertManager {
 
     // Check if this is a duplicate (deduplication)
     const alertKey = this.getAlertKey(alert);
-    if (this.isDuplicate(alertKey)) {
+    if (await this.store.get(`sent:${alertKey}`)) {
       this.stats.totalAlertsDeduplicated++;
       logger.debug(`Alert deduplicated: ${alertKey}`);
       return false;
@@ -182,31 +205,44 @@ export class AlertManager {
       return false;
     }
 
-    // Record alert
-    this.recordAlert(alert);
-
-    // Send via configured channels
-    let sent = false;
-
-    if (this.config.emailEnabled) {
-      try {
-        await this.sendEmailAlert(alert);
-        sent = true;
-        this.stats.totalAlertsSent++;
-      } catch (error) {
-        logger.error('Failed to send email alert', { error, alert });
-      }
+    if (!(await this.store.claim(`lock:${alertKey}`, 30_000))) {
+      return false;
     }
+    try {
+      // Record alert
+      this.recordAlert(alert);
 
-    // Update statistics
-    const typeKey = alert.type;
-    this.stats.alertsByType.set(typeKey, (this.stats.alertsByType.get(typeKey) || 0) + 1);
-    this.stats.alertsByPriority.set(
-      alert.priority,
-      (this.stats.alertsByPriority.get(alert.priority) || 0) + 1,
-    );
+      // Send via configured channels
+      let sent = false;
 
-    return sent;
+      if (this.config.emailEnabled) {
+        try {
+          await this.sendEmailAlert(alert);
+          sent = true;
+          this.stats.totalAlertsSent++;
+        } catch (error) {
+          logger.error('Failed to send email alert', { error, alert });
+          throw error;
+        }
+      }
+
+      // Update statistics
+      const typeKey = alert.type;
+      this.stats.alertsByType.set(typeKey, (this.stats.alertsByType.get(typeKey) || 0) + 1);
+      this.stats.alertsByPriority.set(
+        alert.priority,
+        (this.stats.alertsByPriority.get(alert.priority) || 0) + 1,
+      );
+
+      if (sent || !this.config.emailEnabled) {
+        const ttl =
+          'event' in alert ? 7 * 86400_000 : Math.max(1, this.config.deduplicationWindowMs);
+        await this.store.put(`sent:${alertKey}`, true, ttl);
+      }
+      return sent;
+    } finally {
+      await this.store.remove(`lock:${alertKey}`);
+    }
   }
 
   /**
@@ -249,10 +285,11 @@ export class AlertManager {
       critical: '🚨 CRITICAL',
       high: '⚠️  HIGH',
       medium: '📊 MEDIUM',
+      info: '✅ INFO',
     };
 
     const prefix = priorityPrefix[alert.priority];
-    return `${prefix}: Hokusai AMM Alert - ${alert.type.replace(/_/g, ' ').toUpperCase()}`;
+    return `${prefix}: Hokusai AMM Alert [${this.config.network || this.config.environment} / chain ${this.config.chainId ?? 'unknown'} / ${this.config.deployment || 'unknown'}] - ${alert.type.replace(/_/g, ' ').toUpperCase()}`;
   }
 
   /**
@@ -263,6 +300,7 @@ export class AlertManager {
       critical: '#DC2626',
       high: '#EA580C',
       medium: '#2563EB',
+      info: '#059669',
     };
 
     const color = priorityColor[alert.priority];
@@ -314,6 +352,7 @@ export class AlertManager {
     <div class="content">
       <div class="alert-info">
         <h2>${alert.type.replace(/_/g, ' ').toUpperCase()}</h2>
+        <p><strong>Network:</strong> ${this.config.network || this.config.environment} | Chain: ${this.config.chainId ?? 'unknown'} | Deployment: ${this.config.deployment || 'unknown'}</p>
         <p><strong>Priority:</strong> ${alert.priority.toUpperCase()}</p>
         <p><strong>Message:</strong> ${alert.message}</p>
         <p><strong>Time:</strong> ${timestamp}</p>
@@ -596,35 +635,23 @@ export class AlertManager {
   private getAlertKey(alert: StateAlert | EventAlert): string {
     if ('poolAddress' in alert) {
       // StateAlert
-      return `${alert.type}:${alert.poolAddress}:${alert.priority}`;
+      return `${alert.type}:${alert.poolAddress}:${alert.priority}:${alert.metadata?.condition || ''}:${alert.metadata?.incidentStartedAt ?? ''}`;
     } else {
       // EventAlert
-      return `${alert.type}:${alert.priority}:${alert.message}`;
+      const event = alert.event;
+      return event.transactionHash
+        ? `${alert.type}:${event.transactionHash}:${event.logIndex ?? 'unknown'}`
+        : `${alert.type}:${alert.message}`;
     }
-  }
-
-  /**
-   * Check if alert is a duplicate within deduplication window
-   */
-  private isDuplicate(alertKey: string): boolean {
-    if (this.recentAlerts.has(alertKey)) {
-      return true;
-    }
-
-    // Add to recent alerts with expiration
-    this.recentAlerts.add(alertKey);
-    const deduplicationTimer = setTimeout(() => {
-      this.recentAlerts.delete(alertKey);
-    }, this.config.deduplicationWindowMs);
-    deduplicationTimer.unref?.();
-
-    return false;
   }
 
   /**
    * Check if alert should be rate limited
    */
   private isRateLimited(alert: StateAlert | EventAlert): boolean {
+    if (alert.priority === 'critical') {
+      return false;
+    }
     const alertType = alert.type;
     const now = Date.now();
 
@@ -703,7 +730,7 @@ export class AlertManager {
         (sum, h) => sum + h.length,
         0,
       ),
-      recentAlertsSize: this.recentAlerts.size,
+      recentAlertsSize: 0, // deduplication state is stored durably
     };
   }
 

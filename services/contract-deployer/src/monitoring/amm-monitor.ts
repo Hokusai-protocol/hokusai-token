@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { IncidentStore, MonitoringRedis } from './incident-store';
 import { ethers } from 'ethers';
 import { logger } from '../utils/logger';
 import {
@@ -94,7 +97,7 @@ export class AMMMonitor {
   private alerts: Array<StateAlert | EventAlert> = [];
   private events: Array<TradeEvent | SecurityEvent | FeeEvent> = [];
 
-  constructor(config?: MonitoringConfig) {
+  constructor(config?: MonitoringConfig, redis?: MonitoringRedis) {
     // Load or use provided config
     this.config = config || createMonitoringConfig();
 
@@ -109,29 +112,54 @@ export class AMMMonitor {
       }
     }
 
+    const store = new IncidentStore(
+      `${this.config.chainId}:${this.config.contracts.ammFactory.toLowerCase()}`,
+      redis,
+    );
+    const confirmations = Number(process.env.MONITORING_CONFIRMATIONS || '2');
+    if (!Number.isInteger(confirmations) || confirmations < 1 || confirmations > 64) {
+      throw new Error('MONITORING_CONFIRMATIONS must be an integer from 1 to 64');
+    }
     // Initialize components
-    this.poolDiscovery = new PoolDiscovery(this.provider, this.config.contracts.ammFactory);
+    this.poolDiscovery = new PoolDiscovery(
+      this.provider,
+      this.config.contracts.ammFactory,
+      this.config.network === 'mainnet',
+    );
 
-    this.stateTracker = new StateTracker(this.provider, this.config.thresholds, {
-      onStateUpdate: (state) => {
-        this.metricsCollector.updatePoolState(state);
-        return Promise.resolve();
+    this.stateTracker = new StateTracker(
+      this.provider,
+      this.config.thresholds,
+      {
+        onStateUpdate: (state) => {
+          this.metricsCollector.updatePoolState(state);
+          return Promise.resolve();
+        },
+        onAlert: (alert) => this.handleAlert(alert),
       },
-      onAlert: (alert) => this.handleAlert(alert),
-    });
+      store,
+      confirmations,
+      this.config.network === 'mainnet',
+    );
 
-    this.eventListener = new EventListener(this.provider, this.config.thresholds, {
-      onTradeEvent: (event) => {
-        this.metricsCollector.recordTrade(event);
-        return this.logTradeEvent(event);
+    this.eventListener = new EventListener(
+      this.provider,
+      this.config.thresholds,
+      {
+        onTradeEvent: (event) => {
+          this.metricsCollector.recordTrade(event);
+          return this.logTradeEvent(event);
+        },
+        onSecurityEvent: (event) => this.logSecurityEvent(event),
+        onFeeEvent: (event) => {
+          this.metricsCollector.recordFeeDeposit(event);
+          return this.logFeeEvent(event);
+        },
+        onAlert: (alert) => this.handleAlert(alert),
       },
-      onSecurityEvent: (event) => this.logSecurityEvent(event),
-      onFeeEvent: (event) => {
-        this.metricsCollector.recordFeeDeposit(event);
-        return this.logFeeEvent(event);
-      },
-      onAlert: (alert) => this.handleAlert(alert),
-    });
+      store,
+      confirmations,
+    );
 
     this.metricsCollector = new MetricsCollector();
 
@@ -154,7 +182,10 @@ export class AMMMonitor {
       environment: process.env.HOKUSAI_ENVIRONMENT || process.env.ENVIRONMENT || 'development',
     };
 
-    this.alertManager = new AlertManager(alertManagerConfig);
+    alertManagerConfig.network = this.config.network;
+    alertManagerConfig.chainId = this.config.chainId;
+    alertManagerConfig.deployment = this.config.contracts.ammFactory;
+    this.alertManager = new AlertManager(alertManagerConfig, store);
 
     logger.info('AMM Monitor initialized');
   }
@@ -192,6 +223,31 @@ export class AMMMonitor {
         await this.poolDiscovery.discoverExistingPools();
       }
 
+      if (this.config.network === 'mainnet') {
+        const expected = JSON.parse(
+          readFileSync(join(process.cwd(), 'deployments', 'mainnet-monitoring.json'), 'utf8'),
+        );
+        const actual = this.poolDiscovery
+          .getDiscoveredPools()
+          .map((p) => p.ammAddress.toLowerCase());
+        const contracts = this.config.contracts as unknown as Record<string, string>;
+        const addressDrift = Object.entries(expected.contracts as Record<string, string>).some(
+          ([key, address]) => contracts[key]?.toLowerCase() !== address.toLowerCase(),
+        );
+        const reconciliationDrift = Object.entries(
+          expected.environment as Record<string, string>,
+        ).some(([key, address]) => process.env[key]?.toLowerCase() !== address.toLowerCase());
+        if (
+          addressDrift ||
+          reconciliationDrift ||
+          expected.chainId !== this.config.chainId ||
+          expected.factory.toLowerCase() !== this.config.contracts.ammFactory.toLowerCase() ||
+          expected.pools.some((p: string) => !actual.includes(p.toLowerCase())) ||
+          this.errors.length > 0
+        ) {
+          throw new Error('Mainnet monitoring deployment/inventory gate failed');
+        }
+      }
       // 3. Start pool discovery listener
       if (this.config.poolDiscoveryEnabled) {
         await this.poolDiscovery.startListening(this.config.eventPollingFromBlock);
@@ -703,6 +759,7 @@ export class AMMMonitor {
       critical: '🚨',
       high: '⚠️',
       medium: '📊',
+      info: '✅',
     };
 
     logger.warn(
@@ -738,6 +795,7 @@ export class AMMMonitor {
       await this.alertManager.sendAlert(alert);
     } catch (error) {
       logger.error('Failed to send alert via AlertManager:', error);
+      throw error;
     }
   }
 

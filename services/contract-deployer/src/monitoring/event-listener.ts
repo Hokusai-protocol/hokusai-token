@@ -1,4 +1,6 @@
 import { ethers } from 'ethers';
+import { confirmEvent, ConfirmedEvent, ChainEventInput } from './chain-event';
+import { IncidentStore } from './incident-store';
 import { logger } from '../utils/logger';
 import { PoolConfig, AlertThresholds } from '../config/monitoring-config';
 
@@ -29,6 +31,8 @@ export interface TradeEvent {
   spotPriceUSD: number; // Formatted spot price
   blockNumber: number;
   transactionHash: string;
+  logIndex?: number;
+  blockHash?: string;
   timestamp: number;
 }
 
@@ -47,6 +51,8 @@ export interface SecurityEvent {
   details: Record<string, any>;
   blockNumber: number;
   transactionHash: string;
+  logIndex?: number;
+  blockHash?: string;
   timestamp: number;
 }
 
@@ -60,12 +66,14 @@ export interface FeeEvent {
   newSpotPrice: bigint;
   blockNumber: number;
   transactionHash: string;
+  logIndex?: number;
+  blockHash?: string;
   timestamp: number;
 }
 
 export interface EventAlert {
   type: 'whale_trade' | 'security_event' | 'fee_mismatch';
-  priority: 'critical' | 'high' | 'medium';
+  priority: 'critical' | 'high' | 'medium' | 'info';
   message: string;
   event: TradeEvent | SecurityEvent | FeeEvent;
   metadata?: Record<string, any>;
@@ -78,7 +86,31 @@ export interface EventListenerCallbacks {
   onAlert?: (alert: EventAlert) => Promise<void>;
 }
 
+export function loadMaintenance(): Array<{ pool: string; actors: string[]; expiresAt: string }> {
+  const entries: unknown = JSON.parse(process.env.MONITORING_MAINTENANCE_JSON || '[]');
+  if (!Array.isArray(entries)) {
+    throw new Error('Maintenance must be an array');
+  }
+  for (const entry of entries) {
+    if (
+      !entry ||
+      !ethers.isAddress(entry.pool) ||
+      !Array.isArray(entry.actors) ||
+      !entry.actors.length ||
+      !entry.actors.every(
+        (actor: unknown) => typeof actor === 'string' && ethers.isAddress(actor),
+      ) ||
+      !Number.isFinite(Date.parse(entry.expiresAt)) ||
+      Date.parse(entry.expiresAt) > Date.now() + 86400_000
+    ) {
+      throw new Error('Maintenance requires a pool, expected actors and expiry within 24 hours');
+    }
+  }
+  return entries;
+}
+
 export class EventListener {
+  private maintenance = loadMaintenance();
   private provider: ethers.Provider;
   private thresholds: AlertThresholds;
   private callbacks: EventListenerCallbacks;
@@ -95,6 +127,7 @@ export class EventListener {
     'event Unpaused(address account)',
     'event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)',
     'event ParametersUpdated(uint256 newCrr, uint256 newTradeFee, uint16 newProtocolFee)',
+    'event ParametersUpdated(uint256 newCrr, uint256 newTradeFee)',
     'function modelId() view returns (string)',
   ];
 
@@ -110,6 +143,8 @@ export class EventListener {
     provider: ethers.Provider,
     thresholds: AlertThresholds,
     callbacks: EventListenerCallbacks = {},
+    private store = new IncidentStore('local'),
+    private confirmations = 2,
   ) {
     this.provider = provider;
     this.thresholds = thresholds;
@@ -138,82 +173,74 @@ export class EventListener {
     const pool = new ethers.Contract(ammAddress, EventListener.POOL_ABI, this.provider);
     this.poolContracts.set(ammAddress, pool);
 
-    // Listen for Buy events
-    void pool.on('Buy', (buyer, reserveIn, tokensOut, fee, spotPrice, event) => {
-      void this.handleBuyEvent(poolConfig, {
-        buyer,
-        reserveIn,
-        tokensOut,
-        fee,
-        spotPrice,
-        event,
-      }).catch((error) => {
-        logger.error(`Failed to handle Buy event for ${modelId}:`, error);
+    let queue = Promise.resolve();
+    const listen = (
+      name: string,
+      handler: (args: any[], event: ConfirmedEvent) => Promise<void>,
+    ): void => {
+      void pool.on(name, (...args: any[]) => {
+        const input = args.pop() as ChainEventInput;
+        queue = queue
+          .then(async () => {
+            const event = await confirmEvent(this.provider, input, this.confirmations);
+            if (!event) {
+              return;
+            }
+            const key = `event:${event.transactionHash}:${event.index}`;
+            if (await this.store.get(key)) {
+              return;
+            }
+            await handler(args, event);
+            await this.store.put(key, true, 7 * 86400_000);
+          })
+          .catch((error) => {
+            logger.error(`Failed to process ${name} for ${modelId}`, { error });
+          });
       });
-    });
-
-    // Listen for Sell events
-    void pool.on('Sell', (seller, tokensIn, reserveOut, fee, spotPrice, event) => {
-      void this.handleSellEvent(poolConfig, {
-        seller,
-        tokensIn,
-        reserveOut,
-        fee,
-        spotPrice,
-        event,
-      }).catch((error) => {
-        logger.error(`Failed to handle Sell event for ${modelId}:`, error);
-      });
-    });
-
-    // Listen for FeesDeposited events
-    void pool.on('FeesDeposited', (depositor, amount, newReserveBalance, newSpotPrice, event) => {
-      void this.handleFeesDepositedEvent(poolConfig, {
+    };
+    listen('Buy', ([buyer, reserveIn, tokensOut, fee, spotPrice], event) =>
+      this.handleBuyEvent(poolConfig, { buyer, reserveIn, tokensOut, fee, spotPrice, event }),
+    );
+    listen('Sell', ([seller, tokensIn, reserveOut, fee, spotPrice], event) =>
+      this.handleSellEvent(poolConfig, { seller, tokensIn, reserveOut, fee, spotPrice, event }),
+    );
+    listen('FeesDeposited', ([depositor, amount, newReserveBalance, newSpotPrice], event) =>
+      this.handleFeesDepositedEvent(poolConfig, {
         depositor,
         amount,
         newReserveBalance,
         newSpotPrice,
         event,
-      }).catch((error) => {
-        logger.error(`Failed to handle FeesDeposited event for ${modelId}:`, error);
-      });
-    });
+      }),
+    );
+    listen('Paused', ([account], event) =>
+      this.handlePausedEvent(poolConfig, account, event, true),
+    );
+    listen('Unpaused', ([account], event) =>
+      this.handlePausedEvent(poolConfig, account, event, false),
+    );
+    listen('OwnershipTransferred', ([previousOwner, newOwner], event) =>
+      this.handleOwnershipTransferredEvent(poolConfig, previousOwner, newOwner, event),
+    );
+    listen(
+      'ParametersUpdated(uint256,uint256,uint16)',
+      ([newCrr, newTradeFee, newProtocolFee], event) =>
+        this.handleParametersUpdatedEvent(poolConfig, {
+          newCrr,
+          newTradeFee,
+          newProtocolFee,
+          event,
+        }),
+    );
 
-    // Listen for Paused events
-    void pool.on('Paused', (account, event) => {
-      void this.handlePausedEvent(poolConfig, account, event, true).catch((error) => {
-        logger.error(`Failed to handle Paused event for ${modelId}:`, error);
-      });
-    });
-
-    // Listen for Unpaused events
-    void pool.on('Unpaused', (account, event) => {
-      void this.handlePausedEvent(poolConfig, account, event, false).catch((error) => {
-        logger.error(`Failed to handle Unpaused event for ${modelId}:`, error);
-      });
-    });
-
-    // Listen for OwnershipTransferred events
-    void pool.on('OwnershipTransferred', (previousOwner, newOwner, event) => {
-      void this.handleOwnershipTransferredEvent(poolConfig, previousOwner, newOwner, event).catch(
-        (error) => {
-          logger.error(`Failed to handle OwnershipTransferred event for ${modelId}:`, error);
-        },
-      );
-    });
-
-    // Listen for ParametersUpdated events
-    void pool.on('ParametersUpdated', (newCrr, newTradeFee, newProtocolFee, event) => {
-      void this.handleParametersUpdatedEvent(poolConfig, {
+    listen('ParametersUpdated(uint256,uint256)', ([newCrr, newTradeFee], event) =>
+      this.handleParametersUpdatedEvent(poolConfig, {
         newCrr,
         newTradeFee,
-        newProtocolFee,
+        newProtocolFee: 0,
         event,
-      }).catch((error) => {
-        logger.error(`Failed to handle ParametersUpdated event for ${modelId}:`, error);
-      });
-    });
-
+      }),
+    );
     this.isListening = true;
     logger.info(`Event listener started for ${modelId}`);
   }
@@ -254,7 +281,7 @@ export class EventListener {
       tokensOut: bigint;
       fee: bigint;
       spotPrice: bigint;
-      event: ethers.EventLog;
+      event: ConfirmedEvent;
     },
   ): Promise<void> {
     const { buyer, reserveIn, tokensOut, fee, spotPrice, event } = data;
@@ -274,7 +301,9 @@ export class EventListener {
       spotPriceUSD: Number(ethers.formatUnits(spotPrice, 6)),
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000),
+      timestamp: event.timestamp,
+      logIndex: event.index,
+      blockHash: event.blockHash,
     };
 
     logger.info(
@@ -319,7 +348,7 @@ export class EventListener {
       reserveOut: bigint;
       fee: bigint;
       spotPrice: bigint;
-      event: ethers.EventLog;
+      event: ConfirmedEvent;
     },
   ): Promise<void> {
     const { seller, tokensIn, reserveOut, fee, spotPrice, event } = data;
@@ -339,7 +368,9 @@ export class EventListener {
       spotPriceUSD: Number(ethers.formatUnits(spotPrice, 6)),
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000),
+      timestamp: event.timestamp,
+      logIndex: event.index,
+      blockHash: event.blockHash,
     };
 
     logger.info(
@@ -383,7 +414,7 @@ export class EventListener {
       amount: bigint;
       newReserveBalance: bigint;
       newSpotPrice: bigint;
-      event: ethers.EventLog;
+      event: ConfirmedEvent;
     },
   ): Promise<void> {
     const { depositor, amount, newReserveBalance, newSpotPrice, event } = data;
@@ -398,7 +429,9 @@ export class EventListener {
       newSpotPrice,
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000),
+      timestamp: event.timestamp,
+      logIndex: event.index,
+      blockHash: event.blockHash,
     };
 
     logger.info(`💰 FEES DEPOSITED: ${feeEvent.modelId} - $${feeEvent.amountUSD.toFixed(2)}`);
@@ -418,7 +451,7 @@ export class EventListener {
   private async handlePausedEvent(
     poolConfig: PoolConfig,
     account: string,
-    event: ethers.EventLog,
+    event: ConfirmedEvent,
     isPaused: boolean,
   ): Promise<void> {
     const securityEvent: SecurityEvent = {
@@ -430,17 +463,37 @@ export class EventListener {
       details: { paused: isPaused },
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000),
+      timestamp: event.timestamp,
+      logIndex: event.index,
+      blockHash: event.blockHash,
     };
 
     logger.warn(`🚨 ${isPaused ? 'PAUSED' : 'UNPAUSED'}: ${poolConfig.modelId} by ${account}`);
     logger.warn(`   Tx: ${event.transactionHash}`);
 
-    // Always alert on pause/unpause
+    const planned =
+      isPaused &&
+      this.maintenance.find(
+        (entry) =>
+          entry.pool.toLowerCase() === poolConfig.ammAddress.toLowerCase() &&
+          entry.actors.some((actor) => actor.toLowerCase() === account.toLowerCase()) &&
+          Date.parse(entry.expiresAt) > Date.now() &&
+          Date.parse(entry.expiresAt) <= Date.now() + 86400_000,
+      );
+    if (planned) {
+      await this.store.put(
+        `maintenance:${poolConfig.ammAddress}`,
+        Date.parse(planned.expiresAt),
+        Date.parse(planned.expiresAt) - Date.now(),
+      );
+    } else {
+      await this.store.remove(`maintenance:${poolConfig.ammAddress}`);
+    }
+    // Planned pauses and recovery are informational; an unexpected actor always remains critical.
     const alert: EventAlert = {
       type: 'security_event',
-      priority: 'critical',
-      message: `🚨 ${isPaused ? 'PAUSED' : 'UNPAUSED'}: ${poolConfig.modelId} by ${account}`,
+      priority: isPaused && !planned ? 'critical' : 'info',
+      message: `${isPaused ? '🚨' : '✅'} ${isPaused ? 'PAUSED' : 'UNPAUSED'}: ${poolConfig.modelId} by ${account}`,
       event: securityEvent,
     };
 
@@ -461,7 +514,7 @@ export class EventListener {
     poolConfig: PoolConfig,
     previousOwner: string,
     newOwner: string,
-    event: ethers.EventLog,
+    event: ConfirmedEvent,
   ): Promise<void> {
     const securityEvent: SecurityEvent = {
       type: 'ownership_transferred',
@@ -472,7 +525,9 @@ export class EventListener {
       details: { previousOwner, newOwner },
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000),
+      timestamp: event.timestamp,
+      logIndex: event.index,
+      blockHash: event.blockHash,
     };
 
     logger.warn(`🚨 OWNERSHIP TRANSFERRED: ${poolConfig.modelId}`);
@@ -506,7 +561,7 @@ export class EventListener {
       newCrr: bigint;
       newTradeFee: bigint;
       newProtocolFee: number;
-      event: ethers.EventLog;
+      event: ConfirmedEvent;
     },
   ): Promise<void> {
     const { newCrr, newTradeFee, newProtocolFee, event } = data;
@@ -516,7 +571,7 @@ export class EventListener {
       poolAddress: poolConfig.ammAddress,
       contractAddress: poolConfig.ammAddress,
       modelId: poolConfig.modelId,
-      actor: event.transactionHash, // We don't have actor address from event
+      actor: (await this.provider.getTransaction(event.transactionHash))?.from || 'unknown',
       details: {
         oldCrr: poolConfig.crr,
         newCrr: Number(newCrr),
@@ -527,7 +582,9 @@ export class EventListener {
       },
       blockNumber: event.blockNumber,
       transactionHash: event.transactionHash,
-      timestamp: Math.floor(Date.now() / 1000),
+      timestamp: event.timestamp,
+      logIndex: event.index,
+      blockHash: event.blockHash,
     };
 
     logger.warn(`⚙️  PARAMETERS UPDATED: ${poolConfig.modelId}`);

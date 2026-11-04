@@ -93,7 +93,7 @@ export class PoolDiscovery {
    * Query factory for all existing pools
    * Useful for discovering pools created before monitoring started
    */
-  async discoverExistingPools(): Promise<void> {
+  async discoverExistingPools(strict = false): Promise<void> {
     try {
       logger.info('Querying factory for existing pools...');
 
@@ -119,6 +119,9 @@ export class PoolDiscovery {
 
           // Get pool details
           const poolConfig = await this.getPoolConfig(poolAddress);
+          if (!poolConfig && strict) {
+            throw new Error(`Cannot initialize discovered pool ${poolAddress}`);
+          }
           if (poolConfig) {
             this.discoveredPools.set(poolAddress, poolConfig);
             logger.info(`Existing pool discovered: ${poolConfig.modelId} at ${poolAddress}`);
@@ -126,10 +129,16 @@ export class PoolDiscovery {
           }
         }
       } catch (error) {
+        if (strict) {
+          throw error;
+        }
         logger.warn('Factory.getAllPools() not available, will rely on events only');
       }
     } catch (error) {
       logger.error('Failed to discover existing pools:', error);
+      if (strict) {
+        throw error;
+      }
     }
   }
 
@@ -149,7 +158,7 @@ export class PoolDiscovery {
         'PoolCreated(string,address,address,uint256,uint256,uint16,uint256)',
         'PoolCreated(string,address,address,uint256,uint256,uint256)',
       ]) {
-        void this.factoryContract.on(signature, (...args: any[]) => {
+        await this.factoryContract.on(signature, (...args: any[]) => {
           const payload = args.pop();
           void (async () => {
             const event = await confirmEvent(

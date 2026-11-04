@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { IncidentStore } from './incident-store';
+import { PacedRpcProvider } from './paced-rpc-provider';
 import { normalizePhase, reserveRatio, anchoredReserveRatio } from './curve-invariant';
 import { logger } from '../utils/logger';
 import { PoolConfig, AlertThresholds } from '../config/monitoring-config';
@@ -193,9 +194,11 @@ export class StateTracker {
     };
 
     // Listen for trade events that change state
-    await pool.on('Buy', updateState);
-    await pool.on('Sell', updateState);
-    await pool.on('FeesDeposited', updateState);
+    if (!(this.provider instanceof PacedRpcProvider)) {
+      await pool.on('Buy', updateState);
+      await pool.on('Sell', updateState);
+      await pool.on('FeesDeposited', updateState);
+    }
 
     // Store listeners for cleanup
     this.poolContracts.set(ammAddress, pool);
@@ -1002,6 +1005,10 @@ export class StateTracker {
   /**
    * Get number of tracked pools
    */
+  async refreshPool(poolConfig: PoolConfig): Promise<void> {
+    await this.pollPoolState(poolConfig);
+  }
+
   isFresh(poolAddress: string, maxAgeMs: number, nowMs = Date.now()): boolean {
     const last = this.lastSuccessfulRead.get(poolAddress);
     return (

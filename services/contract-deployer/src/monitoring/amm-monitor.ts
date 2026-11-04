@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { IncidentStore, MonitoringRedis } from './incident-store';
+import { PacedRpcProvider } from './paced-rpc-provider';
 import { ethers } from 'ethers';
 import { logger } from '../utils/logger';
 import {
@@ -114,7 +115,9 @@ export class AMMMonitor {
 
     // Create backup provider if configured
     if (this.config.backupRpcUrl) {
-      this.backupProvider = this.createMonitoringProvider(this.config.backupRpcUrl);
+      this.backupProvider = /^https?:/.test(this.config.backupRpcUrl)
+        ? new PacedRpcProvider(this.config.backupRpcUrl)
+        : this.createMonitoringProvider(this.config.backupRpcUrl);
       if (this.backupProvider instanceof ethers.JsonRpcProvider) {
         this.backupProvider.pollingInterval = this.config.thresholds.backupRpcPollingIntervalMs;
       }
@@ -154,13 +157,15 @@ export class AMMMonitor {
       this.provider,
       this.config.thresholds,
       {
-        onTradeEvent: (event) => {
+        onTradeEvent: async (event) => {
           this.metricsCollector.recordTrade(event);
+          await this.refreshStateAfterEvent(event.poolAddress);
           return this.logTradeEvent(event);
         },
         onSecurityEvent: (event) => this.logSecurityEvent(event),
-        onFeeEvent: (event) => {
+        onFeeEvent: async (event) => {
           this.metricsCollector.recordFeeDeposit(event);
+          await this.refreshStateAfterEvent(event.poolAddress);
           return this.logFeeEvent(event);
         },
         onAlert: (alert) => this.handleAlert(alert),
@@ -842,6 +847,17 @@ export class AMMMonitor {
     } catch (error) {
       logger.error('Failed to send alert via AlertManager:', error);
       throw error;
+    }
+  }
+
+  /** Confirmed backup event replay also refreshes affected pool state without duplicate filters. */
+  private async refreshStateAfterEvent(address: string): Promise<void> {
+    if (!(this.provider instanceof PacedRpcProvider)) {
+      return;
+    }
+    const pool = this.poolDiscovery.getDiscoveredPools().find((p) => p.ammAddress === address);
+    if (pool) {
+      await this.stateTracker.refreshPool(pool);
     }
   }
 

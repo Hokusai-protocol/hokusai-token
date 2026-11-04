@@ -86,7 +86,11 @@ export interface EventListenerCallbacks {
   onAlert?: (alert: EventAlert) => Promise<void>;
 }
 
-export function loadMaintenance(): Array<{ pool: string; actors: string[]; expiresAt: string }> {
+export function loadMaintenance(): Array<{
+  pool: string;
+  actors: string[];
+  expiresAt: string;
+}> {
   const entries: unknown = JSON.parse(process.env.MONITORING_MAINTENANCE_JSON || '[]');
   if (!Array.isArray(entries)) {
     throw new Error('Maintenance must be an array');
@@ -117,6 +121,13 @@ export class EventListener {
 
   private poolContracts: Map<string, ethers.Contract> = new Map();
   private isListening: boolean = false;
+  private generation = 0;
+  private queues = new Map<string, Promise<void>>();
+  private handlers = new Map<
+    string,
+    Map<string, (args: any[], event: ConfirmedEvent) => Promise<void>>
+  >();
+  private reconciled = new Map<string, { block: number; at: number }>();
 
   // AMM Pool ABI - Events
   private static readonly POOL_ABI = [
@@ -160,7 +171,7 @@ export class EventListener {
   /**
    * Start listening to events for a pool
    */
-  startListeningToPool(poolConfig: PoolConfig): void {
+  async startListeningToPool(poolConfig: PoolConfig): Promise<void> {
     const { ammAddress, modelId } = poolConfig;
 
     if (this.poolContracts.has(ammAddress)) {
@@ -173,36 +184,47 @@ export class EventListener {
     const pool = new ethers.Contract(ammAddress, EventListener.POOL_ABI, this.provider);
     this.poolContracts.set(ammAddress, pool);
 
-    let queue = Promise.resolve();
+    const generation = this.generation;
+    const handlers = new Map<string, (args: any[], event: ConfirmedEvent) => Promise<void>>();
+    this.handlers.set(ammAddress, handlers);
+    const subscriptions: Array<Promise<unknown>> = [];
     const listen = (
       name: string,
       handler: (args: any[], event: ConfirmedEvent) => Promise<void>,
     ): void => {
-      void pool.on(name, (...args: any[]) => {
-        const input = args.pop() as ChainEventInput;
-        queue = queue
-          .then(async () => {
-            const event = await confirmEvent(this.provider, input, this.confirmations);
-            if (!event) {
-              return;
-            }
-            const key = `event:${event.transactionHash}:${event.index}`;
-            if (await this.store.get(key)) {
-              return;
-            }
-            await handler(args, event);
-            await this.store.put(key, true, 7 * 86400_000);
-          })
-          .catch((error) => {
-            logger.error(`Failed to process ${name} for ${modelId}`, { error });
+      const signature = pool.interface.getEvent(name)!.format('sighash');
+      handlers.set(signature, handler);
+      subscriptions.push(
+        pool.on(name, (...args: any[]) => {
+          const input = args.pop() as ChainEventInput;
+          void this.enqueue(ammAddress, args, input, handler, generation).catch((error) => {
+            this.reconciled.delete(ammAddress);
+            logger.error(`Failed to process ${name} for ${modelId}`, {
+              error,
+            });
           });
-      });
+        }),
+      );
     };
     listen('Buy', ([buyer, reserveIn, tokensOut, fee, spotPrice], event) =>
-      this.handleBuyEvent(poolConfig, { buyer, reserveIn, tokensOut, fee, spotPrice, event }),
+      this.handleBuyEvent(poolConfig, {
+        buyer,
+        reserveIn,
+        tokensOut,
+        fee,
+        spotPrice,
+        event,
+      }),
     );
     listen('Sell', ([seller, tokensIn, reserveOut, fee, spotPrice], event) =>
-      this.handleSellEvent(poolConfig, { seller, tokensIn, reserveOut, fee, spotPrice, event }),
+      this.handleSellEvent(poolConfig, {
+        seller,
+        tokensIn,
+        reserveOut,
+        fee,
+        spotPrice,
+        event,
+      }),
     );
     listen('FeesDeposited', ([depositor, amount, newReserveBalance, newSpotPrice], event) =>
       this.handleFeesDepositedEvent(poolConfig, {
@@ -241,6 +263,12 @@ export class EventListener {
         event,
       }),
     );
+    try {
+      await Promise.all(subscriptions);
+    } catch (error) {
+      this.stopListeningToPool(ammAddress);
+      throw error;
+    }
     this.isListening = true;
     logger.info(`Event listener started for ${modelId}`);
   }
@@ -253,6 +281,8 @@ export class EventListener {
     if (pool) {
       void pool.removeAllListeners();
       this.poolContracts.delete(poolAddress);
+      this.handlers.delete(poolAddress);
+      this.reconciled.delete(poolAddress);
       logger.info(`Stopped listening to pool ${poolAddress}`);
     }
   }
@@ -261,6 +291,9 @@ export class EventListener {
    * Stop listening to all pools
    */
   stopAllListening(): void {
+    this.generation++;
+    this.reconciled.clear();
+    this.handlers.clear();
     for (const [poolAddress, pool] of this.poolContracts) {
       void pool.removeAllListeners();
       logger.info(`Stopped listening to pool ${poolAddress}`);
@@ -268,6 +301,96 @@ export class EventListener {
     this.poolContracts.clear();
     this.isListening = false;
     logger.info('All event listeners stopped');
+  }
+
+  /** Serialize live and replayed events through the same confirmation/deduplication path. */
+  private enqueue(
+    address: string,
+    args: any[],
+    input: ChainEventInput,
+    handler: (args: any[], event: ConfirmedEvent) => Promise<void>,
+    generation: number,
+  ): Promise<void> {
+    const provider = this.provider;
+    const work = (this.queues.get(address) ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(async () => {
+        if (generation !== this.generation) {
+          throw new Error('Event provider changed');
+        }
+        const event = await confirmEvent(provider, input, this.confirmations);
+        if (!event) {
+          throw new Error('Event not canonical/confirmed; replay will retry');
+        }
+        if (generation !== this.generation) {
+          throw new Error('Event provider changed');
+        }
+        const key = `event:${event.transactionHash}:${event.index}`;
+        if (await this.store.get(key)) {
+          return;
+        }
+        await handler(args, event);
+        await this.store.put(key, true, 7 * 86400_000);
+      });
+    this.queues.set(address, work);
+    return work;
+  }
+
+  /**
+   * Reconcile quiet and active pools alike. Checkpoints advance only after a complete confirmed
+   * range succeeds. Bound RPC ranges and work per tick; retain the cursor across task restarts.
+   */
+  async reconcilePool(poolConfig: PoolConfig): Promise<void> {
+    const address = poolConfig.ammAddress;
+    this.reconciled.delete(address);
+    const pool = this.poolContracts.get(address);
+    const handlers = this.handlers.get(address);
+    if (!pool || !handlers) {
+      throw new Error(`Pool listener not initialized: ${address}`);
+    }
+    const generation = this.generation;
+    const provider = this.provider;
+    const head = Math.max(0, (await provider.getBlockNumber()) - this.confirmations + 1);
+    const key = `event-checkpoint:${address}`;
+    const saved = await this.store.get<number>(key);
+    // First enrollment starts with a small overlap. Existing deployments must seed a checkpoint
+    // before cutover if older history must be replayed; subsequent restarts always use Redis.
+    let cursor = Math.max(0, (saved ?? head) - 12);
+    if (saved === null) {
+      await this.store.put(key, cursor, 365 * 86400_000);
+    }
+    const end = Math.min(head, cursor + 2000);
+    while (cursor <= end) {
+      const to = Math.min(end, cursor + 499);
+      const logs = await pool.queryFilter('*', cursor, to);
+      for (const log of logs.sort((a, b) => a.blockNumber - b.blockNumber || a.index - b.index)) {
+        if (!(log instanceof ethers.EventLog)) {
+          continue;
+        }
+        const handler = handlers.get(log.fragment.format('sighash'));
+        if (!handler) {
+          continue;
+        }
+        await this.enqueue(address, Array.from(log.args), log, handler, generation);
+      }
+      if (generation !== this.generation) {
+        throw new Error('Provider changed during replay');
+      }
+      await this.store.put(key, to, 365 * 86400_000);
+      cursor = to + 1;
+    }
+    if (end < head) {
+      this.reconciled.delete(address);
+      return;
+    }
+    this.reconciled.set(address, { block: head, at: Date.now() });
+  }
+
+  isCaughtUp(address: string, maxAgeMs = 180_000, nowMs = Date.now()): boolean {
+    const progress = this.reconciled.get(address);
+    return (
+      this.poolContracts.has(address) && progress !== undefined && nowMs - progress.at <= maxAgeMs
+    );
   }
 
   /**

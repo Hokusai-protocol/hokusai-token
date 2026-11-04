@@ -91,6 +91,8 @@ export class StateTracker {
   private pollingIntervals: Map<string, NodeJS.Timeout> = new Map();
   private poolContracts: Map<string, ethers.Contract> = new Map(); // NEW: Store contracts for event cleanup
   private isTracking: boolean = false;
+  private lastSuccessfulRead = new Map<string, number>();
+  private failedReads = new Set<string>();
 
   // Cache for immutable pool data (reduces RPC calls)
   private tokenAddressCache: Map<string, string> = new Map(); // poolAddress -> tokenAddress
@@ -191,9 +193,9 @@ export class StateTracker {
     };
 
     // Listen for trade events that change state
-    void pool.on('Buy', updateState);
-    void pool.on('Sell', updateState);
-    void pool.on('FeesDeposited', updateState);
+    await pool.on('Buy', updateState);
+    await pool.on('Sell', updateState);
+    await pool.on('FeesDeposited', updateState);
 
     // Store listeners for cleanup
     this.poolContracts.set(ammAddress, pool);
@@ -219,6 +221,8 @@ export class StateTracker {
    * Stop tracking a pool
    */
   stopTracking(poolAddress: string): void {
+    this.lastSuccessfulRead.delete(poolAddress);
+    this.failedReads.delete(poolAddress);
     // Stop polling interval
     const interval = this.pollingIntervals.get(poolAddress);
     if (interval) {
@@ -260,6 +264,8 @@ export class StateTracker {
       logger.info(`Stopped tracking pool ${poolAddress}`);
     }
     this.pollingIntervals.clear();
+    this.lastSuccessfulRead.clear();
+    this.failedReads.clear();
 
     // Clean up all event listeners
     for (const [poolAddress, pool] of this.poolContracts) {
@@ -277,15 +283,17 @@ export class StateTracker {
    */
   private async pollPoolState(poolConfig: PoolConfig): Promise<void> {
     const { ammAddress, modelId } = poolConfig;
+    const provider = this.provider;
     if (this.inFlight.has(ammAddress)) {
       return;
     }
     this.inFlight.add(ammAddress);
     try {
       if (!this.hydrated.has(ammAddress)) {
-        const saved = await this.store.get<{ active: Array<[string, number]>; pause?: number }>(
-          `state:${ammAddress}`,
-        );
+        const saved = await this.store.get<{
+          active: Array<[string, number]>;
+          pause?: number;
+        }>(`state:${ammAddress}`);
         for (const [key, value] of saved?.active || []) {
           this.activeAlerts.set(key, value);
         }
@@ -295,19 +303,16 @@ export class StateTracker {
         this.hydrated.add(ammAddress);
       }
       // Get current block
-      const blockNumber = Math.max(
-        0,
-        (await this.provider.getBlockNumber()) - this.confirmations + 1,
-      );
+      const blockNumber = Math.max(0, (await provider.getBlockNumber()) - this.confirmations + 1);
       const blockTag = { blockTag: blockNumber };
-      const sampledBlock = await this.provider.getBlock(blockNumber);
+      const sampledBlock = await provider.getBlock(blockNumber);
       if (!sampledBlock) {
         throw new Error('State block unavailable');
       }
       const timestamp = sampledBlock.timestamp;
 
       // Create contract instances
-      const pool = new ethers.Contract(ammAddress, StateTracker.POOL_ABI, this.provider);
+      const pool = new ethers.Contract(ammAddress, StateTracker.POOL_ABI, provider);
 
       // Get pool state with null checks
       const reserveBalanceFn = pool.reserveBalance;
@@ -357,8 +362,8 @@ export class StateTracker {
       }
 
       // OPTIMIZED: Batch all state reads into a single Promise.all (reduces RPC calls)
-      const token = new ethers.Contract(tokenAddress, StateTracker.TOKEN_ABI, this.provider);
-      const usdc = new ethers.Contract(usdcAddress, StateTracker.USDC_ABI, this.provider);
+      const token = new ethers.Contract(tokenAddress, StateTracker.TOKEN_ABI, provider);
+      const usdc = new ethers.Contract(usdcAddress, StateTracker.USDC_ABI, provider);
 
       const totalSupplyFn = token.totalSupply;
       const balanceOfFn = usdc.balanceOf;
@@ -467,6 +472,9 @@ export class StateTracker {
       };
 
       // Store state
+      if (provider !== this.provider) {
+        throw new Error('Provider changed during state read');
+      }
       this.addStateToHistory(ammAddress, state);
 
       // Roll back transition state when notification delivery fails, so the next sample retries.
@@ -486,7 +494,12 @@ export class StateTracker {
       if (this.callbacks.onStateUpdate) {
         await this.callbacks.onStateUpdate(state);
       }
+      this.lastSuccessfulRead.set(ammAddress, Date.now());
+      this.failedReads.delete(ammAddress);
     } catch (error) {
+      if (provider === this.provider) {
+        this.failedReads.add(ammAddress);
+      }
       logger.error(`Failed to poll state for ${modelId} at ${ammAddress}:`, error);
       throw error;
     } finally {
@@ -584,7 +597,10 @@ export class StateTracker {
           modelId: currentState.modelId,
           message: `Pool observed paused for ${(pausedDuration / 3600_000).toFixed(1)} hours (first observed ${new Date(firstObserved).toISOString()})`,
           currentState,
-          metadata: { pausedDurationMs: pausedDuration, firstObservedAt: firstObserved },
+          metadata: {
+            pausedDurationMs: pausedDuration,
+            firstObservedAt: firstObserved,
+          },
         });
       }
     } else {
@@ -986,6 +1002,16 @@ export class StateTracker {
   /**
    * Get number of tracked pools
    */
+  isFresh(poolAddress: string, maxAgeMs: number, nowMs = Date.now()): boolean {
+    const last = this.lastSuccessfulRead.get(poolAddress);
+    return (
+      this.isTrackingPool(poolAddress) &&
+      !this.failedReads.has(poolAddress) &&
+      last !== undefined &&
+      nowMs - last <= maxAgeMs
+    );
+  }
+
   getTrackedPoolCount(): number {
     return this.pollingIntervals.size;
   }

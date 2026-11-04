@@ -30,6 +30,7 @@ export interface AlertManagerConfig {
   chainId?: number;
   deployment?: string;
   network?: string;
+  outageNotificationOwner?: 'application' | 'external';
   metricsRegion?: string; // defaults to AWS_REGION / awsSesRegion
 
   // Rate limiting (per alert type)
@@ -138,7 +139,10 @@ export class AlertManager {
                     Dimensions: [
                       ...dimensions,
                       { Name: 'ChainId', Value: String(this.config.chainId) },
-                      { Name: 'Deployment', Value: this.config.deployment.toLowerCase() },
+                      {
+                        Name: 'Deployment',
+                        Value: this.config.deployment.toLowerCase(),
+                      },
                     ],
                   },
                 ]
@@ -164,7 +168,7 @@ export class AlertManager {
    * a CloudWatch alarm remains in ALARM for the full outage and treats missing samples as failure.
    */
   async recordDependencyHealth(
-    metricName: 'IngestionHealthy' | 'RedisReady',
+    metricName: 'IngestionHealthy' | 'RedisReady' | 'MonitoringCoverageHealthy',
     healthy: boolean,
   ): Promise<void> {
     await this.emitMetric(metricName, healthy ? 1 : 0, 'None');
@@ -186,6 +190,19 @@ export class AlertManager {
     // Emit a CloudWatch metric for every occurrence (ground truth) before the email dedup/rate-limit
     // gates, so the health report + mttr see the true signal even when email is throttled.
     void this.emitMetric(alert.type);
+
+    // Testnet has no direct email path. Its independent outage evaluator owns the 24-hour notice.
+    // Keep telemetry before this gate so suppression never hides the underlying signal.
+    const isMainnet = this.config.chainId === 1 && this.config.network === 'mainnet';
+    const externalOutage =
+      this.config.outageNotificationOwner === 'external' &&
+      ['stale_ingestion', 'ingestion_recovered', 'rpc_primary_recovered'].includes(alert.type);
+    if (!isMainnet || externalOutage) {
+      logger.debug('Alert email suppressed by network/notification ownership', {
+        type: alert.type,
+      });
+      return false;
+    }
 
     // Check if this is a duplicate (deduplication)
     const alertKey = this.getAlertKey(alert);

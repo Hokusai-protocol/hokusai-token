@@ -44,10 +44,11 @@ healthy on the backup.
 
 ## Alarm and mainnet promotion
 
-- Create a CloudWatch alarm on `UsingBackupProvider` with the matching `Environment` dimension.
-- Alarm when the maximum value is greater than `0` for five consecutive one-minute periods.
-- Treat missing data as `notBreaching`; monitor liveness and dependency alarms already cover
-  missing metrics.
+- Follow [the notification policy](monitor-notifications.md): no direct email on failover/failback.
+- Verify scoped `MonitoringCoverageHealthy` includes all expected pools and confirmed-event catch-up.
+- The independent evaluator warns for mainnet primary-only degradation after 30 minutes. Testnet
+  warns only after 24 hours of actual coverage outage and never at critical severity.
+- Keep provider-selection alarms state-only; do not add a competing five-minute backup email.
 - Promote the exact testnet image digest to mainnet with circuit-breaker rollback.
 - Verify the same provider, readiness, metric, and bootstrap-alert checks before closing the rollout.
 

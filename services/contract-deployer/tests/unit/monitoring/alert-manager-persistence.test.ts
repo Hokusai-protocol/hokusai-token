@@ -69,9 +69,12 @@ describe('notification persistence and scope', () => {
     expect(await first.sendAlert(alert)).toBe(true);
     const restarted = new AlertManager(config, new IncidentStore('1:factory', redis));
     expect(await restarted.sendAlert(alert)).toBe(false);
-    expect(await restarted.sendAlert({ ...alert, event: { ...alert.event, logIndex: 3 } })).toBe(
-      true,
-    );
+    expect(
+      await restarted.sendAlert({
+        ...alert,
+        event: { ...alert.event, logIndex: 3 },
+      }),
+    ).toBe(true);
     expect(send).toHaveBeenCalledTimes(2);
   });
   it('separates networks and deployments', async () => {
@@ -99,4 +102,40 @@ describe('notification persistence and scope', () => {
     expect(command.input.Message.Subject.Data).toContain('mainnet / chain 1 / factory');
     expect(command.input.Message.Body.Html.Data).toContain('Deployment: factory');
   });
+});
+
+describe('network and notification ownership routing', () => {
+  it.each(['critical', 'high', 'medium', 'info'] as const)(
+    'never emails testnet %s alerts',
+    async (priority) => {
+      const manager = new AlertManager({
+        ...config,
+        network: 'sepolia',
+        chainId: 11155111,
+      });
+      expect(await manager.sendAlert({ ...alert, priority })).toBe(false);
+      expect(send).not.toHaveBeenCalled();
+    },
+  );
+  it.each(['stale_ingestion', 'ingestion_recovered', 'rpc_primary_recovered'] as const)(
+    'suppresses externally owned %s but preserves mainnet security emails',
+    async (type) => {
+      const manager = new AlertManager({
+        ...config,
+        outageNotificationOwner: 'external',
+      });
+      expect(
+        await manager.sendAlert({
+          type,
+          priority: 'critical',
+          poolAddress: 'monitor',
+          modelId: 'monitor',
+          message: type,
+        }),
+      ).toBe(false);
+      expect(send).not.toHaveBeenCalled();
+      expect(await manager.sendAlert(alert)).toBe(true);
+      expect(send).toHaveBeenCalledTimes(1);
+    },
+  );
 });

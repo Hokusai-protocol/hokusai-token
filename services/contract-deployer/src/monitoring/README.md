@@ -316,3 +316,12 @@ NETWORK=sepolia npx tsx src/examples/amm-monitoring-example.ts
 
 **Version:** 1.0.0 (Phase 1)
 **Last Updated:** 2026-01-14
+
+
+## Outage notification ownership
+
+Testnet direct emails are disabled at every priority; its independent evaluator sends a noncritical
+notice after a continuous 24-hour outage. Mainnet monitoring loss notifies after five minutes.
+Successful failover is silent. Coverage requires every pool's state tracking and confirmed event
+reconciliation, with Redis checkpoints retained across restarts. See
+[the notification policy](../../docs/monitor-notifications.md) for configuration and cutover.

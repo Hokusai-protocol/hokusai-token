@@ -62,6 +62,12 @@ export interface AMMMonitorHealth {
     lastAdvanceAtMs: number | null;
     usingBackupProvider: boolean;
   };
+  coverage?: {
+    healthy: boolean;
+    expectedPools: number;
+    statePools: number;
+    eventPools: number;
+  };
   errors?: string[];
 }
 
@@ -87,6 +93,8 @@ export class AMMMonitor {
   private ingestionSampled: boolean = false;
   private ingestionReason: string | null = null;
   private heartbeatInFlight: boolean = false;
+  private discoveryVerifiedAt = 0;
+  private initializationRetries = new Map<string, { failures: number; nextAt: number }>();
   private providerRebindInFlight: boolean = false;
   private backupActivatedAtMs: number | null = null;
   private primaryRecoverySuccesses: number = 0;
@@ -179,6 +187,10 @@ export class AMMMonitor {
       // Deploy environment (development/production) — must match the health-report query's Environment
       // dimension (cloudwatch_service_health_report.py uses HOKUSAI_ENVIRONMENT, default development),
       // NOT the chain network. Otherwise the report would query the wrong metric series.
+      outageNotificationOwner:
+        process.env.MONITORING_OUTAGE_NOTIFICATION_OWNER === 'external'
+          ? 'external'
+          : 'application',
       environment: process.env.HOKUSAI_ENVIRONMENT || process.env.ENVIRONMENT || 'development',
     };
 
@@ -220,7 +232,8 @@ export class AMMMonitor {
 
       // 2. Discover existing pools
       if (this.config.poolDiscoveryEnabled) {
-        await this.poolDiscovery.discoverExistingPools();
+        await this.poolDiscovery.discoverExistingPools(true);
+        this.discoveryVerifiedAt = Date.now();
       }
 
       if (this.config.network === 'mainnet') {
@@ -344,13 +357,19 @@ export class AMMMonitor {
 
       // Start event listening (if enabled)
       if (this.config.eventListenersEnabled) {
-        this.eventListener.startListeningToPool(poolConfig);
+        await this.eventListener.startListeningToPool(poolConfig);
       }
 
+      this.errors = this.errors.filter(
+        (error) => !error.startsWith(`Failed to monitor ${poolConfig.modelId}:`),
+      );
       logger.info(`✅ Monitoring started for ${poolConfig.modelId}`);
     } catch (error) {
       logger.error(`Failed to start monitoring for ${poolConfig.modelId}:`, error);
+      this.stateTracker.stopTracking(poolAddress);
+      this.eventListener.stopListeningToPool(poolAddress);
       this.errors.push(`Failed to monitor ${poolConfig.modelId}: ${error}`);
+      throw error;
     }
   }
 
@@ -465,6 +484,13 @@ export class AMMMonitor {
       logger.warn('Monitoring components rebound to backup RPC provider');
     } catch (error) {
       logger.error('Backup provider also failed:', error);
+      if (previousPrimaryProvider && this.provider !== previousPrimaryProvider) {
+        try {
+          await this.rebindProvider(previousPrimaryProvider);
+        } catch (rollbackError) {
+          logger.error('Primary rollback incomplete', { rollbackError });
+        }
+      }
       throw error;
     } finally {
       this.providerRebindInFlight = false;
@@ -589,12 +615,32 @@ export class AMMMonitor {
     this.stateTracker.setProvider(provider);
     this.eventListener.setProvider(provider);
 
+    const failures: unknown[] = [];
     for (const pool of pools) {
-      await this.startMonitoringPool(pool.ammAddress, pool);
+      try {
+        await this.startMonitoringPool(pool.ammAddress, pool);
+      } catch (error) {
+        failures.push(error);
+      }
     }
 
     if (this.config.poolDiscoveryEnabled) {
       await this.poolDiscovery.startListening('latest');
+    }
+    if (failures.length) {
+      throw new Error(`Provider initialization failed for ${failures.length} pools`);
+    }
+    await this.refreshCoverage();
+    const poolsReady = this.poolDiscovery
+      .getDiscoveredPools()
+      .every(
+        (pool) =>
+          (!this.config.statePollingEnabled ||
+            this.stateTracker.isFresh(pool.ammAddress, 660_000)) &&
+          (!this.config.eventListenersEnabled || this.eventListener.isCaughtUp(pool.ammAddress)),
+      );
+    if (!poolsReady) {
+      throw new Error('Provider event replay/state initialization incomplete');
     }
   }
 
@@ -799,11 +845,75 @@ export class AMMMonitor {
     }
   }
 
+  /** Retry incomplete initialization with bounded backoff and reconcile confirmed event gaps. */
+  private async refreshCoverage(): Promise<void> {
+    if (this.config.poolDiscoveryEnabled && Date.now() - this.discoveryVerifiedAt >= 300_000) {
+      await this.poolDiscovery.discoverExistingPools(true);
+      this.discoveryVerifiedAt = Date.now();
+    }
+    const retries = (this.initializationRetries ??= new Map());
+    for (const pool of this.poolDiscovery.getDiscoveredPools()) {
+      const address = pool.ammAddress;
+      const initialized =
+        (!this.config.statePollingEnabled || this.stateTracker.isTrackingPool(address)) &&
+        (!this.config.eventListenersEnabled || this.eventListener.isListeningToPool(address));
+      if (!initialized) {
+        const retry = retries.get(address);
+        if (retry && Date.now() < retry.nextAt) {
+          continue;
+        }
+        try {
+          await this.startMonitoringPool(address, pool);
+          retries.delete(address);
+        } catch (error) {
+          const failures = (retry?.failures ?? 0) + 1;
+          retries.set(address, {
+            failures,
+            nextAt: Date.now() + Math.min(300_000, 60_000 * 2 ** Math.min(failures - 1, 3)),
+          });
+          logger.error('Pool initialization will retry', { address, error });
+          continue;
+        }
+      }
+      if (this.config.eventListenersEnabled) {
+        await this.eventListener.reconcilePool(pool);
+      }
+    }
+  }
+
+  private getCoverage(nowMs = Date.now()) {
+    const pools = this.poolDiscovery.getDiscoveredPools();
+    // Two fallback intervals plus one heartbeat, so quiet pools are never stale between polls.
+    const maxStateAge = Math.max(this.config.statePollingIntervalMs ?? 0, 300_000) * 2 + 60_000;
+    const statePools = pools.filter(
+      (p) =>
+        !this.config.statePollingEnabled ||
+        this.stateTracker.isFresh(p.ammAddress, maxStateAge, nowMs),
+    ).length;
+    const eventPools = pools.filter(
+      (p) =>
+        !this.config.eventListenersEnabled ||
+        this.eventListener.isCaughtUp(p.ammAddress, 180_000, nowMs),
+    ).length;
+    return {
+      healthy:
+        this.ingestionSampled &&
+        this.ingestionHealth.healthy &&
+        pools.length > 0 &&
+        statePools === pools.length &&
+        eventPools === pools.length &&
+        (!this.config.poolDiscoveryEnabled || nowMs - this.discoveryVerifiedAt <= 660_000),
+      expectedPools: pools.length,
+      statePools,
+      eventPools,
+    };
+  }
+
   /**
    * HOK-1698 — ingestion-health heartbeat. Periodically samples the chain head; if the RPC errors,
    * the head is stale, or the head stops advancing, the monitor is blind and every other alert
-   * silently stops firing. Emits a critical alert on the unhealthy transition (once, not per tick)
-   * and a recovery alert when it clears. On an RPC error it also attempts the backup provider.
+   * silently stops firing. Publishes coverage separately from head availability. During rollout,
+   * legacy transition emails remain behind AlertManager's notification ownership gate.
    */
   private async startIngestionHeartbeat(): Promise<void> {
     const thresholds = {
@@ -854,12 +964,20 @@ export class AMMMonitor {
         }
       }
 
+      let coverageHealthy = false;
+      try {
+        await this.refreshCoverage();
+        coverageHealthy = this.getCoverage().healthy;
+      } catch (error) {
+        logger.error('Monitoring coverage verification failed', { error });
+      }
       await Promise.all([
         heartbeatMetric,
+        this.alertManager.recordDependencyHealth('MonitoringCoverageHealthy', coverageHealthy),
         this.alertManager.recordDependencyHealth('IngestionHealthy', assessment.healthy),
         this.alertManager.recordRpcProviderState(this.usingBackupProvider),
       ]);
-      if (!assessment.transitioned) {
+      if (assessment.healthy === previousHealth.healthy) {
         return;
       }
 
@@ -873,9 +991,9 @@ export class AMMMonitor {
             assessment.reason,
           ),
         );
-      } else {
+      } else if (coverageHealthy) {
         await this.handleAlert(
-          this.buildIngestionAlert('medium', 'Monitor ingestion recovered', 'recovered'),
+          this.buildIngestionAlert('medium', 'Monitor coverage recovered', 'recovered'),
         );
       }
     };
@@ -889,9 +1007,13 @@ export class AMMMonitor {
         return;
       }
       this.heartbeatInFlight = true;
-      void tick().finally(() => {
-        this.heartbeatInFlight = false;
-      });
+      void tick()
+        .catch((error) => {
+          logger.error('Ingestion heartbeat failed', { error });
+        })
+        .finally(() => {
+          this.heartbeatInFlight = false;
+        });
     }, this.config.thresholds.ingestionHeartbeatIntervalMs);
     // Don't keep the process alive solely for the heartbeat.
     this.heartbeatTimer.unref?.();
@@ -910,7 +1032,11 @@ export class AMMMonitor {
       if (!block) {
         return { ok: false };
       }
-      return { ok: true, blockNumber: block.number, blockTimestampMs: block.timestamp * 1000 };
+      return {
+        ok: true,
+        blockNumber: block.number,
+        blockTimestampMs: block.timestamp * 1000,
+      };
     } catch {
       return { ok: false };
     } finally {
@@ -1101,12 +1227,13 @@ export class AMMMonitor {
   getHealth(): AMMMonitorHealth {
     const uptime = this.isRunning ? Date.now() - this.startTime : 0;
 
+    const coverage = this.getCoverage();
     const components = {
       poolDiscovery: !this.config.poolDiscoveryEnabled || this.poolDiscovery.getPoolCount() > 0,
       stateTracking:
-        !this.config.statePollingEnabled || this.stateTracker.getTrackedPoolCount() > 0,
+        !this.config.statePollingEnabled || coverage.statePools === coverage.expectedPools,
       eventListening:
-        !this.config.eventListenersEnabled || this.eventListener.getListeningPoolCount() > 0,
+        !this.config.eventListenersEnabled || coverage.eventPools === coverage.expectedPools,
       metricsCollection: this.metricsCollector.getAllPoolMetrics().length > 0,
     };
     const componentsHealthy = Object.values(components).every(Boolean);
@@ -1114,7 +1241,7 @@ export class AMMMonitor {
     const status: 'healthy' | 'degraded' | 'unhealthy' =
       !this.isRunning || !ingestionHealthy
         ? 'unhealthy'
-        : !componentsHealthy || this.errors.length > 5
+        : !componentsHealthy || !coverage.healthy
           ? 'degraded'
           : 'healthy';
 
@@ -1124,6 +1251,7 @@ export class AMMMonitor {
       uptime,
       poolsMonitored: this.poolDiscovery.getPoolCount(),
       components,
+      coverage,
       componentsStatus: components, // Alias for backwards compatibility
       lastUpdateTime: Date.now(),
       ingestion: {

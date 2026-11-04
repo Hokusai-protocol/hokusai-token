@@ -28,11 +28,16 @@ type TestMonitor = {
   };
   stateTracker: {
     getTrackedPoolCount: jest.Mock;
+    isTrackingPool: jest.Mock;
+    isFresh: jest.Mock;
     stopAllTracking: jest.Mock;
     setProvider: jest.Mock;
   };
   eventListener: {
     getListeningPoolCount: jest.Mock;
+    isListeningToPool: jest.Mock;
+    isCaughtUp: jest.Mock;
+    reconcilePool: jest.Mock;
     stopAllListening: jest.Mock;
     setProvider: jest.Mock;
   };
@@ -97,16 +102,23 @@ function createMonitor(): TestMonitor {
   };
   monitor.stateTracker = {
     getTrackedPoolCount: jest.fn(() => 1),
+    isTrackingPool: jest.fn(() => true),
+    isFresh: jest.fn(() => true),
     stopAllTracking: jest.fn(),
     setProvider: jest.fn(),
   };
   monitor.eventListener = {
     getListeningPoolCount: jest.fn(() => 1),
+    isListeningToPool: jest.fn(() => true),
+    isCaughtUp: jest.fn(() => true),
+    reconcilePool: jest.fn(() => Promise.resolve()),
     stopAllListening: jest.fn(),
     setProvider: jest.fn(),
   };
   monitor.metricsCollector = { getAllPoolMetrics: jest.fn(() => [{}]) };
-  monitor.alertManager = { recordRpcProviderState: jest.fn(() => Promise.resolve()) };
+  monitor.alertManager = {
+    recordRpcProviderState: jest.fn(() => Promise.resolve()),
+  };
   monitor.startMonitoringPool = jest.fn(() => Promise.resolve());
   monitor.handleAlert = jest.fn(() => Promise.resolve());
   monitor.createPrimaryProbeProvider = jest.fn();
@@ -129,6 +141,7 @@ function createMonitor(): TestMonitor {
   monitor.consecutivePrimaryRpcErrors = 0;
   monitor.backupRejectedUntilMs = null;
   monitor.providerRebindInFlight = false;
+  (monitor as any).discoveryVerifiedAt = Date.now();
   return monitor;
 }
 
@@ -402,5 +415,83 @@ describe('AMMMonitor resilience wiring', () => {
       expect(monitor.provider).toBe(stalePrimary);
       expect(monitor.destroyProvider).toHaveBeenCalledWith(candidate);
     });
+  });
+});
+
+describe('effective coverage', () => {
+  it('requires all expected pools rather than one active tracker', () => {
+    const monitor = createMonitor();
+    monitor.poolDiscovery.getDiscoveredPools.mockReturnValue([
+      pool,
+      { ...pool, ammAddress: 'another-pool' },
+    ]);
+    monitor.stateTracker.isFresh.mockImplementation((address) => address === pool.ammAddress);
+    expect(monitor.getHealth().isHealthy).toBe(false);
+    expect(monitor.getHealth().coverage).toMatchObject({
+      expectedPools: 2,
+      statePools: 1,
+    });
+  });
+  it('does not recover on chain-head success while event reconciliation is behind', () => {
+    const monitor = createMonitor();
+    monitor.eventListener.isCaughtUp.mockReturnValue(false);
+    expect(monitor.getHealth().ingestion.healthy).toBe(true);
+    expect(monitor.getHealth().isHealthy).toBe(false);
+  });
+  it('fails provider promotion when a pool cannot initialize', async () => {
+    const monitor = createMonitor();
+    monitor.startMonitoringPool.mockRejectedValueOnce(new Error('Too Many Requests'));
+    await expect(monitor.rebindProvider({} as ethers.Provider)).rejects.toThrow(
+      'initialization failed',
+    );
+  });
+  it('retries a failed pool with backoff instead of accepting incomplete coverage', async () => {
+    jest.useFakeTimers();
+    try {
+      const monitor = createMonitor();
+      monitor.stateTracker.isTrackingPool.mockReturnValue(false);
+      monitor.startMonitoringPool.mockRejectedValueOnce(new Error('Too Many Requests'));
+      await (monitor as any).refreshCoverage();
+      await (monitor as any).refreshCoverage();
+      expect(monitor.startMonitoringPool).toHaveBeenCalledTimes(1);
+      jest.advanceTimersByTime(60000);
+      await (monitor as any).refreshCoverage();
+      expect(monitor.startMonitoringPool).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('heartbeat failover assessment', () => {
+  it('immediately resamples the backup and publishes healthy coverage', async () => {
+    jest.useFakeTimers();
+    const monitor = createMonitor() as any;
+    try {
+      monitor.backupProvider = {};
+      monitor.alertManager.recordHeartbeat = jest.fn().mockResolvedValue(undefined);
+      monitor.alertManager.recordDependencyHealth = jest.fn().mockResolvedValue(undefined);
+      monitor.sampleLatestBlock = jest
+        .fn()
+        .mockResolvedValueOnce({ ok: false })
+        .mockResolvedValue({ ok: true, blockNumber: 101, blockTimestampMs: Date.now() });
+      monitor.handlePrimaryRpcError = jest.fn(() => {
+        monitor.usingBackupProvider = true;
+        return Promise.resolve(true);
+      });
+      monitor.maybeFailBackToPrimary = jest.fn().mockResolvedValue(false);
+      await monitor.startIngestionHeartbeat();
+      expect(monitor.sampleLatestBlock).toHaveBeenCalledTimes(2);
+      expect(monitor.alertManager.recordDependencyHealth).toHaveBeenCalledWith(
+        'MonitoringCoverageHealthy',
+        true,
+      );
+      expect(monitor.handleAlert).not.toHaveBeenCalledWith(
+        expect.objectContaining({ priority: 'critical' }),
+      );
+    } finally {
+      clearInterval(monitor.heartbeatTimer);
+      jest.useRealTimers();
+    }
   });
 });

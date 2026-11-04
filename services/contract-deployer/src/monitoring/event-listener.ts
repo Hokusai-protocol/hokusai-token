@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { confirmEvent, ConfirmedEvent, ChainEventInput } from './chain-event';
 import { IncidentStore } from './incident-store';
+import { PacedRpcProvider } from './paced-rpc-provider';
 import { logger } from '../utils/logger';
 import { PoolConfig, AlertThresholds } from '../config/monitoring-config';
 
@@ -194,6 +195,11 @@ export class EventListener {
     ): void => {
       const signature = pool.interface.getEvent(name)!.format('sighash');
       handlers.set(signature, handler);
+      // Confirmed range reconciliation is authoritative on the paced HTTP backup. Avoid an
+      // additional filter poller for every event signature on every pool.
+      if (this.provider instanceof PacedRpcProvider) {
+        return;
+      }
       subscriptions.push(
         pool.on(name, (...args: any[]) => {
           const input = args.pop() as ChainEventInput;
